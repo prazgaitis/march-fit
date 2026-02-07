@@ -1,0 +1,52 @@
+{
+  "name": "@repo/backend",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./index.ts",
+      "default": "./index.ts"
+    },
+    "./schema": {
+      "types": "./schema.ts",
+      "default": "./schema.ts"
+    },
+    "./_generated/dataModel": {
+      "types": "./_generated/dataModel.d.ts",
+      "default": "./_generated/dataModel.d.ts"
+    },
+    "./_generated/server": {
+      "types": "./_generated/server.d.ts",
+      "default": "./_generated/server.js"
+    },
+    "./_generated/api": {
+      "types": "./_generated/api.d.ts",
+      "default": "./_generated/api.js"
+    },
+    "./_generated/*": "./_generated/*"
+  },
+  "scripts": {
+    "dev": "convex dev",
+    "dev:local": "convex dev --env-file .env.local.self-hosted",
+    "deploy": "convex deploy",
+    "setup": "convex dev",
+    "seed": "convex run actions/seed:seed",
+    "seed:local": "convex run actions/seed:seed --env-file .env.local.self-hosted",
+    "clear": "convex run actions/clear:clear",
+    "clear:local": "convex run actions/clear:clear --env-file .env.local.self-hosted",
+    "reset": "convex run actions/clear:clear && convex run actions/seed:seed",
+    "reset:local": "convex run actions/clear:clear --env-file .env.local.self-hosted && convex run actions/seed:seed --env-file .env.local.self-hosted"
+  },
+  "dependencies": {
+    "@convex-dev/better-auth": "^0.10.6",
+    "@convex-dev/resend": "^0.2.0",
+    "convex": "^1.28.0",
+    "stripe": "^20.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "convex-test": "^0.0.41",
+    "typescript": "^5.9.2"
+  }
+}

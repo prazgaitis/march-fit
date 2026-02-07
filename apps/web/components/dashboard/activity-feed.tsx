@@ -1,0 +1,632 @@
+'use client';
+
+import { useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { formatDistanceToNow } from 'date-fns';
+import {
+  Loader2,
+  MessageCircle,
+  RefreshCw,
+  Share2,
+  ThumbsUp,
+  Zap,
+} from 'lucide-react';
+import { useMutation, usePaginatedQuery } from 'convex/react';
+import { api } from '@repo/backend';
+import type { Id } from '@repo/backend/_generated/dataModel';
+
+import { RichTextEditor } from '@/components/editor/rich-text-editor';
+import { RichTextViewer } from '@/components/editor/rich-text-viewer';
+import { useChallengeRealtime } from './challenge-realtime-context';
+import { UserAvatar, UserAvatarInline } from '@/components/user-avatar';
+import { Button } from '@/components/ui/button';
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card';
+import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import { useMentionableUsers } from '@/hooks/use-mentionable-users';
+import { isEditorContentEmpty, type MentionableUser } from '@/lib/rich-text';
+import { cn } from '@/lib/utils';
+
+interface BonusThreshold {
+  metric: string;
+  threshold: number;
+  bonusPoints: number;
+  description: string;
+}
+
+interface ActivityFeedItem {
+  activity: {
+    _id: string;
+    id: string; // mapped from _id for compatibility if needed, or just use _id
+    notes: string | null;
+    pointsEarned: number;
+    loggedDate: number; // Convex returns number
+    createdAt: number; // Convex returns number
+    metrics?: Record<string, unknown>;
+    triggeredBonuses?: BonusThreshold[];
+  };
+  user: {
+    id: string;
+    name: string | null;
+    username: string;
+    avatarUrl: string | null;
+  };
+  activityType: {
+    id: string | null;
+    name: string | null;
+    categoryId: string | null;
+    scoringConfig?: Record<string, unknown>;
+  } | null;
+  likes: number;
+  comments: number;
+  likedByUser: boolean;
+  mediaUrls: string[];
+}
+
+interface ActivityFeedProps {
+  challengeId: string;
+}
+
+type FeedFilter = 'all' | 'following';
+
+export function ActivityFeed({ challengeId }: ActivityFeedProps) {
+  const { hasNewActivity, acknowledgeActivity } = useChallengeRealtime();
+  const { users: mentionUsers } = useMentionableUsers(challengeId);
+  const [pendingLikes, setPendingLikes] = useState<Record<string, boolean>>({});
+  const [feedFilter, setFeedFilter] = useState<FeedFilter>('all');
+
+  const {
+    results,
+    status,
+    loadMore,
+    isLoading,
+  } = usePaginatedQuery(
+    api.queries.activities.getChallengeFeed,
+    {
+      challengeId: challengeId as Id<"challenges">,
+      followingOnly: feedFilter === 'following',
+    },
+    { initialNumItems: 10 }
+  );
+
+  const handleLoadMore = () => {
+    if (status === "CanLoadMore") {
+      loadMore(10);
+    }
+  };
+
+  const handleRefresh = () => {
+    acknowledgeActivity();
+    // usePaginatedQuery updates automatically, but user might want to scroll to top or seeing "New Activity" alert.
+    // effectively this just hides the alert.
+  };
+
+  const toggleLike = useMutation(api.mutations.likes.toggle);
+
+  const handleToggleLike = async (activityId: string) => {
+    setPendingLikes((prev) => ({ ...prev, [activityId]: true }));
+    try {
+        await toggleLike({ activityId: activityId as Id<"activities"> });
+    } catch (error) {
+        console.error("Failed to toggle like", error);
+    } finally {
+        setPendingLikes((prev) => {
+            const next = { ...prev };
+            delete next[activityId];
+            return next;
+        });
+    }
+  };
+
+  const feedStatus = useMemo(() => {
+    if (isLoading) {
+      return 'Loading recent activities...';
+    }
+    return null;
+  }, [isLoading]);
+
+  return (
+    <div className="space-y-4">
+      {/* Twitter-like Feed Filter Tabs */}
+      <div className="sticky top-0 z-10 -mx-4 border-b border-zinc-800 bg-black/80 backdrop-blur">
+        <div className="flex">
+          <button
+            onClick={() => setFeedFilter('all')}
+            className={cn(
+              'relative flex-1 py-4 text-center text-sm font-medium transition-colors hover:bg-zinc-900/50',
+              feedFilter === 'all' ? 'text-white' : 'text-zinc-500'
+            )}
+          >
+            All
+            {feedFilter === 'all' && (
+              <div className="absolute bottom-0 left-1/2 h-1 w-16 -translate-x-1/2 rounded-full bg-indigo-500" />
+            )}
+          </button>
+          <button
+            onClick={() => setFeedFilter('following')}
+            className={cn(
+              'relative flex-1 py-4 text-center text-sm font-medium transition-colors hover:bg-zinc-900/50',
+              feedFilter === 'following' ? 'text-white' : 'text-zinc-500'
+            )}
+          >
+            Following
+            {feedFilter === 'following' && (
+              <div className="absolute bottom-0 left-1/2 h-1 w-16 -translate-x-1/2 rounded-full bg-indigo-500" />
+            )}
+          </button>
+        </div>
+      </div>
+
+      {hasNewActivity && (
+        <Alert className="border-primary/30 bg-primary/10">
+          <AlertTitle className="font-semibold">New activity!</AlertTitle>
+          <AlertDescription className="flex items-center justify-between gap-2">
+            <span>
+              Fresh activities have been logged since your last refresh.
+            </span>
+            <Button size="sm" onClick={handleRefresh}>
+              <RefreshCw className="mr-2 h-4 w-4" /> Refresh feed
+            </Button>
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {feedStatus && (
+        <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          {feedStatus}
+        </div>
+      )}
+
+      {results?.filter((item): item is NonNullable<typeof item> & { user: NonNullable<(typeof item)['user']> } => item.user !== null).map((item) => (
+        <ActivityCard
+          key={item.activity._id}
+          challengeId={challengeId}
+          item={{
+              ...item,
+              activity: {
+                  ...item.activity,
+                  id: item.activity._id,
+              },
+              mediaUrls: item.mediaUrls ?? [],
+          }}
+          onToggleLike={handleToggleLike}
+          isLiking={!!pendingLikes[item.activity._id]}
+          mentionOptions={mentionUsers}
+        />
+      ))}
+
+      {!isLoading && results?.length === 0 && (
+        <Card className="border-dashed text-center">
+          <CardHeader>
+            <CardTitle>
+              {feedFilter === 'following' ? 'No activity from people you follow' : 'No activity yet'}
+            </CardTitle>
+            <CardDescription>
+              {feedFilter === 'following'
+                ? 'Follow other participants to see their activities here.'
+                : 'Be the first to log a workout for this challenge.'}
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      )}
+
+      {status === "CanLoadMore" && (
+        <div className="flex justify-center">
+          <Button variant="outline" onClick={handleLoadMore}>
+            Load more
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Helper to format metric values with units
+function formatMetricValue(metrics: Record<string, unknown> | undefined, scoringConfig: Record<string, unknown> | undefined): string | null {
+  if (!metrics || !scoringConfig) return null;
+
+  const unit = scoringConfig.unit as string | undefined;
+  if (!unit) return null;
+
+  const value = metrics[unit];
+  if (value === undefined || value === null) return null;
+
+  const numValue = Number(value);
+  if (!Number.isFinite(numValue)) return null;
+
+  // Format based on unit type
+  const unitLabels: Record<string, string> = {
+    miles: 'mi',
+    kilometers: 'km',
+    km: 'km',
+    minutes: 'min',
+    hours: 'hr',
+    drinks: 'drinks',
+    completion: '',
+    completions: '',
+  };
+
+  const label = unitLabels[unit] || unit;
+  const formatted = numValue % 1 === 0 ? numValue.toString() : numValue.toFixed(1);
+
+  return label ? `${formatted} ${label}` : formatted;
+}
+
+function ActivityStats({ item }: { item: ActivityFeedItem }) {
+  const metricDisplay = formatMetricValue(
+    item.activity.metrics,
+    item.activityType?.scoringConfig
+  );
+
+  const hasBonuses = item.activity.triggeredBonuses && item.activity.triggeredBonuses.length > 0;
+  const bonusTotal = hasBonuses
+    ? item.activity.triggeredBonuses!.reduce((sum, b) => sum + b.bonusPoints, 0)
+    : 0;
+
+  return (
+    <div className="rounded-lg bg-muted px-4 py-3 text-sm">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          {metricDisplay && (
+            <span className="font-semibold text-foreground">{metricDisplay}</span>
+          )}
+          <span className={cn("font-medium", hasBonuses ? "text-amber-500" : "text-primary")}>
+            {item.activity.pointsEarned.toFixed(1)} pts
+            {hasBonuses && (
+              <span className="ml-1 text-xs text-muted-foreground">
+                (incl. +{bonusTotal} bonus)
+              </span>
+            )}
+          </span>
+        </div>
+        <div className="text-xs text-muted-foreground">
+          {formatDistanceToNow(new Date(item.activity.createdAt), {
+            addSuffix: true,
+          })}
+        </div>
+      </div>
+      {hasBonuses && (
+        <div className="mt-2 flex flex-wrap gap-1.5">
+          {item.activity.triggeredBonuses!.map((bonus, i) => (
+            <span
+              key={i}
+              className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-xs text-amber-500"
+            >
+              <Zap className="h-3 w-3" />
+              {bonus.description}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface ActivityCardProps {
+  challengeId: string;
+  item: ActivityFeedItem;
+  onToggleLike: (activityId: string, shouldLike: boolean) => Promise<void> | void;
+  isLiking: boolean;
+  mentionOptions: MentionableUser[];
+}
+
+function ActivityCard({
+  challengeId,
+  item,
+  onToggleLike,
+  isLiking,
+  mentionOptions,
+}: ActivityCardProps) {
+  const router = useRouter();
+  const [showComments, setShowComments] = useState(false);
+
+  const activityUrl = `/challenges/${challengeId}/activities/${item.activity.id}`;
+
+  const handleCardClick = (e: React.MouseEvent) => {
+    // Don't navigate if clicking on interactive elements
+    const target = e.target as HTMLElement;
+    if (
+      target.closest('button') ||
+      target.closest('a') ||
+      target.closest('[role="button"]') ||
+      target.closest('textarea') ||
+      target.closest('input')
+    ) {
+      return;
+    }
+    router.push(activityUrl);
+  };
+
+  const handleShare = async () => {
+    const url = `${window.location.origin}${activityUrl}`;
+
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: 'Check out this activity',
+          url,
+        });
+      } else if (navigator.clipboard) {
+        await navigator.clipboard.writeText(url);
+      }
+    } catch (error) {
+      console.error('Share failed', error);
+    }
+  };
+
+  return (
+    <Card className="cursor-pointer overflow-hidden transition-colors hover:bg-muted/30" onClick={handleCardClick}>
+      <CardHeader>
+        <UserAvatarInline
+          user={item.user}
+          challengeId={challengeId}
+          suffix={
+            <>
+              <span aria-hidden="true">•</span>
+              <span className="text-sm">
+                {formatDistanceToNow(new Date(item.activity.loggedDate), {
+                  addSuffix: true,
+                })}
+              </span>
+            </>
+          }
+        />
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div>
+          <p className="text-sm font-semibold text-primary">
+            {item.activityType?.name ?? 'Activity'}
+          </p>
+          {item.activity.notes ? (
+            <RichTextViewer
+              content={item.activity.notes}
+              className="mt-2 text-sm text-muted-foreground"
+            />
+          ) : null}
+        </div>
+
+        {/* Media Gallery */}
+        {item.mediaUrls && item.mediaUrls.length > 0 && (
+          <div
+            className={cn(
+              'grid gap-2',
+              item.mediaUrls.length === 1 && 'grid-cols-1',
+              item.mediaUrls.length === 2 && 'grid-cols-2',
+              item.mediaUrls.length >= 3 && 'grid-cols-2'
+            )}
+          >
+            {item.mediaUrls.slice(0, 4).map((url, index) => {
+              const isVideo = url.includes('.mp4') || url.includes('.mov') || url.includes('.webm') || url.includes('video');
+              const isLastWithMore = index === 3 && item.mediaUrls.length > 4;
+
+              return (
+                <div
+                  key={index}
+                  className={cn(
+                    'relative overflow-hidden rounded-lg bg-zinc-900',
+                    item.mediaUrls.length === 1
+                      ? 'aspect-video'
+                      : 'aspect-square',
+                    item.mediaUrls.length === 3 && index === 0 && 'row-span-2'
+                  )}
+                >
+                  {isVideo ? (
+                    <video
+                      src={url}
+                      className="h-full w-full object-cover"
+                      controls
+                      preload="metadata"
+                    />
+                  ) : (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={url}
+                      alt={`Activity media ${index + 1}`}
+                      className="h-full w-full object-cover"
+                    />
+                  )}
+                  {isLastWithMore && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/60">
+                      <span className="text-lg font-semibold text-white">
+                        +{item.mediaUrls.length - 4}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        <ActivityStats item={item} />
+      </CardContent>
+      <CardFooter className="flex flex-wrap items-center gap-2">
+        <Button
+          variant={item.likedByUser ? 'default' : 'outline'}
+          size="sm"
+          disabled={isLiking}
+          onClick={() => onToggleLike(item.activity.id, !item.likedByUser)}
+        >
+          <ThumbsUp
+            className={cn('mr-2 h-4 w-4', item.likedByUser && 'fill-current')}
+          />
+          {item.likes}
+        </Button>
+        <Button
+          variant={showComments ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => setShowComments((prev) => !prev)}
+        >
+          <MessageCircle className="mr-2 h-4 w-4" />
+          {item.comments}
+        </Button>
+        <Button variant="ghost" size="sm" onClick={handleShare}>
+          <Share2 className="mr-2 h-4 w-4" /> Share
+        </Button>
+      </CardFooter>
+
+      {showComments && (
+        <CardContent className="border-t bg-muted/40">
+           <ActivityComments
+              activityId={item.activity.id}
+              challengeId={challengeId}
+              mentionOptions={mentionOptions}
+            />
+        </CardContent>
+      )}
+    </Card>
+  );
+}
+
+function ActivityComments({
+    activityId,
+    challengeId,
+    mentionOptions
+}: {
+    activityId: string;
+    challengeId: string;
+    mentionOptions: MentionableUser[];
+}) {
+    const [commentInput, setCommentInput] = useState('');
+    const [commentIsEmpty, setCommentIsEmpty] = useState(true);
+    const [submittingComment, setSubmittingComment] = useState(false);
+    const [commentError, setCommentError] = useState<string | null>(null);
+
+    const {
+        results: comments,
+        status: commentsStatus,
+        loadMore: loadMoreComments,
+        isLoading: loadingComments
+    } = usePaginatedQuery(
+        api.queries.comments.getByActivityId,
+        { activityId: activityId as Id<"activities"> },
+        { initialNumItems: 5 }
+    );
+
+    const createComment = useMutation(api.mutations.comments.create);
+
+    const handleSubmitComment = async () => {
+        if (!commentInput || commentIsEmpty || isEditorContentEmpty(commentInput)) return;
+
+        try {
+            setSubmittingComment(true);
+            setCommentError(null);
+            
+            await createComment({
+                activityId: activityId as Id<"activities">,
+                content: commentInput
+            });
+
+            setCommentInput('');
+            setCommentIsEmpty(true);
+        } catch (err) {
+            console.error(err);
+            setCommentError(
+                err instanceof Error ? err.message : 'Unable to post comment',
+            );
+        } finally {
+            setSubmittingComment(false);
+        }
+    };
+
+    return (
+        <div className="space-y-4">
+            <div className="space-y-2">
+                <RichTextEditor
+                value={commentInput}
+                onChange={setCommentInput}
+                onIsEmptyChange={setCommentIsEmpty}
+                placeholder="Leave an encouraging note"
+                disabled={submittingComment}
+                mentionOptions={mentionOptions}
+                />
+                <div className="flex items-center justify-between text-xs text-muted-foreground">
+                {commentError ? <span className="text-destructive">{commentError}</span> : <span>Cheer on your teammates!</span>}
+                <Button
+                    size="sm"
+                    disabled={
+                    submittingComment ||
+                    commentIsEmpty ||
+                    isEditorContentEmpty(commentInput)
+                    }
+                    onClick={handleSubmitComment}
+                >
+                    {submittingComment ? (
+                    <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Posting
+                    </>
+                    ) : (
+                    'Comment'
+                    )}
+                </Button>
+                </div>
+            </div>
+
+            <div className="space-y-3">
+                {comments?.map((entry: { comment: { id: string; createdAt: number; content: string }; author: { id: string; name: string; username: string; avatarUrl: string | null } }) => (
+                <div key={entry.comment.id} className="flex gap-3">
+                    <UserAvatar
+                      user={{
+                        id: entry.author.id,
+                        name: entry.author.name,
+                        username: entry.author.username,
+                        avatarUrl: entry.author.avatarUrl,
+                      }}
+                      challengeId={challengeId}
+                      size="sm"
+                    />
+                    <div className="flex-1 rounded-lg bg-background p-3 shadow-sm">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-semibold">
+                          {entry.author.name ?? entry.author.username}
+                        </p>
+                        <span className="text-xs text-muted-foreground">
+                          {formatDistanceToNow(new Date(entry.comment.createdAt), {
+                            addSuffix: true,
+                          })}
+                        </span>
+                      </div>
+                      <RichTextViewer
+                        content={entry.comment.content}
+                        className="mt-1 text-sm text-muted-foreground"
+                      />
+                    </div>
+                </div>
+                ))}
+
+                {loadingComments && (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    Loading comments…
+                </div>
+                )}
+
+                {commentsStatus === "CanLoadMore" && !loadingComments && (
+                <div className="flex justify-center">
+                    <Button
+                    variant="link"
+                    size="sm"
+                    onClick={() => loadMoreComments(5)}
+                    >
+                    Load more replies
+                    </Button>
+                </div>
+                )}
+
+                {!loadingComments && comments?.length === 0 && (
+                <p className="text-center text-sm text-muted-foreground">
+                    No comments yet. Start the conversation!
+                </p>
+                )}
+            </div>
+        </div>
+    );
+}

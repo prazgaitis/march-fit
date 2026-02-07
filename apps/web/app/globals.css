@@ -1,0 +1,381 @@
+@import "tailwindcss";
+
+@plugin "tailwindcss-animate";
+@plugin "@tailwindcss/typography";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.488 0.243 264.376);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --destructive-foreground: oklch(0.637 0.237 25.331);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --radius: 0.625rem;
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.205 0 0);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.922 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --secondary: oklch(0.269 0 0);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
+  --destructive-foreground: oklch(0.637 0.237 25.331);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.556 0 0);
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar: oklch(0.205 0 0);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.269 0 0);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.556 0 0);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+  }
+}
+
+@layer components {
+  /* Tokyo Night theme special effects */
+  :root[data-theme="tokyo-night"] {
+    --glow-primary: 0 0 20px oklch(0.70 0.25 199 / 0.5);
+    --glow-accent: 0 0 15px oklch(0.75 0.20 320 / 0.4);
+    --glow-border: 0 0 10px oklch(0.70 0.25 199 / 0.3);
+  }
+
+  :root[data-theme="tokyo-night"] .bg-primary {
+    box-shadow: var(--glow-primary);
+  }
+
+  :root[data-theme="tokyo-night"] .border {
+    box-shadow: var(--glow-border);
+  }
+
+  :root[data-theme="tokyo-night"] button:hover {
+    box-shadow: var(--glow-primary);
+    transition: box-shadow 0.3s ease;
+  }
+
+  :root[data-theme="tokyo-night"] .bg-accent {
+    box-shadow: var(--glow-accent);
+  }
+
+  /* Enhanced Tokyo Night card styling */
+  :root[data-theme="tokyo-night"] .bg-card,
+  :root[data-theme="tokyo-night"] [class*="bg-card"] {
+    background: linear-gradient(135deg, oklch(0.12 0.03 240), oklch(0.10 0.02 260)) !important;
+    border: 1px solid oklch(0.25 0.05 199) !important;
+    box-shadow:
+      0 0 10px oklch(0.70 0.25 199 / 0.1),
+      inset 0 1px 0 oklch(0.30 0.05 199 / 0.2) !important;
+  }
+
+  /* Enhanced muted backgrounds for Tokyo Night */
+  :root[data-theme="tokyo-night"] .bg-muted,
+  :root[data-theme="tokyo-night"] [class*="bg-muted"] {
+    background: oklch(0.13 0.03 240) !important;
+  }
+
+  /* Ensure background applies properly */
+  :root[data-theme="tokyo-night"] .bg-background,
+  :root[data-theme="tokyo-night"] body {
+    background: oklch(0.08 0.02 240) !important;
+  }
+
+  /* Animated border for input focus in Tokyo Night */
+  :root[data-theme="tokyo-night"] input:focus,
+  :root[data-theme="tokyo-night"] textarea:focus {
+    box-shadow:
+      0 0 0 2px oklch(0.70 0.25 199 / 0.5),
+      0 0 20px oklch(0.70 0.25 199 / 0.3);
+    animation: tokyo-pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes tokyo-pulse {
+    0%, 100% { box-shadow: 0 0 0 2px oklch(0.70 0.25 199 / 0.5), 0 0 20px oklch(0.70 0.25 199 / 0.3); }
+    50% { box-shadow: 0 0 0 2px oklch(0.70 0.25 199 / 0.8), 0 0 30px oklch(0.70 0.25 199 / 0.5); }
+  }
+
+  /* Tokyo Night scrollbar styling */
+  :root[data-theme="tokyo-night"] ::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  :root[data-theme="tokyo-night"] ::-webkit-scrollbar-track {
+    background: oklch(0.10 0.03 240);
+  }
+
+  :root[data-theme="tokyo-night"] ::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, oklch(0.70 0.25 199), oklch(0.75 0.20 320));
+    border-radius: 4px;
+  }
+
+  :root[data-theme="tokyo-night"] ::-webkit-scrollbar-thumb:hover {
+    box-shadow: 0 0 10px oklch(0.70 0.25 199 / 0.5);
+  }
+
+  /* Retro Synthwave theme special effects */
+  :root[data-theme="retro-synthwave"] {
+    --glow-retro-primary: 0 0 20px oklch(0.68 0.24 316 / 0.6);
+    --glow-retro-accent: 0 0 15px oklch(0.72 0.26 195 / 0.5);
+    --glow-retro-border: 0 0 8px oklch(0.68 0.24 316 / 0.4);
+    --retro-scan-lines: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      oklch(0.68 0.24 316 / 0.03) 2px,
+      oklch(0.68 0.24 316 / 0.03) 4px
+    );
+  }
+
+  /* Retro synthwave card styling with scan lines */
+  :root[data-theme="retro-synthwave"] .bg-card,
+  :root[data-theme="retro-synthwave"] [class*="bg-card"] {
+    background:
+      var(--retro-scan-lines),
+      linear-gradient(135deg, oklch(0.13 0.06 290), oklch(0.11 0.05 285)) !important;
+    border: 1px solid oklch(0.35 0.12 316) !important;
+    box-shadow:
+      0 0 15px oklch(0.68 0.24 316 / 0.15),
+      inset 0 1px 0 oklch(0.40 0.15 316 / 0.3) !important;
+  }
+
+  /* Retro synthwave muted backgrounds */
+  :root[data-theme="retro-synthwave"] .bg-muted,
+  :root[data-theme="retro-synthwave"] [class*="bg-muted"] {
+    background:
+      var(--retro-scan-lines),
+      oklch(0.15 0.06 290) !important;
+  }
+
+  /* Retro synthwave body background */
+  :root[data-theme="retro-synthwave"] .bg-background,
+  :root[data-theme="retro-synthwave"] body {
+    background:
+      var(--retro-scan-lines),
+      oklch(0.09 0.04 280) !important;
+  }
+
+  /* Retro glow effects */
+  :root[data-theme="retro-synthwave"] .bg-primary {
+    box-shadow: var(--glow-retro-primary);
+  }
+
+  :root[data-theme="retro-synthwave"] .bg-accent {
+    box-shadow: var(--glow-retro-accent);
+  }
+
+  :root[data-theme="retro-synthwave"] .border {
+    box-shadow: var(--glow-retro-border);
+  }
+
+  /* Retro button hover effects */
+  :root[data-theme="retro-synthwave"] button:hover {
+    box-shadow: var(--glow-retro-primary);
+    transition: box-shadow 0.3s ease;
+    transform: translateY(-1px);
+  }
+
+  /* Retro input focus with animated glow */
+  :root[data-theme="retro-synthwave"] input:focus,
+  :root[data-theme="retro-synthwave"] textarea:focus {
+    box-shadow:
+      0 0 0 2px oklch(0.68 0.24 316 / 0.6),
+      0 0 20px oklch(0.68 0.24 316 / 0.4);
+    animation: retro-pulse 1.5s ease-in-out infinite;
+  }
+
+  @keyframes retro-pulse {
+    0%, 100% {
+      box-shadow:
+        0 0 0 2px oklch(0.68 0.24 316 / 0.6),
+        0 0 20px oklch(0.68 0.24 316 / 0.4);
+    }
+    50% {
+      box-shadow:
+        0 0 0 2px oklch(0.72 0.26 195 / 0.8),
+        0 0 30px oklch(0.72 0.26 195 / 0.6);
+    }
+  }
+
+  /* Retro synthwave scrollbar */
+  :root[data-theme="retro-synthwave"] ::-webkit-scrollbar {
+    width: 10px;
+  }
+
+  :root[data-theme="retro-synthwave"] ::-webkit-scrollbar-track {
+    background: oklch(0.11 0.05 285);
+  }
+
+  :root[data-theme="retro-synthwave"] ::-webkit-scrollbar-thumb {
+    background: linear-gradient(180deg, oklch(0.68 0.24 316), oklch(0.72 0.26 195));
+    border-radius: 5px;
+    border: 1px solid oklch(0.35 0.12 316);
+  }
+
+  :root[data-theme="retro-synthwave"] ::-webkit-scrollbar-thumb:hover {
+    box-shadow: 0 0 10px oklch(0.68 0.24 316 / 0.6);
+  }
+
+  /* Rich text editor styles */
+  .rich-text-editor .ProseMirror {
+    @apply min-h-[120px] whitespace-pre-wrap focus:outline-none bg-zinc-900/50 border border-zinc-800 rounded-lg p-4 text-white;
+  }
+
+  .rich-text-editor .ProseMirror p,
+  .rich-text-output p {
+    @apply mb-2 leading-relaxed last:mb-0 text-zinc-200;
+  }
+
+  .rich-text-editor .ProseMirror ul,
+  .rich-text-output ul {
+    @apply mb-2 list-disc pl-5 last:mb-0 text-zinc-200;
+  }
+
+  .rich-text-editor .ProseMirror ol,
+  .rich-text-output ol {
+    @apply mb-2 list-decimal pl-5 last:mb-0 text-zinc-200;
+  }
+
+  .rich-text-editor .ProseMirror strong,
+  .rich-text-output strong {
+    @apply font-semibold text-white;
+  }
+
+  .rich-text-editor .ProseMirror em,
+  .rich-text-output em {
+    @apply italic text-zinc-300;
+  }
+
+  .rich-text-editor .ProseMirror a,
+  .rich-text-output a {
+    @apply text-indigo-400 underline decoration-indigo-400/60 underline-offset-2 hover:decoration-indigo-400 hover:text-indigo-300;
+  }
+
+  .mention-token {
+    @apply rounded bg-indigo-500/20 px-2 py-1 font-medium text-indigo-300;
+  }
+
+  /* Custom button styles matching homepage */
+  .btn-primary {
+    @apply inline-flex items-center justify-center rounded-full border border-white/30 bg-white px-6 py-3 text-sm font-semibold uppercase tracking-wide text-black transition hover:border-white hover:bg-black hover:text-white;
+  }
+
+  .btn-secondary {
+    @apply inline-flex items-center justify-center rounded-full border border-white/30 px-6 py-3 text-sm font-semibold uppercase tracking-wide text-white transition hover:border-white hover:bg-white/10;
+  }
+
+  .btn-ghost {
+    @apply inline-flex items-center justify-center px-4 py-2 text-sm font-semibold uppercase tracking-wide text-zinc-300 transition hover:text-white;
+  }
+
+  /* Card styles */
+  .card-dark {
+    @apply rounded-2xl bg-zinc-900/50 border border-zinc-800 backdrop-blur transition-all duration-300 hover:border-zinc-600 hover:bg-zinc-900/80;
+  }
+
+  /* Input styles */
+  .input-dark {
+    @apply bg-zinc-900/50 border-zinc-800 text-white placeholder:text-zinc-500 focus:border-zinc-600 focus:ring-zinc-600;
+  }
+
+  /* Page layout utilities */
+  .page-with-header {
+    @apply pt-16;
+  }
+}

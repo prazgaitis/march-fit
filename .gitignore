@@ -1,0 +1,60 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Environment variables
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Build outputs
+dist/
+build/
+.next/
+.turbo/
+storybook-static/
+
+# Cache directories
+.cache/
+*.tsbuildinfo
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Database
+*.sqlite
+*.sqlite3
+*.db
+
+# Convex
+packages/backend/.env.local
+packages/backend/.env
+packages/backend/.env.local.self-hosted
+
+# Misc
+coverage/
+.nyc_output/
+.vercel
+scripts/seed-data/*.zip

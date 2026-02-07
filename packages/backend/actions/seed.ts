@@ -1,0 +1,626 @@
+"use node";
+
+import { action } from "../_generated/server";
+import { v } from "convex/values";
+import { internal } from "../_generated/api";
+
+/**
+ * Seed the database with initial data
+ * This can be called from the Convex dashboard or CLI
+ */
+export const seed = action({
+  args: {},
+  handler: async (ctx) => {
+    console.log("🌱 Seeding Convex database...");
+
+    // Seed categories
+    console.log("📁 Seeding categories...");
+    const categories = await seedCategories(ctx);
+
+    // Seed template activity types
+    console.log("📋 Seeding template activity types...");
+    const templateActivityTypes = await seedTemplateActivityTypes(ctx, categories);
+
+    // Seed users
+    console.log("👥 Seeding users...");
+    const users = await seedUsers(ctx);
+
+    // Seed challenges
+    console.log("🏆 Seeding challenges...");
+    const challenges = await seedChallenges(ctx, users.admin);
+
+    // Seed activity types for challenges
+    console.log("⚙️ Seeding activity types for challenges...");
+    await seedActivityTypesForChallenges(ctx, challenges, templateActivityTypes);
+
+    // Seed participations
+    console.log("🤝 Seeding participations...");
+    await seedParticipations(ctx, challenges, users);
+
+    // Seed activities
+    console.log("🏃 Seeding activities...");
+    await seedActivities(ctx, challenges, users);
+
+    // Ensure admin users are set up correctly
+    console.log("👑 Ensuring admin users...");
+    await ctx.runMutation(internal.mutations.users.ensureAdmins, {});
+
+    console.log("🎉 Database seeding completed!");
+    return { success: true };
+  },
+});
+
+async function seedCategories(ctx: any) {
+  const now = Date.now();
+
+  const categoryData = [
+    { name: "Outdoor Running", description: "Running, jogging, hiking, walking for fitness" },
+    { name: "Cycling", description: "Outdoor cycling activities" },
+    { name: "Low Intensity Cardio", description: "<75% max HR - lifting, pilates, bouldering, elliptical" },
+    { name: "High Intensity Cardio", description: ">75% max HR - HIIT, interval training, boxing, cardio sports" },
+    { name: "Rowing", description: "Indoor rowers and ski ergs" },
+    { name: "Special", description: "Special challenge workouts and events" },
+    { name: "Bonus", description: "Bonus activities and achievements" },
+    { name: "Penalty", description: "Activities that result in point deductions" },
+    { name: "Horses", description: "Horse-related activities" },
+  ];
+
+  const categories: Record<string, any> = {};
+
+  for (const cat of categoryData) {
+    // Check if category exists
+    const existing = await ctx.runQuery(internal.queries.categories.getByName, {
+      name: cat.name,
+    });
+
+    if (existing) {
+      categories[cat.name] = existing;
+    } else {
+      const id = await ctx.runMutation(internal.mutations.categories.create, {
+        name: cat.name,
+        description: cat.description,
+        createdAt: now,
+        updatedAt: now,
+      });
+      categories[cat.name] = { _id: id, ...cat };
+    }
+  }
+
+  return categories;
+}
+
+async function seedTemplateActivityTypes(ctx: any, categories: Record<string, any>) {
+  const now = Date.now();
+
+  const templateData = [
+    // Core workout activities
+    {
+      name: "Outdoor Run",
+      categoryId: categories["Outdoor Running"]._id,
+      scoringConfig: { type: "distance", unit: "miles", pointsPerUnit: 7.5 },
+      contributesToStreak: true,
+      isNegative: false,
+      bonusThresholds: [
+        {
+          metric: "distance_miles",
+          threshold: 26.2,
+          bonusPoints: 50,
+          description: "Marathon bonus",
+        },
+      ],
+    },
+    {
+      name: "Outdoor Cycling",
+      categoryId: categories["Cycling"]._id,
+      scoringConfig: { type: "distance", unit: "miles", pointsPerUnit: 1.8 },
+      contributesToStreak: true,
+      isNegative: false,
+      bonusThresholds: [
+        {
+          metric: "distance_miles",
+          threshold: 112,
+          bonusPoints: 50,
+          description: "Ironman bike bonus",
+        },
+      ],
+    },
+    {
+      name: "Rowing",
+      categoryId: categories["Rowing"]._id,
+      scoringConfig: { type: "distance", unit: "kilometers", pointsPerUnit: 5.5 },
+      contributesToStreak: true,
+      isNegative: false,
+      bonusThresholds: [
+        {
+          metric: "distance_km",
+          threshold: 42.2,
+          bonusPoints: 50,
+          description: "Marathon erg bonus",
+        },
+      ],
+    },
+    {
+      name: "Swimming",
+      categoryId: categories["High Intensity Cardio"]._id,
+      scoringConfig: { type: "distance", unit: "miles", pointsPerUnit: 20 },
+      contributesToStreak: true,
+      isNegative: false,
+      bonusThresholds: [
+        {
+          metric: "distance_miles",
+          threshold: 2.4,
+          bonusPoints: 50,
+          description: "Ironman swim bonus",
+        },
+      ],
+    },
+    {
+      name: "Hi-Intensity Cardio",
+      categoryId: categories["High Intensity Cardio"]._id,
+      scoringConfig: { type: "duration", unit: "minutes", pointsPerUnit: 0.9 },
+      contributesToStreak: true,
+      isNegative: false,
+    },
+    {
+      name: "Lo-Intensity Cardio",
+      categoryId: categories["Low Intensity Cardio"]._id,
+      scoringConfig: { type: "duration", unit: "minutes", pointsPerUnit: 0.6 },
+      contributesToStreak: true,
+      isNegative: false,
+    },
+    {
+      name: "Yoga / Stretching",
+      categoryId: categories["Low Intensity Cardio"]._id,
+      scoringConfig: { type: "duration", unit: "minutes", pointsPerUnit: 0.4 },
+      contributesToStreak: true,
+      isNegative: false,
+    },
+    {
+      name: "Horses",
+      categoryId: categories["Horses"]._id,
+      scoringConfig: { type: "count", unit: "horses", pointsPerUnit: 16.75 },
+      contributesToStreak: true,
+      isNegative: false,
+    },
+    // Special challenges
+    {
+      name: "26.2 mile run",
+      categoryId: categories["Special"]._id,
+      scoringConfig: { type: "count", unit: "completion", pointsPerUnit: 100 },
+      contributesToStreak: true,
+      isNegative: false,
+    },
+    {
+      name: "112 mile bike ride",
+      categoryId: categories["Special"]._id,
+      scoringConfig: { type: "count", unit: "completion", pointsPerUnit: 100 },
+      contributesToStreak: true,
+      isNegative: false,
+    },
+    {
+      name: "42.2k erg",
+      categoryId: categories["Special"]._id,
+      scoringConfig: { type: "count", unit: "completion", pointsPerUnit: 100 },
+      contributesToStreak: true,
+      isNegative: false,
+    },
+    {
+      name: "2.4 mile swim",
+      categoryId: categories["Special"]._id,
+      scoringConfig: { type: "count", unit: "completion", pointsPerUnit: 50 },
+      contributesToStreak: true,
+      isNegative: false,
+    },
+    {
+      name: "The Murph",
+      description: "1 mile run, 100 pull-ups, 200 push-ups, 300 squats, 1 mile run",
+      categoryId: categories["Special"]._id,
+      scoringConfig: {
+        type: "variant",
+        defaultVariant: "standard",
+        variants: {
+          standard: {
+            name: "Standard",
+            points: 65,
+          },
+          weighted: {
+            name: "Weighted Vest (20+ lbs)",
+            points: 85,
+          },
+        },
+      },
+      contributesToStreak: true,
+      isNegative: false,
+    },
+    {
+      name: "Hotel Room Workout",
+      categoryId: categories["Special"]._id,
+      scoringConfig: { type: "count", unit: "completion", pointsPerUnit: 50 },
+      contributesToStreak: true,
+      isNegative: false,
+    },
+    {
+      name: "The Max",
+      categoryId: categories["Special"]._id,
+      scoringConfig: { type: "count", unit: "circuits", pointsPerUnit: 20 },
+      contributesToStreak: true,
+      isNegative: false,
+    },
+    {
+      name: "Thigh Burner Special",
+      categoryId: categories["Special"]._id,
+      scoringConfig: { type: "count", unit: "completion", pointsPerUnit: 60 },
+      contributesToStreak: true,
+      isNegative: false,
+    },
+    // Burpee challenges
+    {
+      name: "Burpee Challenge Week 1",
+      categoryId: categories["Special"]._id,
+      scoringConfig: { type: "count", unit: "completion", pointsPerUnit: 1 },
+      contributesToStreak: true,
+      isNegative: false,
+    },
+    {
+      name: "Burpee Challenge Week 2",
+      categoryId: categories["Special"]._id,
+      scoringConfig: { type: "count", unit: "completion", pointsPerUnit: 1 },
+      contributesToStreak: true,
+      isNegative: false,
+    },
+    {
+      name: "Burpee Challenge Week 3",
+      categoryId: categories["Special"]._id,
+      scoringConfig: { type: "count", unit: "completion", pointsPerUnit: 1 },
+      contributesToStreak: true,
+      isNegative: false,
+    },
+    {
+      name: "Burpee Challenge Week 4",
+      categoryId: categories["Special"]._id,
+      scoringConfig: { type: "count", unit: "burpees", pointsPerUnit: 0.5 },
+      contributesToStreak: true,
+      isNegative: false,
+    },
+    // Bonus activities
+    {
+      name: "Workout with a Friend",
+      categoryId: categories["Bonus"]._id,
+      scoringConfig: { type: "count", unit: "completion", pointsPerUnit: 25 },
+      contributesToStreak: false,
+      isNegative: false,
+    },
+    {
+      name: "10 Days of Mindfulness",
+      categoryId: categories["Bonus"]._id,
+      scoringConfig: { type: "count", unit: "completion", pointsPerUnit: 100 },
+      contributesToStreak: false,
+      isNegative: false,
+    },
+    {
+      name: "March Fitness Triathlon",
+      categoryId: categories["Bonus"]._id,
+      scoringConfig: { type: "count", unit: "completion", pointsPerUnit: 100 },
+      contributesToStreak: false,
+      isNegative: false,
+    },
+    {
+      name: "Skiing Half Day",
+      categoryId: categories["Bonus"]._id,
+      scoringConfig: { type: "count", unit: "half_days", pointsPerUnit: 15 },
+      contributesToStreak: true,
+      isNegative: false,
+    },
+    {
+      name: "Skiing Full Day",
+      categoryId: categories["Bonus"]._id,
+      scoringConfig: { type: "count", unit: "full_days", pointsPerUnit: 35 },
+      contributesToStreak: true,
+      isNegative: false,
+    },
+    {
+      name: "Sally-up challenge",
+      categoryId: categories["Bonus"]._id,
+      scoringConfig: { type: "count", unit: "completion", pointsPerUnit: 1 },
+      contributesToStreak: true,
+      isNegative: false,
+    },
+    {
+      name: "Tracy Anderson Arms",
+      categoryId: categories["Bonus"]._id,
+      scoringConfig: { type: "count", unit: "completion", pointsPerUnit: 1 },
+      contributesToStreak: true,
+      isNegative: false,
+    },
+    {
+      name: "Partner Week Card Workout",
+      categoryId: categories["Special"]._id,
+      scoringConfig: { type: "count", unit: "completion", pointsPerUnit: 70 },
+      contributesToStreak: true,
+      isNegative: false,
+    },
+    {
+      name: "Active Recovery Fight and Flow Practice",
+      categoryId: categories["Special"]._id,
+      scoringConfig: { type: "count", unit: "completion", pointsPerUnit: 65 },
+      contributesToStreak: true,
+      isNegative: false,
+    },
+    // Penalty activities
+    {
+      name: "Drinks",
+      categoryId: categories["Penalty"]._id,
+      scoringConfig: { type: "count", unit: "drinks", pointsPerUnit: -5 },
+      contributesToStreak: false,
+      isNegative: true,
+    },
+    {
+      name: "Overindulge",
+      categoryId: categories["Penalty"]._id,
+      scoringConfig: { type: "count", unit: "instances", pointsPerUnit: -10 },
+      contributesToStreak: false,
+      isNegative: true,
+    },
+  ];
+
+  const templates: any[] = [];
+
+  for (const template of templateData) {
+    const id = await ctx.runMutation(internal.mutations.templates.create, {
+      ...template,
+      createdAt: now,
+      updatedAt: now,
+    });
+    templates.push({ _id: id, ...template });
+  }
+
+  return templates;
+}
+
+async function seedUsers(ctx: any) {
+  const now = Date.now();
+
+  const adminId = await ctx.runMutation(internal.mutations.users.create, {
+    username: "prazgaitis",
+    email: "prazgaitis@gmail.com",
+    name: "Paulius Razgaitis",
+    role: "admin",
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  // Second admin user
+  const admin2Id = await ctx.runMutation(internal.mutations.users.create, {
+    username: "paul",
+    email: "paul@gocomplete.ai",
+    name: "Paul Razgaitis",
+    role: "admin",
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  const sampleUserId = await ctx.runMutation(internal.mutations.users.create, {
+    username: "sampleuser",
+    email: "sample@example.com",
+    name: "Sample User",
+    role: "user",
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  const additionalUsers = [
+    { username: "alice_runs", email: "alice@example.com", name: "Alice Johnson" },
+    { username: "bob_cyclist", email: "bob@example.com", name: "Bob Smith" },
+    { username: "carol_yoga", email: "carol@example.com", name: "Carol Williams" },
+    { username: "david_lifts", email: "david@example.com", name: "David Brown" },
+    { username: "emma_swimmer", email: "emma@example.com", name: "Emma Davis" },
+  ];
+
+  const additionalUserIds = [];
+  for (const user of additionalUsers) {
+    const id = await ctx.runMutation(internal.mutations.users.create, {
+      ...user,
+      role: "user",
+      createdAt: now,
+      updatedAt: now,
+    });
+    additionalUserIds.push(id);
+  }
+
+  return {
+    admin: adminId,
+    admin2: admin2Id,
+    sample: sampleUserId,
+    additional: additionalUserIds,
+  };
+}
+
+async function seedChallenges(ctx: any, adminUserId: any) {
+  const now = Date.now();
+
+  // Create at least one active challenge (current month)
+  const currentMonth = new Date(now);
+  const monthStart = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1).getTime();
+  const monthEnd = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0, 23, 59, 59).getTime();
+  const daysInMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0).getDate();
+
+  const challengeData = [
+    {
+      name: "Current Month Fitness Challenge",
+      description: "Get fit this month with daily activities! Join our community challenge to build healthy habits and compete with friends.",
+      startDate: monthStart,
+      endDate: monthEnd,
+      durationDays: daysInMonth,
+      streakMinPoints: 10,
+      weekCalcMethod: "sunday",
+    },
+    {
+      name: "March Fitness Challenge",
+      description: "Get fit this March with daily activities! Join our community challenge to build healthy habits and compete with friends.",
+      startDate: new Date("2025-03-01").getTime(),
+      endDate: new Date("2025-03-31").getTime(),
+      durationDays: 31,
+      streakMinPoints: 10,
+      weekCalcMethod: "sunday",
+    },
+    {
+      name: "Summer Shape-Up Challenge",
+      description: "Get ready for summer with this intensive 6-week fitness challenge. Focus on strength, cardio, and flexibility.",
+      startDate: new Date("2025-06-01").getTime(),
+      endDate: new Date("2025-07-15").getTime(),
+      durationDays: 45,
+      streakMinPoints: 15,
+      weekCalcMethod: "sunday",
+    },
+    {
+      name: "New Year, New You",
+      description: "Start the year strong with our most popular challenge! Build lasting habits that will transform your health.",
+      startDate: new Date("2025-01-01").getTime(),
+      endDate: new Date("2025-01-31").getTime(),
+      durationDays: 31,
+      streakMinPoints: 12,
+      weekCalcMethod: "sunday",
+    },
+    {
+      name: "Holiday Wellness Challenge",
+      description: "Stay healthy during the holiday season. Focus on mindful movement and stress-relief activities.",
+      startDate: new Date("2024-12-01").getTime(),
+      endDate: new Date("2024-12-31").getTime(),
+      durationDays: 31,
+      streakMinPoints: 8,
+      weekCalcMethod: "sunday",
+    },
+    {
+      name: "Spring Sprint Challenge",
+      description: "A quick 2-week intensive challenge to jumpstart your spring fitness routine. High energy, big results!",
+      startDate: new Date("2025-04-15").getTime(),
+      endDate: new Date("2025-04-28").getTime(),
+      durationDays: 14,
+      streakMinPoints: 20,
+      weekCalcMethod: "sunday",
+    },
+  ];
+
+  const challengeIds = [];
+  for (const challenge of challengeData) {
+    const id = await ctx.runMutation(internal.mutations.challenges.create, {
+      ...challenge,
+      creatorId: adminUserId,
+      createdAt: now,
+      updatedAt: now,
+    });
+    challengeIds.push(id);
+  }
+
+  return challengeIds;
+}
+
+async function seedActivityTypesForChallenges(
+  ctx: any,
+  challengeIds: any[],
+  templateActivityTypes: any[],
+) {
+  const now = Date.now();
+
+  for (const challengeId of challengeIds) {
+    for (const template of templateActivityTypes) {
+      await ctx.runMutation(internal.mutations.activityTypes.create, {
+        challengeId,
+        templateId: template._id,
+        name: template.name,
+        categoryId: template.categoryId,
+        scoringConfig: template.scoringConfig,
+        contributesToStreak: template.contributesToStreak,
+        isNegative: template.isNegative,
+        bonusThresholds: template.bonusThresholds,
+        createdAt: now,
+        updatedAt: now,
+      });
+    }
+  }
+}
+
+async function seedParticipations(ctx: any, challengeIds: any[], users: any) {
+  const now = Date.now();
+  const userCounts = [5, 3, 4, 2, 3, 1];
+
+  for (let i = 0; i < challengeIds.length; i++) {
+    const challengeId = challengeIds[i];
+    const userCount = userCounts[i] || 2;
+
+    // Add admin user (creator)
+    await ctx.runMutation(internal.mutations.participations.create, {
+      challengeId,
+      userId: users.admin,
+      invitedByUserId: undefined,
+      joinedAt: now,
+      totalPoints: 0,
+      currentStreak: 0,
+      modifierFactor: 1,
+      paymentStatus: "paid",
+      updatedAt: now,
+    });
+
+    // Add sample user
+    await ctx.runMutation(internal.mutations.participations.create, {
+      challengeId,
+      userId: users.sample,
+      invitedByUserId: users.admin,
+      joinedAt: now,
+      totalPoints: 0,
+      currentStreak: 0,
+      modifierFactor: 1,
+      paymentStatus: "paid",
+      updatedAt: now,
+    });
+
+    // Add additional users
+    for (let j = 0; j < Math.min(userCount, users.additional.length); j++) {
+      await ctx.runMutation(internal.mutations.participations.create, {
+        challengeId,
+        userId: users.additional[j],
+        invitedByUserId: users.admin,
+        joinedAt: now,
+        totalPoints: 0,
+        currentStreak: 0,
+        modifierFactor: 1,
+        paymentStatus: "paid",
+        updatedAt: now,
+      });
+    }
+  }
+}
+
+async function seedActivities(ctx: any, challengeIds: any[], users: any) {
+  // This is a simplified version - you can expand it to generate random activities
+  // For now, we'll just create a few sample activities
+  const now = Date.now();
+
+  // Get activity types for the first challenge
+  const activityTypes = await ctx.runQuery(internal.queries.activityTypes.listByChallenge, {
+    challengeId: challengeIds[0],
+  });
+
+  if (activityTypes.length === 0) return;
+
+  // Create a few sample activities
+  const sampleActivities = [
+    {
+      userId: users.admin,
+      challengeId: challengeIds[0],
+      activityTypeId: activityTypes[0]._id,
+      loggedDate: Date.now() - 86400000, // Yesterday
+      metrics: { distance: 5.2 },
+      pointsEarned: 39,
+      source: "manual" as const,
+      flagged: false,
+      createdAt: now,
+      updatedAt: now,
+    },
+  ];
+
+  for (const activity of sampleActivities) {
+    await ctx.runMutation(internal.mutations.activities.create, activity);
+  }
+}
+
