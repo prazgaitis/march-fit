@@ -46,6 +46,7 @@ jobs:
       - name: Build
         env:
           NEXT_PUBLIC_CONVEX_URL: "https://example.convex.cloud"
+          NEXT_PUBLIC_CONVEX_SITE_URL: "https://example.convex.site"
           NEXT_PUBLIC_BETTER_AUTH_URL: "http://localhost:3000/api/auth"
           NEXT_PUBLIC_APP_URL: "http://localhost:3000"
           NEXT_PUBLIC_STRAVA_CLIENT_ID: "12345"
