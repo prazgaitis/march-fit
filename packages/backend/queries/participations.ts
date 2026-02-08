@@ -2,6 +2,8 @@ import { query } from "../_generated/server";
 import { v } from "convex/values";
 import { paginationOptsValidator } from "convex/server";
 import { getCurrentUser } from "../lib/ids";
+import { getChallengeWeekNumber, getWeekDateRange, getTotalWeeks } from "../lib/weeks";
+import type { Id } from "../_generated/dataModel";
 
 /**
  * Get recent participants for a challenge
@@ -378,6 +380,153 @@ export const debugAdminStatus = query({
         isCreator: challenge?.creatorId === user._id,
         isParticipationAdmin: participation?.role === "admin",
       }
+    };
+  },
+});
+
+/**
+ * Get weekly category leaderboard for a challenge.
+ * Returns top users per category for a specific week number.
+ * Uses the challengeLoggedDate index for efficient date-range filtering.
+ */
+export const getWeeklyCategoryLeaderboard = query({
+  args: {
+    challengeId: v.id("challenges"),
+    weekNumber: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const challenge = await ctx.db.get(args.challengeId);
+    if (!challenge) {
+      return null;
+    }
+
+    const totalWeeks = getTotalWeeks(challenge.durationDays);
+    const currentWeek = getChallengeWeekNumber(challenge.startDate, Date.now());
+
+    // Clamp weekNumber to valid range
+    const weekNumber = Math.max(1, Math.min(args.weekNumber, totalWeeks));
+    const { start, end } = getWeekDateRange(challenge.startDate, weekNumber);
+
+    // Fetch activity types for this challenge to build categoryId mapping
+    const activityTypes = await ctx.db
+      .query("activityTypes")
+      .withIndex("challengeId", (q) => q.eq("challengeId", args.challengeId))
+      .collect();
+
+    const activityTypeMap = new Map(
+      activityTypes.map((at) => [at._id, at])
+    );
+
+    // Collect unique category IDs and fetch category docs
+    const categoryIds = new Set<Id<"categories">>();
+    for (const at of activityTypes) {
+      if (at.categoryId) categoryIds.add(at.categoryId);
+    }
+    const categoryDocs = await Promise.all(
+      Array.from(categoryIds).map((id) => ctx.db.get(id))
+    );
+    const categoryMap = new Map(
+      categoryDocs
+        .filter((c): c is NonNullable<typeof c> => c !== null)
+        .map((c) => [c._id, c])
+    );
+
+    // Query activities for this challenge in the week date range
+    // Uses challengeLoggedDate index: ["challengeId", "loggedDate"]
+    const activities = await ctx.db
+      .query("activities")
+      .withIndex("challengeLoggedDate", (q) =>
+        q
+          .eq("challengeId", args.challengeId)
+          .gte("loggedDate", start)
+          .lt("loggedDate", end)
+      )
+      .collect();
+
+    // Group points: categoryId -> userId -> totalPoints
+    const categoryUserPoints = new Map<string, Map<string, number>>();
+
+    for (const activity of activities) {
+      const at = activityTypeMap.get(activity.activityTypeId);
+      if (!at) continue;
+
+      const catId = at.categoryId ?? "uncategorized";
+      const catKey = catId as string;
+
+      if (!categoryUserPoints.has(catKey)) {
+        categoryUserPoints.set(catKey, new Map());
+      }
+      const userPoints = categoryUserPoints.get(catKey)!;
+      const current = userPoints.get(activity.userId) ?? 0;
+      userPoints.set(activity.userId, current + activity.pointsEarned);
+    }
+
+    // Build leaderboard per category: sort users, take top 10, fetch user data
+    const userCache = new Map<string, { id: string; name: string | null; username: string; avatarUrl: string | null } | null>();
+
+    const categories = await Promise.all(
+      Array.from(categoryUserPoints.entries()).map(async ([catKey, userPointsMap]) => {
+        // Sort users by points descending
+        const sorted = Array.from(userPointsMap.entries())
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, 10);
+
+        // Fetch user data (with caching)
+        const entries = await Promise.all(
+          sorted.map(async ([userId, points], index) => {
+            if (!userCache.has(userId)) {
+              const user = await ctx.db.get(userId as Id<"users">);
+              userCache.set(
+                userId,
+                user
+                  ? {
+                      id: user._id,
+                      name: user.name ?? null,
+                      username: user.username,
+                      avatarUrl: user.avatarUrl ?? null,
+                    }
+                  : null
+              );
+            }
+            const user = userCache.get(userId);
+            if (!user) return null;
+
+            return {
+              rank: index + 1,
+              user,
+              weeklyPoints: points,
+            };
+          })
+        );
+
+        const category =
+          catKey === "uncategorized"
+            ? { id: "uncategorized" as string, name: "Other" }
+            : categoryMap.has(catKey as Id<"categories">)
+              ? { id: catKey, name: categoryMap.get(catKey as Id<"categories">)!.name }
+              : { id: catKey, name: "Unknown" };
+
+        return {
+          category,
+          entries: entries.filter(
+            (e): e is NonNullable<typeof e> => e !== null
+          ),
+        };
+      })
+    );
+
+    // Sort categories alphabetically, but put "Other" last
+    categories.sort((a, b) => {
+      if (a.category.id === "uncategorized") return 1;
+      if (b.category.id === "uncategorized") return -1;
+      return a.category.name.localeCompare(b.category.name);
+    });
+
+    return {
+      weekNumber,
+      totalWeeks,
+      currentWeek,
+      categories: categories.filter((c) => c.entries.length > 0),
     };
   },
 });

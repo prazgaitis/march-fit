@@ -5,6 +5,7 @@ import { getCurrentUser } from "../lib/ids";
 import { isPaymentRequired } from "../lib/payments";
 import type { Id } from "../_generated/dataModel";
 import { dateOnlyToUtcMs } from "../lib/dateOnly";
+import { getChallengeWeekNumber } from "../lib/weeks";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -573,38 +574,6 @@ function getWeekStart(timestamp: number): number {
   return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), diff);
 }
 
-/**
- * Get the week number of the challenge for a given date
- * Week 1 = days 1-7, Week 2 = days 8-14, etc.
- * Returns 0 if the date is before the challenge starts
- */
-function getChallengeWeekNumber(challengeStartDate: string | number, loggedDate: number): number {
-  // Normalize both to start of day UTC
-  const startDate = new Date(dateOnlyToUtcMs(challengeStartDate));
-  const loggedDateObj = new Date(loggedDate);
-
-  const startDayUtc = Date.UTC(
-    startDate.getUTCFullYear(),
-    startDate.getUTCMonth(),
-    startDate.getUTCDate()
-  );
-
-  const loggedDayUtc = Date.UTC(
-    loggedDateObj.getUTCFullYear(),
-    loggedDateObj.getUTCMonth(),
-    loggedDateObj.getUTCDate()
-  );
-
-  // Calculate days since challenge start (0-indexed)
-  const daysSinceStart = Math.floor((loggedDayUtc - startDayUtc) / (1000 * 60 * 60 * 24));
-
-  if (daysSinceStart < 0) {
-    return 0; // Before challenge started
-  }
-
-  // Week 1 = days 0-6, Week 2 = days 7-13, etc.
-  return Math.floor(daysSinceStart / 7) + 1;
-}
 
 // Generate an upload URL for activity media
 export const generateUploadUrl = mutation({
