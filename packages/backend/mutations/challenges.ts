@@ -50,6 +50,7 @@ export const create = internalMutation({
     streakMinPoints: v.number(),
     weekCalcMethod: v.string(),
     autoFlagRules: v.optional(v.any()),
+    visibility: v.optional(v.union(v.literal("public"), v.literal("private"))),
     createdAt: v.number(),
     updatedAt: v.number(),
   },
@@ -69,6 +70,7 @@ export const createChallenge = mutation({
     streakMinPoints: v.number(),
     weekCalcMethod: v.string(),
     autoFlagRules: v.optional(v.any()),
+    visibility: v.optional(v.union(v.literal("public"), v.literal("private"))),
   },
   handler: async (ctx, args) => {
     const user = await getCurrentUser(ctx);
@@ -92,6 +94,7 @@ export const createChallenge = mutation({
       streakMinPoints: args.streakMinPoints,
       weekCalcMethod: args.weekCalcMethod,
       autoFlagRules: args.autoFlagRules,
+      visibility: args.visibility,
       createdAt: now,
       updatedAt: now,
     });
@@ -127,6 +130,7 @@ export const updateChallenge = mutation({
     welcomeVideoUrl: v.optional(v.string()),
     welcomeMessage: v.optional(v.string()),
     announcement: v.optional(v.string()),
+    visibility: v.optional(v.union(v.literal("public"), v.literal("private"))),
   },
   handler: async (ctx, args) => {
     await requireChallengeAdmin(ctx, args.challengeId);
@@ -182,6 +186,7 @@ export const updateChallenge = mutation({
     if (updates.weekCalcMethod !== undefined) updateData.weekCalcMethod = updates.weekCalcMethod;
     if (updates.welcomeVideoUrl !== undefined) updateData.welcomeVideoUrl = updates.welcomeVideoUrl;
     if (updates.welcomeMessage !== undefined) updateData.welcomeMessage = updates.welcomeMessage;
+    if (updates.visibility !== undefined) updateData.visibility = updates.visibility;
 
     // Handle announcement - update timestamp when announcement changes
     if (updates.announcement !== undefined) {

@@ -45,6 +45,8 @@ export default defineSchema({
     // Welcome content
     welcomeVideoUrl: v.optional(v.string()), // YouTube/Vimeo embed URL
     welcomeMessage: v.optional(v.string()), // Rich text welcome message
+    // Visibility
+    visibility: v.optional(v.union(v.literal("public"), v.literal("private"))),
     // Announcement
     announcement: v.optional(v.string()), // Current announcement text
     announcementUpdatedAt: v.optional(v.number()), // When announcement was last changed

@@ -8,7 +8,7 @@ import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CalendarDays, Users, Trophy, CreditCard, Loader2, CheckCircle, XCircle } from "lucide-react";
+import { CalendarDays, Users, Trophy, CreditCard, Loader2, CheckCircle, XCircle, Lock } from "lucide-react";
 import { format } from "date-fns";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
@@ -21,6 +21,7 @@ interface Challenge {
   durationDays: number;
   streakMinPoints: number;
   participantCount: number;
+  visibility?: "public" | "private";
 }
 
 interface ChallengeHeaderProps {
@@ -193,6 +194,15 @@ export function ChallengeHeader({ challenge, isParticipating, isSignedIn }: Chal
       return (
         <Button disabled variant="outline">
           Challenge Ended
+        </Button>
+      );
+    }
+
+    if (challenge.visibility === "private") {
+      return (
+        <Button disabled variant="outline">
+          <Lock className="mr-2 h-4 w-4" />
+          Invitation Required
         </Button>
       );
     }

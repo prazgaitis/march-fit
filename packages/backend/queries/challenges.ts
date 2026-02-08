@@ -45,12 +45,17 @@ export const listPublic = query({
       .order("desc")
       .collect();
 
+    // Filter out private challenges
+    const publicChallenges = challenges.filter(
+      (c) => !c.visibility || c.visibility === "public"
+    );
+
     // Sort by startDate descending (most recent first)
-    challenges.sort((a, b) => b.startDate - a.startDate);
+    publicChallenges.sort((a, b) => b.startDate - a.startDate);
 
     // Get participant counts for each challenge
     const challengesWithCounts = await Promise.all(
-      challenges.slice(offset, offset + limit).map(async (challenge) => {
+      publicChallenges.slice(offset, offset + limit).map(async (challenge) => {
         const participations = await ctx.db
           .query("userChallenges")
           .withIndex("challengeId", (q) => q.eq("challengeId", challenge._id))

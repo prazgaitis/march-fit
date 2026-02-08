@@ -100,6 +100,15 @@ export const join = mutation({
       throw new Error("Already joined this challenge");
     }
 
+    // Block self-join for private challenges (requires admin invitation)
+    const challenge = await ctx.db.get(args.challengeId);
+    if (!challenge) {
+      throw new Error("Challenge not found");
+    }
+    if (challenge.visibility === "private") {
+      throw new Error("This is a private challenge. You need an invitation to join.");
+    }
+
     const now = Date.now();
 
     const paymentConfig = await ctx.db

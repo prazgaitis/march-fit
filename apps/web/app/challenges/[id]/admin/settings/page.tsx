@@ -48,6 +48,7 @@ export default function SettingsAdminPage() {
     endDate: "",
     streakMinPoints: "",
     weekCalcMethod: "sunday",
+    visibility: "public" as "public" | "private",
     welcomeVideoUrl: "",
     welcomeMessage: "",
     announcement: "",
@@ -69,6 +70,7 @@ export default function SettingsAdminPage() {
         endDate: format(new Date(challenge.endDate), "yyyy-MM-dd"),
         streakMinPoints: challenge.streakMinPoints.toString(),
         weekCalcMethod: challenge.weekCalcMethod,
+        visibility: challenge.visibility || "public",
         welcomeVideoUrl: challenge.welcomeVideoUrl || "",
         welcomeMessage: challenge.welcomeMessage || "",
         announcement: challenge.announcement || "",
@@ -88,6 +90,7 @@ export default function SettingsAdminPage() {
         endDate: new Date(formData.endDate).getTime(),
         streakMinPoints: parseInt(formData.streakMinPoints) || 10,
         weekCalcMethod: formData.weekCalcMethod,
+        visibility: formData.visibility,
         welcomeVideoUrl: formData.welcomeVideoUrl || undefined,
         welcomeMessage: formData.welcomeMessage || undefined,
         announcement: formData.announcement || undefined,
@@ -244,6 +247,25 @@ export default function SettingsAdminPage() {
                   rows={3}
                   className="w-full rounded-md border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-200 placeholder:text-zinc-500 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
                 />
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs text-zinc-400">Visibility</Label>
+                <select
+                  value={formData.visibility}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      visibility: e.target.value as "public" | "private",
+                    }))
+                  }
+                  className="w-full rounded-md border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-200 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                >
+                  <option value="public">Public</option>
+                  <option value="private">Private (invitation only)</option>
+                </select>
+                <p className="text-[10px] text-zinc-500">
+                  Private challenges are hidden from the browse list and require an admin invitation to join
+                </p>
               </div>
             </div>
           </div>

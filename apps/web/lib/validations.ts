@@ -41,6 +41,7 @@ export const createChallengeSchema = z.object({
   durationDays: z.coerce.number().int().positive(),
   weekCalcMethod: z.string().min(1).default("from_start"),
   autoFlagRules: jsonValueSchema.optional(),
+  visibility: z.enum(["public", "private"]).optional(),
 });
 
 export const updateChallengeSchema = createChallengeSchema

@@ -1,6 +1,6 @@
 'use client';
 
-import { Trophy, Users, Zap } from 'lucide-react';
+import { Flame, Trophy, Users } from 'lucide-react';
 
 import { useChallengeRealtime } from './challenge-realtime-context';
 import { UserAvatar } from '@/components/user-avatar';
@@ -14,36 +14,15 @@ interface ChallengeSidebarProps {
 }
 
 export function ChallengeSidebar({ challengeId, currentUserId }: ChallengeSidebarProps) {
-  const { summary, connectionState } = useChallengeRealtime();
+  const { summary } = useChallengeRealtime();
   const { stats, leaderboard } = summary;
-
-  const connectionLabel =
-    connectionState === 'open'
-      ? 'Live updates on'
-      : connectionState === 'connecting'
-        ? 'Connecting to live updates…'
-        : 'Reconnecting…';
 
   return (
     <div className="space-y-4">
       <Card className="border-zinc-800 bg-transparent">
         <CardHeader className="flex flex-col space-y-2">
-          <div className="flex items-center justify-between text-xs uppercase tracking-wide text-zinc-500">
-            <span>Status</span>
-            <span
-              className={cn('flex items-center gap-1', {
-                'text-green-500': connectionState === 'open',
-                'text-amber-500': connectionState !== 'open',
-              })}
-            >
-              <span
-                className={cn('h-2 w-2 rounded-full', {
-                  'bg-green-500': connectionState === 'open',
-                  'bg-amber-500': connectionState !== 'open',
-                })}
-              />
-              {connectionLabel}
-            </span>
+          <div className="text-xs uppercase tracking-wide text-zinc-500">
+            Status
           </div>
           <CardTitle className="text-2xl font-bold text-white">
             {stats.totalPoints.toFixed(0)} total points
@@ -52,10 +31,10 @@ export function ChallengeSidebar({ challengeId, currentUserId }: ChallengeSideba
         <CardContent className="grid grid-cols-2 gap-3 text-sm">
           <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-3">
             <div className="flex items-center justify-between text-zinc-500">
-              <span>Activities</span>
-              <Zap className="h-4 w-4" />
+              <span>My streak</span>
+              <Flame className="h-4 w-4" />
             </div>
-            <p className="mt-2 text-xl font-semibold text-white">{stats.totalActivities}</p>
+            <p className="mt-2 text-xl font-semibold text-white">{stats.userStreak}</p>
           </div>
           <div className="rounded-lg border border-zinc-800 bg-zinc-900/50 p-3">
             <div className="flex items-center justify-between text-zinc-500">
