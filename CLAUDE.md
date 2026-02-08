@@ -8,25 +8,25 @@ Start by adding a new markdown file in the top level /tasks directory. The file 
 
 ## Development Commands
 
-**Start development server (uses hosted Convex):**
+**Start development server (defaults to self-hosted Convex):**
 ```bash
 pnpm dev
 ```
 
-**Start development server (fully local with Docker):**
+**Self-hosted Convex setup (Docker):**
 ```bash
 # First time setup (one-time GitHub auth for Docker images):
 gh auth token | docker login ghcr.io -u YOUR_USERNAME --password-stdin
 pnpm convex:start              # Start local Convex Docker containers
-pnpm convex:admin-key          # Generate admin key, copy to packages/backend/.env.local.self-hosted
+pnpm convex:admin-key          # Generate admin key, copy to root .env.local as CONVEX_SELF_HOSTED_ADMIN_KEY
 
-# Then run:
-pnpm dev:local                 # Runs Next.js + Convex against local Docker
+# Then run (or just pnpm dev):
+pnpm dev                       # Runs Next.js + Convex against local Docker
 
 # Other local Convex commands:
 pnpm convex:stop               # Stop local Convex containers
 pnpm convex:logs               # View Convex container logs
-pnpm -F backend seed:local     # Seed local Convex database
+pnpm -F backend seed           # Seed local Convex database
 ```
 
 **Local Convex endpoints:**
@@ -68,18 +68,8 @@ npx convex data <table> --prod
 
 **Testing:**
 ```bash
-# Setup local test database (first time)
-pnpm test:setup
-cd packages/database && DATABASE_URL=postgresql://test:test@localhost:5433/test_db pnpm db:push
-
-# Run tests (local)
-pnpm test:local --run
-
-# Run tests (force Neon branches)
-pnpm test:integration --run
-
-# Cleanup
-pnpm test:teardown
+# Run tests
+pnpm test -- --run
 ```
 
 **Install shadcn components (run from `apps/web`):**

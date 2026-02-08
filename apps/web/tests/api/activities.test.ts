@@ -478,6 +478,44 @@ describe('Activities Logic', () => {
       expect(participation.currentStreak).toBe(1);
     });
 
+    it('should recalculate streaks when backfilling a missing day', async () => {
+      const { tWithAuth, challengeId, activityTypeId, getParticipation } = await setupStreakTest(10);
+
+      // Day 1
+      await tWithAuth.mutation(api.mutations.activities.log, {
+        challengeId,
+        activityTypeId,
+        loggedDate: '2024-01-15T10:00:00Z',
+        metrics: { minutes: 15 },
+        source: 'manual',
+      });
+
+      // Day 3 (skip day 2, streak should reset to 1)
+      await tWithAuth.mutation(api.mutations.activities.log, {
+        challengeId,
+        activityTypeId,
+        loggedDate: '2024-01-17T10:00:00Z',
+        metrics: { minutes: 15 },
+        source: 'manual',
+      });
+
+      let participation = await getParticipation();
+      expect(participation.currentStreak).toBe(1);
+
+      // Backfill Day 2 - should recompute streak to 3 (days 1-3)
+      await tWithAuth.mutation(api.mutations.activities.log, {
+        challengeId,
+        activityTypeId,
+        loggedDate: '2024-01-16T10:00:00Z',
+        metrics: { minutes: 15 },
+        source: 'manual',
+      });
+
+      participation = await getParticipation();
+      expect(participation.currentStreak).toBe(3);
+      expect(participation.lastStreakDay).toBe(Date.UTC(2024, 0, 17));
+    });
+
     it('should count multiple activities on same day toward threshold', async () => {
       const { tWithAuth, challengeId, activityTypeId, getParticipation } = await setupStreakTest(10);
 
@@ -705,8 +743,8 @@ describe('Activities Logic', () => {
         return await ctx.db.insert("challenges", {
           name: 'Test Challenge',
           creatorId: userId,
-          startDate: Date.UTC(2024, 0, 1), // Jan 1, 2024
-          endDate: Date.UTC(2024, 0, 28), // 4 weeks
+          startDate: "2024-01-01", // Jan 1, 2024
+          endDate: "2024-01-28", // 4 weeks
           streakMinPoints: 10,
           durationDays: 28,
           weekCalcMethod: 'fromStart',
@@ -762,8 +800,8 @@ describe('Activities Logic', () => {
         return await ctx.db.insert("challenges", {
           name: 'Test Challenge',
           creatorId: userId,
-          startDate: Date.UTC(2024, 0, 1), // Jan 1, 2024
-          endDate: Date.UTC(2024, 0, 28), // 4 weeks
+          startDate: "2024-01-01", // Jan 1, 2024
+          endDate: "2024-01-28", // 4 weeks
           streakMinPoints: 10,
           durationDays: 28,
           weekCalcMethod: 'fromStart',

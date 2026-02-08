@@ -4,7 +4,7 @@ import Link from "next/link";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
-import { format } from "date-fns";
+import { dateOnlyToUtcMs, formatDateShortFromDateOnly } from "@/lib/date-only";
 import { ArrowLeft } from "lucide-react";
 
 import { requireAuth } from "@/lib/auth";
@@ -138,14 +138,14 @@ export default async function ChallengeAdminLayout({
             <div className="flex items-center gap-1.5">
               <span className="text-zinc-500">Period</span>
               <span className="font-mono text-zinc-300">
-                {format(new Date(challenge.startDate), "MMM d")} - {format(new Date(challenge.endDate), "MMM d, yyyy")}
+                {formatDateShortFromDateOnly(challenge.startDate)} - {formatDateShortFromDateOnly(challenge.endDate)}
               </span>
             </div>
             <div className="flex items-center gap-1.5">
               <span className="text-zinc-500">Status</span>
-              {Date.now() >= challenge.startDate && Date.now() <= challenge.endDate ? (
+              {Date.now() >= dateOnlyToUtcMs(challenge.startDate) && Date.now() <= dateOnlyToUtcMs(challenge.endDate) ? (
                 <span className="font-mono font-medium text-emerald-400">ACTIVE</span>
-              ) : Date.now() < challenge.startDate ? (
+              ) : Date.now() < dateOnlyToUtcMs(challenge.startDate) ? (
                 <span className="font-mono font-medium text-amber-400">PENDING</span>
               ) : (
                 <span className="font-mono font-medium text-zinc-500">ENDED</span>

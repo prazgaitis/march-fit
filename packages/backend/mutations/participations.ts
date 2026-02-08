@@ -5,7 +5,7 @@ import { getCurrentUser } from "../lib/ids";
 import { isPaymentRequired } from "../lib/payments";
 
 // Default from address - should be configured per deployment
-const DEFAULT_FROM_EMAIL = "March Fitness <noreply@marchfitness.com>";
+const DEFAULT_FROM_EMAIL = "March Fitness <noreply@march.fit>";
 
 // Internal mutation for seeding
 export const create = internalMutation({
@@ -39,7 +39,7 @@ export const join = mutation({
     invitedByUserId: v.optional(v.id("users")),
   },
   handler: async (ctx, args) => {
-    // Get the current user from auth (supports both Clerk and Better Auth)
+    // Get the current user from auth
     const identity = await ctx.auth.getUserIdentity();
 
     if (!identity) {
@@ -98,6 +98,15 @@ export const join = mutation({
 
     if (existing) {
       throw new Error("Already joined this challenge");
+    }
+
+    // Block self-join for private challenges (requires admin invitation)
+    const challenge = await ctx.db.get(args.challengeId);
+    if (!challenge) {
+      throw new Error("Challenge not found");
+    }
+    if (challenge.visibility === "private") {
+      throw new Error("This is a private challenge. You need an invitation to join.");
     }
 
     const now = Date.now();

@@ -12,12 +12,6 @@ pnpm dev
 
 The web app runs at http://localhost:3001.
 
-## Local Convex
-
-```bash
-pnpm dev:local
-```
-
 ## Tests
 
 ```bash

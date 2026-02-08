@@ -5,7 +5,6 @@ import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
-import { format } from "date-fns";
 import {
   Calendar,
   Gamepad2,
@@ -15,7 +14,9 @@ import {
   Zap,
 } from "lucide-react";
 
+import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { dateOnlyToUtcMs, formatDateOnlyFromUtcMs } from "@/lib/date-only";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -134,11 +135,11 @@ export default function MiniGamesAdminPage() {
   // Calculate default dates for new game
   const getDefaultDates = () => {
     const now = new Date();
-    const start = new Date(Math.max(now.getTime(), challenge.startDate));
-    const end = new Date(Math.min(start.getTime() + 7 * 24 * 60 * 60 * 1000, challenge.endDate));
+    const startMs = Math.max(now.getTime(), dateOnlyToUtcMs(challenge.startDate));
+    const endMs = Math.min(startMs + 7 * 24 * 60 * 60 * 1000, dateOnlyToUtcMs(challenge.endDate));
     return {
-      startsAt: start.toISOString().split("T")[0],
-      endsAt: end.toISOString().split("T")[0],
+      startsAt: formatDateOnlyFromUtcMs(startMs),
+      endsAt: formatDateOnlyFromUtcMs(endMs),
     };
   };
 
@@ -229,8 +230,8 @@ export default function MiniGamesAdminPage() {
                     onChange={(e) =>
                       setNewGame((prev) => ({ ...prev, startsAt: e.target.value }))
                     }
-                    min={format(new Date(challenge.startDate), "yyyy-MM-dd")}
-                    max={format(new Date(challenge.endDate), "yyyy-MM-dd")}
+                    min={challenge.startDate}
+                    max={challenge.endDate}
                     className="border-zinc-700 bg-zinc-800 text-zinc-200"
                   />
                 </div>
@@ -242,8 +243,8 @@ export default function MiniGamesAdminPage() {
                     onChange={(e) =>
                       setNewGame((prev) => ({ ...prev, endsAt: e.target.value }))
                     }
-                    min={newGame.startsAt || format(new Date(challenge.startDate), "yyyy-MM-dd")}
-                    max={format(new Date(challenge.endDate), "yyyy-MM-dd")}
+                    min={newGame.startsAt || challenge.startDate}
+                    max={challenge.endDate}
                     className="border-zinc-700 bg-zinc-800 text-zinc-200"
                   />
                 </div>

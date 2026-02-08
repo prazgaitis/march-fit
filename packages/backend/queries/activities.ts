@@ -1,4 +1,4 @@
-import { query } from "../_generated/server";
+import { internalQuery, query } from "../_generated/server";
 import { v } from "convex/values";
 import { paginationOptsValidator } from "convex/server";
 import { getCurrentUser } from "../lib/ids";
@@ -81,6 +81,20 @@ export const getById = query({
       likedByUser: userLike !== null,
       mediaUrls,
     };
+  },
+});
+
+export const listByChallenge = internalQuery({
+  args: {
+    challengeId: v.id("challenges"),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const limit = args.limit ?? 10;
+    return await ctx.db
+      .query("activities")
+      .withIndex("challengeId", (q) => q.eq("challengeId", args.challengeId))
+      .take(limit);
   },
 });
 
@@ -304,6 +318,5 @@ export const debugAchievements = query({
     };
   },
 });
-
 
 

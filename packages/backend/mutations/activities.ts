@@ -3,6 +3,74 @@ import { v } from "convex/values";
 import { calculateActivityPoints, calculateThresholdBonuses, calculateOptionalBonuses } from "../lib/scoring";
 import { getCurrentUser } from "../lib/ids";
 import { isPaymentRequired } from "../lib/payments";
+import type { Id } from "../_generated/dataModel";
+import { dateOnlyToUtcMs } from "../lib/dateOnly";
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+const getDateOnlyTs = (ts: number) => {
+  const d = new Date(ts);
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+};
+
+async function recomputeStreakForUserChallenge(
+  ctx: any,
+  userId: any,
+  challengeId: any,
+  streakMinPoints: number
+) {
+  const activities = await ctx.db
+    .query("activities")
+    .withIndex("by_user_challenge_date", (q: any) =>
+      q.eq("userId", userId).eq("challengeId", challengeId)
+    )
+    .collect();
+
+  if (activities.length === 0) {
+    return { currentStreak: 0, lastStreakDayTs: undefined };
+  }
+
+  const activityTypeIds = Array.from(new Set(activities.map((a: any) => a.activityTypeId))) as Id<"activityTypes">[];
+  const activityTypes = await Promise.all(activityTypeIds.map((id) => ctx.db.get(id)));
+  const contributesMap = new Map<Id<"activityTypes">, boolean>();
+  for (let i = 0; i < activityTypeIds.length; i++) {
+    const at = activityTypes[i];
+    if (at) contributesMap.set(activityTypeIds[i], at.contributesToStreak);
+  }
+
+  const dailyPoints = new Map<number, number>();
+  for (const act of activities) {
+    const contributes = contributesMap.get(act.activityTypeId as Id<"activityTypes">) ?? false;
+    if (!contributes) continue;
+    const dayTs = getDateOnlyTs(act.loggedDate);
+    dailyPoints.set(dayTs, (dailyPoints.get(dayTs) ?? 0) + act.pointsEarned);
+  }
+
+  const thresholdDays = Array.from(dailyPoints.entries())
+    .filter(([, points]) => points >= streakMinPoints)
+    .map(([dayTs]) => dayTs)
+    .sort((a, b) => a - b);
+
+  if (thresholdDays.length === 0) {
+    return { currentStreak: 0, lastStreakDayTs: undefined };
+  }
+
+  let currentStreak = 1;
+  let lastStreakDayTs = thresholdDays[0];
+
+  for (let i = 1; i < thresholdDays.length; i++) {
+    const dayTs = thresholdDays[i];
+    const diffDays = Math.floor((dayTs - lastStreakDayTs) / DAY_MS);
+    if (diffDays === 1) {
+      currentStreak += 1;
+    } else {
+      currentStreak = 1;
+    }
+    lastStreakDayTs = dayTs;
+  }
+
+  return { currentStreak, lastStreakDayTs };
+}
 
 // Internal mutation for seeding
 export const create = internalMutation({
@@ -241,12 +309,6 @@ export const log = mutation({
     let currentStreak = participation.currentStreak;
     let lastStreakDayTs = participation.lastStreakDay;
 
-    // Helper: Get date only TS
-    const getDateOnlyTs = (ts: number) => {
-        const d = new Date(ts);
-        return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
-    };
-
     const loggedDayTs = getDateOnlyTs(loggedDateTs);
 
     if (!lastStreakDayTs) {
@@ -271,11 +333,17 @@ export const log = mutation({
                 // Broken streak, restart
                 currentStreak = 1;
                 lastStreakDayTs = loggedDayTs;
+            } else if (daysDiff < 0) {
+                // Backfilling - recompute streaks from all activities
+                const recomputed = await recomputeStreakForUserChallenge(
+                  ctx,
+                  user._id,
+                  args.challengeId,
+                  challenge.streakMinPoints
+                );
+                currentStreak = recomputed.currentStreak;
+                lastStreakDayTs = recomputed.lastStreakDayTs;
             }
-            // What if negative diff? (Backfilling). 
-            // We generally assume forward progression or simple backfill.
-            // Handling complex backfill (filling a gap in the past) requires recalculating all subsequent days.
-            // For now, assume simple case or accept imperfection on backfill.
         }
     }
 
@@ -510,9 +578,9 @@ function getWeekStart(timestamp: number): number {
  * Week 1 = days 1-7, Week 2 = days 8-14, etc.
  * Returns 0 if the date is before the challenge starts
  */
-function getChallengeWeekNumber(challengeStartDate: number, loggedDate: number): number {
+function getChallengeWeekNumber(challengeStartDate: string | number, loggedDate: number): number {
   // Normalize both to start of day UTC
-  const startDate = new Date(challengeStartDate);
+  const startDate = new Date(dateOnlyToUtcMs(challengeStartDate));
   const loggedDateObj = new Date(loggedDate);
 
   const startDayUtc = Date.UTC(

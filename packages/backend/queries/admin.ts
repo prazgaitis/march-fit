@@ -1,5 +1,6 @@
 import { query, internalQuery } from "../_generated/server";
 import { v } from "convex/values";
+import { coerceDateOnlyToString, dateOnlyToUtcMs } from "../lib/dateOnly";
 
 /**
  * List all users (for debugging)
@@ -34,8 +35,8 @@ export const checkOutOfBoundsActivities = query({
     const results: Array<{
       challengeId: string;
       challengeName: string;
-      startDate: number;
-      endDate: number;
+      startDate: string;
+      endDate: string;
       totalActivities: number;
       outOfBounds: number;
       beforeStart: number;
@@ -53,8 +54,10 @@ export const checkOutOfBoundsActivities = query({
         .withIndex("challengeId", (q) => q.eq("challengeId", challenge._id))
         .collect();
 
-      const beforeStart = activities.filter((a) => a.loggedDate < challenge.startDate);
-      const afterEnd = activities.filter((a) => a.loggedDate > challenge.endDate);
+      const challengeStartMs = dateOnlyToUtcMs(challenge.startDate);
+      const challengeEndMs = dateOnlyToUtcMs(challenge.endDate);
+      const beforeStart = activities.filter((a) => a.loggedDate < challengeStartMs);
+      const afterEnd = activities.filter((a) => a.loggedDate > challengeEndMs);
 
       if (beforeStart.length > 0 || afterEnd.length > 0) {
         const examples: Array<{ activityId: string; loggedDate: number; issue: string }> = [];
@@ -63,7 +66,7 @@ export const checkOutOfBoundsActivities = query({
           examples.push({
             activityId: a._id,
             loggedDate: a.loggedDate,
-            issue: `Before start: ${new Date(a.loggedDate).toISOString()} < ${new Date(challenge.startDate).toISOString()}`,
+            issue: `Before start: ${new Date(a.loggedDate).toISOString()} < ${new Date(challengeStartMs).toISOString()}`,
           });
         });
 
@@ -71,15 +74,15 @@ export const checkOutOfBoundsActivities = query({
           examples.push({
             activityId: a._id,
             loggedDate: a.loggedDate,
-            issue: `After end: ${new Date(a.loggedDate).toISOString()} > ${new Date(challenge.endDate).toISOString()}`,
+            issue: `After end: ${new Date(a.loggedDate).toISOString()} > ${new Date(challengeEndMs).toISOString()}`,
           });
         });
 
         results.push({
           challengeId: challenge._id,
           challengeName: challenge.name,
-          startDate: challenge.startDate,
-          endDate: challenge.endDate,
+          startDate: coerceDateOnlyToString(challenge.startDate),
+          endDate: coerceDateOnlyToString(challenge.endDate),
           totalActivities: activities.length,
           outOfBounds: beforeStart.length + afterEnd.length,
           beforeStart: beforeStart.length,

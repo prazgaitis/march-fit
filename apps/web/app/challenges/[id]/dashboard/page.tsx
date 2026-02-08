@@ -8,6 +8,7 @@ import { type ChallengeSummary } from "@/components/dashboard/challenge-realtime
 import { getCurrentUser } from "@/lib/auth";
 import { isAuthenticated } from "@/lib/server-auth";
 import { DashboardLayoutWrapper } from "../notifications/dashboard-layout-wrapper";
+import { dateOnlyToUtcMs } from "@/lib/date-only";
 
 const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 const DAY_IN_MS = 1000 * 60 * 60 * 24;
@@ -58,7 +59,7 @@ export default async function ChallengeDashboardPage({
   const now = new Date();
   const daysRemaining = Math.max(
     0,
-    Math.ceil((challenge.endDate - now.getTime()) / DAY_IN_MS),
+    Math.ceil((dateOnlyToUtcMs(challenge.endDate) - now.getTime()) / DAY_IN_MS),
   );
 
   const initialSummary: ChallengeSummary = {

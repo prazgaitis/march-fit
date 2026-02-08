@@ -22,7 +22,6 @@ export default defineConfig({
   },
   define: {
     'process.env.NODE_ENV': '"test"',
-    'process.env.DATABASE_URL': '"postgresql://dummy:dummy@localhost:5432/dummy"'
   },
   esbuild: {
     target: 'node14'

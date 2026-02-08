@@ -90,11 +90,7 @@ export function ChallengesGrid() {
             {challenges.map((challenge: (typeof challenges)[number]) => (
               <ChallengeCard
                 key={challenge.id}
-                challenge={{
-                  ...challenge,
-                  startDate: new Date(challenge.startDate),
-                  endDate: new Date(challenge.endDate),
-                }}
+                challenge={challenge}
               />
             ))}
           </div>

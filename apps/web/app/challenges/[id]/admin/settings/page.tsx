@@ -26,6 +26,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import ReactMarkdown from "react-markdown";
+import { formatDateOnlyFromUtcMs, formatDateOnlyFromLocalDate, parseDateOnlyToLocalDate } from "@/lib/date-only";
+import { DatePicker } from "@/components/ui/date-picker";
 
 type Tab = "general" | "welcome" | "announcements";
 
@@ -48,6 +50,7 @@ export default function SettingsAdminPage() {
     endDate: "",
     streakMinPoints: "",
     weekCalcMethod: "sunday",
+    visibility: "public" as "public" | "private",
     welcomeVideoUrl: "",
     welcomeMessage: "",
     announcement: "",
@@ -65,10 +68,11 @@ export default function SettingsAdminPage() {
       setFormData({
         name: challenge.name,
         description: challenge.description || "",
-        startDate: format(new Date(challenge.startDate), "yyyy-MM-dd"),
-        endDate: format(new Date(challenge.endDate), "yyyy-MM-dd"),
+        startDate: typeof challenge.startDate === "string" ? challenge.startDate : formatDateOnlyFromUtcMs(challenge.startDate),
+        endDate: typeof challenge.endDate === "string" ? challenge.endDate : formatDateOnlyFromUtcMs(challenge.endDate),
         streakMinPoints: challenge.streakMinPoints.toString(),
         weekCalcMethod: challenge.weekCalcMethod,
+        visibility: challenge.visibility || "public",
         welcomeVideoUrl: challenge.welcomeVideoUrl || "",
         welcomeMessage: challenge.welcomeMessage || "",
         announcement: challenge.announcement || "",
@@ -84,10 +88,11 @@ export default function SettingsAdminPage() {
         challengeId: challengeId as Id<"challenges">,
         name: formData.name,
         description: formData.description || undefined,
-        startDate: new Date(formData.startDate).getTime(),
-        endDate: new Date(formData.endDate).getTime(),
+        startDate: formData.startDate,
+        endDate: formData.endDate,
         streakMinPoints: parseInt(formData.streakMinPoints) || 10,
         weekCalcMethod: formData.weekCalcMethod,
+        visibility: formData.visibility,
         welcomeVideoUrl: formData.welcomeVideoUrl || undefined,
         welcomeMessage: formData.welcomeMessage || undefined,
         announcement: formData.announcement || undefined,
@@ -245,6 +250,25 @@ export default function SettingsAdminPage() {
                   className="w-full rounded-md border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-200 placeholder:text-zinc-500 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
                 />
               </div>
+              <div className="space-y-2">
+                <Label className="text-xs text-zinc-400">Visibility</Label>
+                <select
+                  value={formData.visibility}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      visibility: e.target.value as "public" | "private",
+                    }))
+                  }
+                  className="w-full rounded-md border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-200 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                >
+                  <option value="public">Public</option>
+                  <option value="private">Private (invitation only)</option>
+                </select>
+                <p className="text-[10px] text-zinc-500">
+                  Private challenges are hidden from the browse list and require an admin invitation to join
+                </p>
+              </div>
             </div>
           </div>
 
@@ -257,24 +281,28 @@ export default function SettingsAdminPage() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label className="text-xs text-zinc-400">Start Date</Label>
-                <Input
-                  type="date"
-                  value={formData.startDate}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, startDate: e.target.value }))
-                  }
-                  className="border-zinc-700 bg-zinc-800 text-zinc-200"
+                <DatePicker
+                  value={parseDateOnlyToLocalDate(formData.startDate)}
+                  onChange={(date) => {
+                    if (!date) return;
+                    setFormData((prev) => ({
+                      ...prev,
+                      startDate: formatDateOnlyFromLocalDate(date),
+                    }));
+                  }}
                 />
               </div>
               <div className="space-y-2">
                 <Label className="text-xs text-zinc-400">End Date</Label>
-                <Input
-                  type="date"
-                  value={formData.endDate}
-                  onChange={(e) =>
-                    setFormData((prev) => ({ ...prev, endDate: e.target.value }))
-                  }
-                  className="border-zinc-700 bg-zinc-800 text-zinc-200"
+                <DatePicker
+                  value={parseDateOnlyToLocalDate(formData.endDate)}
+                  onChange={(date) => {
+                    if (!date) return;
+                    setFormData((prev) => ({
+                      ...prev,
+                      endDate: formatDateOnlyFromLocalDate(date),
+                    }));
+                  }}
                 />
               </div>
             </div>

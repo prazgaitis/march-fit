@@ -1,14 +1,15 @@
 import Link from "next/link";
 import { Calendar, Users, Clock } from "lucide-react";
 import { formatDistanceToNow, isBefore } from "date-fns";
+import { dateOnlyToUtcMs, formatDateShortFromDateOnly } from "@/lib/date-only";
 
 interface ChallengeCardProps {
   challenge: {
     id: string;
     name: string;
     description: string | null;
-    startDate: Date;
-    endDate: Date;
+    startDate: string;
+    endDate: string;
     durationDays: number;
     participantCount: number;
   };
@@ -16,27 +17,29 @@ interface ChallengeCardProps {
 
 export function ChallengeCard({ challenge }: ChallengeCardProps) {
   const now = new Date();
-  const isUpcoming = isBefore(now, challenge.startDate);
-  const isActive = !isUpcoming && isBefore(now, challenge.endDate);
+  const startDate = new Date(dateOnlyToUtcMs(challenge.startDate));
+  const endDate = new Date(dateOnlyToUtcMs(challenge.endDate));
+  const isUpcoming = isBefore(now, startDate);
+  const isActive = !isUpcoming && isBefore(now, endDate);
 
   const getStatusInfo = () => {
     if (isUpcoming) {
       return {
         label: "Starts in",
-        value: formatDistanceToNow(challenge.startDate),
+        value: formatDistanceToNow(startDate),
         className: "bg-blue-500/20 text-blue-600 dark:text-blue-400",
       };
     }
     if (isActive) {
       return {
         label: "Ends in",
-        value: formatDistanceToNow(challenge.endDate),
+        value: formatDistanceToNow(endDate),
         className: "bg-green-500/20 text-green-600 dark:text-green-400",
       };
     }
     return {
       label: "Completed",
-      value: formatDistanceToNow(challenge.endDate) + " ago",
+      value: formatDistanceToNow(endDate) + " ago",
       className: "bg-muted text-muted-foreground",
     };
   };
@@ -82,7 +85,7 @@ export function ChallengeCard({ challenge }: ChallengeCardProps) {
 
             <div className="flex items-center text-xs">
               <Calendar className="w-4 h-4 mr-1" />
-              {new Date(challenge.startDate).toLocaleDateString()}
+              {formatDateShortFromDateOnly(challenge.startDate)}
             </div>
           </div>
         </div>

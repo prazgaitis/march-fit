@@ -36,8 +36,8 @@ export default defineSchema({
     name: v.string(),
     description: v.optional(v.string()),
     creatorId: v.id("users"),
-    startDate: v.number(),
-    endDate: v.number(),
+    startDate: v.union(v.string(), v.number()),
+    endDate: v.union(v.string(), v.number()),
     streakMinPoints: v.number(),
     durationDays: v.number(),
     weekCalcMethod: v.string(),
@@ -45,6 +45,8 @@ export default defineSchema({
     // Welcome content
     welcomeVideoUrl: v.optional(v.string()), // YouTube/Vimeo embed URL
     welcomeMessage: v.optional(v.string()), // Rich text welcome message
+    // Visibility
+    visibility: v.optional(v.union(v.literal("public"), v.literal("private"))),
     // Announcement
     announcement: v.optional(v.string()), // Current announcement text
     announcementUpdatedAt: v.optional(v.number()), // When announcement was last changed

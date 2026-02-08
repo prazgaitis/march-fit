@@ -3,24 +3,25 @@
 import { useQuery } from "convex/react";
 import { api } from "@repo/backend";
 import Link from "next/link";
+import { dateOnlyToUtcMs, formatDateShortFromDateOnly } from "@/lib/date-only";
 
 interface Challenge {
   id: string;
   name: string;
   description: string | null;
-  startDate: number;
-  endDate: number;
+  startDate: string;
+  endDate: string;
   durationDays: number;
   participantCount: number;
 }
 
 function ChallengeCard({ challenge }: { challenge: Challenge }) {
-  const startDate = new Date(challenge.startDate);
-  const endDate = new Date(challenge.endDate);
-  const now = new Date();
+  const startDateMs = dateOnlyToUtcMs(challenge.startDate);
+  const endDateMs = dateOnlyToUtcMs(challenge.endDate);
+  const nowMs = Date.now();
 
-  const isActive = now >= startDate && now <= endDate;
-  const isUpcoming = now < startDate;
+  const isActive = nowMs >= startDateMs && nowMs <= endDateMs;
+  const isUpcoming = nowMs < startDateMs;
 
   const status = isUpcoming ? "Upcoming" : isActive ? "Active" : "Completed";
   const statusColor = isUpcoming ? "text-yellow-400" : isActive ? "text-green-400" : "text-gray-400";
@@ -51,9 +52,9 @@ function ChallengeCard({ challenge }: { challenge: Challenge }) {
           )}
 
           <div className="flex items-center justify-between text-xs text-zinc-500">
-            <span>{startDate.toLocaleDateString()}</span>
+            <span>{formatDateShortFromDateOnly(challenge.startDate)}</span>
             <span className="text-zinc-600">•</span>
-            <span>{endDate.toLocaleDateString()}</span>
+            <span>{formatDateShortFromDateOnly(challenge.endDate)}</span>
           </div>
 
           <div className="mt-4 pt-4 border-t border-zinc-800">

@@ -35,9 +35,11 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { DatePicker } from "@/components/ui/date-picker";
 import { useMentionableUsers } from "@/hooks/use-mentionable-users";
 import { isEditorContentEmpty } from "@/lib/rich-text";
 import { cn } from "@/lib/utils";
+import { localDateToIsoNoon } from "@/lib/date-only";
 
 interface ActivityLogDialogProps {
   challengeId: string;
@@ -50,7 +52,7 @@ interface FormState {
   selectedVariant: string;
   selectedBonuses: string[];
   notes: string;
-  loggedDate: string;
+  loggedDate?: Date;
 }
 
 function createInitialFormState(): FormState {
@@ -60,7 +62,7 @@ function createInitialFormState(): FormState {
     selectedVariant: "",
     selectedBonuses: [],
     notes: "",
-    loggedDate: formatDateTimeLocal(new Date()),
+    loggedDate: new Date(),
   };
 }
 
@@ -70,11 +72,6 @@ interface VariantOption {
   points?: number;
   pointsPerUnit?: number;
   unit?: string;
-}
-
-function formatDateTimeLocal(date: Date) {
-  const pad = (value: number) => value.toString().padStart(2, "0");
-  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 function toSentenceCase(value: string) {
@@ -182,7 +179,7 @@ export function ActivityLogDialog({ challengeId, trigger }: ActivityLogDialogPro
     if (open) {
       setForm((prev) => ({
         ...prev,
-        loggedDate: formatDateTimeLocal(new Date()),
+        loggedDate: new Date(),
       }));
       setFormError(null);
       setSuccessState(null);
@@ -546,7 +543,7 @@ export function ActivityLogDialog({ challengeId, trigger }: ActivityLogDialogPro
       const result = await logActivity({
         challengeId: challengeId as Id<"challenges">,
         activityTypeId: form.activityTypeId as Id<"activityTypes">,
-        loggedDate: new Date(form.loggedDate).toISOString(),
+        loggedDate: localDateToIsoNoon(form.loggedDate),
         metrics,
         notes: !notesIsEmpty && form.notes && !isEditorContentEmpty(form.notes) ? form.notes : undefined,
         mediaIds,
@@ -928,7 +925,7 @@ export function ActivityLogDialog({ challengeId, trigger }: ActivityLogDialogPro
 
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label htmlFor="logged-date">Date &amp; time</Label>
+                <Label htmlFor="logged-date">Date</Label>
                 <Button
                   type="button"
                   variant="link"
@@ -936,24 +933,21 @@ export function ActivityLogDialog({ challengeId, trigger }: ActivityLogDialogPro
                   onClick={() =>
                     setForm((prev) => ({
                       ...prev,
-                      loggedDate: formatDateTimeLocal(new Date()),
+                      loggedDate: new Date(),
                     }))
                   }
                 >
-                  Use current time
+                  Use today
                 </Button>
               </div>
-              <Input
-                id="logged-date"
-                type="datetime-local"
+              <DatePicker
                 value={form.loggedDate}
-                onChange={(event) =>
+                onChange={(date) =>
                   setForm((prev) => ({
                     ...prev,
-                    loggedDate: event.target.value,
+                    loggedDate: date,
                   }))
                 }
-                required
               />
             </div>
 

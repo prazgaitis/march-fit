@@ -2,6 +2,7 @@ import { mutation } from "../_generated/server";
 import { v } from "convex/values";
 import type { Id } from "../_generated/dataModel";
 import { getCurrentUser } from "../lib/ids";
+import { dateOnlyToUtcMs } from "../lib/dateOnly";
 
 // Helper to check if user is challenge admin
 async function requireChallengeAdmin(
@@ -62,7 +63,7 @@ export const create = mutation({
       throw new Error("Start date must be before end date");
     }
 
-    if (args.endsAt > challenge.endDate) {
+    if (args.endsAt > dateOnlyToUtcMs(challenge.endDate)) {
       throw new Error("Mini-game cannot extend past challenge end date");
     }
 
@@ -120,7 +121,7 @@ export const update = mutation({
       throw new Error("Start date must be before end date");
     }
 
-    if (endsAt > challenge.endDate) {
+    if (endsAt > dateOnlyToUtcMs(challenge.endDate)) {
       throw new Error("Mini-game cannot extend past challenge end date");
     }
 

@@ -57,13 +57,18 @@ export default async function ChallengePage({ params }: PageProps) {
       participants = [];
     }
 
+    const activityTypes = await convex.query(
+      api.queries.activityTypes.getByChallengeId,
+      { challengeId }
+    );
+
     return (
       <div className="min-h-screen bg-background text-foreground page-with-header">
         <ChallengeHeader
           challenge={{
             ...challenge,
-            startDate: new Date(challenge.startDate),
-            endDate: new Date(challenge.endDate),
+            startDate: challenge.startDate,
+            endDate: challenge.endDate,
             createdAt: new Date(challenge.createdAt),
           }}
           isParticipating={isParticipating}
@@ -77,9 +82,10 @@ export default async function ChallengePage({ params }: PageProps) {
               <ChallengeDetails
                 challenge={{
                   ...challenge,
-                  startDate: new Date(challenge.startDate),
-                  endDate: new Date(challenge.endDate),
+                  startDate: challenge.startDate,
+                  endDate: challenge.endDate,
                 }}
+                activityTypes={activityTypes}
               />
             </div>
 
@@ -87,6 +93,7 @@ export default async function ChallengePage({ params }: PageProps) {
             <div className="lg:col-span-1">
               <ParticipantsList
                 challengeId={id}
+                totalCount={challenge.participantCount}
                 participants={participants.map((p: (typeof participants)[number]) => ({
                   ...p,
                   joinedAt: new Date(p.joinedAt),

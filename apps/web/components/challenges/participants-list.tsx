@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { UserAvatar } from "@/components/user-avatar";
 import { formatDistanceToNow } from "date-fns";
@@ -13,9 +14,10 @@ interface Participant {
 interface ParticipantsListProps {
   challengeId: string;
   participants: Participant[];
+  totalCount: number;
 }
 
-export function ParticipantsList({ challengeId, participants }: ParticipantsListProps) {
+export function ParticipantsList({ challengeId, participants, totalCount }: ParticipantsListProps) {
   return (
     <Card>
       <CardHeader>
@@ -23,7 +25,7 @@ export function ParticipantsList({ challengeId, participants }: ParticipantsList
         <p className="text-sm text-muted-foreground">
           {participants.length === 0
             ? "No participants yet"
-            : `${participants.length} of many participants`}
+            : `${participants.length} of ${totalCount} participants`}
         </p>
       </CardHeader>
       <CardContent>
@@ -51,11 +53,14 @@ export function ParticipantsList({ challengeId, participants }: ParticipantsList
               </UserAvatar>
             ))}
 
-            {participants.length >= 10 && (
+            {totalCount > participants.length && (
               <div className="text-center pt-4 border-t border-border">
-                <p className="text-sm text-muted-foreground">
-                  + many more participants
-                </p>
+                <Link
+                  className="text-sm font-medium text-primary hover:underline"
+                  href={`/challenges/${challengeId}/leaderboard`}
+                >
+                  View all participants
+                </Link>
               </div>
             )}
           </div>

@@ -7,7 +7,7 @@ Instructions for AI code agents (OpenAI Codex, Claude Code, etc.) working on thi
 This is a fitness challenge platform with:
 - **Frontend**: Next.js 15 app in `apps/web/`
 - **Backend**: Convex serverless functions in `packages/backend/`
-- **Auth**: Currently Clerk, migrating to Better Auth
+- **Auth**: Better Auth via `@convex-dev/better-auth`
 
 ## Development Process
 
@@ -187,24 +187,6 @@ await t.run(async (ctx) => {
 ### Limitations
 
 convex-test is a mock - always manually test against real Convex before shipping.
-
-## Better Auth Migration
-
-### Current State
-- Toggle: `NEXT_PUBLIC_AUTH_PROVIDER` (clerk | better-auth)
-- Clerk is default, Better Auth is opt-in
-
-### Key Files
-- `apps/web/lib/auth-config.ts` - Provider detection
-- `apps/web/lib/better-auth/client.ts` - Better Auth client
-- `apps/web/components/providers/auth-provider.tsx` - Auth context
-- `apps/web/components/providers/convex-provider.tsx` - Convex + auth
-
-### Migration Tasks
-1. Implement Better Auth server endpoints in `apps/web/app/api/auth/`
-2. Add user sync from Better Auth to Convex
-3. Update Convex functions to work with Better Auth tokens
-4. Test both auth flows
 
 ## Environment Setup
 

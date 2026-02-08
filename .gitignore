@@ -5,6 +5,7 @@ node_modules/
 # Environment variables
 .env
 .env.local
+.env.production
 .env.development.local
 .env.test.local
 .env.production.local
@@ -52,6 +53,9 @@ pnpm-debug.log*
 packages/backend/.env.local
 packages/backend/.env
 packages/backend/.env.local.self-hosted
+
+# Admin tools (local-only scripts, not open-sourced)
+admin-tools/
 
 # Misc
 coverage/
