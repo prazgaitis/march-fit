@@ -2,15 +2,15 @@ import Link from "next/link";
 import type { Doc } from "@repo/backend/_generated/dataModel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { format } from "date-fns";
 import { Play } from "lucide-react";
+import { formatDateLongFromUtcMs } from "@/lib/date-only";
 
 interface Challenge {
   id: string;
   name: string;
   description: string | null;
-  startDate: Date;
-  endDate: Date;
+  startDate: number;
+  endDate: number;
   durationDays: number;
   streakMinPoints: number;
   welcomeVideoUrl?: string;
@@ -134,7 +134,7 @@ export function ChallengeDetails({ challenge, activityTypes }: ChallengeDetailsP
             <div>
               <h4 className="font-semibold text-foreground mb-2">Challenge Period</h4>
               <p className="text-sm text-muted-foreground">
-                {format(challenge.startDate, "MMMM d, yyyy")} - {format(challenge.endDate, "MMMM d, yyyy")}
+                {formatDateLongFromUtcMs(challenge.startDate)} - {formatDateLongFromUtcMs(challenge.endDate)}
               </p>
               <p className="text-sm text-muted-foreground/70">{challenge.durationDays} days total</p>
             </div>

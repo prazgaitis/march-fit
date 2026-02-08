@@ -82,8 +82,8 @@ export default async function ChallengePage({ params }: PageProps) {
               <ChallengeDetails
                 challenge={{
                   ...challenge,
-                  startDate: new Date(challenge.startDate),
-                  endDate: new Date(challenge.endDate),
+                  startDate: challenge.startDate,
+                  endDate: challenge.endDate,
                 }}
                 activityTypes={activityTypes}
               />

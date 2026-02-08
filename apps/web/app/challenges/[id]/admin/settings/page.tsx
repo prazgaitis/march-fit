@@ -26,6 +26,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import ReactMarkdown from "react-markdown";
+import { formatDateOnlyFromUtcMs, parseDateOnlyToUtcMs } from "@/lib/date-only";
 
 type Tab = "general" | "welcome" | "announcements";
 
@@ -66,8 +67,8 @@ export default function SettingsAdminPage() {
       setFormData({
         name: challenge.name,
         description: challenge.description || "",
-        startDate: format(new Date(challenge.startDate), "yyyy-MM-dd"),
-        endDate: format(new Date(challenge.endDate), "yyyy-MM-dd"),
+        startDate: formatDateOnlyFromUtcMs(challenge.startDate),
+        endDate: formatDateOnlyFromUtcMs(challenge.endDate),
         streakMinPoints: challenge.streakMinPoints.toString(),
         weekCalcMethod: challenge.weekCalcMethod,
         visibility: challenge.visibility || "public",
@@ -86,8 +87,8 @@ export default function SettingsAdminPage() {
         challengeId: challengeId as Id<"challenges">,
         name: formData.name,
         description: formData.description || undefined,
-        startDate: new Date(formData.startDate).getTime(),
-        endDate: new Date(formData.endDate).getTime(),
+        startDate: parseDateOnlyToUtcMs(formData.startDate),
+        endDate: parseDateOnlyToUtcMs(formData.endDate),
         streakMinPoints: parseInt(formData.streakMinPoints) || 10,
         weekCalcMethod: formData.weekCalcMethod,
         visibility: formData.visibility,

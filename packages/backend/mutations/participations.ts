@@ -39,7 +39,7 @@ export const join = mutation({
     invitedByUserId: v.optional(v.id("users")),
   },
   handler: async (ctx, args) => {
-    // Get the current user from auth (supports both Clerk and Better Auth)
+    // Get the current user from auth
     const identity = await ctx.auth.getUserIdentity();
 
     if (!identity) {

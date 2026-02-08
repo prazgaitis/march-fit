@@ -13,7 +13,7 @@ Self-hosting is supported for development and community use. Some features may r
 - Node.js 18+
 - pnpm 10+
 - Convex project (hosted or local Docker)
-- Better Auth or Clerk credentials
+- Better Auth credentials
 
 ## Local Convex (Docker)
 

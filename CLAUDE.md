@@ -68,18 +68,8 @@ npx convex data <table> --prod
 
 **Testing:**
 ```bash
-# Setup local test database (first time)
-pnpm test:setup
-cd packages/database && DATABASE_URL=postgresql://test:test@localhost:5433/test_db pnpm db:push
-
 # Run tests
 pnpm test -- --run
-
-# Run tests (force Neon branches)
-pnpm test:integration -- --run
-
-# Cleanup
-pnpm test:teardown
 ```
 
 **Install shadcn components (run from `apps/web`):**
