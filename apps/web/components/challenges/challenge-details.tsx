@@ -1,3 +1,5 @@
+import Link from "next/link";
+import type { Doc } from "@repo/backend/_generated/dataModel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
@@ -6,7 +8,7 @@ import { Play } from "lucide-react";
 interface Challenge {
   id: string;
   name: string;
-  description: string;
+  description: string | null;
   startDate: Date;
   endDate: Date;
   durationDays: number;
@@ -17,6 +19,7 @@ interface Challenge {
 
 interface ChallengeDetailsProps {
   challenge: Challenge;
+  activityTypes: Doc<"activityTypes">[];
 }
 
 // Extract video embed URL from various formats
@@ -50,7 +53,30 @@ function getVideoEmbedUrl(url: string): string | null {
   return null;
 }
 
-export function ChallengeDetails({ challenge }: ChallengeDetailsProps) {
+function formatScoringSummary(config: Record<string, unknown>): string {
+  const type = config["type"] as string | undefined;
+  const basePoints = Number(config["basePoints"] ?? 0);
+  const unit = config["unit"] as string | undefined;
+  const pointsPerUnit = Number(config["pointsPerUnit"] ?? 1);
+
+  if (type === "tiered") return "Tiered scoring";
+  if (type === "completion") return `${basePoints || 1} pts per completion`;
+  if (type === "variable") return "Variable scoring";
+
+  if (unit) {
+    const unitLabel = unit.replace("_", " ");
+    if (basePoints > 0) {
+      return `${basePoints} base + ${pointsPerUnit} pts/${unitLabel}`;
+    }
+    return `${pointsPerUnit} pts/${unitLabel}`;
+  }
+
+  if (basePoints > 0) return `${basePoints} pts`;
+
+  return "Points vary";
+}
+
+export function ChallengeDetails({ challenge, activityTypes }: ChallengeDetailsProps) {
   const videoEmbedUrl = challenge.welcomeVideoUrl
     ? getVideoEmbedUrl(challenge.welcomeVideoUrl)
     : null;
@@ -174,32 +200,44 @@ export function ChallengeDetails({ challenge }: ChallengeDetailsProps) {
           <CardTitle>Activity Types & Scoring</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-3">
-            <div className="flex justify-between items-center py-2 border-b border-border">
-              <span className="text-sm font-medium text-foreground">Outdoor Running</span>
-              <Badge variant="secondary">7.5 pts/mile</Badge>
+          {activityTypes.length === 0 ? (
+            <div className="py-6 text-center">
+              <p className="text-sm text-muted-foreground">
+                No activity types configured yet.
+              </p>
             </div>
-            <div className="flex justify-between items-center py-2 border-b border-border">
-              <span className="text-sm font-medium text-foreground">Outdoor Cycling</span>
-              <Badge variant="secondary">1.8 pts/mile</Badge>
+          ) : (
+            <div className="space-y-3">
+              {activityTypes.slice(0, 6).map((activityType) => (
+                <div
+                  key={activityType._id}
+                  className="flex justify-between items-center py-2 border-b border-border"
+                >
+                  <div className="min-w-0 pr-4">
+                    <p className="text-sm font-medium text-foreground truncate">
+                      {activityType.name}
+                    </p>
+                    {activityType.contributesToStreak && (
+                      <p className="text-xs text-muted-foreground">Counts toward streak</p>
+                    )}
+                  </div>
+                  <Badge variant="secondary">
+                    {formatScoringSummary((activityType.scoringConfig as Record<string, unknown>) ?? {})}
+                  </Badge>
+                </div>
+              ))}
+              {activityTypes.length > 6 && (
+                <div className="pt-2">
+                  <Link
+                    className="text-sm font-medium text-primary hover:underline"
+                    href={`/challenges/${activityTypes[0].challengeId}/activity-types`}
+                  >
+                    View all activity types
+                  </Link>
+                </div>
+              )}
             </div>
-            <div className="flex justify-between items-center py-2 border-b border-border">
-              <span className="text-sm font-medium text-foreground">High Intensity Cardio</span>
-              <Badge variant="secondary">0.9 pts/min</Badge>
-            </div>
-            <div className="flex justify-between items-center py-2 border-b border-border">
-              <span className="text-sm font-medium text-foreground">Low Intensity Cardio</span>
-              <Badge variant="secondary">0.6 pts/min</Badge>
-            </div>
-            <div className="flex justify-between items-center py-2 border-b border-border">
-              <span className="text-sm font-medium text-foreground">Rowing</span>
-              <Badge variant="secondary">5.5 pts/km</Badge>
-            </div>
-            <div className="flex justify-between items-center py-2">
-              <span className="text-sm font-medium text-foreground">Yoga / Stretching</span>
-              <Badge variant="secondary">0.4 pts/min</Badge>
-            </div>
-          </div>
+          )}
         </CardContent>
       </Card>
     </div>

@@ -1,5 +1,9 @@
 {
   "$schema": "https://turbo.build/schema.json",
+  "globalPassThroughEnv": [
+    "CONVEX_SELF_HOSTED_URL",
+    "CONVEX_SELF_HOSTED_ADMIN_KEY"
+  ],
   "globalDependencies": ["**/.env*"],
   "tasks": {
     "build": {
@@ -7,10 +11,6 @@
       "outputs": [".next/**", "!.next/cache/**", "dist/**"]
     },
     "dev": {
-      "cache": false,
-      "persistent": true
-    },
-    "dev:local": {
       "cache": false,
       "persistent": true
     },

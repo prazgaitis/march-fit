@@ -15,7 +15,7 @@ To run with local Convex Docker:
 ```bash
 pnpm convex:start
 pnpm convex:admin-key
-pnpm dev:local
+pnpm dev
 ```
 
 ## Structure

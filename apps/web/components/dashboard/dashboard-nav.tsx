@@ -8,6 +8,7 @@ import {
   Trophy,
   Zap,
   User,
+  Users,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -38,6 +39,11 @@ export const navItems = [
     label: "Earning Points",
     icon: Zap,
     href: (challengeId: string) => `/challenges/${challengeId}/activity-types`,
+  },
+  {
+    label: "Participants",
+    icon: Users,
+    href: (challengeId: string) => `/challenges/${challengeId}/participants`,
   },
   {
     label: "Profile",

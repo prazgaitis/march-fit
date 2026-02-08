@@ -643,7 +643,7 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   "scripts": {
     "test": "vitest",
     "test:integration": "USE_NEON_TESTS=true vitest",
-    "test:local": "TEST_DATABASE_URL=postgresql://test:test@localhost:5433/test_db vitest",
+    "test": "TEST_DATABASE_URL=postgresql://test:test@localhost:5433/test_db vitest",
     "test:setup": "docker compose -f ../../docker-compose.test.yml up -d && sleep 2 && pnpm -F database test:migrate",
     "test:teardown": "docker compose -f ../../docker-compose.test.yml down"
   }
@@ -792,7 +792,7 @@ volumes:
   "scripts": {
     "test": "turbo test --cache-dir=.turbo",
     "test:integration": "pnpm -F web test:integration",
-    "test:local": "pnpm -F web test:local"
+    "test": "pnpm -F web test"
   }
 }
 ```
@@ -803,7 +803,7 @@ volumes:
   "scripts": {
     "test": "dotenv -e ../../.env.local -e ../../.env -- vitest",
     "test:integration": "USE_NEON_TESTS=true dotenv -e ../../.env.local -e ../../.env -- vitest",
-    "test:local": "TEST_DATABASE_URL=postgresql://test:test@localhost:5433/test_db dotenv -e ../../.env.local -e ../../.env -- vitest",
+    "test": "TEST_DATABASE_URL=postgresql://test:test@localhost:5433/test_db dotenv -e ../../.env.local -e ../../.env -- vitest",
     "test:setup": "docker compose -f ../../docker-compose.test.yml up -d && sleep 2 && pnpm -F database test:migrate",
     "test:teardown": "docker compose -f ../../docker-compose.test.yml down"
   }
@@ -833,7 +833,7 @@ volumes:
 pnpm -F web test:setup
 
 # 2. Run tests with local database
-pnpm test:local --run
+pnpm test -- --run
 
 # 3. Stop test database when done (optional)
 pnpm -F web test:teardown
@@ -1014,7 +1014,7 @@ pnpm -F web test:setup
 **Error: `ECONNREFUSED` during integration tests**
 ```bash
 # The Neon database connection failed, use local testing instead
-pnpm test:local --run
+pnpm test -- --run
 ```
 
 **Error: `Failed to load PostCSS config`**

@@ -27,16 +27,12 @@
     "./_generated/*": "./_generated/*"
   },
   "scripts": {
-    "dev": "convex dev",
-    "dev:local": "convex dev --env-file .env.local.self-hosted",
-    "deploy": "convex deploy",
-    "setup": "convex dev",
-    "seed": "convex run actions/seed:seed",
-    "seed:local": "convex run actions/seed:seed --env-file .env.local.self-hosted",
-    "clear": "convex run actions/clear:clear",
-    "clear:local": "convex run actions/clear:clear --env-file .env.local.self-hosted",
-    "reset": "convex run actions/clear:clear && convex run actions/seed:seed",
-    "reset:local": "convex run actions/clear:clear --env-file .env.local.self-hosted && convex run actions/seed:seed --env-file .env.local.self-hosted"
+    "dev": "bash ../../scripts/convex.sh dev",
+    "deploy": "bash ../../scripts/convex.sh deploy",
+    "setup": "bash ../../scripts/convex.sh dev",
+    "seed": "bash ../../scripts/convex.sh run actions/seed:seed",
+    "clear": "bash ../../scripts/convex.sh run actions/clear:clear",
+    "reset": "bash ../../scripts/convex.sh run actions/clear:clear && bash ../../scripts/convex.sh run actions/seed:seed"
   },
   "dependencies": {
     "@convex-dev/better-auth": "^0.10.6",

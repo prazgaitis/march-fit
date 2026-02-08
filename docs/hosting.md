@@ -20,7 +20,7 @@ Self-hosting is supported for development and community use. Some features may r
 ```bash
 pnpm convex:start
 pnpm convex:admin-key
-pnpm dev:local
+pnpm dev
 ```
 
 ## Notes

@@ -36,22 +36,14 @@ git clone https://github.com/prazgaitis/march-fitness-2026.git
 cd march-fitness-2026
 pnpm install
 cp .env.example .env.local   # fill in required values
+pnpm convex:start        # start local Convex containers
+pnpm convex:admin-key    # generate admin key → .env.local
 pnpm dev
 ```
 
 The dev server runs:
 - Web app: http://localhost:3001
 - Convex dashboard: http://localhost:6791
-
-### Local Convex (optional)
-
-Run Convex entirely on your machine with Docker:
-
-```bash
-pnpm convex:start        # start local Convex containers
-pnpm convex:admin-key    # generate admin key → .env.local
-pnpm dev:local           # Next.js + local Convex
-```
 
 See [docs/hosting.md](docs/hosting.md) for full self-hosting details.
 
@@ -62,16 +54,6 @@ apps/web/            Next.js frontend
 packages/backend/    Convex functions + schema
 scripts/             Maintenance & seed scripts
 docs/                Architecture and hosting guides
-```
-
-## Development Commands
-
-```bash
-pnpm dev             # Next.js + Convex (hosted)
-pnpm dev:local       # Next.js + local Convex (Docker)
-pnpm lint            # lint + manypkg check
-pnpm typecheck       # TypeScript type checking
-pnpm test:local      # run tests against local database
 ```
 
 ## AI-Assisted Development

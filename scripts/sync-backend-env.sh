@@ -26,23 +26,8 @@ REQUIRED_VARS=(
   STRIPE_ENCRYPTION_KEY
 )
 
-# Determine which env file to use for deployment targeting
-if [ -f "${BACKEND_DIR}/.env.local.self-hosted" ]; then
-  ENV_FILE_FLAG="--env-file ${BACKEND_DIR}/.env.local.self-hosted"
-else
-  ENV_FILE_FLAG=""
-fi
-
-# Get currently set vars to avoid unnecessary updates
-existing=$(cd "$BACKEND_DIR" && npx convex env list $ENV_FILE_FLAG 2>/dev/null || true)
-
 added=0
 for var in "${REQUIRED_VARS[@]}"; do
-  # Skip if already set on the deployment
-  if echo "$existing" | grep -q "^${var}="; then
-    continue
-  fi
-
   # Extract value from root env, strip surrounding quotes
   line=$(grep "^${var}=" "$ROOT_ENV" 2>/dev/null | head -1 || true)
   if [ -n "$line" ]; then
@@ -51,7 +36,7 @@ for var in "${REQUIRED_VARS[@]}"; do
     val="${val#\"}"
     val="${val%\'}"
     val="${val#\'}"
-    (cd "$BACKEND_DIR" && npx convex env set $ENV_FILE_FLAG "$var" "$val")
+    (cd "$BACKEND_DIR" && npx convex env set "$var" "$val")
     added=$((added + 1))
   fi
 done

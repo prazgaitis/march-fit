@@ -265,14 +265,17 @@ export function ChallengeHeader({ challenge, isParticipating, isSignedIn }: Chal
               </div>
             </div>
 
-            <div className="flex items-center space-x-3">
+            <Link
+              href={`/challenges/${challenge.id}/participants`}
+              className="flex items-center space-x-3 rounded-lg p-2 transition hover:bg-white/10"
+            >
               <Users className="h-8 w-8 text-primary-foreground/80" />
               <div>
                 <p className="text-sm text-primary-foreground/80">Participants</p>
                 <p className="text-lg font-semibold">{challenge.participantCount}</p>
-                <p className="text-sm text-primary-foreground/80">joined</p>
+                <p className="text-sm text-primary-foreground/80">View all</p>
               </div>
-            </div>
+            </Link>
 
             <div className="flex items-center space-x-3">
               <Trophy className="h-8 w-8 text-primary-foreground/80" />
