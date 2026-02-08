@@ -137,7 +137,6 @@ export function convertContentToHtml(value: Maybe<string>): string | null {
     return generateHTML(doc, [
       StarterKit,
       createMentionExtension(),
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ] as any);
   }
 

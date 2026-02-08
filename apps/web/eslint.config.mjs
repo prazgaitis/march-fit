@@ -1,27 +1,31 @@
 // For more info, see https://github.com/storybookjs/eslint-plugin-storybook#configuration-flat-config-format
 import storybook from "eslint-plugin-storybook";
+import nextCoreWebVitals from "eslint-config-next/core-web-vitals";
 
-import { dirname } from "path";
-import { fileURLToPath } from "url";
-import { FlatCompat } from "@eslint/eslintrc";
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-const compat = new FlatCompat({
-  baseDirectory: __dirname,
-});
-
-const eslintConfig = [...compat.extends("next/core-web-vitals", "next/typescript"), {
-  ignores: [
-    "node_modules/**",
-    ".next/**",
-    "out/**",
-    "build/**",
-    "next-env.d.ts",
-    "convex/_generated/**",
-    "storybook-static/**",
-  ],
-}, ...storybook.configs["flat/recommended"]];
+const eslintConfig = [
+  ...nextCoreWebVitals,
+  {
+    ignores: [
+      "node_modules/**",
+      ".next/**",
+      "out/**",
+      "build/**",
+      "next-env.d.ts",
+      "convex/_generated/**",
+      "storybook-static/**",
+    ],
+  },
+  {
+    rules: {
+      // Disable React Compiler rules until we enable reactCompiler in next.config
+      "react-hooks/purity": "off",
+      "react-hooks/set-state-in-effect": "off",
+      "react-hooks/static-components": "off",
+      "react-hooks/error-boundaries": "off",
+      "react-hooks/refs": "off",
+    },
+  },
+  ...storybook.configs["flat/recommended"],
+];
 
 export default eslintConfig;

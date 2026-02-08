@@ -57,17 +57,14 @@ export async function preloadAuthQuery<Query extends FunctionReference<"query">>
   return getBetterAuthUtils().preloadAuthQuery(query, ...args);
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function fetchAuthQuery<T>(query: any, args: Record<string, unknown>): Promise<T> {
   return getBetterAuthUtils().fetchAuthQuery(query, args);
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function fetchAuthMutation<T>(mutation: any, args: Record<string, unknown>): Promise<T> {
   return getBetterAuthUtils().fetchAuthMutation(mutation, args);
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function fetchAuthAction<T>(action: any, args: Record<string, unknown>): Promise<T> {
   return getBetterAuthUtils().fetchAuthAction(action, args);
 }

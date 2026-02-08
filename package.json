@@ -4,7 +4,7 @@
   "license": "MIT",
   "private": true,
   "engines": {
-    "node": ">=v18.18.0"
+    "node": ">=20.9.0"
   },
   "author": {
     "url": "https://march.fit",
@@ -41,7 +41,7 @@
   "packageManager": "pnpm@10.14.0",
   "pnpm": {
     "overrides": {
-      "react-is": "19.0.0",
+      "react-is": "19.2.4",
       "require-in-the-middle": "7.5.2"
     }
   },

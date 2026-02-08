@@ -238,7 +238,6 @@ export function RichTextEditor({
         placeholder: placeholder ?? 'Write something…',
       }),
       mentionExtension,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ] as any,
     content: parseEditorContent(value) ?? value ?? '',
     editable: !disabled,
