@@ -2,6 +2,7 @@ import { internalMutation, mutation } from "../_generated/server";
 import { v } from "convex/values";
 import type { Id } from "../_generated/dataModel";
 import { getCurrentUser } from "../lib/ids";
+import { dateOnlyToUtcMs } from "../lib/dateOnly";
 
 // Helper to check if user is challenge admin
 async function requireChallengeAdmin(
@@ -44,8 +45,8 @@ export const create = internalMutation({
     name: v.string(),
     description: v.optional(v.string()),
     creatorId: v.id("users"),
-    startDate: v.number(),
-    endDate: v.number(),
+    startDate: v.string(),
+    endDate: v.string(),
     durationDays: v.number(),
     streakMinPoints: v.number(),
     weekCalcMethod: v.string(),
@@ -64,8 +65,8 @@ export const createChallenge = mutation({
   args: {
     name: v.string(),
     description: v.optional(v.string()),
-    startDate: v.number(),
-    endDate: v.number(),
+    startDate: v.string(),
+    endDate: v.string(),
     durationDays: v.number(),
     streakMinPoints: v.number(),
     weekCalcMethod: v.string(),
@@ -78,7 +79,13 @@ export const createChallenge = mutation({
       throw new Error("Not authenticated");
     }
 
-    if (args.endDate < args.startDate) {
+    const startDateMs = dateOnlyToUtcMs(args.startDate);
+    const endDateMs = dateOnlyToUtcMs(args.endDate);
+    if (!Number.isFinite(startDateMs) || !Number.isFinite(endDateMs)) {
+      throw new Error("Invalid start or end date");
+    }
+
+    if (endDateMs < startDateMs) {
         throw new Error("End date must be after start date");
     }
 
@@ -123,8 +130,8 @@ export const updateChallenge = mutation({
     challengeId: v.id("challenges"),
     name: v.optional(v.string()),
     description: v.optional(v.string()),
-    startDate: v.optional(v.number()),
-    endDate: v.optional(v.number()),
+    startDate: v.optional(v.string()),
+    endDate: v.optional(v.string()),
     streakMinPoints: v.optional(v.number()),
     weekCalcMethod: v.optional(v.string()),
     welcomeVideoUrl: v.optional(v.string()),
@@ -139,7 +146,12 @@ export const updateChallenge = mutation({
 
     // Validate dates if both are provided
     if (updates.startDate !== undefined && updates.endDate !== undefined) {
-      if (updates.endDate < updates.startDate) {
+      const startDateMs = dateOnlyToUtcMs(updates.startDate);
+      const endDateMs = dateOnlyToUtcMs(updates.endDate);
+      if (!Number.isFinite(startDateMs) || !Number.isFinite(endDateMs)) {
+        throw new Error("Invalid start or end date");
+      }
+      if (endDateMs < startDateMs) {
         throw new Error("End date must be after start date");
       }
     }
@@ -151,13 +163,21 @@ export const updateChallenge = mutation({
     }
 
     if (updates.startDate !== undefined && updates.endDate === undefined) {
-      if (current.endDate < updates.startDate) {
+      const startDateMs = dateOnlyToUtcMs(updates.startDate);
+      if (!Number.isFinite(startDateMs)) {
+        throw new Error("Invalid start date");
+      }
+      if (dateOnlyToUtcMs(current.endDate) < startDateMs) {
         throw new Error("Start date must be before existing end date");
       }
     }
 
     if (updates.endDate !== undefined && updates.startDate === undefined) {
-      if (updates.endDate < current.startDate) {
+      const endDateMs = dateOnlyToUtcMs(updates.endDate);
+      if (!Number.isFinite(endDateMs)) {
+        throw new Error("Invalid end date");
+      }
+      if (endDateMs < dateOnlyToUtcMs(current.startDate)) {
         throw new Error("End date must be after existing start date");
       }
     }
@@ -167,7 +187,9 @@ export const updateChallenge = mutation({
     const newStartDate = updates.startDate ?? current.startDate;
     const newEndDate = updates.endDate ?? current.endDate;
     if (updates.startDate !== undefined || updates.endDate !== undefined) {
-      durationDays = Math.ceil((newEndDate - newStartDate) / (1000 * 60 * 60 * 24));
+      durationDays = Math.ceil(
+        (dateOnlyToUtcMs(newEndDate) - dateOnlyToUtcMs(newStartDate)) / (1000 * 60 * 60 * 24)
+      );
     }
 
     const now = Date.now();

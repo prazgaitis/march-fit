@@ -3,14 +3,14 @@ import type { Doc } from "@repo/backend/_generated/dataModel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Play } from "lucide-react";
-import { formatDateLongFromUtcMs } from "@/lib/date-only";
+import { formatDateLongFromDateOnly } from "@/lib/date-only";
 
 interface Challenge {
   id: string;
   name: string;
   description: string | null;
-  startDate: number;
-  endDate: number;
+  startDate: string;
+  endDate: string;
   durationDays: number;
   streakMinPoints: number;
   welcomeVideoUrl?: string;
@@ -134,7 +134,7 @@ export function ChallengeDetails({ challenge, activityTypes }: ChallengeDetailsP
             <div>
               <h4 className="font-semibold text-foreground mb-2">Challenge Period</h4>
               <p className="text-sm text-muted-foreground">
-                {formatDateLongFromUtcMs(challenge.startDate)} - {formatDateLongFromUtcMs(challenge.endDate)}
+                {formatDateLongFromDateOnly(challenge.startDate)} - {formatDateLongFromDateOnly(challenge.endDate)}
               </p>
               <p className="text-sm text-muted-foreground/70">{challenge.durationDays} days total</p>
             </div>

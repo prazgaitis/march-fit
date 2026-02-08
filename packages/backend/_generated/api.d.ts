@@ -20,6 +20,7 @@ import type * as actions_strava from "../actions/strava.js";
 import type * as auth from "../auth.js";
 import type * as http from "../http.js";
 import type * as index from "../index.js";
+import type * as lib_dateOnly from "../lib/dateOnly.js";
 import type * as lib_defaultEmailPlan from "../lib/defaultEmailPlan.js";
 import type * as lib_ids from "../lib/ids.js";
 import type * as lib_payments from "../lib/payments.js";
@@ -27,6 +28,7 @@ import type * as lib_resend from "../lib/resend.js";
 import type * as lib_scoring from "../lib/scoring.js";
 import type * as lib_strava from "../lib/strava.js";
 import type * as lib_stripe from "../lib/stripe.js";
+import type * as migrations from "../migrations.js";
 import type * as mutations_achievements from "../mutations/achievements.js";
 import type * as mutations_activities from "../mutations/activities.js";
 import type * as mutations_activityTypes from "../mutations/activityTypes.js";
@@ -66,6 +68,7 @@ import type * as queries_notifications from "../queries/notifications.js";
 import type * as queries_participations from "../queries/participations.js";
 import type * as queries_paymentConfig from "../queries/paymentConfig.js";
 import type * as queries_paymentConfigInternal from "../queries/paymentConfigInternal.js";
+import type * as queries_templates from "../queries/templates.js";
 import type * as queries_users from "../queries/users.js";
 import type * as queries_workspaces from "../queries/workspaces.js";
 
@@ -96,6 +99,7 @@ declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   http: typeof http;
   index: typeof index;
+  "lib/dateOnly": typeof lib_dateOnly;
   "lib/defaultEmailPlan": typeof lib_defaultEmailPlan;
   "lib/ids": typeof lib_ids;
   "lib/payments": typeof lib_payments;
@@ -103,6 +107,7 @@ declare const fullApi: ApiFromModules<{
   "lib/scoring": typeof lib_scoring;
   "lib/strava": typeof lib_strava;
   "lib/stripe": typeof lib_stripe;
+  migrations: typeof migrations;
   "mutations/achievements": typeof mutations_achievements;
   "mutations/activities": typeof mutations_activities;
   "mutations/activityTypes": typeof mutations_activityTypes;
@@ -142,6 +147,7 @@ declare const fullApi: ApiFromModules<{
   "queries/participations": typeof queries_participations;
   "queries/paymentConfig": typeof queries_paymentConfig;
   "queries/paymentConfigInternal": typeof queries_paymentConfigInternal;
+  "queries/templates": typeof queries_templates;
   "queries/users": typeof queries_users;
   "queries/workspaces": typeof queries_workspaces;
 }>;
@@ -2265,6 +2271,92 @@ export declare const components: {
       findOne: FunctionReference<"query", "internal", any, any>;
       update: FunctionReference<"mutation", "internal", any, any>;
       updateMany: FunctionReference<"mutation", "internal", any, any>;
+    };
+  };
+  migrations: {
+    lib: {
+      cancel: FunctionReference<
+        "mutation",
+        "internal",
+        { name: string },
+        {
+          batchSize?: number;
+          cursor?: string | null;
+          error?: string;
+          isDone: boolean;
+          latestEnd?: number;
+          latestStart: number;
+          name: string;
+          next?: Array<string>;
+          processed: number;
+          state: "inProgress" | "success" | "failed" | "canceled" | "unknown";
+        }
+      >;
+      cancelAll: FunctionReference<
+        "mutation",
+        "internal",
+        { sinceTs?: number },
+        Array<{
+          batchSize?: number;
+          cursor?: string | null;
+          error?: string;
+          isDone: boolean;
+          latestEnd?: number;
+          latestStart: number;
+          name: string;
+          next?: Array<string>;
+          processed: number;
+          state: "inProgress" | "success" | "failed" | "canceled" | "unknown";
+        }>
+      >;
+      clearAll: FunctionReference<
+        "mutation",
+        "internal",
+        { before?: number },
+        null
+      >;
+      getStatus: FunctionReference<
+        "query",
+        "internal",
+        { limit?: number; names?: Array<string> },
+        Array<{
+          batchSize?: number;
+          cursor?: string | null;
+          error?: string;
+          isDone: boolean;
+          latestEnd?: number;
+          latestStart: number;
+          name: string;
+          next?: Array<string>;
+          processed: number;
+          state: "inProgress" | "success" | "failed" | "canceled" | "unknown";
+        }>
+      >;
+      migrate: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          batchSize?: number;
+          cursor?: string | null;
+          dryRun: boolean;
+          fnHandle: string;
+          name: string;
+          next?: Array<{ fnHandle: string; name: string }>;
+          oneBatchOnly?: boolean;
+        },
+        {
+          batchSize?: number;
+          cursor?: string | null;
+          error?: string;
+          isDone: boolean;
+          latestEnd?: number;
+          latestStart: number;
+          name: string;
+          next?: Array<string>;
+          processed: number;
+          state: "inProgress" | "success" | "failed" | "canceled" | "unknown";
+        }
+      >;
     };
   };
 };

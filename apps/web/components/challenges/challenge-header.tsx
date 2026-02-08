@@ -9,15 +9,15 @@ import type { Id } from "@repo/backend/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CalendarDays, Users, Trophy, CreditCard, Loader2, CheckCircle, XCircle, Lock } from "lucide-react";
-import { format } from "date-fns";
+import { dateOnlyToUtcMs, formatDateShortFromDateOnly } from "@/lib/date-only";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 interface Challenge {
   id: string;
   name: string;
   description: string | null;
-  startDate: Date;
-  endDate: Date;
+  startDate: string;
+  endDate: string;
   durationDays: number;
   streakMinPoints: number;
   participantCount: number;
@@ -48,12 +48,13 @@ export function ChallengeHeader({ challenge, isParticipating, isSignedIn }: Chal
     isSignedIn ? { challengeId: challenge.id as Id<"challenges"> } : "skip"
   );
 
-  const startDate = new Date(challenge.startDate);
-  const endDate = new Date(challenge.endDate);
+  const startDateMs = dateOnlyToUtcMs(challenge.startDate);
+  const endDateMs = dateOnlyToUtcMs(challenge.endDate);
+  const nowMs = Date.now();
 
-  const isUpcoming = new Date() < startDate;
-  const isActive = new Date() >= startDate && new Date() <= endDate;
-  const isEnded = new Date() > endDate;
+  const isUpcoming = nowMs < startDateMs;
+  const isActive = nowMs >= startDateMs && nowMs <= endDateMs;
+  const isEnded = nowMs > endDateMs;
 
   const formatPrice = (cents: number, currency: string = "usd") => {
     return new Intl.NumberFormat("en-US", {
@@ -269,14 +270,14 @@ export function ChallengeHeader({ challenge, isParticipating, isSignedIn }: Chal
               <div>
                 <p className="text-sm text-primary-foreground/80">Duration</p>
                 <p className="text-lg font-semibold">
-                  {format(challenge.startDate, "MMM d")} - {format(challenge.endDate, "MMM d, yyyy")}
+                  {formatDateShortFromDateOnly(challenge.startDate)} - {formatDateShortFromDateOnly(challenge.endDate)}
                 </p>
                 <p className="text-sm text-primary-foreground/80">{challenge.durationDays} days</p>
               </div>
             </div>
 
             <Link
-              href={`/challenges/${challenge.id}/participants`}
+              href={`/challenges/${challenge.id}/leaderboard`}
               className="flex items-center space-x-3 rounded-lg p-2 transition hover:bg-white/10"
             >
               <Users className="h-8 w-8 text-primary-foreground/80" />

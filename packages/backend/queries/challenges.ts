@@ -1,6 +1,7 @@
 import { internalQuery, query } from "../_generated/server";
 import { v } from "convex/values";
 import type { Id, Doc } from "../_generated/dataModel";
+import { coerceDateOnlyToString, dateOnlyToUtcMs } from "../lib/dateOnly";
 
 /**
  * Internal query to get challenge with activity types (for scripts/migrations)
@@ -24,6 +25,16 @@ export const getByIdInternal = internalQuery({
       ...challenge,
       activityTypes,
     };
+  },
+});
+
+export const getByName = internalQuery({
+  args: {
+    name: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const challenges = await ctx.db.query("challenges").collect();
+    return challenges.find((challenge) => challenge.name === args.name) ?? null;
   },
 });
 
@@ -51,7 +62,7 @@ export const listPublic = query({
     );
 
     // Sort by startDate descending (most recent first)
-    publicChallenges.sort((a, b) => b.startDate - a.startDate);
+    publicChallenges.sort((a, b) => dateOnlyToUtcMs(b.startDate) - dateOnlyToUtcMs(a.startDate));
 
     // Get participant counts for each challenge
     const challengesWithCounts = await Promise.all(
@@ -65,8 +76,8 @@ export const listPublic = query({
           id: challenge._id,
           name: challenge.name,
           description: challenge.description,
-          startDate: challenge.startDate,
-          endDate: challenge.endDate,
+          startDate: coerceDateOnlyToString(challenge.startDate),
+          endDate: coerceDateOnlyToString(challenge.endDate),
           durationDays: challenge.durationDays,
           createdAt: challenge.createdAt,
           participantCount: participations.length,
@@ -124,7 +135,7 @@ export const listForUser = query({
     );
 
     // Sort by startDate descending
-    validChallenges.sort((a, b) => b.startDate - a.startDate);
+    validChallenges.sort((a, b) => dateOnlyToUtcMs(b.startDate) - dateOnlyToUtcMs(a.startDate));
 
     // Apply pagination
     const paginated = validChallenges.slice(offset, offset + limit);
@@ -139,6 +150,8 @@ export const listForUser = query({
         return {
           ...challenge,
           id: challenge._id,
+          startDate: coerceDateOnlyToString(challenge.startDate),
+          endDate: coerceDateOnlyToString(challenge.endDate),
           isParticipant: Boolean(participation),
           participantStats: participation
             ? {
@@ -176,6 +189,8 @@ export const getByIdWithCount = query({
     return {
       ...challenge,
       id: challenge._id,
+      startDate: coerceDateOnlyToString(challenge.startDate),
+      endDate: coerceDateOnlyToString(challenge.endDate),
       participantCount: participations.length,
     };
   },
@@ -218,6 +233,8 @@ export const getById = query({
 
     return {
       ...challenge,
+      startDate: coerceDateOnlyToString(challenge.startDate),
+      endDate: coerceDateOnlyToString(challenge.endDate),
       id: challenge._id,
       activityTypes,
       bonusRules,
@@ -317,6 +334,8 @@ export const getDashboardData = query({
       challenge: {
         ...challenge,
         id: challenge._id,
+        startDate: coerceDateOnlyToString(challenge.startDate),
+        endDate: coerceDateOnlyToString(challenge.endDate),
       },
       participation,
       leaderboard: validLeaderboard,

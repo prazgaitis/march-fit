@@ -59,8 +59,8 @@ export const setup2026Challenges = action({
 
     // February Warmup 2026: Feb 1-28, 2026
     console.log("🏋️ Creating February Warmup 2026...");
-    const feb1_2026 = new Date("2026-02-01T00:00:00-06:00").getTime();
-    const feb28_2026 = new Date("2026-02-28T23:59:59-06:00").getTime();
+    const feb1_2026 = "2026-02-01";
+    const feb28_2026 = "2026-02-28";
 
     const febWarmupId = await ctx.runMutation(
       internal.mutations.challenges.create,
@@ -82,8 +82,8 @@ export const setup2026Challenges = action({
 
     // March Fitness 2026: Mar 1-31, 2026
     console.log("🏆 Creating March Fitness 2026...");
-    const mar1_2026 = new Date("2026-03-01T00:00:00-06:00").getTime();
-    const mar31_2026 = new Date("2026-03-31T23:59:59-05:00").getTime(); // Note: CDT by end of March
+    const mar1_2026 = "2026-03-01";
+    const mar31_2026 = "2026-03-31";
 
     const marchFitnessId = await ctx.runMutation(
       internal.mutations.challenges.create,

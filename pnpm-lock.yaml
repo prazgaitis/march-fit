@@ -111,6 +111,9 @@ importers:
       react:
         specifier: 19.1.0
         version: 19.1.0
+      react-day-picker:
+        specifier: ^9.2.3
+        version: 9.13.1(react@19.1.0)
       react-dom:
         specifier: 19.1.0
         version: 19.1.0(react@19.1.0)
@@ -232,6 +235,9 @@ importers:
       '@convex-dev/better-auth':
         specifier: ^0.10.6
         version: 0.10.6(@better-auth/core@1.4.7(@better-auth/utils@0.3.0)(@better-fetch/fetch@1.1.21)(better-call@1.1.5(zod@4.2.1))(jose@6.1.3)(kysely@0.28.9)(nanostores@1.1.0))(@better-auth/utils@0.3.0)(@standard-schema/spec@1.1.0)(better-auth@1.4.7(next@15.5.2(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(better-call@1.1.5(zod@4.2.1))(convex@1.28.0(@clerk/clerk-react@5.45.0(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react@19.1.0))(nanostores@1.1.0)(react-dom@19.1.0(react@19.1.0))(react@19.1.0)(typescript@5.9.2)
+      '@convex-dev/migrations':
+        specifier: ^0.3.1
+        version: 0.3.1(convex@1.28.0(@clerk/clerk-react@5.45.0(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react@19.1.0))
       '@convex-dev/resend':
         specifier: ^0.2.0
         version: 0.2.0(convex-helpers@0.1.106(@standard-schema/spec@1.1.0)(convex@1.28.0(@clerk/clerk-react@5.45.0(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react@19.1.0))(react@19.1.0)(typescript@5.9.2)(zod@4.2.1))(convex@1.28.0(@clerk/clerk-react@5.45.0(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react@19.1.0))(react@19.1.0)
@@ -433,6 +439,11 @@ packages:
       react: ^18.3.1 || ^19.0.0
       react-dom: ^18.3.1 || ^19.0.0
 
+  '@convex-dev/migrations@0.3.1':
+    resolution: {integrity: sha512-dGiN82vWMN415/AGMcVooDOJk8iTousZahBBs27uA03pL74Uo3ksucUW3CiCfPx75rv+x9UnenEakimQYYNIrA==}
+    peerDependencies:
+      convex: ^1.24.8
+
   '@convex-dev/rate-limiter@0.3.0':
     resolution: {integrity: sha512-8R1gos0KoGU9+1bahTpOuZgU04d4aAmk7SJw6D37HXLn7DLylAIKegaWmDgdcpaOGHDDDfnvuoEmC1AnoqHruA==}
     peerDependencies:
@@ -457,6 +468,9 @@ packages:
   '@cspotcode/source-map-support@0.8.1':
     resolution: {integrity: sha512-IchNf6dN4tHoMFIn/7OE8LWZ19Y6q/67Bmf6vnGREv8RSbBVb9LPJxEcnwrcwX6ixSvaiGoomAUvu4YSxXrVgw==}
     engines: {node: '>=12'}
+
+  '@date-fns/tz@1.4.1':
+    resolution: {integrity: sha512-P5LUNhtbj6YfI3iJjw5EL9eUAG6OitD0W3fWQcpQjDRc/QIsL0tRNuO1PcDvPccWL1fSTXXdE1ds+l95DV/OFA==}
 
   '@emnapi/core@1.5.0':
     resolution: {integrity: sha512-sbP8GzB1WDzacS8fgNPpHlp6C9VZe+SJP3F90W9rLemaQj2PzIuTEl1qDOYQf58YIpyjViI24y9aPWCjEzY2cg==}
@@ -3237,6 +3251,9 @@ packages:
     resolution: {integrity: sha512-BS8PfmtDGnrgYdOonGZQdLZslWIeCGFP9tpan0hi1Co2Zr2NKADsvGYA8XxuG/4UWgJ6Cjtv+YJnB6MM69QGlQ==}
     engines: {node: '>= 0.4'}
 
+  date-fns-jalali@4.1.0-0:
+    resolution: {integrity: sha512-hTIP/z+t+qKwBDcmmsnmjWTduxCg+5KfdqWQvb2X/8C9+knYY6epN/pfxdDuyVlSVeFz0sM5eEfwIUQ70U4ckg==}
+
   date-fns@4.1.0:
     resolution: {integrity: sha512-Ukq0owbQXxa/U3EGtsdVBkR1w7KOQ5gIBqdH2hkvknzZPYvBxb/aa6E8L7tmjFtkwZBu3UXBbjIgPo/Ez4xaNg==}
 
@@ -5041,6 +5058,12 @@ packages:
     resolution: {integrity: sha512-y3bGgqKj3QBdxLbLkomlohkvsA8gdAiUQlSBJnBhfn+BPxg4bc62d8TcBW15wavDfgexCgccckhcZvywyQYPOw==}
     hasBin: true
 
+  react-day-picker@9.13.1:
+    resolution: {integrity: sha512-9nx2lBBJ0VZw5jJekId3DishwnJLiqY1Me1JvCrIyqbWwcflBTVaEkiK+w1bre5oMNWYo722eu+8UAMXWMqktw==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      react: '>=16.8.0'
+
   react-docgen-typescript@2.4.0:
     resolution: {integrity: sha512-ZtAp5XTO5HRzQctjPU0ybY0RRCQO19X/8fxn3w7y2VVTUbGHDKULPTL4ky3vB05euSgG5NpALhEhDPvQ56wvXg==}
     peerDependencies:
@@ -5535,6 +5558,7 @@ packages:
   tar@7.4.3:
     resolution: {integrity: sha512-5S7Va8hKfV7W5U6g3aYxXmlPoZVAwUMy9AOKyF2fVuZa2UD3qZjg578OrLRt8PcNN1PleVaL/5/yYATNL0ICUw==}
     engines: {node: '>=18'}
+    deprecated: Old versions of tar are not supported, and contain widely publicized security vulnerabilities, which have been fixed in the current version. Please update. Support for old versions may be purchased (at exhorbitant rates) by contacting i@izs.me
 
   test-exclude@6.0.0:
     resolution: {integrity: sha512-cAGWPIyOHU6zlmg88jwm7VRyXnMN7iV68OGAbYDk/Mh/xC/pzVPlQtY6ngoIH/5/tciuhGfvESU8GrHrcxD56w==}
@@ -6245,7 +6269,7 @@ snapshots:
       '@better-auth/utils': 0.3.0
       '@better-fetch/fetch': 1.1.21
       '@standard-schema/spec': 1.1.0
-      better-call: 1.1.5(zod@4.2.1)
+      better-call: 1.1.5(zod@4.1.5)
       jose: 6.1.3
       kysely: 0.28.9
       nanostores: 1.1.0
@@ -6380,6 +6404,10 @@ snapshots:
       - nanostores
       - typescript
 
+  '@convex-dev/migrations@0.3.1(convex@1.28.0(@clerk/clerk-react@5.45.0(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react@19.1.0))':
+    dependencies:
+      convex: 1.28.0(@clerk/clerk-react@5.45.0(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react@19.1.0)
+
   '@convex-dev/rate-limiter@0.3.0(convex@1.28.0(@clerk/clerk-react@5.45.0(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react@19.1.0))(react@19.1.0)':
     dependencies:
       convex: 1.28.0(@clerk/clerk-react@5.45.0(react-dom@19.1.0(react@19.1.0))(react@19.1.0))(react@19.1.0)
@@ -6405,6 +6433,8 @@ snapshots:
   '@cspotcode/source-map-support@0.8.1':
     dependencies:
       '@jridgewell/trace-mapping': 0.3.9
+
+  '@date-fns/tz@1.4.1': {}
 
   '@emnapi/core@1.5.0':
     dependencies:
@@ -9023,6 +9053,8 @@ snapshots:
       es-errors: 1.3.0
       is-data-view: 1.0.2
 
+  date-fns-jalali@4.1.0-0: {}
+
   date-fns@4.1.0: {}
 
   debug@3.2.7:
@@ -11237,6 +11269,13 @@ snapshots:
       ini: 1.3.8
       minimist: 1.2.8
       strip-json-comments: 2.0.1
+
+  react-day-picker@9.13.1(react@19.1.0):
+    dependencies:
+      '@date-fns/tz': 1.4.1
+      date-fns: 4.1.0
+      date-fns-jalali: 4.1.0-0
+      react: 19.1.0
 
   react-docgen-typescript@2.4.0(typescript@5.9.2):
     dependencies:

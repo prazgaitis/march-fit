@@ -4,6 +4,7 @@ import { calculateActivityPoints, calculateThresholdBonuses, calculateOptionalBo
 import { getCurrentUser } from "../lib/ids";
 import { isPaymentRequired } from "../lib/payments";
 import type { Id } from "../_generated/dataModel";
+import { dateOnlyToUtcMs } from "../lib/dateOnly";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -577,9 +578,9 @@ function getWeekStart(timestamp: number): number {
  * Week 1 = days 1-7, Week 2 = days 8-14, etc.
  * Returns 0 if the date is before the challenge starts
  */
-function getChallengeWeekNumber(challengeStartDate: number, loggedDate: number): number {
+function getChallengeWeekNumber(challengeStartDate: string | number, loggedDate: number): number {
   // Normalize both to start of day UTC
-  const startDate = new Date(challengeStartDate);
+  const startDate = new Date(dateOnlyToUtcMs(challengeStartDate));
   const loggedDateObj = new Date(loggedDate);
 
   const startDayUtc = Date.UTC(

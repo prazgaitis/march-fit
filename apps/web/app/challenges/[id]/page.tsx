@@ -67,8 +67,8 @@ export default async function ChallengePage({ params }: PageProps) {
         <ChallengeHeader
           challenge={{
             ...challenge,
-            startDate: new Date(challenge.startDate),
-            endDate: new Date(challenge.endDate),
+            startDate: challenge.startDate,
+            endDate: challenge.endDate,
             createdAt: new Date(challenge.createdAt),
           }}
           isParticipating={isParticipating}

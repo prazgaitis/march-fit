@@ -743,8 +743,8 @@ describe('Activities Logic', () => {
         return await ctx.db.insert("challenges", {
           name: 'Test Challenge',
           creatorId: userId,
-          startDate: Date.UTC(2024, 0, 1), // Jan 1, 2024
-          endDate: Date.UTC(2024, 0, 28), // 4 weeks
+          startDate: "2024-01-01", // Jan 1, 2024
+          endDate: "2024-01-28", // 4 weeks
           streakMinPoints: 10,
           durationDays: 28,
           weekCalcMethod: 'fromStart',
@@ -800,8 +800,8 @@ describe('Activities Logic', () => {
         return await ctx.db.insert("challenges", {
           name: 'Test Challenge',
           creatorId: userId,
-          startDate: Date.UTC(2024, 0, 1), // Jan 1, 2024
-          endDate: Date.UTC(2024, 0, 28), // 4 weeks
+          startDate: "2024-01-01", // Jan 1, 2024
+          endDate: "2024-01-28", // 4 weeks
           streakMinPoints: 10,
           durationDays: 28,
           weekCalcMethod: 'fromStart',

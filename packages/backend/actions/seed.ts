@@ -50,6 +50,40 @@ export const seed = action({
   },
 });
 
+export const seedIfMissing = action({
+  args: {},
+  handler: async (ctx) => {
+    console.log("🌱 Seeding missing data (non-destructive)...");
+
+    console.log("📁 Ensuring categories...");
+    const categories = await seedCategories(ctx);
+
+    console.log("📋 Ensuring template activity types...");
+    const templateActivityTypes = await seedTemplateActivityTypes(ctx, categories);
+
+    console.log("👥 Ensuring users...");
+    const users = await seedUsers(ctx, true);
+
+    console.log("🏆 Ensuring challenges...");
+    const challenges = await seedChallenges(ctx, users.admin, true);
+
+    console.log("⚙️ Ensuring activity types for challenges...");
+    await seedActivityTypesForChallenges(ctx, challenges, templateActivityTypes, true);
+
+    console.log("🤝 Ensuring participations...");
+    await seedParticipations(ctx, challenges, users, true);
+
+    console.log("🏃 Ensuring activities...");
+    await seedActivities(ctx, challenges, users, true);
+
+    console.log("👑 Ensuring admin users...");
+    await ctx.runMutation(internal.mutations.users.ensureAdmins, {});
+
+    console.log("🎉 Missing data seeding completed!");
+    return { success: true };
+  },
+});
+
 async function seedCategories(ctx: any) {
   const now = Date.now();
 
@@ -91,6 +125,7 @@ async function seedCategories(ctx: any) {
 
 async function seedTemplateActivityTypes(ctx: any, categories: Record<string, any>) {
   const now = Date.now();
+  const existingTemplates = await ctx.runQuery(internal.queries.templates.list, {});
 
   const templateData = [
     // Core workout activities
@@ -183,34 +218,6 @@ async function seedTemplateActivityTypes(ctx: any, categories: Record<string, an
       isNegative: false,
     },
     // Special challenges
-    {
-      name: "26.2 mile run",
-      categoryId: categories["Special"]._id,
-      scoringConfig: { type: "count", unit: "completion", pointsPerUnit: 100 },
-      contributesToStreak: true,
-      isNegative: false,
-    },
-    {
-      name: "112 mile bike ride",
-      categoryId: categories["Special"]._id,
-      scoringConfig: { type: "count", unit: "completion", pointsPerUnit: 100 },
-      contributesToStreak: true,
-      isNegative: false,
-    },
-    {
-      name: "42.2k erg",
-      categoryId: categories["Special"]._id,
-      scoringConfig: { type: "count", unit: "completion", pointsPerUnit: 100 },
-      contributesToStreak: true,
-      isNegative: false,
-    },
-    {
-      name: "2.4 mile swim",
-      categoryId: categories["Special"]._id,
-      scoringConfig: { type: "count", unit: "completion", pointsPerUnit: 50 },
-      contributesToStreak: true,
-      isNegative: false,
-    },
     {
       name: "The Murph",
       description: "1 mile run, 100 pull-ups, 200 push-ups, 300 squats, 1 mile run",
@@ -366,6 +373,12 @@ async function seedTemplateActivityTypes(ctx: any, categories: Record<string, an
   const templates: any[] = [];
 
   for (const template of templateData) {
+    const existing = existingTemplates.find((t: any) => t.name === template.name);
+    if (existing) {
+      templates.push(existing);
+      continue;
+    }
+
     const id = await ctx.runMutation(internal.mutations.templates.create, {
       ...template,
       createdAt: now,
@@ -377,35 +390,41 @@ async function seedTemplateActivityTypes(ctx: any, categories: Record<string, an
   return templates;
 }
 
-async function seedUsers(ctx: any) {
+async function seedUsers(ctx: any, idempotent = false) {
   const now = Date.now();
 
-  const adminId = await ctx.runMutation(internal.mutations.users.create, {
+  const getOrCreateUser = async (user: { username: string; email: string; name: string; role: "admin" | "user" }) => {
+    if (idempotent) {
+      const existing = await ctx.runQuery(internal.queries.users.getByEmail, { email: user.email });
+      if (existing) return existing._id;
+    }
+    return await ctx.runMutation(internal.mutations.users.create, {
+      ...user,
+      createdAt: now,
+      updatedAt: now,
+    });
+  };
+
+  const adminId = await getOrCreateUser({
     username: "prazgaitis",
     email: "prazgaitis@gmail.com",
     name: "Paulius Razgaitis",
     role: "admin",
-    createdAt: now,
-    updatedAt: now,
   });
 
   // Second admin user
-  const admin2Id = await ctx.runMutation(internal.mutations.users.create, {
+  const admin2Id = await getOrCreateUser({
     username: "paul",
     email: "paul@gocomplete.ai",
     name: "Paul Razgaitis",
     role: "admin",
-    createdAt: now,
-    updatedAt: now,
   });
 
-  const sampleUserId = await ctx.runMutation(internal.mutations.users.create, {
+  const sampleUserId = await getOrCreateUser({
     username: "sampleuser",
     email: "sample@example.com",
     name: "Sample User",
     role: "user",
-    createdAt: now,
-    updatedAt: now,
   });
 
   const additionalUsers = [
@@ -418,12 +437,7 @@ async function seedUsers(ctx: any) {
 
   const additionalUserIds = [];
   for (const user of additionalUsers) {
-    const id = await ctx.runMutation(internal.mutations.users.create, {
-      ...user,
-      role: "user",
-      createdAt: now,
-      updatedAt: now,
-    });
+    const id = await getOrCreateUser({ ...user, role: "user" });
     additionalUserIds.push(id);
   }
 
@@ -435,13 +449,19 @@ async function seedUsers(ctx: any) {
   };
 }
 
-async function seedChallenges(ctx: any, adminUserId: any) {
+async function seedChallenges(ctx: any, adminUserId: any, idempotent = false) {
   const now = Date.now();
 
   // Create at least one active challenge (current month)
   const currentMonth = new Date(now);
-  const monthStart = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1).getTime();
-  const monthEnd = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0, 23, 59, 59).getTime();
+  const formatDateOnly = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+  const monthStart = formatDateOnly(new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1));
+  const monthEnd = formatDateOnly(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0));
   const daysInMonth = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0).getDate();
 
   const challengeData = [
@@ -457,17 +477,26 @@ async function seedChallenges(ctx: any, adminUserId: any) {
     {
       name: "March Fitness Challenge",
       description: "Get fit this March with daily activities! Join our community challenge to build healthy habits and compete with friends.",
-      startDate: new Date("2025-03-01").getTime(),
-      endDate: new Date("2025-03-31").getTime(),
+      startDate: "2025-03-01",
+      endDate: "2025-03-31",
       durationDays: 31,
+      streakMinPoints: 10,
+      weekCalcMethod: "sunday",
+    },
+    {
+      name: "February Warmup Challenge",
+      description: "Warm up for March with a full month of consistent movement. Build your streak and momentum in February.",
+      startDate: "2026-02-01",
+      endDate: "2026-02-28",
+      durationDays: 28,
       streakMinPoints: 10,
       weekCalcMethod: "sunday",
     },
     {
       name: "Summer Shape-Up Challenge",
       description: "Get ready for summer with this intensive 6-week fitness challenge. Focus on strength, cardio, and flexibility.",
-      startDate: new Date("2025-06-01").getTime(),
-      endDate: new Date("2025-07-15").getTime(),
+      startDate: "2025-06-01",
+      endDate: "2025-07-15",
       durationDays: 45,
       streakMinPoints: 15,
       weekCalcMethod: "sunday",
@@ -475,8 +504,8 @@ async function seedChallenges(ctx: any, adminUserId: any) {
     {
       name: "New Year, New You",
       description: "Start the year strong with our most popular challenge! Build lasting habits that will transform your health.",
-      startDate: new Date("2025-01-01").getTime(),
-      endDate: new Date("2025-01-31").getTime(),
+      startDate: "2025-01-01",
+      endDate: "2025-01-31",
       durationDays: 31,
       streakMinPoints: 12,
       weekCalcMethod: "sunday",
@@ -484,8 +513,8 @@ async function seedChallenges(ctx: any, adminUserId: any) {
     {
       name: "Holiday Wellness Challenge",
       description: "Stay healthy during the holiday season. Focus on mindful movement and stress-relief activities.",
-      startDate: new Date("2024-12-01").getTime(),
-      endDate: new Date("2024-12-31").getTime(),
+      startDate: "2024-12-01",
+      endDate: "2024-12-31",
       durationDays: 31,
       streakMinPoints: 8,
       weekCalcMethod: "sunday",
@@ -493,8 +522,8 @@ async function seedChallenges(ctx: any, adminUserId: any) {
     {
       name: "Spring Sprint Challenge",
       description: "A quick 2-week intensive challenge to jumpstart your spring fitness routine. High energy, big results!",
-      startDate: new Date("2025-04-15").getTime(),
-      endDate: new Date("2025-04-28").getTime(),
+      startDate: "2025-04-15",
+      endDate: "2025-04-28",
       durationDays: 14,
       streakMinPoints: 20,
       weekCalcMethod: "sunday",
@@ -503,6 +532,16 @@ async function seedChallenges(ctx: any, adminUserId: any) {
 
   const challengeIds = [];
   for (const challenge of challengeData) {
+    if (idempotent) {
+      const existing = await ctx.runQuery(internal.queries.challenges.getByName, {
+        name: challenge.name,
+      });
+      if (existing) {
+        challengeIds.push(existing._id);
+        continue;
+      }
+    }
+
     const id = await ctx.runMutation(internal.mutations.challenges.create, {
       ...challenge,
       creatorId: adminUserId,
@@ -519,10 +558,18 @@ async function seedActivityTypesForChallenges(
   ctx: any,
   challengeIds: any[],
   templateActivityTypes: any[],
+  idempotent = false,
 ) {
   const now = Date.now();
 
   for (const challengeId of challengeIds) {
+    if (idempotent) {
+      const existing = await ctx.runQuery(internal.queries.activityTypes.listByChallenge, { challengeId });
+      if (existing.length > 0) {
+        continue;
+      }
+    }
+
     for (const template of templateActivityTypes) {
       await ctx.runMutation(internal.mutations.activityTypes.create, {
         challengeId,
@@ -540,13 +587,19 @@ async function seedActivityTypesForChallenges(
   }
 }
 
-async function seedParticipations(ctx: any, challengeIds: any[], users: any) {
+async function seedParticipations(ctx: any, challengeIds: any[], users: any, idempotent = false) {
   const now = Date.now();
   const userCounts = [5, 3, 4, 2, 3, 1];
 
   for (let i = 0; i < challengeIds.length; i++) {
     const challengeId = challengeIds[i];
     const userCount = userCounts[i] || 2;
+    if (idempotent) {
+      const existing = await ctx.runQuery(internal.queries.participations.getRecent, { challengeId, limit: 1 });
+      if (existing.length > 0) {
+        continue;
+      }
+    }
 
     // Add admin user (creator)
     await ctx.runMutation(internal.mutations.participations.create, {
@@ -591,7 +644,7 @@ async function seedParticipations(ctx: any, challengeIds: any[], users: any) {
   }
 }
 
-async function seedActivities(ctx: any, challengeIds: any[], users: any) {
+async function seedActivities(ctx: any, challengeIds: any[], users: any, idempotent = false) {
   // This is a simplified version - you can expand it to generate random activities
   // For now, we'll just create a few sample activities
   const now = Date.now();
@@ -602,6 +655,14 @@ async function seedActivities(ctx: any, challengeIds: any[], users: any) {
   });
 
   if (activityTypes.length === 0) return;
+
+  if (idempotent) {
+    const existingActivities = await ctx.runQuery(internal.queries.activities.listByChallenge, {
+      challengeId: challengeIds[0],
+      limit: 1,
+    });
+    if (existingActivities.length > 0) return;
+  }
 
   // Create a few sample activities
   const sampleActivities = [
@@ -623,4 +684,3 @@ async function seedActivities(ctx: any, challengeIds: any[], users: any) {
     await ctx.runMutation(internal.mutations.activities.create, activity);
   }
 }
-

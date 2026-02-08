@@ -31,11 +31,14 @@
     "deploy": "bash ../../scripts/convex.sh deploy",
     "setup": "bash ../../scripts/convex.sh dev",
     "seed": "bash ../../scripts/convex.sh run actions/seed:seed",
+    "seed:if-missing": "bash ../../scripts/convex.sh run actions/seed:seedIfMissing",
     "clear": "bash ../../scripts/convex.sh run actions/clear:clear",
-    "reset": "bash ../../scripts/convex.sh run actions/clear:clear && bash ../../scripts/convex.sh run actions/seed:seed"
+    "reset": "bash ../../scripts/convex.sh run actions/clear:clear && bash ../../scripts/convex.sh run actions/seed:seed",
+    "migrate": "bash ../../scripts/convex.sh run migrations:runAll"
   },
   "dependencies": {
     "@convex-dev/better-auth": "^0.10.6",
+    "@convex-dev/migrations": "^0.3.1",
     "@convex-dev/resend": "^0.2.0",
     "convex": "^1.28.0",
     "stripe": "^20.0.0"

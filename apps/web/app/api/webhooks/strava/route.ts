@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ConvexHttpClient } from "convex/browser";
 import { api, internal } from "@repo/backend";
+import { dateOnlyToUtcMs } from "@/lib/date-only";
 
 const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
@@ -185,12 +186,15 @@ export async function POST(request: NextRequest) {
     for (const { challenge } of participations) {
       if (!challenge) continue;
 
+      const challengeStartMs = dateOnlyToUtcMs(challenge.startDate);
+      const challengeEndMs = dateOnlyToUtcMs(challenge.endDate);
+
       // Check if activity date is within challenge bounds
-      if (activityDateTs < challenge.startDate || activityDateTs > challenge.endDate) {
+      if (activityDateTs < challengeStartMs || activityDateTs > challengeEndMs) {
         console.log("Activity outside challenge dates:", {
           activity_date: activity.start_date,
-          challenge_start: new Date(challenge.startDate).toISOString(),
-          challenge_end: new Date(challenge.endDate).toISOString(),
+          challenge_start: challenge.startDate,
+          challenge_end: challenge.endDate,
         });
         continue;
       }

@@ -77,8 +77,8 @@ describe('Challenges Logic', () => {
       const challengeData = {
         name: 'New Challenge',
         description: 'A brand new challenge',
-        startDate: Date.now(),
-        endDate: Date.now() + 30 * 24 * 60 * 60 * 1000,
+        startDate: '2025-03-01',
+        endDate: '2025-03-31',
         durationDays: 30,
         streakMinPoints: 15,
         weekCalcMethod: 'from_start',
@@ -117,8 +117,8 @@ describe('Challenges Logic', () => {
 
       const invalidData = {
         name: 'Test Challenge',
-        startDate: Date.now(),
-        endDate: Date.now() - 1000, // Invalid
+        startDate: '2025-03-15',
+        endDate: '2025-03-01', // Invalid - before start
         durationDays: 28,
         streakMinPoints: 15,
         weekCalcMethod: 'from_start',
@@ -131,13 +131,13 @@ describe('Challenges Logic', () => {
 
     it('should create a private challenge with visibility field', async () => {
       const testEmail = "test@example.com";
-      const userId = await createTestUser(t, { email: testEmail });
+      await createTestUser(t, { email: testEmail });
       const tWithAuth = t.withIdentity({ subject: "test-user-id", email: testEmail });
 
       const challengeId = await tWithAuth.mutation(api.mutations.challenges.createChallenge, {
         name: 'Private Challenge',
-        startDate: Date.now(),
-        endDate: Date.now() + 30 * 24 * 60 * 60 * 1000,
+        startDate: '2025-03-01',
+        endDate: '2025-03-31',
         durationDays: 30,
         streakMinPoints: 10,
         weekCalcMethod: 'from_start',
@@ -200,14 +200,14 @@ describe('Challenges Logic', () => {
   describe('updateChallenge visibility', () => {
     it('should update challenge visibility to private', async () => {
       const testEmail = "admin@example.com";
-      const userId = await createTestUser(t, { email: testEmail });
+      await createTestUser(t, { email: testEmail });
       const tWithAuth = t.withIdentity({ subject: "admin-user-id", email: testEmail });
 
       // Create challenge via mutation (makes creator a participant)
       const challengeId = await tWithAuth.mutation(api.mutations.challenges.createChallenge, {
         name: 'Toggle Challenge',
-        startDate: Date.now(),
-        endDate: Date.now() + 30 * 24 * 60 * 60 * 1000,
+        startDate: '2025-03-01',
+        endDate: '2025-03-31',
         durationDays: 30,
         streakMinPoints: 10,
         weekCalcMethod: 'from_start',
@@ -226,19 +226,19 @@ describe('Challenges Logic', () => {
 
       // Verify it no longer appears in public list
       const publicList = await t.query(api.queries.challenges.listPublic, {});
-      expect(publicList.find((c: any) => c.id === challengeId)).toBeUndefined();
+      expect(publicList.find((c: { id: string }) => c.id === challengeId)).toBeUndefined();
     });
 
     it('should update challenge visibility back to public', async () => {
       const testEmail = "admin@example.com";
-      const userId = await createTestUser(t, { email: testEmail });
+      await createTestUser(t, { email: testEmail });
       const tWithAuth = t.withIdentity({ subject: "admin-user-id", email: testEmail });
 
       // Create private challenge
       const challengeId = await tWithAuth.mutation(api.mutations.challenges.createChallenge, {
         name: 'Toggle Back Challenge',
-        startDate: Date.now(),
-        endDate: Date.now() + 30 * 24 * 60 * 60 * 1000,
+        startDate: '2025-03-01',
+        endDate: '2025-03-31',
         durationDays: 30,
         streakMinPoints: 10,
         weekCalcMethod: 'from_start',
@@ -258,7 +258,7 @@ describe('Challenges Logic', () => {
 
       // Verify it appears in public list
       const publicList = await t.query(api.queries.challenges.listPublic, {});
-      expect(publicList.find((c: any) => c.id === challengeId)).toBeDefined();
+      expect(publicList.find((c: { id: string }) => c.id === challengeId)).toBeDefined();
     });
   });
 

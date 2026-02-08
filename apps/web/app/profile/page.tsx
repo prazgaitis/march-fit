@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { format, formatDistanceToNow } from "date-fns";
+import { dateOnlyToUtcMs, formatDateShortFromDateOnly } from "@/lib/date-only";
 
 export const dynamic = "force-dynamic";
 import { ConvexHttpClient } from "convex/browser";
@@ -48,7 +49,8 @@ export default async function ProfilePage() {
   const now = new Date();
   type Participation = (typeof participations)[number];
   const activeChallenges = participations.filter(
-    (entry: Participation) => entry.challenge && new Date(entry.challenge.endDate) > now
+    (entry: Participation) =>
+      entry.challenge && dateOnlyToUtcMs(entry.challenge.endDate) > now.getTime()
   ).length;
   const completedChallenges = participations.length - activeChallenges;
   const longestStreak = participations.reduce(
@@ -150,7 +152,7 @@ export default async function ProfilePage() {
                       <p className="text-xs text-muted-foreground">
                         Joined {format(new Date(entry.joinedAt), "MMM d, yyyy")} ·{" "}
                         Ends{" "}
-                        {format(new Date(entry.challenge.endDate), "MMM d, yyyy")}
+                        {formatDateShortFromDateOnly(entry.challenge.endDate)}
                       </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">

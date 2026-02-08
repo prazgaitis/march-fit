@@ -4,7 +4,7 @@ import { useParams } from "next/navigation";
 import { useQuery } from "convex/react";
 import { api } from "@repo/backend";
 import type { Id, Doc } from "@repo/backend/_generated/dataModel";
-import { format } from "date-fns";
+import { dateOnlyToUtcMs, formatDateShortFromDateOnly } from "@/lib/date-only";
 import {
   Activity,
   AlertTriangle,
@@ -57,8 +57,10 @@ export default function AdminOverviewPage() {
     ? leaderboard.reduce((sum: number, p: LeaderboardEntry) => sum + p.totalPoints, 0) / leaderboard.length
     : 0;
 
-  const daysElapsed = Math.max(0, Math.ceil((Date.now() - challenge.startDate) / (1000 * 60 * 60 * 24)));
-  const totalDays = Math.ceil((challenge.endDate - challenge.startDate) / (1000 * 60 * 60 * 24));
+  const startDateMs = dateOnlyToUtcMs(challenge.startDate);
+  const endDateMs = dateOnlyToUtcMs(challenge.endDate);
+  const daysElapsed = Math.max(0, Math.ceil((Date.now() - startDateMs) / (1000 * 60 * 60 * 24)));
+  const totalDays = Math.ceil((endDateMs - startDateMs) / (1000 * 60 * 60 * 24));
   const progressPct = Math.min(100, (daysElapsed / totalDays) * 100);
 
   return (
@@ -116,8 +118,8 @@ export default function AdminOverviewPage() {
           />
         </div>
         <div className="mt-2 flex items-center justify-between text-[10px] text-zinc-600">
-          <span>{format(new Date(challenge.startDate), "MMM d, yyyy")}</span>
-          <span>{format(new Date(challenge.endDate), "MMM d, yyyy")}</span>
+          <span>{formatDateShortFromDateOnly(challenge.startDate)}</span>
+          <span>{formatDateShortFromDateOnly(challenge.endDate)}</span>
         </div>
       </AdminCard>
 

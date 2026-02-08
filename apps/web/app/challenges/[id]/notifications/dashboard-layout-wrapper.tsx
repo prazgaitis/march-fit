@@ -13,8 +13,8 @@ interface DashboardLayoutWrapperProps {
   challenge: {
     id: string;
     name: string;
-    startDate: number;
-    endDate: number;
+    startDate: string;
+    endDate: string;
   };
   currentUserId: string;
   currentUser: Doc<"users">;

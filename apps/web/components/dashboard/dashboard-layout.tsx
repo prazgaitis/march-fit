@@ -1,9 +1,9 @@
 "use client";
 
-import { format } from "date-fns";
 import { ReactNode } from "react";
 import { Plus } from "lucide-react";
 import type { Doc } from "@repo/backend/_generated/dataModel";
+import { formatDateShortFromDateOnly } from "@/lib/date-only";
 
 import { ActivityLogDialog } from "./activity-log-dialog";
 import { AnnouncementBanner } from "./announcement-banner";
@@ -18,8 +18,8 @@ interface DashboardLayoutProps {
   challenge: {
     id: string;
     name: string;
-    startDate: number;
-    endDate: number;
+    startDate: string;
+    endDate: string;
   };
   currentUserId: string;
   currentUser: Doc<"users">;
@@ -88,8 +88,8 @@ export function DashboardLayout({
             </p>
             <h1 className="mt-1 text-lg font-bold text-white">{challenge.name}</h1>
             <p className="mt-1 text-xs text-muted-foreground">
-              {format(new Date(challenge.startDate), "MMM d")} –{" "}
-              {format(new Date(challenge.endDate), "MMM d, yyyy")}
+              {formatDateShortFromDateOnly(challenge.startDate)} –{" "}
+              {formatDateShortFromDateOnly(challenge.endDate)}
             </p>
           </div>
 

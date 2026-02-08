@@ -1,6 +1,8 @@
 import { query } from "../_generated/server";
 import { v } from "convex/values";
 import { paginationOptsValidator } from "convex/server";
+import { coerceDateOnlyToString } from "../lib/dateOnly";
+import { internalQuery } from "../_generated/server";
 
 /**
  * Get current authenticated user
@@ -26,6 +28,18 @@ export const current = query({
   },
 });
 
+export const getByEmail = internalQuery({
+  args: {
+    email: v.string(),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("users")
+      .withIndex("email", (q) => q.eq("email", args.email))
+      .first();
+  },
+});
+
 /**
  * Get user by ID
  */
@@ -41,7 +55,7 @@ export const getById = query({
 /**
  * Get user by email (for matching imported users)
  */
-export const getByEmail = query({
+export const getByEmailPublic = query({
   args: {
     email: v.string(),
   },
@@ -204,8 +218,8 @@ export const getGlobalProfile = query({
             ? {
                 id: challenge._id,
                 name: challenge.name,
-                startDate: challenge.startDate,
-                endDate: challenge.endDate,
+                startDate: coerceDateOnlyToString(challenge.startDate),
+                endDate: coerceDateOnlyToString(challenge.endDate),
               }
             : null,
           totalPoints: p.totalPoints,

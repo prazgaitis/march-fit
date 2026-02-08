@@ -57,7 +57,7 @@ export function ParticipantsList({ challengeId, participants, totalCount }: Part
               <div className="text-center pt-4 border-t border-border">
                 <Link
                   className="text-sm font-medium text-primary hover:underline"
-                  href={`/challenges/${challengeId}/participants`}
+                  href={`/challenges/${challengeId}/leaderboard`}
                 >
                   View all participants
                 </Link>
