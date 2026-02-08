@@ -3,13 +3,7 @@ import { ConvexHttpClient } from "convex/browser";
 import { api, internal } from "@repo/backend";
 import { dateOnlyToUtcMs } from "@/lib/date-only";
 
-let _convex: ConvexHttpClient | null = null;
-function getConvex() {
-  if (!_convex) {
-    _convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
-  }
-  return _convex;
-}
+const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
 interface StravaWebhookEvent {
   aspect_type: "create" | "update" | "delete";
@@ -100,7 +94,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Find user by Strava athlete ID
-    const integrationData = await getConvex().query(
+    const integrationData = await convex.query(
       internal.queries.integrations.getByAthleteId,
       { athleteId: body.owner_id }
     );
@@ -117,7 +111,7 @@ export async function POST(request: NextRequest) {
     // Handle delete event
     if (body.aspect_type === "delete") {
       console.log("Processing delete for activity:", body.object_id);
-      const result = await getConvex().mutation(
+      const result = await convex.mutation(
         internal.mutations.stravaWebhook.deleteFromStrava,
         { externalId: body.object_id.toString() }
       );
@@ -140,7 +134,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Refresh token if needed
-    const refreshedToken = await getConvex().action(
+    const refreshedToken = await convex.action(
       api.actions.strava.refreshToken,
       {
         integrationId: integration._id,
@@ -155,7 +149,7 @@ export async function POST(request: NextRequest) {
 
     // Fetch activity details from Strava
     console.log("Fetching activity details from Strava:", body.object_id);
-    const activity = (await getConvex().action(api.actions.strava.fetchActivity, {
+    const activity = (await convex.action(api.actions.strava.fetchActivity, {
       accessToken: accessToken!,
       activityId: body.object_id,
     })) as StravaActivity;
@@ -169,7 +163,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Get user's challenge participations
-    const participations = await getConvex().query(
+    const participations = await convex.query(
       internal.mutations.stravaWebhook.getUserParticipations,
       { userId: user._id }
     );
@@ -208,7 +202,7 @@ export async function POST(request: NextRequest) {
       console.log("Processing activity for challenge:", challenge._id);
 
       // Create/update activity
-      const result = await getConvex().mutation(
+      const result = await convex.mutation(
         internal.mutations.stravaWebhook.createFromStrava,
         {
           userId: user._id,
