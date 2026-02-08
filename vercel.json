@@ -1,7 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "if [ \"$VERCEL_ENV\" = \"production\" ]; then cd packages/backend && npx convex deploy --cmd 'cd ../.. && pnpm build'; else pnpm build; fi",
+  "buildCommand": "cd ../../packages/backend && npx convex deploy --cmd 'cd ../.. && pnpm build' --cmd-url-env-var-name NEXT_PUBLIC_CONVEX_URL",
   "installCommand": "pnpm install",
-  "framework": "nextjs",
-  "outputDirectory": "apps/web/.next"
+  "framework": "nextjs"
 }
