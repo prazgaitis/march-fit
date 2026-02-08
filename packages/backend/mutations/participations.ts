@@ -5,7 +5,7 @@ import { getCurrentUser } from "../lib/ids";
 import { isPaymentRequired } from "../lib/payments";
 
 // Default from address - should be configured per deployment
-const DEFAULT_FROM_EMAIL = "March Fitness <noreply@marchfitness.com>";
+const DEFAULT_FROM_EMAIL = "March Fitness <noreply@march.fit>";
 
 // Internal mutation for seeding
 export const create = internalMutation({
