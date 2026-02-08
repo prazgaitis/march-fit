@@ -35,7 +35,8 @@
     "db:export": "pnpm -F backend exec npx convex export --path ${CONVEX_EXPORT_PATH:-./scripts/seed-data/export.zip}",
     "db:import": "pnpm -F backend exec npx convex import ${CONVEX_EXPORT_PATH:-./scripts/seed-data/export.zip} --replace-all -y",
     "strava:webhook": "dotenv -e .env.local -- npx tsx scripts/strava-webhook.ts",
-    "storybook": "pnpm -F web storybook"
+    "storybook": "pnpm -F web storybook",
+    "prepare": "husky"
   },
   "packageManager": "pnpm@10.14.0",
   "pnpm": {
@@ -49,6 +50,7 @@
     "@manypkg/cli": "^0.25.1",
     "@turbo/gen": "^2.5.6",
     "cross-env": "^10.0.0",
+    "husky": "^9.1.7",
     "prettier": "^3.6.2",
     "turbo": "2.5.6",
     "typescript": "^5.9.2"
