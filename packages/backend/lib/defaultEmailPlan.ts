@@ -3,9 +3,17 @@
  *
  * Includes:
  * - Welcome email (on signup)
- * - Weekly recap emails (weeks 1-4)
+ * - Weekly recap emails (weeks 1-3)
  * - Challenge completion email
+ *
+ * All templates use the shared email template wrapper for consistent branding.
  */
+
+import {
+  wrapEmailTemplate,
+  emailButton,
+  emailCallout,
+} from "./emailTemplate";
 
 export interface DefaultEmailTemplate {
   name: string;
@@ -20,262 +28,138 @@ export const DEFAULT_EMAIL_PLAN: DefaultEmailTemplate[] = [
   // Welcome Email - sent immediately on signup
   {
     name: "Welcome Email",
-    subject: "Welcome to the Challenge! Let's Get Started",
+    subject: "You're in. Let's go.",
     trigger: "on_signup",
     sendOnDay: null,
-    body: `
-<!DOCTYPE html>
-<html>
-<head>
-  <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
-    .header { background: linear-gradient(135deg, #f59e0b, #d97706); padding: 30px; border-radius: 12px; text-align: center; margin-bottom: 24px; }
-    .header h1 { color: white; margin: 0; font-size: 28px; }
-    .content { background: #fafafa; padding: 24px; border-radius: 8px; }
-    .highlight { background: #fef3c7; padding: 16px; border-radius: 8px; margin: 16px 0; border-left: 4px solid #f59e0b; }
-    .cta { display: inline-block; background: #f59e0b; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600; margin: 16px 0; }
-    .footer { text-align: center; color: #666; font-size: 14px; margin-top: 24px; }
-  </style>
-</head>
-<body>
-  <div class="header">
-    <h1>Welcome to the Challenge!</h1>
-  </div>
-  <div class="content">
-    <p>Hey there!</p>
-    <p>You're officially in! Welcome to the fitness challenge. We're excited to have you join us on this journey.</p>
+    body: wrapEmailTemplate({
+      headerTitle: "Welcome to the Challenge",
+      content: `
+        <p style="margin: 0 0 16px;">You\u2019re officially in. The next 30 days are going to be worth it.</p>
 
-    <div class="highlight">
-      <strong>Quick Start Guide:</strong>
-      <ul>
-        <li>Log your first activity to get started</li>
-        <li>Check the leaderboard to see where you stand</li>
-        <li>Every activity counts toward your streak!</li>
-      </ul>
-    </div>
+        ${emailCallout({
+          content: `<strong style="color: #e4e4e7;">Here\u2019s the deal:</strong>
+          <ul style="margin: 8px 0 0; padding-left: 18px; color: #a1a1aa;">
+            <li style="margin-bottom: 4px;">Log activities to earn points</li>
+            <li style="margin-bottom: 4px;">Keep your streak alive every day</li>
+            <li>Climb the leaderboard</li>
+          </ul>`,
+        })}
 
-    <p>The next 30 days are going to be transformative. Remember, consistency beats intensity. Even a small workout counts!</p>
+        <p style="margin: 20px 0;">Consistency beats intensity. Even a 10-minute walk counts. Show up every day and you\u2019ll be surprised where you end up.</p>
 
-    <a href="#" class="cta">Log Your First Activity</a>
-
-    <p>Let's crush this together!</p>
-  </div>
-  <div class="footer">
-    <p>You're receiving this because you joined the challenge.</p>
-  </div>
-</body>
-</html>
-    `.trim(),
+        <div style="text-align: center; margin: 28px 0;">
+          ${emailButton({ href: "#", label: "Log Your First Activity" })}
+        </div>
+      `,
+      footerText: "You\u2019re receiving this because you joined a challenge.",
+    }),
   },
 
   // Week 1 Recap - Day 7
   {
     name: "Week 1 Recap",
-    subject: "Week 1 Complete! Here's How You Did",
+    subject: "Week 1 done. Keep going.",
     trigger: "manual",
     sendOnDay: 7,
-    body: `
-<!DOCTYPE html>
-<html>
-<head>
-  <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
-    .header { background: linear-gradient(135deg, #10b981, #059669); padding: 30px; border-radius: 12px; text-align: center; margin-bottom: 24px; }
-    .header h1 { color: white; margin: 0; font-size: 28px; }
-    .header p { color: rgba(255,255,255,0.9); margin: 8px 0 0; }
-    .content { background: #fafafa; padding: 24px; border-radius: 8px; }
-    .stat-box { background: white; padding: 16px; border-radius: 8px; text-align: center; margin: 8px 0; border: 1px solid #e5e7eb; }
-    .stat-number { font-size: 32px; font-weight: 700; color: #10b981; }
-    .stat-label { color: #666; font-size: 14px; }
-    .highlight { background: #d1fae5; padding: 16px; border-radius: 8px; margin: 16px 0; border-left: 4px solid #10b981; }
-    .footer { text-align: center; color: #666; font-size: 14px; margin-top: 24px; }
-  </style>
-</head>
-<body>
-  <div class="header">
-    <h1>Week 1 Complete!</h1>
-    <p>You've made it through the first week</p>
-  </div>
-  <div class="content">
-    <p>Congratulations on completing your first week! The hardest part is starting, and you've already done that.</p>
+    body: wrapEmailTemplate({
+      headerTitle: "Week 1 Complete",
+      headerSubtitle: "The hardest part is already behind you",
+      content: `
+        <p style="margin: 0 0 16px;">Seven days in. You showed up, and that\u2019s what matters.</p>
 
-    <div class="highlight">
-      <strong>Week 1 Highlights:</strong>
-      <p>Check your dashboard to see your stats, points earned, and current streak. Every day you showed up counts!</p>
-    </div>
+        ${emailCallout({
+          content: `<strong style="color: #e4e4e7;">Pro tip for Week 2:</strong> Don\u2019t break the streak. Even on rough days, a quick 10-minute session keeps you in the game.`,
+        })}
 
-    <p><strong>Pro tip for Week 2:</strong> Try to maintain your streak. Even on tough days, a short 10-minute activity keeps you in the game.</p>
-
-    <p>Three more weeks to go. You've got this!</p>
-  </div>
-  <div class="footer">
-    <p>Keep pushing - Week 2 awaits!</p>
-  </div>
-</body>
-</html>
-    `.trim(),
+        <p style="margin: 20px 0;">Check your dashboard to see your stats, points, and streak. Three more weeks \u2014 you\u2019ve got this.</p>
+      `,
+      footerText: "Keep pushing \u2014 Week 2 awaits.",
+    }),
   },
 
   // Week 2 Recap - Day 14
   {
     name: "Week 2 Recap",
-    subject: "Halfway There! Week 2 Recap",
+    subject: "Halfway there.",
     trigger: "manual",
     sendOnDay: 14,
-    body: `
-<!DOCTYPE html>
-<html>
-<head>
-  <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
-    .header { background: linear-gradient(135deg, #8b5cf6, #7c3aed); padding: 30px; border-radius: 12px; text-align: center; margin-bottom: 24px; }
-    .header h1 { color: white; margin: 0; font-size: 28px; }
-    .header p { color: rgba(255,255,255,0.9); margin: 8px 0 0; }
-    .content { background: #fafafa; padding: 24px; border-radius: 8px; }
-    .progress-bar { background: #e5e7eb; border-radius: 999px; height: 12px; overflow: hidden; margin: 16px 0; }
-    .progress-fill { background: linear-gradient(90deg, #8b5cf6, #7c3aed); height: 100%; width: 50%; border-radius: 999px; }
-    .highlight { background: #ede9fe; padding: 16px; border-radius: 8px; margin: 16px 0; border-left: 4px solid #8b5cf6; }
-    .footer { text-align: center; color: #666; font-size: 14px; margin-top: 24px; }
-  </style>
-</head>
-<body>
-  <div class="header">
-    <h1>You're Halfway There!</h1>
-    <p>Week 2 is in the books</p>
-  </div>
-  <div class="content">
-    <p>Amazing work! You've hit the halfway point of the challenge. This is where habits start to form.</p>
+    body: wrapEmailTemplate({
+      headerTitle: "You\u2019re Halfway",
+      headerSubtitle: "This is where habits start to stick",
+      content: `
+        <p style="margin: 0 0 16px;">Two weeks down. The routine is setting in \u2014 what felt hard in week one is probably getting easier. That\u2019s progress.</p>
 
-    <div class="progress-bar">
-      <div class="progress-fill"></div>
-    </div>
-    <p style="text-align: center; color: #666; font-size: 14px;">50% Complete</p>
+        <!-- Progress -->
+        <div style="margin: 24px 0;">
+          <div style="background: #27272a; border-radius: 999px; height: 8px; overflow: hidden;">
+            <div style="background: linear-gradient(90deg, #6366f1, #d946ef); height: 100%; width: 50%; border-radius: 999px;"></div>
+          </div>
+          <p style="text-align: center; color: #52525b; font-size: 12px; margin: 8px 0 0; letter-spacing: 0.05em;">50% COMPLETE</p>
+        </div>
 
-    <div class="highlight">
-      <strong>Midpoint Check-in:</strong>
-      <p>By now, you're probably starting to feel the routine. The activities that felt hard in week 1 might be getting easier. That's progress!</p>
-    </div>
+        ${emailCallout({
+          content: `<strong style="color: #e4e4e7;">Week 3 challenge:</strong> Try an activity type you haven\u2019t done yet, or push harder on your favorite.`,
+          borderColor: "#d946ef",
+        })}
 
-    <p><strong>Challenge for Week 3:</strong> Try a new activity type you haven't done yet, or push a little harder on your favorite one.</p>
-
-    <p>The finish line is closer than you think. Keep that momentum going!</p>
-  </div>
-  <div class="footer">
-    <p>Two weeks down, two to go!</p>
-  </div>
-</body>
-</html>
-    `.trim(),
+        <p style="margin: 20px 0;">The finish line is closer than you think. Keep the momentum going.</p>
+      `,
+      footerText: "Two weeks down, two to go.",
+    }),
   },
 
   // Week 3 Recap - Day 21
   {
     name: "Week 3 Recap",
-    subject: "One Week Left! Week 3 Recap",
+    subject: "One week left. Finish strong.",
     trigger: "manual",
     sendOnDay: 21,
-    body: `
-<!DOCTYPE html>
-<html>
-<head>
-  <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
-    .header { background: linear-gradient(135deg, #f59e0b, #d97706); padding: 30px; border-radius: 12px; text-align: center; margin-bottom: 24px; }
-    .header h1 { color: white; margin: 0; font-size: 28px; }
-    .header p { color: rgba(255,255,255,0.9); margin: 8px 0 0; }
-    .content { background: #fafafa; padding: 24px; border-radius: 8px; }
-    .progress-bar { background: #e5e7eb; border-radius: 999px; height: 12px; overflow: hidden; margin: 16px 0; }
-    .progress-fill { background: linear-gradient(90deg, #f59e0b, #d97706); height: 100%; width: 75%; border-radius: 999px; }
-    .highlight { background: #fef3c7; padding: 16px; border-radius: 8px; margin: 16px 0; border-left: 4px solid #f59e0b; }
-    .footer { text-align: center; color: #666; font-size: 14px; margin-top: 24px; }
-  </style>
-</head>
-<body>
-  <div class="header">
-    <h1>Final Week Incoming!</h1>
-    <p>Week 3 complete - you're almost there</p>
-  </div>
-  <div class="content">
-    <p>Incredible! You've made it through three weeks. Just 7 more days and you'll have completed the entire challenge.</p>
+    body: wrapEmailTemplate({
+      headerTitle: "Final Week",
+      headerSubtitle: "Seven days to the finish line",
+      content: `
+        <p style="margin: 0 0 16px;">Three weeks done. Your body has adapted, your routine is locked in, and you\u2019ve proven you can do this.</p>
 
-    <div class="progress-bar">
-      <div class="progress-fill"></div>
-    </div>
-    <p style="text-align: center; color: #666; font-size: 14px;">75% Complete</p>
+        <!-- Progress -->
+        <div style="margin: 24px 0;">
+          <div style="background: #27272a; border-radius: 999px; height: 8px; overflow: hidden;">
+            <div style="background: linear-gradient(90deg, #6366f1, #d946ef); height: 100%; width: 75%; border-radius: 999px;"></div>
+          </div>
+          <p style="text-align: center; color: #52525b; font-size: 12px; margin: 8px 0 0; letter-spacing: 0.05em;">75% COMPLETE</p>
+        </div>
 
-    <div class="highlight">
-      <strong>The Final Push:</strong>
-      <p>This is the home stretch. Your body has adapted, your routine is set, and you've proven you can do this. Now let's finish strong!</p>
-    </div>
+        ${emailCallout({
+          content: `<strong style="color: #e4e4e7;">The final push:</strong> Give it everything. No regrets. Make these last 7 days count.`,
+        })}
 
-    <p><strong>Week 4 Goal:</strong> Give it everything you've got. No regrets. Make these last 7 days count!</p>
-
-    <p>Check the leaderboard - there's still time to climb those rankings!</p>
-  </div>
-  <div class="footer">
-    <p>One week to glory. Let's go!</p>
-  </div>
-</body>
-</html>
-    `.trim(),
+        <p style="margin: 20px 0;">Check the leaderboard \u2014 there\u2019s still time to climb.</p>
+      `,
+      footerText: "One week to go. Let\u2019s finish this.",
+    }),
   },
 
   // Challenge Complete - Day 30
   {
     name: "Challenge Complete",
-    subject: "You Did It! Challenge Complete",
+    subject: "You did it.",
     trigger: "manual",
     sendOnDay: 30,
-    body: `
-<!DOCTYPE html>
-<html>
-<head>
-  <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; }
-    .header { background: linear-gradient(135deg, #fbbf24, #f59e0b, #d97706); padding: 40px; border-radius: 12px; text-align: center; margin-bottom: 24px; }
-    .header h1 { color: white; margin: 0; font-size: 32px; text-shadow: 0 2px 4px rgba(0,0,0,0.1); }
-    .header p { color: rgba(255,255,255,0.95); margin: 12px 0 0; font-size: 18px; }
-    .trophy { font-size: 64px; margin-bottom: 16px; }
-    .content { background: #fafafa; padding: 24px; border-radius: 8px; }
-    .highlight { background: #fef3c7; padding: 20px; border-radius: 8px; margin: 16px 0; text-align: center; }
-    .highlight h3 { margin: 0 0 8px; color: #92400e; }
-    .cta { display: inline-block; background: #f59e0b; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600; margin: 16px 0; }
-    .footer { text-align: center; color: #666; font-size: 14px; margin-top: 24px; }
-  </style>
-</head>
-<body>
-  <div class="header">
-    <div class="trophy">🏆</div>
-    <h1>CONGRATULATIONS!</h1>
-    <p>You completed the 30-day challenge!</p>
-  </div>
-  <div class="content">
-    <p>What an incredible achievement! You showed up, put in the work, and made it all the way to the finish line.</p>
+    body: wrapEmailTemplate({
+      headerTitle: "Challenge Complete",
+      headerSubtitle: "30 days of showing up",
+      content: `
+        <p style="margin: 0 0 20px; font-size: 16px; color: #e4e4e7;">You made it. That\u2019s not nothing \u2014 that\u2019s 30 days of discipline, consistency, and effort.</p>
 
-    <div class="highlight">
-      <h3>30 Days of Dedication</h3>
-      <p>You've built habits that can last a lifetime. The discipline you've shown is something to be truly proud of.</p>
-    </div>
+        <p style="margin: 0 0 20px;">You\u2019ve built habits that can last well beyond this challenge. The hard part was starting. You did that, and then you kept going.</p>
 
-    <p>Take a moment to celebrate this accomplishment. You earned it!</p>
+        <div style="text-align: center; margin: 28px 0;">
+          ${emailButton({ href: "#", label: "View Final Results" })}
+        </div>
 
-    <p><strong>What's next?</strong></p>
-    <ul>
-      <li>Check your final standings on the leaderboard</li>
-      <li>Share your achievement with friends</li>
-      <li>Keep the momentum going - don't let those habits fade!</li>
-    </ul>
-
-    <a href="#" class="cta">View Final Results</a>
-
-    <p>Thank you for being part of this challenge. Until next time!</p>
-  </div>
-  <div class="footer">
-    <p>Congratulations, Champion! 🎉</p>
-  </div>
-</body>
-</html>
-    `.trim(),
+        <p style="margin: 20px 0 0; color: #71717a; font-size: 13px;">Share your results, check the final leaderboard, and keep the momentum going.</p>
+      `,
+      footerText: "Thanks for being part of this. Until next time.",
+    }),
   },
 ];
 

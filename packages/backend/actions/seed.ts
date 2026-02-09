@@ -528,6 +528,15 @@ async function seedChallenges(ctx: any, adminUserId: any, idempotent = false) {
       streakMinPoints: 20,
       weekCalcMethod: "sunday",
     },
+    {
+      name: "March Fitness 2026",
+      description: "The ultimate March Fitness challenge returns for 2026! 31 days of movement, streaks, and friendly competition.",
+      startDate: "2026-03-01",
+      endDate: "2026-03-31",
+      durationDays: 31,
+      streakMinPoints: 10,
+      weekCalcMethod: "sunday",
+    },
   ];
 
   const challengeIds = [];

@@ -214,6 +214,8 @@ export const updateUser = mutation({
     email: v.optional(v.string()),
     name: v.optional(v.string()),
     avatarUrl: v.optional(v.string()),
+    gender: v.optional(v.union(v.literal("male"), v.literal("female"))),
+    age: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const { userId, ...updates } = args;

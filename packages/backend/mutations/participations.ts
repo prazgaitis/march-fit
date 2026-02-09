@@ -37,6 +37,7 @@ export const join = mutation({
   args: {
     challengeId: v.id("challenges"),
     invitedByUserId: v.optional(v.id("users")),
+    inviteCode: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     // Get the current user from auth
@@ -79,12 +80,12 @@ export const join = mutation({
       });
 
       user = await ctx.db.get(userId);
-      
+
       if (!user) {
         console.error("Failed to retrieve created user");
         throw new Error("Failed to create user record. Please try again.");
       }
-      
+
       console.log("Successfully created user via fallback in join mutation:", userId);
     }
 
@@ -100,12 +101,25 @@ export const join = mutation({
       throw new Error("Already joined this challenge");
     }
 
+    // Resolve inviter from invite code if provided
+    let invitedByUserId = args.invitedByUserId;
+    const inviteCode = args.inviteCode;
+    if (inviteCode && !invitedByUserId) {
+      const invite = await ctx.db
+        .query("challengeInvites")
+        .withIndex("code", (q) => q.eq("code", inviteCode))
+        .first();
+      if (invite && invite.challengeId === args.challengeId) {
+        invitedByUserId = invite.userId;
+      }
+    }
+
     // Block self-join for private challenges (requires admin invitation)
     const challenge = await ctx.db.get(args.challengeId);
     if (!challenge) {
       throw new Error("Challenge not found");
     }
-    if (challenge.visibility === "private") {
+    if (challenge.visibility === "private" && !invitedByUserId) {
       throw new Error("This is a private challenge. You need an invitation to join.");
     }
 
@@ -121,7 +135,7 @@ export const join = mutation({
     const participationId = await ctx.db.insert("userChallenges", {
       challengeId: args.challengeId,
       userId: user._id,
-      invitedByUserId: args.invitedByUserId,
+      invitedByUserId: invitedByUserId,
       joinedAt: now,
       totalPoints: 0,
       currentStreak: 0,
@@ -129,6 +143,39 @@ export const join = mutation({
       paymentStatus: requiresPayment ? "unpaid" : "paid",
       updatedAt: now,
     });
+
+    // Auto-create mutual follow relationships if joined via invite
+    if (invitedByUserId && invitedByUserId !== user._id) {
+      // Invitee follows inviter
+      const existingFollow1 = await ctx.db
+        .query("follows")
+        .withIndex("followerFollowing", (q) =>
+          q.eq("followerId", user._id).eq("followingId", invitedByUserId)
+        )
+        .first();
+      if (!existingFollow1) {
+        await ctx.db.insert("follows", {
+          followerId: user._id,
+          followingId: invitedByUserId,
+          createdAt: now,
+        });
+      }
+
+      // Inviter follows invitee
+      const existingFollow2 = await ctx.db
+        .query("follows")
+        .withIndex("followerFollowing", (q) =>
+          q.eq("followerId", invitedByUserId).eq("followingId", user._id)
+        )
+        .first();
+      if (!existingFollow2) {
+        await ctx.db.insert("follows", {
+          followerId: invitedByUserId,
+          followingId: user._id,
+          createdAt: now,
+        });
+      }
+    }
 
     // Trigger on_signup emails
     const emailSequences = await ctx.db

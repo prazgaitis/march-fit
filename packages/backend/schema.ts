@@ -8,6 +8,8 @@ export default defineSchema({
     email: v.string(),
     name: v.optional(v.string()),
     avatarUrl: v.optional(v.string()),
+    gender: v.optional(v.union(v.literal("male"), v.literal("female"))),
+    age: v.optional(v.number()),
     role: v.union(v.literal("user"), v.literal("admin")),
     createdAt: v.number(),
     updatedAt: v.number(),
@@ -437,6 +439,16 @@ export default defineSchema({
     .index("token", ["token"])
     .index("invitedById", ["invitedById"])
     .index("invitedUserId", ["invitedUserId"]),
+
+  // Challenge Invites - personal invite codes per user per challenge
+  challengeInvites: defineTable({
+    challengeId: v.id("challenges"),
+    userId: v.id("users"),
+    code: v.string(), // Short alphanumeric invite code
+    createdAt: v.number(),
+  })
+    .index("code", ["code"])
+    .index("userChallengeUnique", ["userId", "challengeId"]),
 
   // Email Sequences - email templates per challenge
   emailSequences: defineTable({

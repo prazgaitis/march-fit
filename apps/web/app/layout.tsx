@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ConvexProviderWrapper } from "@/components/providers/convex-provider";
 import { ConditionalHeader } from "@/components/layout/conditional-header";
@@ -32,6 +33,21 @@ export default async function RootLayout({
   return (
     <ConvexProviderWrapper initialToken={token ?? null}>
       <html lang="en">
+      <head>
+        {process.env.NODE_ENV === "development" && (
+          <Script
+            src="//unpkg.com/react-grab/dist/index.global.js"
+            crossOrigin="anonymous"
+            strategy="beforeInteractive"
+          />
+        )}
+        {process.env.NODE_ENV === "development" && (
+          <Script
+            src="//unpkg.com/@react-grab/cursor/dist/client.global.js"
+            strategy="lazyOnload"
+          />
+        )}
+      </head>
         <body
           className={`${geistSans.variable} ${geistMono.variable} bg-black text-white antialiased`}
         >
