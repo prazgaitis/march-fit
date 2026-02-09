@@ -206,19 +206,16 @@ export function UserProfileContent({
       </Card>
 
       {showStravaCard && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Connect Strava</CardTitle>
-            <CardDescription>
-              Link your Strava account to auto-import workouts for this challenge.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <StravaConnectButton successUrl={profilePath} errorUrl={errorUrl} />
-            <Button asChild variant="ghost" className="w-full">
-              <Link href="/integrations">Manage integrations</Link>
-            </Button>
-          </CardContent>
+        <Card className="p-4">
+          <div className="flex items-center gap-4">
+            <div className="min-w-0 flex-1">
+              <CardTitle className="text-sm font-medium">Connect Strava</CardTitle>
+              <CardDescription className="text-xs">
+                Auto-import workouts for this challenge.
+              </CardDescription>
+            </div>
+            <StravaConnectButton successUrl={profilePath} errorUrl={errorUrl} className="w-auto shrink-0" />
+          </div>
         </Card>
       )}
 

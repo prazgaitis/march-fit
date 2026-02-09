@@ -43,6 +43,7 @@ export const resolveInviteCode = query({
       startDate: coerceDateOnlyToString(challenge.startDate),
       endDate: coerceDateOnlyToString(challenge.endDate),
       durationDays: challenge.durationDays,
+      streakMinPoints: challenge.streakMinPoints,
       participantCount: participations.length,
       inviter: {
         id: inviter._id,

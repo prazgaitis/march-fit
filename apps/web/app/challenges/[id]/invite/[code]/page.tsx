@@ -3,19 +3,24 @@
 import { useParams, useRouter } from "next/navigation";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@repo/backend";
-import type { Id } from "@repo/backend/_generated/dataModel";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { CalendarDays, Loader2, Users, CreditCard } from "lucide-react";
+import {
+  CalendarDays,
+  Loader2,
+  Users,
+  CreditCard,
+  Flame,
+  ArrowLeft,
+} from "lucide-react";
 import { formatDateShortFromDateOnly } from "@/lib/date-only";
+import { ActivityTypesList } from "../../activity-types/activity-types-list";
 
 export default function InviteAcceptPage() {
   const params = useParams<{ id: string; code: string }>();
@@ -39,6 +44,23 @@ export default function InviteAcceptPage() {
       : "skip"
   );
 
+  const activityTypes = useQuery(
+    api.queries.activityTypes.getByChallengeId,
+    inviteData ? { challengeId: inviteData.challengeId } : "skip"
+  );
+
+  const categories = useQuery(
+    api.queries.categories.getChallengeCategories,
+    inviteData ? { challengeId: inviteData.challengeId } : "skip"
+  );
+
+  const categoryMap = useMemo(() => {
+    if (!categories) return new Map<string, { _id: string; name: string }>();
+    return new Map<string, { _id: string; name: string }>(
+      categories.map((c: { _id: string; name: string }) => [c._id, { _id: c._id, name: c.name }] as const)
+    );
+  }, [categories]);
+
   const joinChallenge = useMutation(api.mutations.participations.join);
   const createCheckoutSession = useMutation(api.mutations.payments.createCheckoutSession);
 
@@ -60,7 +82,6 @@ export default function InviteAcceptPage() {
         });
 
         if (result.url) {
-          // Store invite code so we can use it after payment
           sessionStorage.setItem(
             `invite_code_${inviteData.challengeId}`,
             params.code
@@ -104,7 +125,7 @@ export default function InviteAcceptPage() {
   // Loading state
   if (inviteData === undefined) {
     return (
-      <div className="flex min-h-screen items-center justify-center page-with-header">
+      <div className="flex min-h-screen items-center justify-center">
         <div className="flex items-center gap-2 text-muted-foreground">
           <Loader2 className="h-5 w-5 animate-spin" />
           Loading invite...
@@ -116,14 +137,14 @@ export default function InviteAcceptPage() {
   // Invalid invite code
   if (inviteData === null) {
     return (
-      <div className="flex min-h-screen items-center justify-center page-with-header">
+      <div className="flex min-h-screen items-center justify-center">
         <Card className="max-w-md">
           <CardHeader>
             <CardTitle>Invalid Invite Link</CardTitle>
-            <CardDescription>
+            <p className="text-sm text-muted-foreground">
               This invite link is invalid or has expired. Ask your friend for a
               new link.
-            </CardDescription>
+            </p>
           </CardHeader>
           <CardContent>
             <Button variant="outline" onClick={() => router.push("/challenges")}>
@@ -138,13 +159,13 @@ export default function InviteAcceptPage() {
   // Already participating
   if (participation) {
     return (
-      <div className="flex min-h-screen items-center justify-center page-with-header">
+      <div className="flex min-h-screen items-center justify-center">
         <Card className="max-w-md">
           <CardHeader>
             <CardTitle>You&apos;re already in!</CardTitle>
-            <CardDescription>
+            <p className="text-sm text-muted-foreground">
               You&apos;re already participating in {inviteData.challengeName}.
-            </CardDescription>
+            </p>
           </CardHeader>
           <CardContent>
             <Button
@@ -173,65 +194,99 @@ export default function InviteAcceptPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center p-4 page-with-header">
-      <Card className="max-w-lg w-full">
-        <CardHeader className="text-center">
-          <CardTitle className="text-2xl">{inviteData.challengeName}</CardTitle>
+    <div className="min-h-screen bg-gradient-to-b from-background to-background/95">
+      <div className="mx-auto max-w-2xl px-4 py-8 sm:py-12">
+        {/* Back link */}
+        <button
+          onClick={() => router.push("/challenges")}
+          className="mb-6 flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Browse challenges
+        </button>
+
+        {/* Hero section */}
+        <div className="mb-8 text-center">
+          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
+            {inviteData.challengeName}
+          </h1>
           {inviteData.challengeDescription && (
-            <CardDescription className="text-base">
+            <p className="mt-3 text-base text-muted-foreground max-w-lg mx-auto">
               {inviteData.challengeDescription}
-            </CardDescription>
+            </p>
           )}
-          <p className="text-sm text-muted-foreground mt-2">
+          <p className="mt-3 text-sm text-muted-foreground">
             <span className="font-medium text-foreground">
               {inviteData.inviter.name ?? inviteData.inviter.username}
             </span>{" "}
-            invited you to join this challenge
+            invited you to join
           </p>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="grid grid-cols-2 gap-4 text-sm">
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <CalendarDays className="h-4 w-4" />
-              <span>
-                {formatDateShortFromDateOnly(inviteData.startDate)} &ndash;{" "}
-                {formatDateShortFromDateOnly(inviteData.endDate)}
-              </span>
-            </div>
-            <div className="flex items-center gap-2 text-muted-foreground">
-              <Users className="h-4 w-4" />
-              <span>{inviteData.participantCount} participants</span>
-            </div>
+        </div>
+
+        {/* Stats row */}
+        <div className="mb-8 grid grid-cols-3 gap-3">
+          <div className="rounded-lg border bg-card p-3 text-center">
+            <CalendarDays className="mx-auto mb-1 h-5 w-5 text-muted-foreground" />
+            <p className="text-sm font-medium">
+              {formatDateShortFromDateOnly(inviteData.startDate)} &ndash;{" "}
+              {formatDateShortFromDateOnly(inviteData.endDate)}
+            </p>
+            <p className="text-xs text-muted-foreground">{inviteData.durationDays} days</p>
           </div>
+          <div className="rounded-lg border bg-card p-3 text-center">
+            <Users className="mx-auto mb-1 h-5 w-5 text-muted-foreground" />
+            <p className="text-sm font-medium">{inviteData.participantCount}</p>
+            <p className="text-xs text-muted-foreground">participants</p>
+          </div>
+          <div className="rounded-lg border bg-card p-3 text-center">
+            <Flame className="mx-auto mb-1 h-5 w-5 text-muted-foreground" />
+            <p className="text-sm font-medium">{inviteData.streakMinPoints}+ pts</p>
+            <p className="text-xs text-muted-foreground">daily for streak</p>
+          </div>
+        </div>
 
-          {error && (
-            <p className="text-sm text-destructive text-center">{error}</p>
-          )}
+        {/* Activity types & scoring - reuse the shared component */}
+        {activityTypes && activityTypes.length > 0 && (
+          <div className="mb-8">
+            <ActivityTypesList
+              activityTypes={activityTypes}
+              categoryMap={categoryMap}
+              streakMinPoints={inviteData.streakMinPoints}
+            />
+          </div>
+        )}
 
-          <Button
-            className="w-full"
-            size="lg"
-            onClick={handleJoin}
-            disabled={isJoining}
-          >
-            {isJoining ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                {requiresPayment
-                  ? "Redirecting to payment..."
-                  : "Joining..."}
-              </>
-            ) : (
-              <>
-                {requiresPayment && <CreditCard className="mr-2 h-4 w-4" />}
-                {requiresPayment
-                  ? `Join for ${formatPrice(paymentInfo!.priceInCents, paymentInfo!.currency)}`
-                  : "Join Challenge"}
-              </>
+        {/* Join CTA */}
+        <div className="sticky bottom-4 z-10">
+          <div className="rounded-xl border bg-card/95 backdrop-blur p-4 shadow-lg">
+            {error && (
+              <p className="mb-3 text-sm text-destructive text-center">{error}</p>
             )}
-          </Button>
-        </CardContent>
-      </Card>
+            <Button
+              className="w-full"
+              size="lg"
+              onClick={handleJoin}
+              disabled={isJoining}
+            >
+              {isJoining ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  {requiresPayment
+                    ? "Redirecting to payment..."
+                    : "Joining..."}
+                </>
+              ) : (
+                <>
+                  {requiresPayment && <CreditCard className="mr-2 h-4 w-4" />}
+                  {requiresPayment
+                    ? `Join for ${formatPrice(paymentInfo!.priceInCents, paymentInfo!.currency)}`
+                    : "Join Challenge"}
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
