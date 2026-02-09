@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 
 // Better Auth handles authentication via cookies
-// No middleware protection needed - routes are protected at the page/API level
-export default function proxy() {
+// No proxy protection needed - routes are protected at the page/API level
+export function proxy() {
   return NextResponse.next();
 }
 

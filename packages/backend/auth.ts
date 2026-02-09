@@ -31,6 +31,10 @@ export const createAuth = (ctx: GenericCtx<DataModel>) => {
       "http://localhost:3000",
       "http://localhost:3001",
       process.env.SITE_URL || "",
+      // Also trust www variant of the site URL
+      ...(process.env.SITE_URL
+        ? [process.env.SITE_URL.replace("://", "://www.")]
+        : []),
     ].filter(Boolean),
     emailAndPassword: {
       enabled: true,
