@@ -40,6 +40,13 @@ interface StravaActivity {
   photo_count: number;
   private: boolean;
   flagged: boolean;
+  // Photos from detailed activity response
+  photos?: {
+    primary?: {
+      urls?: Record<string, string>;
+    };
+    count?: number;
+  };
 }
 
 /**

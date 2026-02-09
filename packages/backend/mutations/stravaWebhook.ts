@@ -5,7 +5,7 @@ import {
   mapStravaActivity,
   type StravaActivity,
 } from "../lib/strava";
-import { calculateActivityPoints, calculateThresholdBonuses } from "../lib/scoring";
+import { calculateActivityPoints, calculateThresholdBonuses, calculateMediaBonus } from "../lib/scoring";
 import { isPaymentRequired } from "../lib/payments";
 
 /**
@@ -126,10 +126,20 @@ export const createFromStrava = internalMutation({
     });
 
     // Calculate threshold bonuses
-    const { totalBonusPoints, triggeredBonuses } = calculateThresholdBonuses(
+    const { totalBonusPoints: thresholdBonusPoints, triggeredBonuses: thresholdTriggered } = calculateThresholdBonuses(
       activityType,
       mappedActivity.metrics
     );
+
+    // Calculate media bonus (+1 point for Strava activities with photos)
+    const hasMedia = mappedActivity.stravaPhotoUrls.length > 0 || !!mappedActivity.imageUrl;
+    const { totalBonusPoints: mediaBonusPoints, triggeredBonus: mediaTriggered } = calculateMediaBonus(hasMedia);
+
+    const totalBonusPoints = thresholdBonusPoints + mediaBonusPoints;
+    const triggeredBonuses = [
+      ...thresholdTriggered,
+      ...(mediaTriggered ? [mediaTriggered] : []),
+    ];
 
     const pointsEarned = basePoints + totalBonusPoints;
 
@@ -152,6 +162,7 @@ export const createFromStrava = internalMutation({
         metrics: mappedActivity.metrics,
         pointsEarned,
         triggeredBonuses: triggeredBonuses.length > 0 ? triggeredBonuses : undefined,
+        imageUrl: mappedActivity.imageUrl ?? existing.imageUrl,
         externalData: mappedActivity.externalData,
         updatedAt: Date.now(),
       });
@@ -175,7 +186,7 @@ export const createFromStrava = internalMutation({
       return existing._id;
     }
 
-    // Create new activity
+    // Create new activity (include Strava photo URL if available)
     const activityId = await ctx.db.insert("activities", {
       userId: args.userId,
       challengeId: args.challengeId,

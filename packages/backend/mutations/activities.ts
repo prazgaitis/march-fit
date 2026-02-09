@@ -1,6 +1,6 @@
 import { internalMutation, mutation } from "../_generated/server";
 import { v } from "convex/values";
-import { calculateActivityPoints, calculateThresholdBonuses, calculateOptionalBonuses } from "../lib/scoring";
+import { calculateActivityPoints, calculateThresholdBonuses, calculateOptionalBonuses, calculateMediaBonus } from "../lib/scoring";
 import { getCurrentUser } from "../lib/ids";
 import { isPaymentRequired } from "../lib/payments";
 import type { Id } from "../_generated/dataModel";
@@ -217,7 +217,11 @@ export const log = mutation({
       selectedOptionalBonuses
     );
 
-    const totalBonusPoints = thresholdBonusPoints + optionalBonusPoints;
+    // Calculate media bonus (+1 point for posting at least one photo/media)
+    const hasMedia = (args.mediaIds && args.mediaIds.length > 0) || !!args.imageUrl;
+    const { totalBonusPoints: mediaBonusPoints, triggeredBonus: mediaTriggered } = calculateMediaBonus(hasMedia);
+
+    const totalBonusPoints = thresholdBonusPoints + optionalBonusPoints + mediaBonusPoints;
     // Combine bonuses into a unified format for storage
     const triggeredBonuses = [
       ...thresholdTriggered,
@@ -228,6 +232,8 @@ export const log = mutation({
         bonusPoints: b.bonusPoints,
         description: b.description || b.name,
       })),
+      // Media bonus
+      ...(mediaTriggered ? [mediaTriggered] : []),
     ];
 
     const pointsEarned = basePoints + totalBonusPoints;
