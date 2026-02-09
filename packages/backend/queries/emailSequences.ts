@@ -1,6 +1,7 @@
 import { query } from "../_generated/server";
 import { v } from "convex/values";
 import { DEFAULT_EMAIL_PLAN } from "../lib/defaultEmailPlan";
+import { getEmailTemplatePreviewHtml } from "../lib/emailTemplate";
 
 /**
  * List all email sequences for a challenge
@@ -151,6 +152,16 @@ export const getUnsentParticipants = query({
     );
 
     return result.filter((u): u is NonNullable<typeof u> => u !== null);
+  },
+});
+
+/**
+ * Get the base email template preview HTML (for admin UI)
+ */
+export const getEmailTemplatePreview = query({
+  args: {},
+  handler: async () => {
+    return { html: getEmailTemplatePreviewHtml() };
   },
 });
 
