@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { FlaggingHelpDialog } from "@/components/admin/flagging-help-dialog";
 
 const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
@@ -60,7 +61,7 @@ export default async function FlaggedActivitiesPage({
 
   const result = await convex.query(api.queries.admin.listFlaggedActivities, {
     challengeId: challenge.id as Id<"challenges">,
-    status: parsed.status as "pending" | "resolved" | "reopened" | undefined,
+    status: parsed.status as "pending" | "resolved" | undefined,
     participantId: parsed.participantId as Id<"users"> | undefined,
     search: parsed.search,
     limit,
@@ -70,11 +71,14 @@ export default async function FlaggedActivitiesPage({
   return (
     <Card>
       <CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <CardTitle>Flagged Activities</CardTitle>
-          <p className="text-sm text-muted-foreground">
-            Review activities that have been flagged for follow-up.
-          </p>
+        <div className="flex items-start gap-3">
+          <div>
+            <CardTitle>Flagged Activities</CardTitle>
+            <p className="text-sm text-muted-foreground">
+              Review activities that have been flagged for follow-up.
+            </p>
+          </div>
+          <FlaggingHelpDialog />
         </div>
         <form className="flex items-center gap-2" action="" method="get">
           <Input

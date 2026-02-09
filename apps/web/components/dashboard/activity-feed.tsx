@@ -4,8 +4,10 @@ import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { formatDistanceToNow } from 'date-fns';
 import {
+  Flag,
   Loader2,
   MessageCircle,
+  MoreHorizontal,
   RefreshCw,
   Share2,
   ThumbsUp,
@@ -31,6 +33,23 @@ import {
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useMentionableUsers } from '@/hooks/use-mentionable-users';
 import { isEditorContentEmpty, type MentionableUser } from '@/lib/rich-text';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Label } from '@/components/ui/label';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 
 interface BonusThreshold {
@@ -326,6 +345,14 @@ function ActivityCard({
 }: ActivityCardProps) {
   const router = useRouter();
   const [showComments, setShowComments] = useState(false);
+  const [showFlagDialog, setShowFlagDialog] = useState(false);
+  const [flagCategory, setFlagCategory] = useState('');
+  const [flagReason, setFlagReason] = useState('');
+  const [flagSubmitting, setFlagSubmitting] = useState(false);
+  const [flagError, setFlagError] = useState<string | null>(null);
+  const [flagSuccess, setFlagSuccess] = useState(false);
+
+  const flagActivity = useMutation(api.mutations.activities.flagActivity);
 
   const activityUrl = `/challenges/${challengeId}/activities/${item.activity.id}`;
 
@@ -342,6 +369,38 @@ function ActivityCard({
       return;
     }
     router.push(activityUrl);
+  };
+
+  const handleFlagSubmit = async () => {
+    if (!flagCategory) return;
+    if (flagCategory === 'other' && !flagReason.trim()) return;
+    setFlagSubmitting(true);
+    setFlagError(null);
+    const categoryLabel =
+      flagCategory === 'incorrect_type'
+        ? 'Logged as incorrect type'
+        : flagCategory === 'impossible'
+          ? 'Seems like an impossible feat of athleticism'
+          : '';
+    const reason = flagCategory === 'other'
+      ? flagReason.trim()
+      : flagReason.trim()
+        ? `${categoryLabel}: ${flagReason.trim()}`
+        : categoryLabel;
+    try {
+      await flagActivity({
+        activityId: item.activity.id as Id<"activities">,
+        reason,
+      });
+      setFlagSuccess(true);
+      setFlagReason('');
+    } catch (err) {
+      setFlagError(
+        err instanceof Error ? err.message : 'Failed to report activity'
+      );
+    } finally {
+      setFlagSubmitting(false);
+    }
   };
 
   const handleShare = async () => {
@@ -447,7 +506,7 @@ function ActivityCard({
 
         <ActivityStats item={item} />
       </CardContent>
-      <CardFooter className="flex flex-wrap items-center gap-2">
+      <CardFooter className="flex flex-wrap items-center gap-2" onClick={(e) => e.stopPropagation()}>
         <Button
           variant={item.likedByUser ? 'default' : 'outline'}
           size="sm"
@@ -470,10 +529,112 @@ function ActivityCard({
         <Button variant="ghost" size="sm" onClick={handleShare}>
           <Share2 className="mr-2 h-4 w-4" /> Share
         </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="ml-auto h-8 w-8 p-0">
+              <MoreHorizontal className="h-4 w-4" />
+              <span className="sr-only">More options</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem
+              onClick={() => {
+                setFlagSuccess(false);
+                setFlagError(null);
+                setFlagCategory('');
+                setFlagReason('');
+                setShowFlagDialog(true);
+              }}
+              className="text-destructive focus:text-destructive"
+            >
+              <Flag className="mr-2 h-4 w-4" />
+              Report activity
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <Dialog open={showFlagDialog} onOpenChange={setShowFlagDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Report Activity</DialogTitle>
+              <DialogDescription>
+                Flag this activity for admin review. Please describe why you think
+                this activity should be reviewed.
+              </DialogDescription>
+            </DialogHeader>
+            {flagSuccess ? (
+              <div className="py-4 text-center">
+                <p className="text-sm text-muted-foreground">
+                  Thank you for your report. An admin will review this activity.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <RadioGroup value={flagCategory} onValueChange={setFlagCategory}>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="incorrect_type" id="feed-flag-incorrect" />
+                    <Label htmlFor="feed-flag-incorrect">Logged as incorrect type</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="impossible" id="feed-flag-impossible" />
+                    <Label htmlFor="feed-flag-impossible">Seems like an impossible feat of athleticism</Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="other" id="feed-flag-other" />
+                    <Label htmlFor="feed-flag-other">Other</Label>
+                  </div>
+                </RadioGroup>
+                <Textarea
+                  value={flagReason}
+                  onChange={(e) => setFlagReason(e.target.value)}
+                  placeholder="Add additional context (optional)..."
+                  rows={3}
+                  maxLength={2000}
+                />
+                {flagError && (
+                  <p className="text-sm text-destructive">{flagError}</p>
+                )}
+              </div>
+            )}
+            <DialogFooter>
+              {flagSuccess ? (
+                <Button
+                  variant="outline"
+                  onClick={() => setShowFlagDialog(false)}
+                >
+                  Close
+                </Button>
+              ) : (
+                <>
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowFlagDialog(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    onClick={handleFlagSubmit}
+                    disabled={flagSubmitting || !flagCategory || (flagCategory === 'other' && !flagReason.trim())}
+                  >
+                    {flagSubmitting ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Submitting
+                      </>
+                    ) : (
+                      'Submit Report'
+                    )}
+                  </Button>
+                </>
+              )}
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </CardFooter>
 
       {showComments && (
-        <CardContent className="border-t bg-muted/40">
+        <CardContent className="border-t bg-muted/40" onClick={(e) => e.stopPropagation()}>
            <ActivityComments
               activityId={item.activity.id}
               challengeId={challengeId}

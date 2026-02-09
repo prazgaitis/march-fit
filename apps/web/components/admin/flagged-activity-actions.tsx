@@ -2,13 +2,15 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
 
+import { format } from "date-fns";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -25,23 +27,28 @@ import {
 const STATUS_LABELS: Record<(typeof activityResolutionStatusValues)[number], string> = {
   pending: "Mark Pending",
   resolved: "Mark Resolved",
-  reopened: "Reopen",
 };
 
 interface FlaggedActivityActionsProps {
   activityId: string;
+  challengeId: string;
   currentStatus: (typeof activityResolutionStatusValues)[number];
   currentVisibility: (typeof activityAdminCommentVisibilityValues)[number];
   currentPoints: number;
   currentNotesContent: string;
+  currentActivityTypeId: string;
+  currentLoggedDate: number;
 }
 
 export function FlaggedActivityActions({
   activityId,
+  challengeId,
   currentStatus,
   currentVisibility,
   currentPoints,
   currentNotesContent,
+  currentActivityTypeId,
+  currentLoggedDate,
 }: FlaggedActivityActionsProps) {
   const router = useRouter();
   const [message, setMessage] = useState<string | null>(null);
@@ -50,8 +57,15 @@ export function FlaggedActivityActions({
   const [visibility, setVisibility] = useState(currentVisibility);
   const [points, setPoints] = useState(String(currentPoints ?? 0));
   const [notes, setNotes] = useState(currentNotesContent ?? "");
+  const [activityTypeId, setActivityTypeId] = useState(currentActivityTypeId);
+  const [loggedDate, setLoggedDate] = useState(
+    format(new Date(currentLoggedDate), "yyyy-MM-dd")
+  );
   const [isPending, setIsPending] = useState(false);
 
+  const activityTypes = useQuery(api.queries.activityTypes.getByChallengeId, {
+    challengeId: challengeId as Id<"challenges">,
+  });
   const updateResolution = useMutation(api.mutations.admin.updateFlagResolution);
   const addComment = useMutation(api.mutations.admin.addAdminComment);
   const editActivity = useMutation(api.mutations.admin.adminEditActivity);
@@ -94,7 +108,11 @@ export function FlaggedActivityActions({
         visibility,
       });
       setComment("");
-      setMessage("Comment added and participant notified.");
+      setMessage(
+        visibility === "participant"
+          ? "Comment added and participant notified."
+          : "Internal comment added."
+      );
       router.refresh();
     } catch (err) {
       setError("Unable to add comment. Please try again.");
@@ -114,11 +132,17 @@ export function FlaggedActivityActions({
     try {
       const payload: {
         activityId: Id<"activities">;
+        activityTypeId?: Id<"activityTypes">;
         pointsEarned?: number;
         notes?: string | null;
+        loggedDate?: string;
       } = {
         activityId: activityId as Id<"activities">,
       };
+
+      if (activityTypeId !== currentActivityTypeId) {
+        payload.activityTypeId = activityTypeId as Id<"activityTypes">;
+      }
 
       if (points) {
         const parsedPoints = Number(points);
@@ -128,6 +152,11 @@ export function FlaggedActivityActions({
       }
 
       payload.notes = notes || null;
+
+      const currentDateStr = format(new Date(currentLoggedDate), "yyyy-MM-dd");
+      if (loggedDate !== currentDateStr) {
+        payload.loggedDate = loggedDate;
+      }
 
       await editActivity(payload);
       setMessage("Activity details updated.");
@@ -195,9 +224,22 @@ export function FlaggedActivityActions({
         <h3 className="text-sm font-semibold">Adjust Activity Details</h3>
         <div className="grid gap-3 md:grid-cols-2">
           <div className="space-y-1">
-            <label className="text-sm font-medium" htmlFor="points">
-              Points Earned
-            </label>
+            <Label htmlFor="flagged-activity-type">Activity Type</Label>
+            <Select value={activityTypeId} onValueChange={setActivityTypeId}>
+              <SelectTrigger id="flagged-activity-type">
+                <SelectValue placeholder="Select type" />
+              </SelectTrigger>
+              <SelectContent>
+                {activityTypes?.map((at: { _id: string; name: string }) => (
+                  <SelectItem key={at._id} value={at._id}>
+                    {at.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1">
+            <Label htmlFor="points">Points Earned</Label>
             <Input
               id="points"
               value={points}
@@ -205,10 +247,17 @@ export function FlaggedActivityActions({
               onChange={(event) => setPoints(event.target.value)}
             />
           </div>
+          <div className="space-y-1">
+            <Label htmlFor="flagged-logged-date">Logged Date</Label>
+            <Input
+              id="flagged-logged-date"
+              type="date"
+              value={loggedDate}
+              onChange={(event) => setLoggedDate(event.target.value)}
+            />
+          </div>
           <div className="space-y-1 md:col-span-2">
-            <label className="text-sm font-medium" htmlFor="notes">
-              Notes
-            </label>
+            <Label htmlFor="notes">Notes</Label>
             <Textarea
               id="notes"
               value={notes}

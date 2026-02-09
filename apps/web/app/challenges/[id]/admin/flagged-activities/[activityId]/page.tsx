@@ -104,10 +104,13 @@ export default async function FlaggedActivityDetailPage({
           </div>
           <FlaggedActivityActions
             activityId={detail.activity.id}
+            challengeId={detail.activity.challengeId as string}
             currentStatus={detail.activity.resolutionStatus}
             currentVisibility={detail.activity.adminCommentVisibility}
             currentPoints={detail.activity.pointsEarned}
             currentNotesContent={detail.activity.notes ?? ""}
+            currentActivityTypeId={detail.activity.activityTypeId as string}
+            currentLoggedDate={detail.activity.loggedDate}
           />
         </CardContent>
       </Card>

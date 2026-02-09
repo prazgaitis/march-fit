@@ -16,7 +16,7 @@ export const getById = query({
       return null;
     }
 
-    const [user, activityType, challenge, likeCount, commentCount, userLike] = await Promise.all([
+    const [user, activityType, challenge, likeCount, commentCount, currentUser] = await Promise.all([
       ctx.db.get(activity.userId),
       ctx.db.get(activity.activityTypeId),
       ctx.db.get(activity.challengeId),
@@ -30,20 +30,40 @@ export const getById = query({
         .withIndex("activityId", (q) => q.eq("activityId", activity._id))
         .collect()
         .then((comments) => comments.length),
-      getCurrentUser(ctx).then(async (currentUser) => {
-        if (!currentUser) return null;
-
-        return ctx.db
-          .query("likes")
-          .withIndex("activityUserUnique", (q) =>
-            q.eq("activityId", activity._id).eq("userId", currentUser._id)
-          )
-          .first();
-      }),
+      getCurrentUser(ctx),
     ]);
 
     if (!user || !activityType || !challenge) {
       return null;
+    }
+
+    // Check like status
+    let likedByUser = false;
+    if (currentUser) {
+      const userLike = await ctx.db
+        .query("likes")
+        .withIndex("activityUserUnique", (q) =>
+          q.eq("activityId", activity._id).eq("userId", currentUser._id)
+        )
+        .first();
+      likedByUser = userLike !== null;
+    }
+
+    const isOwner = currentUser ? currentUser._id === activity.userId : false;
+    const isAdmin = currentUser
+      ? currentUser.role === "admin" || challenge.creatorId === currentUser._id
+      : false;
+
+    // Gate admin comment visibility
+    let adminComment: string | null = null;
+    if (activity.adminComment) {
+      if (
+        activity.adminCommentVisibility === "participant" ||
+        isOwner ||
+        isAdmin
+      ) {
+        adminComment = activity.adminComment;
+      }
     }
 
     // Get media URLs from storage IDs
@@ -78,8 +98,11 @@ export const getById = query({
       },
       likes: likeCount,
       comments: commentCount,
-      likedByUser: userLike !== null,
+      likedByUser,
       mediaUrls,
+      adminComment,
+      isOwner,
+      isAdmin,
     };
   },
 });

@@ -9,17 +9,25 @@ import type { Id } from '@repo/backend/_generated/dataModel';
 import {
   ArrowLeft,
   Calendar,
+  ChevronDown,
+  ChevronUp,
   Clock,
+  Flag,
   Loader2,
   MessageCircle,
+  MoreHorizontal,
+  Pencil,
   Share2,
+  Shield,
   ThumbsUp,
   Trophy,
 } from 'lucide-react';
 
+import { ConvexError } from 'convex/values';
 import { RichTextEditor } from '@/components/editor/rich-text-editor';
 import { RichTextViewer } from '@/components/editor/rich-text-viewer';
 import { UserAvatar, UserAvatarInline } from '@/components/user-avatar';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import {
@@ -30,6 +38,31 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Textarea } from '@/components/ui/textarea';
 import { useMentionableUsers } from '@/hooks/use-mentionable-users';
 import { isEditorContentEmpty, type MentionableUser } from '@/lib/rich-text';
 import { cn } from '@/lib/utils';
@@ -49,8 +82,15 @@ export function ActivityDetailContent({
 
   const { users: mentionUsers } = useMentionableUsers(challengeId);
   const [pendingLike, setPendingLike] = useState(false);
+  const [showFlagDialog, setShowFlagDialog] = useState(false);
+  const [flagCategory, setFlagCategory] = useState('');
+  const [flagReason, setFlagReason] = useState('');
+  const [flagSubmitting, setFlagSubmitting] = useState(false);
+  const [flagError, setFlagError] = useState<string | null>(null);
+  const [flagSuccess, setFlagSuccess] = useState(false);
 
   const toggleLike = useMutation(api.mutations.likes.toggle);
+  const flagActivity = useMutation(api.mutations.activities.flagActivity);
 
   const handleToggleLike = async () => {
     setPendingLike(true);
@@ -77,6 +117,39 @@ export function ActivityDetailContent({
       }
     } catch (error) {
       console.error('Share failed', error);
+    }
+  };
+
+  const handleFlagSubmit = async () => {
+    if (!flagCategory) return;
+    if (flagCategory === 'other' && !flagReason.trim()) return;
+    setFlagSubmitting(true);
+    setFlagError(null);
+    const categoryLabel =
+      flagCategory === 'incorrect_type'
+        ? 'Logged as incorrect type'
+        : flagCategory === 'impossible'
+          ? 'Seems like an impossible feat of athleticism'
+          : '';
+    const reason = flagCategory === 'other'
+      ? flagReason.trim()
+      : flagReason.trim()
+        ? `${categoryLabel}: ${flagReason.trim()}`
+        : categoryLabel;
+    try {
+      await flagActivity({
+        activityId: activityId as Id<'activities'>,
+        reason,
+      });
+      setFlagSuccess(true);
+      setFlagReason('');
+    } catch (err) {
+      setFlagError(
+        err instanceof ConvexError ? (err.data as string) :
+        err instanceof Error ? err.message : 'Failed to report activity'
+      );
+    } finally {
+      setFlagSubmitting(false);
     }
   };
 
@@ -110,7 +183,7 @@ export function ActivityDetailContent({
     );
   }
 
-  const { activity, user, activityType, challenge, likes, comments, likedByUser, mediaUrls } =
+  const { activity, user, activityType, challenge, likes, comments, likedByUser, mediaUrls, adminComment, isAdmin } =
     activityData;
 
   const metrics = activity.metrics as Record<string, unknown> | undefined;
@@ -280,6 +353,18 @@ export function ActivityDetailContent({
                 </span>
               </div>
             )}
+
+            {adminComment && (
+              <div className="flex items-start gap-3 rounded-lg border border-amber-500/30 bg-amber-500/5 p-4">
+                <Shield className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
+                <div>
+                  <p className="text-sm font-medium text-amber-500">Admin Note</p>
+                  <p className="mt-1 text-sm text-muted-foreground">
+                    {adminComment}
+                  </p>
+                </div>
+              </div>
+            )}
           </CardContent>
 
           <CardFooter className="flex flex-wrap items-center gap-2 border-t pt-4">
@@ -303,8 +388,121 @@ export function ActivityDetailContent({
             <Button variant="ghost" size="sm" onClick={handleShare}>
               <Share2 className="mr-2 h-4 w-4" /> Share
             </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="ml-auto h-8 w-8 p-0">
+                  <MoreHorizontal className="h-4 w-4" />
+                  <span className="sr-only">More options</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  onClick={() => {
+                    setFlagSuccess(false);
+                    setFlagError(null);
+                    setFlagCategory('');
+                    setFlagReason('');
+                    setShowFlagDialog(true);
+                  }}
+                  className="text-destructive focus:text-destructive"
+                >
+                  <Flag className="mr-2 h-4 w-4" />
+                  Report activity
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <Dialog open={showFlagDialog} onOpenChange={setShowFlagDialog}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Report Activity</DialogTitle>
+                  <DialogDescription>
+                    Flag this activity for admin review. Please describe why you think
+                    this activity should be reviewed.
+                  </DialogDescription>
+                </DialogHeader>
+                {flagSuccess ? (
+                  <div className="py-4 text-center">
+                    <p className="text-sm text-muted-foreground">
+                      Thank you for your report. An admin will review this activity.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <RadioGroup value={flagCategory} onValueChange={setFlagCategory}>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="incorrect_type" id="flag-incorrect" />
+                        <Label htmlFor="flag-incorrect">Logged as incorrect type</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="impossible" id="flag-impossible" />
+                        <Label htmlFor="flag-impossible">Seems like an impossible feat of athleticism</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="other" id="flag-other" />
+                        <Label htmlFor="flag-other">Other</Label>
+                      </div>
+                    </RadioGroup>
+                    <Textarea
+                      value={flagReason}
+                      onChange={(e) => setFlagReason(e.target.value)}
+                      placeholder="Add additional context (optional)..."
+                      rows={3}
+                      maxLength={2000}
+                    />
+                    {flagError && (
+                      <p className="text-sm text-destructive">{flagError}</p>
+                    )}
+                  </div>
+                )}
+                <DialogFooter>
+                  {flagSuccess ? (
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowFlagDialog(false)}
+                    >
+                      Close
+                    </Button>
+                  ) : (
+                    <>
+                      <Button
+                        variant="outline"
+                        onClick={() => setShowFlagDialog(false)}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        onClick={handleFlagSubmit}
+                        disabled={flagSubmitting || !flagCategory || (flagCategory === 'other' && !flagReason.trim())}
+                      >
+                        {flagSubmitting ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Submitting
+                          </>
+                        ) : (
+                          'Submit Report'
+                        )}
+                      </Button>
+                    </>
+                  )}
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </CardFooter>
         </Card>
+
+        {isAdmin && (
+          <AdminEditSection
+            activityId={activityId}
+            challengeId={challengeId}
+            currentActivityTypeId={activityType.id}
+            currentPoints={activity.pointsEarned}
+            currentNotes={activity.notes ?? ''}
+            currentLoggedDate={activity.loggedDate}
+          />
+        )}
 
         <Card id="comments">
           <CardHeader>
@@ -470,5 +668,167 @@ function ActivityComments({
         )}
       </div>
     </div>
+  );
+}
+
+function AdminEditSection({
+  activityId,
+  challengeId,
+  currentActivityTypeId,
+  currentPoints,
+  currentNotes,
+  currentLoggedDate,
+}: {
+  activityId: string;
+  challengeId: string;
+  currentActivityTypeId: string;
+  currentPoints: number;
+  currentNotes: string;
+  currentLoggedDate: number;
+}) {
+  const [open, setOpen] = useState(false);
+  const [activityTypeId, setActivityTypeId] = useState(currentActivityTypeId);
+  const [points, setPoints] = useState(String(currentPoints));
+  const [notes, setNotes] = useState(currentNotes);
+  const [loggedDate, setLoggedDate] = useState(
+    format(new Date(currentLoggedDate), 'yyyy-MM-dd')
+  );
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const activityTypes = useQuery(api.queries.activityTypes.getByChallengeId, {
+    challengeId: challengeId as Id<'challenges'>,
+  });
+  const editActivity = useMutation(api.mutations.admin.adminEditActivity);
+
+  const handleSave = async () => {
+    setSaving(true);
+    setError(null);
+    setMessage(null);
+
+    try {
+      const payload: Record<string, unknown> = {
+        activityId: activityId as Id<'activities'>,
+      };
+
+      if (activityTypeId !== currentActivityTypeId) {
+        payload.activityTypeId = activityTypeId;
+      }
+
+      const parsedPoints = Number(points);
+      if (!Number.isNaN(parsedPoints) && parsedPoints !== currentPoints) {
+        payload.pointsEarned = parsedPoints;
+      }
+
+      if (notes !== currentNotes) {
+        payload.notes = notes || null;
+      }
+
+      const currentDateStr = format(new Date(currentLoggedDate), 'yyyy-MM-dd');
+      if (loggedDate !== currentDateStr) {
+        payload.loggedDate = loggedDate;
+      }
+
+      await editActivity(payload as Parameters<typeof editActivity>[0]);
+      setMessage('Activity updated.');
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : 'Failed to update activity.'
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader
+        className="cursor-pointer"
+        onClick={() => setOpen(!open)}
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Pencil className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-base">Edit Activity (Admin)</CardTitle>
+          </div>
+          {open ? (
+            <ChevronUp className="h-4 w-4 text-muted-foreground" />
+          ) : (
+            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+          )}
+        </div>
+      </CardHeader>
+      {open && (
+        <CardContent className="space-y-4">
+          {(message || error) && (
+            <Alert variant={error ? 'destructive' : 'default'}>
+              <AlertDescription>{error ?? message}</AlertDescription>
+            </Alert>
+          )}
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-1">
+              <Label htmlFor="admin-activity-type">Activity Type</Label>
+              <Select value={activityTypeId} onValueChange={setActivityTypeId}>
+                <SelectTrigger id="admin-activity-type">
+                  <SelectValue placeholder="Select type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {activityTypes?.map((at: { _id: string; name: string }) => (
+                    <SelectItem key={at._id} value={at._id}>
+                      {at.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="admin-points">Points Earned</Label>
+              <Input
+                id="admin-points"
+                value={points}
+                inputMode="decimal"
+                onChange={(e) => setPoints(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-1">
+              <Label htmlFor="admin-date">Logged Date</Label>
+              <Input
+                id="admin-date"
+                type="date"
+                value={loggedDate}
+                onChange={(e) => setLoggedDate(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <div className="space-y-1">
+            <Label htmlFor="admin-notes">Notes</Label>
+            <Textarea
+              id="admin-notes"
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              rows={3}
+            />
+          </div>
+
+          <div className="flex justify-end">
+            <Button onClick={handleSave} disabled={saving}>
+              {saving ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving
+                </>
+              ) : (
+                'Save Changes'
+              )}
+            </Button>
+          </div>
+        </CardContent>
+      )}
+    </Card>
   );
 }

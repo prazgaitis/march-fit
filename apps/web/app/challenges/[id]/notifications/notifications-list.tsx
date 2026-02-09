@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
-import { Heart, MessageCircle, UserPlus, Trophy, Bell } from "lucide-react";
+import { Heart, MessageCircle, UserPlus, Trophy, Bell, Shield } from "lucide-react";
 
 import { UserAvatar } from "@/components/user-avatar";
 import { cn } from "@/lib/utils";
@@ -38,6 +38,9 @@ function getNotificationIcon(type: string) {
     case "achievement":
     case "streak":
       return <Trophy className="h-4 w-4 text-amber-500" />;
+    case "admin_comment":
+    case "admin_edit":
+      return <Shield className="h-4 w-4 text-amber-500" />;
     default:
       return <Bell className="h-4 w-4 text-zinc-400" />;
   }
@@ -61,6 +64,10 @@ function getNotificationMessage(notification: Notification) {
       return `${actorName} earned an achievement`;
     case "streak":
       return `${actorName} is on a streak!`;
+    case "admin_comment":
+      return "An admin left a comment on your activity";
+    case "admin_edit":
+      return "An admin updated your activity";
     default:
       return `${actorName} interacted with you`;
   }

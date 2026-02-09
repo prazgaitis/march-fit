@@ -145,7 +145,6 @@ export default defineSchema({
     resolutionStatus: v.union(
       v.literal("pending"),
       v.literal("resolved"),
-      v.literal("reopened"),
     ),
     resolutionNotes: v.optional(v.string()),
     resolvedAt: v.optional(v.number()),

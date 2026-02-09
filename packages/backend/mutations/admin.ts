@@ -79,8 +79,7 @@ export const updateFlagResolution = mutation({
     activityId: v.id("activities"),
     status: v.union(
       v.literal("pending"),
-      v.literal("resolved"),
-      v.literal("reopened")
+      v.literal("resolved")
     ),
     notes: v.optional(v.string()),
   },
@@ -210,6 +209,7 @@ export const addAdminComment = mutation({
 export const adminEditActivity = mutation({
   args: {
     activityId: v.id("activities"),
+    activityTypeId: v.optional(v.id("activityTypes")),
     pointsEarned: v.optional(v.number()),
     notes: v.optional(v.union(v.string(), v.null())),
     loggedDate: v.optional(v.string()),
@@ -246,6 +246,21 @@ export const adminEditActivity = mutation({
 
     // Track changes for history
     const changes: Record<string, unknown> = {};
+
+    if (args.activityTypeId !== undefined) {
+      const newType = await ctx.db.get(args.activityTypeId);
+      if (!newType || newType.challengeId !== activity.challengeId) {
+        throw new Error(
+          "Activity type not found or does not belong to this challenge"
+        );
+      }
+
+      updates.activityTypeId = args.activityTypeId;
+      changes.activityTypeId = {
+        from: activity.activityTypeId,
+        to: args.activityTypeId,
+      };
+    }
 
     if (args.pointsEarned !== undefined) {
       // Calculate points difference for participation update
