@@ -3,10 +3,8 @@ import { v } from "convex/values";
 import type { Id } from "../_generated/dataModel";
 import { resend } from "../lib/resend";
 import { DEFAULT_EMAIL_PLAN } from "../lib/defaultEmailPlan";
+import { DEFAULT_FROM_EMAIL } from "../lib/emailTemplate";
 import { getCurrentUser } from "../lib/ids";
-
-// Default from address - should be configured per deployment
-const DEFAULT_FROM_EMAIL = "March Fitness <noreply@march.fit>";
 
 // Helper to check if user is challenge admin
 async function requireChallengeAdmin(

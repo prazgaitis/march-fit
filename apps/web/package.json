@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "PORT=3001 dotenv -e ../../.env.local -e ../../.env -- next dev",
+    "dev": "pnpm dlx @react-grab/cursor@latest && PORT=3001 dotenv -e ../../.env.local -e ../../.env -- next dev",
     "build": "dotenv -e ../../.env.local -e ../../.env -- next build",
     "start": "next start",
     "typecheck": "tsc --noEmit",

@@ -14,6 +14,7 @@ const DASHBOARD_LAYOUT_PATTERNS = [
   /^\/challenges\/[^/]+\/users\/[^/]+$/,
   /^\/challenges\/[^/]+\/activities\/[^/]+$/,
   /^\/challenges\/[^/]+\/admin(\/.*)?$/,
+  /^\/challenges\/[^/]+\/invite\/[^/]+$/,
 ];
 
 export function ConditionalHeader({
