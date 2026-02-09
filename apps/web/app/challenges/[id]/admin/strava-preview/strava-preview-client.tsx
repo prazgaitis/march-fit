@@ -8,8 +8,12 @@ import { format } from "date-fns";
 import {
   Activity,
   AlertCircle,
+  Camera,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
   Clock,
+  Code,
   Loader2,
   Map,
   RefreshCw,
@@ -51,6 +55,13 @@ interface StravaActivity {
   elapsed_time: number;
   moving_time: number;
   distance?: number;
+  total_photo_count?: number;
+  photos?: {
+    primary?: {
+      urls?: Record<string, string>;
+    };
+    count?: number;
+  };
 }
 
 interface ScoringPreview {
@@ -77,6 +88,23 @@ interface StravaPreviewClientProps {
   participantsWithStrava: ParticipantWithStrava[];
 }
 
+/**
+ * Extract the best available photo URL from a Strava activity's photos field.
+ * Prefers larger resolutions (higher numeric key = higher resolution).
+ */
+function getStravaPhotoUrl(
+  stravaActivity: StravaActivity
+): string | null {
+  const urls = stravaActivity.photos?.primary?.urls;
+  if (!urls) return null;
+
+  // Keys are resolution strings like "100", "600" — pick the largest
+  const sortedKeys = Object.keys(urls).sort(
+    (a, b) => Number(b) - Number(a)
+  );
+  return sortedKeys.length > 0 ? urls[sortedKeys[0]] : null;
+}
+
 export function StravaPreviewClient({
   challengeId,
   participantsWithStrava,
@@ -86,8 +114,21 @@ export function StravaPreviewClient({
   const [error, setError] = useState<string | null>(null);
   const [activities, setActivities] = useState<ActivityWithScoring[] | null>(null);
   const [tokenRefreshed, setTokenRefreshed] = useState(false);
+  const [expandedJsonIds, setExpandedJsonIds] = useState<Set<number>>(new Set());
 
   const fetchActivities = useAction(api.actions.strava.fetchActivitiesWithScoringPreview);
+
+  const toggleJsonExpanded = (activityId: number) => {
+    setExpandedJsonIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(activityId)) {
+        next.delete(activityId);
+      } else {
+        next.add(activityId);
+      }
+      return next;
+    });
+  };
 
   const selectedParticipant = participantsWithStrava.find((p) => p.id === selectedUserId);
 
@@ -249,6 +290,44 @@ export function StravaPreviewClient({
                   )}
                 </div>
 
+                {/* Activity Photo */}
+                {(() => {
+                  const photoUrl = getStravaPhotoUrl(stravaActivity);
+                  const photoCount =
+                    stravaActivity.total_photo_count ??
+                    stravaActivity.photos?.count ??
+                    0;
+
+                  if (!photoUrl && photoCount === 0) return null;
+
+                  return (
+                    <div className="mt-3">
+                      {photoUrl ? (
+                        <div className="relative inline-block">
+                          <img
+                            src={photoUrl}
+                            alt={`Photo from ${stravaActivity.name}`}
+                            className="h-24 w-auto rounded border border-zinc-700 object-cover"
+                          />
+                          {photoCount > 1 && (
+                            <div className="absolute right-1 top-1 flex items-center gap-1 rounded-full bg-black/70 px-1.5 py-0.5 text-[10px] text-zinc-200">
+                              <Camera className="h-2.5 w-2.5" />
+                              {photoCount}
+                            </div>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-1.5 text-sm text-zinc-500">
+                          <Camera className="h-3.5 w-3.5" />
+                          <span>
+                            {photoCount} photo{photoCount !== 1 ? "s" : ""} (could not load preview)
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
+
                 {/* Metrics Row */}
                 <div className="mt-3 flex flex-wrap gap-4 text-sm">
                   {stravaActivity.distance && (
@@ -331,6 +410,28 @@ export function StravaPreviewClient({
                         </div>
                       )}
                     </div>
+                  )}
+                </div>
+
+                {/* Raw JSON Toggle */}
+                <div className="mt-3 border-t border-zinc-800 pt-3">
+                  <button
+                    type="button"
+                    onClick={() => toggleJsonExpanded(stravaActivity.id)}
+                    className="flex items-center gap-1.5 text-xs text-zinc-500 transition-colors hover:text-zinc-300"
+                  >
+                    <Code className="h-3.5 w-3.5" />
+                    <span>Raw JSON</span>
+                    {expandedJsonIds.has(stravaActivity.id) ? (
+                      <ChevronUp className="h-3 w-3" />
+                    ) : (
+                      <ChevronDown className="h-3 w-3" />
+                    )}
+                  </button>
+                  {expandedJsonIds.has(stravaActivity.id) && (
+                    <pre className="mt-2 max-h-80 overflow-auto rounded-md border border-zinc-800 bg-zinc-950 p-3 text-xs text-zinc-400">
+                      {JSON.stringify(stravaActivity, null, 2)}
+                    </pre>
                   )}
                 </div>
               </div>
