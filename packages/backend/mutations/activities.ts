@@ -593,6 +593,88 @@ export const generateUploadUrl = mutation({
   },
 });
 
+// Flag an activity (user-facing)
+export const flagActivity = mutation({
+  args: {
+    activityId: v.id("activities"),
+    reason: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) {
+      throw new Error("Not authenticated");
+    }
+
+    const activity = await ctx.db.get(args.activityId);
+    if (!activity) {
+      throw new Error("Activity not found");
+    }
+
+    // Verify user is a participant in this challenge
+    const participation = await ctx.db
+      .query("userChallenges")
+      .withIndex("userChallengeUnique", (q) =>
+        q.eq("userId", user._id).eq("challengeId", activity.challengeId)
+      )
+      .first();
+
+    if (!participation) {
+      throw new Error("You are not part of this challenge");
+    }
+
+    // Prevent flagging your own activity
+    if (activity.userId === user._id) {
+      throw new Error("You cannot flag your own activity");
+    }
+
+    // Check if user already flagged this activity
+    const existingFlag = await ctx.db
+      .query("flags")
+      .withIndex("activityId", (q) => q.eq("activityId", args.activityId))
+      .filter((q) => q.eq(q.field("flaggerUserId"), user._id))
+      .first();
+
+    if (existingFlag) {
+      throw new Error("You have already flagged this activity");
+    }
+
+    const now = Date.now();
+
+    // Create flag record
+    await ctx.db.insert("flags", {
+      activityId: args.activityId,
+      flaggerUserId: user._id,
+      reason: args.reason,
+      resolved: false,
+      createdAt: now,
+    });
+
+    // Update the activity if not already flagged
+    if (!activity.flagged) {
+      await ctx.db.patch(args.activityId, {
+        flagged: true,
+        flaggedAt: now,
+        flaggedReason: args.reason,
+        resolutionStatus: "pending",
+        updatedAt: now,
+      });
+    }
+
+    // Add history entry
+    await ctx.db.insert("activityFlagHistory", {
+      activityId: args.activityId,
+      actorId: user._id,
+      actionType: "flagged",
+      payload: {
+        reason: args.reason,
+      },
+      createdAt: now,
+    });
+
+    return { success: true };
+  },
+});
+
 // Delete an activity (for cleanup/admin purposes)
 export const remove = mutation({
   args: {

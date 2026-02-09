@@ -4,8 +4,10 @@ import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { formatDistanceToNow } from 'date-fns';
 import {
+  Flag,
   Loader2,
   MessageCircle,
+  MoreHorizontal,
   RefreshCw,
   Share2,
   ThumbsUp,
@@ -31,6 +33,21 @@ import {
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useMentionableUsers } from '@/hooks/use-mentionable-users';
 import { isEditorContentEmpty, type MentionableUser } from '@/lib/rich-text';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 
 interface BonusThreshold {
@@ -326,6 +343,13 @@ function ActivityCard({
 }: ActivityCardProps) {
   const router = useRouter();
   const [showComments, setShowComments] = useState(false);
+  const [showFlagDialog, setShowFlagDialog] = useState(false);
+  const [flagReason, setFlagReason] = useState('');
+  const [flagSubmitting, setFlagSubmitting] = useState(false);
+  const [flagError, setFlagError] = useState<string | null>(null);
+  const [flagSuccess, setFlagSuccess] = useState(false);
+
+  const flagActivity = useMutation(api.mutations.activities.flagActivity);
 
   const activityUrl = `/challenges/${challengeId}/activities/${item.activity.id}`;
 
@@ -342,6 +366,26 @@ function ActivityCard({
       return;
     }
     router.push(activityUrl);
+  };
+
+  const handleFlagSubmit = async () => {
+    if (!flagReason.trim()) return;
+    setFlagSubmitting(true);
+    setFlagError(null);
+    try {
+      await flagActivity({
+        activityId: item.activity.id as Id<"activities">,
+        reason: flagReason.trim(),
+      });
+      setFlagSuccess(true);
+      setFlagReason('');
+    } catch (err) {
+      setFlagError(
+        err instanceof Error ? err.message : 'Failed to report activity'
+      );
+    } finally {
+      setFlagSubmitting(false);
+    }
   };
 
   const handleShare = async () => {
@@ -470,6 +514,93 @@ function ActivityCard({
         <Button variant="ghost" size="sm" onClick={handleShare}>
           <Share2 className="mr-2 h-4 w-4" /> Share
         </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="ml-auto h-8 w-8 p-0">
+              <MoreHorizontal className="h-4 w-4" />
+              <span className="sr-only">More options</span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem
+              onClick={() => {
+                setFlagSuccess(false);
+                setFlagError(null);
+                setFlagReason('');
+                setShowFlagDialog(true);
+              }}
+              className="text-destructive focus:text-destructive"
+            >
+              <Flag className="mr-2 h-4 w-4" />
+              Report activity
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+
+        <Dialog open={showFlagDialog} onOpenChange={setShowFlagDialog}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Report Activity</DialogTitle>
+              <DialogDescription>
+                Flag this activity for admin review. Please describe why you think
+                this activity should be reviewed.
+              </DialogDescription>
+            </DialogHeader>
+            {flagSuccess ? (
+              <div className="py-4 text-center">
+                <p className="text-sm text-muted-foreground">
+                  Thank you for your report. An admin will review this activity.
+                </p>
+              </div>
+            ) : (
+              <>
+                <Textarea
+                  value={flagReason}
+                  onChange={(e) => setFlagReason(e.target.value)}
+                  placeholder="Describe the issue (e.g., incorrect points, suspicious activity...)"
+                  rows={3}
+                  maxLength={2000}
+                />
+                {flagError && (
+                  <p className="text-sm text-destructive">{flagError}</p>
+                )}
+              </>
+            )}
+            <DialogFooter>
+              {flagSuccess ? (
+                <Button
+                  variant="outline"
+                  onClick={() => setShowFlagDialog(false)}
+                >
+                  Close
+                </Button>
+              ) : (
+                <>
+                  <Button
+                    variant="outline"
+                    onClick={() => setShowFlagDialog(false)}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    onClick={handleFlagSubmit}
+                    disabled={flagSubmitting || !flagReason.trim()}
+                  >
+                    {flagSubmitting ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Submitting
+                      </>
+                    ) : (
+                      'Submit Report'
+                    )}
+                  </Button>
+                </>
+              )}
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </CardFooter>
 
       {showComments && (
