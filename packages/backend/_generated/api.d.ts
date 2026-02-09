@@ -22,6 +22,7 @@ import type * as http from "../http.js";
 import type * as index from "../index.js";
 import type * as lib_dateOnly from "../lib/dateOnly.js";
 import type * as lib_defaultEmailPlan from "../lib/defaultEmailPlan.js";
+import type * as lib_emailTemplate from "../lib/emailTemplate.js";
 import type * as lib_ids from "../lib/ids.js";
 import type * as lib_payments from "../lib/payments.js";
 import type * as lib_resend from "../lib/resend.js";
@@ -104,6 +105,7 @@ declare const fullApi: ApiFromModules<{
   index: typeof index;
   "lib/dateOnly": typeof lib_dateOnly;
   "lib/defaultEmailPlan": typeof lib_defaultEmailPlan;
+  "lib/emailTemplate": typeof lib_emailTemplate;
   "lib/ids": typeof lib_ids;
   "lib/payments": typeof lib_payments;
   "lib/resend": typeof lib_resend;

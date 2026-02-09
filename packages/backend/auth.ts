@@ -11,7 +11,7 @@ import authConfig from "./auth.config";
  * This provides the adapter and HTTP route registration for Better Auth
  */
 export const authComponent = createClient<DataModel>(components.betterAuth, {
-  verbose: process.env.NODE_ENV === "development",
+  verbose: false,
 });
 
 /**

@@ -8,6 +8,8 @@ export default defineSchema({
     email: v.string(),
     name: v.optional(v.string()),
     avatarUrl: v.optional(v.string()),
+    gender: v.optional(v.union(v.literal("male"), v.literal("female"))),
+    age: v.optional(v.number()),
     role: v.union(v.literal("user"), v.literal("admin")),
     createdAt: v.number(),
     updatedAt: v.number(),
