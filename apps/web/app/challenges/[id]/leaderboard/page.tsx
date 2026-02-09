@@ -6,7 +6,7 @@ import type { Id } from "@repo/backend/_generated/dataModel";
 import { getCurrentUser } from "@/lib/auth";
 import { isAuthenticated } from "@/lib/server-auth";
 import { DashboardLayoutWrapper } from "../notifications/dashboard-layout-wrapper";
-import { LeaderboardList } from "./leaderboard-list";
+import { LeaderboardTabs } from "./leaderboard-tabs";
 
 const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
@@ -66,7 +66,7 @@ export default async function LeaderboardPage({ params }: LeaderboardPageProps) 
     >
       <div className="mx-auto max-w-2xl px-4 py-6">
         <h1 className="mb-6 text-2xl font-bold">Leaderboard</h1>
-        <LeaderboardList
+        <LeaderboardTabs
           entries={leaderboardEntries}
           challengeId={challenge._id}
           currentUserId={user._id}
