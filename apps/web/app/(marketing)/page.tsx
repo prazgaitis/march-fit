@@ -49,7 +49,7 @@ export default async function Home() {
                 href="/challenges"
                 className="inline-flex items-center justify-center rounded-full border border-white/30 bg-white px-10 py-4 text-base font-semibold uppercase tracking-[0.2em] text-black transition hover:border-white hover:bg-black hover:text-white"
               >
-                Enter Challenges
+                View Challenges
               </Link>
             ) : (
               <>
@@ -63,7 +63,7 @@ export default async function Home() {
                   href="/sign-in"
                   className="inline-flex items-center justify-center rounded-full border border-white/30 px-10 py-4 text-base font-semibold uppercase tracking-[0.2em] text-white transition hover:border-white hover:bg-white/10"
                 >
-                  Member Login
+                  Sign In
                 </Link>
               </>
             )}

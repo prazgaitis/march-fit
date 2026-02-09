@@ -9,7 +9,6 @@ import {
   HelpCircle,
   MessageSquare,
   Pencil,
-  RotateCcw,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -51,9 +50,10 @@ export function FlaggingHelpDialog() {
             <p className="text-muted-foreground">
               Any challenge participant can report another participant&apos;s activity
               by clicking the <strong>&hellip;</strong> menu on an activity card in the
-              feed and selecting <strong>Report activity</strong>. They must provide
-              a reason (e.g., incorrect points, suspicious entry). Users cannot flag
-              their own activities, and each user can only flag a given activity once.
+              feed or on the activity detail page and selecting{" "}
+              <strong>Report activity</strong>. They must provide a reason (e.g.,
+              incorrect points, suspicious entry). Users cannot flag their own
+              activities, and each user can only flag a given activity once.
             </p>
           </section>
 
@@ -64,40 +64,16 @@ export function FlaggingHelpDialog() {
               Flag status lifecycle
             </h3>
             <div className="rounded-lg border p-4">
-              <div className="flex flex-col gap-3">
-                <div className="flex items-center gap-3">
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-xs font-medium text-amber-500">
-                    <CircleDot className="h-3 w-3" />
-                    Pending
-                  </span>
-                  <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-500">
-                    <CheckCircle2 className="h-3 w-3" />
-                    Resolved
-                  </span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-500">
-                    <CheckCircle2 className="h-3 w-3" />
-                    Resolved
-                  </span>
-                  <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-orange-500/30 bg-orange-500/10 px-3 py-1 text-xs font-medium text-orange-500">
-                    <RotateCcw className="h-3 w-3" />
-                    Reopened
-                  </span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-orange-500/30 bg-orange-500/10 px-3 py-1 text-xs font-medium text-orange-500">
-                    <RotateCcw className="h-3 w-3" />
-                    Reopened
-                  </span>
-                  <ArrowRight className="h-4 w-4 text-muted-foreground" />
-                  <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-500">
-                    <CheckCircle2 className="h-3 w-3" />
-                    Resolved
-                  </span>
-                </div>
+              <div className="flex items-center gap-3">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-3 py-1 text-xs font-medium text-amber-500">
+                  <CircleDot className="h-3 w-3" />
+                  Pending
+                </span>
+                <ArrowRight className="h-4 w-4 text-muted-foreground" />
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-500">
+                  <CheckCircle2 className="h-3 w-3" />
+                  Resolved
+                </span>
               </div>
             </div>
             <ul className="ml-1 space-y-1.5 text-muted-foreground">
@@ -109,12 +85,8 @@ export function FlaggingHelpDialog() {
               <li>
                 <strong className="text-foreground">Resolved</strong> &mdash; An
                 admin has reviewed and handled the flag. The activity is unflagged
-                and returns to normal in the feed.
-              </li>
-              <li>
-                <strong className="text-foreground">Reopened</strong> &mdash; A
-                previously resolved flag has been reopened for further review. The
-                activity becomes flagged again.
+                and returns to normal in the feed. Once resolved, a flag cannot be
+                reopened.
               </li>
             </ul>
           </section>
@@ -138,6 +110,10 @@ export function FlaggingHelpDialog() {
                 If you added a participant-visible comment, the participant receives
                 a notification with your message.
               </li>
+              <li>
+                If the same activity is reported again by another user, it will
+                create a new flag entry.
+              </li>
             </ul>
           </section>
 
@@ -154,7 +130,7 @@ export function FlaggingHelpDialog() {
             <ul className="ml-1 space-y-1.5 text-muted-foreground">
               <li>
                 <strong className="text-foreground">Change status</strong> &mdash;
-                Mark as pending, resolved, or reopened.
+                Mark as pending or resolved.
               </li>
               <li>
                 <strong className="text-foreground">Add admin comment</strong>{" "}

@@ -79,8 +79,7 @@ export const updateFlagResolution = mutation({
     activityId: v.id("activities"),
     status: v.union(
       v.literal("pending"),
-      v.literal("resolved"),
-      v.literal("reopened")
+      v.literal("resolved")
     ),
     notes: v.optional(v.string()),
   },

@@ -10,13 +10,16 @@ import {
   ArrowLeft,
   Calendar,
   Clock,
+  Flag,
   Loader2,
   MessageCircle,
+  MoreHorizontal,
   Share2,
   ThumbsUp,
   Trophy,
 } from 'lucide-react';
 
+import { ConvexError } from 'convex/values';
 import { RichTextEditor } from '@/components/editor/rich-text-editor';
 import { RichTextViewer } from '@/components/editor/rich-text-viewer';
 import { UserAvatar, UserAvatarInline } from '@/components/user-avatar';
@@ -30,6 +33,23 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Label } from '@/components/ui/label';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Textarea } from '@/components/ui/textarea';
 import { useMentionableUsers } from '@/hooks/use-mentionable-users';
 import { isEditorContentEmpty, type MentionableUser } from '@/lib/rich-text';
 import { cn } from '@/lib/utils';
@@ -49,8 +69,15 @@ export function ActivityDetailContent({
 
   const { users: mentionUsers } = useMentionableUsers(challengeId);
   const [pendingLike, setPendingLike] = useState(false);
+  const [showFlagDialog, setShowFlagDialog] = useState(false);
+  const [flagCategory, setFlagCategory] = useState('');
+  const [flagReason, setFlagReason] = useState('');
+  const [flagSubmitting, setFlagSubmitting] = useState(false);
+  const [flagError, setFlagError] = useState<string | null>(null);
+  const [flagSuccess, setFlagSuccess] = useState(false);
 
   const toggleLike = useMutation(api.mutations.likes.toggle);
+  const flagActivity = useMutation(api.mutations.activities.flagActivity);
 
   const handleToggleLike = async () => {
     setPendingLike(true);
@@ -77,6 +104,39 @@ export function ActivityDetailContent({
       }
     } catch (error) {
       console.error('Share failed', error);
+    }
+  };
+
+  const handleFlagSubmit = async () => {
+    if (!flagCategory) return;
+    if (flagCategory === 'other' && !flagReason.trim()) return;
+    setFlagSubmitting(true);
+    setFlagError(null);
+    const categoryLabel =
+      flagCategory === 'incorrect_type'
+        ? 'Logged as incorrect type'
+        : flagCategory === 'impossible'
+          ? 'Seems like an impossible feat of athleticism'
+          : '';
+    const reason = flagCategory === 'other'
+      ? flagReason.trim()
+      : flagReason.trim()
+        ? `${categoryLabel}: ${flagReason.trim()}`
+        : categoryLabel;
+    try {
+      await flagActivity({
+        activityId: activityId as Id<'activities'>,
+        reason,
+      });
+      setFlagSuccess(true);
+      setFlagReason('');
+    } catch (err) {
+      setFlagError(
+        err instanceof ConvexError ? (err.data as string) :
+        err instanceof Error ? err.message : 'Failed to report activity'
+      );
+    } finally {
+      setFlagSubmitting(false);
     }
   };
 
@@ -303,6 +363,108 @@ export function ActivityDetailContent({
             <Button variant="ghost" size="sm" onClick={handleShare}>
               <Share2 className="mr-2 h-4 w-4" /> Share
             </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="ml-auto h-8 w-8 p-0">
+                  <MoreHorizontal className="h-4 w-4" />
+                  <span className="sr-only">More options</span>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  onClick={() => {
+                    setFlagSuccess(false);
+                    setFlagError(null);
+                    setFlagCategory('');
+                    setFlagReason('');
+                    setShowFlagDialog(true);
+                  }}
+                  className="text-destructive focus:text-destructive"
+                >
+                  <Flag className="mr-2 h-4 w-4" />
+                  Report activity
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+
+            <Dialog open={showFlagDialog} onOpenChange={setShowFlagDialog}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Report Activity</DialogTitle>
+                  <DialogDescription>
+                    Flag this activity for admin review. Please describe why you think
+                    this activity should be reviewed.
+                  </DialogDescription>
+                </DialogHeader>
+                {flagSuccess ? (
+                  <div className="py-4 text-center">
+                    <p className="text-sm text-muted-foreground">
+                      Thank you for your report. An admin will review this activity.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <RadioGroup value={flagCategory} onValueChange={setFlagCategory}>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="incorrect_type" id="flag-incorrect" />
+                        <Label htmlFor="flag-incorrect">Logged as incorrect type</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="impossible" id="flag-impossible" />
+                        <Label htmlFor="flag-impossible">Seems like an impossible feat of athleticism</Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="other" id="flag-other" />
+                        <Label htmlFor="flag-other">Other</Label>
+                      </div>
+                    </RadioGroup>
+                    <Textarea
+                      value={flagReason}
+                      onChange={(e) => setFlagReason(e.target.value)}
+                      placeholder="Add additional context (optional)..."
+                      rows={3}
+                      maxLength={2000}
+                    />
+                    {flagError && (
+                      <p className="text-sm text-destructive">{flagError}</p>
+                    )}
+                  </div>
+                )}
+                <DialogFooter>
+                  {flagSuccess ? (
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowFlagDialog(false)}
+                    >
+                      Close
+                    </Button>
+                  ) : (
+                    <>
+                      <Button
+                        variant="outline"
+                        onClick={() => setShowFlagDialog(false)}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        variant="destructive"
+                        onClick={handleFlagSubmit}
+                        disabled={flagSubmitting || !flagCategory || (flagCategory === 'other' && !flagReason.trim())}
+                      >
+                        {flagSubmitting ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Submitting
+                          </>
+                        ) : (
+                          'Submit Report'
+                        )}
+                      </Button>
+                    </>
+                  )}
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </CardFooter>
         </Card>
 

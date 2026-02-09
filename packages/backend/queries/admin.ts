@@ -105,8 +105,7 @@ export const listFlaggedActivities = query({
     status: v.optional(
       v.union(
         v.literal("pending"),
-        v.literal("resolved"),
-        v.literal("reopened")
+        v.literal("resolved")
       )
     ),
     participantId: v.optional(v.id("users")),

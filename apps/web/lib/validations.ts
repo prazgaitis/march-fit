@@ -15,7 +15,6 @@ export const userRoleValues = ["user", "admin"] as const;
 export const activityResolutionStatusValues = [
   "pending",
   "resolved",
-  "reopened",
 ] as const;
 
 export const activityAdminCommentVisibilityValues = [

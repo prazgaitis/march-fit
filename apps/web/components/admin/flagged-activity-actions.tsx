@@ -25,7 +25,6 @@ import {
 const STATUS_LABELS: Record<(typeof activityResolutionStatusValues)[number], string> = {
   pending: "Mark Pending",
   resolved: "Mark Resolved",
-  reopened: "Reopen",
 };
 
 interface FlaggedActivityActionsProps {

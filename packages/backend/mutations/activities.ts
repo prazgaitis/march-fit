@@ -1,5 +1,5 @@
 import { internalMutation, mutation } from "../_generated/server";
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import { calculateActivityPoints, calculateThresholdBonuses, calculateOptionalBonuses, calculateMediaBonus } from "../lib/scoring";
 import { getCurrentUser } from "../lib/ids";
 import { isPaymentRequired } from "../lib/payments";
@@ -624,7 +624,7 @@ export const flagActivity = mutation({
 
     // Prevent flagging your own activity
     if (activity.userId === user._id) {
-      throw new Error("You cannot flag your own activity");
+      throw new ConvexError("You cannot flag your own activity");
     }
 
     // Check if user already flagged this activity
@@ -635,7 +635,7 @@ export const flagActivity = mutation({
       .first();
 
     if (existingFlag) {
-      throw new Error("You have already flagged this activity");
+      throw new ConvexError("You have already flagged this activity");
     }
 
     const now = Date.now();

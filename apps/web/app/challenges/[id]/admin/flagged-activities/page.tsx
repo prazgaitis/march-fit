@@ -61,7 +61,7 @@ export default async function FlaggedActivitiesPage({
 
   const result = await convex.query(api.queries.admin.listFlaggedActivities, {
     challengeId: challenge.id as Id<"challenges">,
-    status: parsed.status as "pending" | "resolved" | "reopened" | undefined,
+    status: parsed.status as "pending" | "resolved" | undefined,
     participantId: parsed.participantId as Id<"users"> | undefined,
     search: parsed.search,
     limit,
