@@ -438,6 +438,16 @@ export default defineSchema({
     .index("invitedById", ["invitedById"])
     .index("invitedUserId", ["invitedUserId"]),
 
+  // Challenge Invites - personal invite codes per user per challenge
+  challengeInvites: defineTable({
+    challengeId: v.id("challenges"),
+    userId: v.id("users"),
+    code: v.string(), // Short alphanumeric invite code
+    createdAt: v.number(),
+  })
+    .index("code", ["code"])
+    .index("userChallengeUnique", ["userId", "challengeId"]),
+
   // Email Sequences - email templates per challenge
   emailSequences: defineTable({
     challengeId: v.id("challenges"),

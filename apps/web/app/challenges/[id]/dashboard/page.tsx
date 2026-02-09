@@ -4,6 +4,7 @@ import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
 
 import { ActivityFeed } from "@/components/dashboard/activity-feed";
+import { InviteCard } from "@/components/dashboard/invite-card";
 import { type ChallengeSummary } from "@/components/dashboard/challenge-realtime-context";
 import { getCurrentUser } from "@/lib/auth";
 import { isAuthenticated } from "@/lib/server-auth";
@@ -61,6 +62,7 @@ export default async function ChallengeDashboardPage({
     0,
     Math.ceil((dateOnlyToUtcMs(challenge.endDate) - now.getTime()) / DAY_IN_MS),
   );
+  const isUpcoming = now.getTime() < dateOnlyToUtcMs(challenge.startDate);
 
   const initialSummary: ChallengeSummary = {
     stats: {
@@ -89,7 +91,8 @@ export default async function ChallengeDashboardPage({
       currentUser={user}
       initialSummary={initialSummary}
     >
-      <div className="mx-auto max-w-2xl px-4 py-6">
+      <div className="mx-auto max-w-2xl px-4 py-6 space-y-4">
+        {isUpcoming && <InviteCard challengeId={challenge.id} />}
         <ActivityFeed challengeId={challenge.id} />
       </div>
     </DashboardLayoutWrapper>
