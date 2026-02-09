@@ -41,6 +41,13 @@ export interface StravaActivity {
   photo_count: number;
   private: boolean;
   flagged: boolean;
+  // Photos from detailed activity response
+  photos?: {
+    primary?: {
+      urls?: Record<string, string>; // e.g. { "100": "url", "600": "url" }
+    };
+    count?: number;
+  };
 }
 
 export interface MappedActivityData {
@@ -49,6 +56,7 @@ export interface MappedActivityData {
   metrics: Record<string, unknown>;
   notes: string | null;
   imageUrl: string | null;
+  stravaPhotoUrls: string[]; // All photo URLs extracted from Strava
   source: "strava";
   externalId: string;
   externalData: StravaActivity;
@@ -66,6 +74,34 @@ const SPORT_TYPE_MAPPING: Record<string, string[]> = {
 /**
  * Maps a Strava activity to our activity format
  */
+/**
+ * Extract photo URLs from a Strava activity's photos field.
+ * Returns the largest available URL for the primary photo, and all available URLs.
+ */
+function extractStravaPhotos(stravaActivity: StravaActivity): {
+  primaryUrl: string | null;
+  allUrls: string[];
+} {
+  const photos = stravaActivity.photos;
+  if (!photos || (!photos.count && !photos.primary)) {
+    return { primaryUrl: null, allUrls: [] };
+  }
+
+  const primaryUrls = photos.primary?.urls;
+  if (!primaryUrls) {
+    return { primaryUrl: null, allUrls: [] };
+  }
+
+  // Get the largest resolution URL (highest numeric key)
+  const sortedKeys = Object.keys(primaryUrls).sort(
+    (a, b) => Number(b) - Number(a)
+  );
+  const primaryUrl = sortedKeys.length > 0 ? primaryUrls[sortedKeys[0]] : null;
+  const allUrls = primaryUrl ? [primaryUrl] : [];
+
+  return { primaryUrl, allUrls };
+}
+
 export function mapStravaActivity(
   stravaActivity: StravaActivity,
   activityTypeId: Id<"activityTypes">,
@@ -77,12 +113,16 @@ export function mapStravaActivity(
 
   const metrics = extractMetrics(stravaActivity, metricMapping);
 
+  // Extract photo URLs from Strava activity
+  const { primaryUrl, allUrls } = extractStravaPhotos(stravaActivity);
+
   return {
     activityTypeId,
     loggedDate,
     metrics,
     notes: null,
-    imageUrl: null,
+    imageUrl: primaryUrl,
+    stravaPhotoUrls: allUrls,
     source: "strava",
     externalId: stravaActivity.id.toString(),
     externalData: stravaActivity,

@@ -371,7 +371,7 @@ function ActivityCard({
             <>
               <span aria-hidden="true">•</span>
               <span className="text-sm">
-                {formatDistanceToNow(new Date(item.activity.loggedDate), {
+                {formatDistanceToNow(new Date(item.activity.createdAt), {
                   addSuffix: true,
                 })}
               </span>

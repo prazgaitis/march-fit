@@ -152,6 +152,13 @@ interface StravaActivity {
   average_heartrate?: number;
   max_heartrate?: number;
   total_elevation_gain?: number;
+  total_photo_count?: number;
+  photos?: {
+    primary?: {
+      urls?: Record<string, string>;
+    };
+    count?: number;
+  };
 }
 
 interface ScoringPreview {
@@ -166,6 +173,32 @@ interface ScoringPreview {
   }>;
   metrics: Record<string, unknown>;
   mappingSource: "explicit" | "fallback" | "none";
+}
+
+/**
+ * Fetch a single activity's details directly via the Strava API.
+ * Used to enrich list results with photo URLs.
+ */
+async function fetchActivityDetail(
+  accessToken: string,
+  activityId: number
+): Promise<StravaActivity | null> {
+  try {
+    const response = await fetch(
+      `https://www.strava.com/api/v3/activities/${activityId}`,
+      {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      }
+    );
+    if (!response.ok) {
+      console.warn(`Failed to fetch detail for activity ${activityId}: ${response.status}`);
+      return null;
+    }
+    return (await response.json()) as StravaActivity;
+  } catch (err) {
+    console.warn(`Error fetching detail for activity ${activityId}:`, err);
+    return null;
+  }
 }
 
 /**
@@ -216,6 +249,28 @@ export const fetchActivitiesWithScoringPreview = action({
       perPage: args.perPage ?? 20,
       after: args.after,
     }) as StravaActivity[];
+
+    // Enrich activities that have photos by fetching their detail endpoint
+    // (the list endpoint only returns total_photo_count, not actual photo URLs)
+    const activitiesWithPhotos = stravaActivities.filter(
+      (a) => (a.total_photo_count ?? 0) > 0
+    );
+
+    if (activitiesWithPhotos.length > 0) {
+      const photoDetails = await Promise.all(
+        activitiesWithPhotos.map((a) =>
+          fetchActivityDetail(accessToken, a.id)
+        )
+      );
+
+      // Merge photo data back into the activity objects
+      for (let i = 0; i < activitiesWithPhotos.length; i++) {
+        const detail = photoDetails[i];
+        if (detail?.photos) {
+          activitiesWithPhotos[i].photos = detail.photos;
+        }
+      }
+    }
 
     // Get challenge activity types and integration mappings for scoring preview
     const scoringData = await ctx.runQuery(internal.queries.admin.getScoringPreviewData, {

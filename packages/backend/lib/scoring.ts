@@ -406,6 +406,30 @@ const THRESHOLD_TO_METRIC_KEY: Record<string, string[]> = {
 };
 
 /**
+ * Media bonus - awards 1 point if the activity has at least one photo/media attachment
+ */
+export const MEDIA_BONUS_POINTS = 1;
+
+export function calculateMediaBonus(hasMedia: boolean): {
+  totalBonusPoints: number;
+  triggeredBonus: { metric: string; threshold: number; bonusPoints: number; description: string } | null;
+} {
+  if (!hasMedia) {
+    return { totalBonusPoints: 0, triggeredBonus: null };
+  }
+
+  return {
+    totalBonusPoints: MEDIA_BONUS_POINTS,
+    triggeredBonus: {
+      metric: "media",
+      threshold: 1,
+      bonusPoints: MEDIA_BONUS_POINTS,
+      description: "Photo bonus",
+    },
+  };
+}
+
+/**
  * Calculate threshold bonus points for an activity
  * Returns total bonus points and list of triggered thresholds
  */

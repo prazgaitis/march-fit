@@ -380,11 +380,12 @@ export function ActivityLogDialog({ challengeId, trigger }: ActivityLogDialogPro
 
     if (basePoints === null) return null;
 
-    // Add threshold bonuses and optional bonuses
+    // Add threshold bonuses, optional bonuses, and media bonus
     const bonusPoints = triggeredThresholds.reduce((sum, t) => sum + t.bonusPoints, 0);
+    const mediaBonusPoints = mediaFiles.length > 0 ? 1 : 0;
 
-    return basePoints + bonusPoints + optionalBonusPoints;
-  }, [selectedActivityType, metricKey, form.metricValue, hasVariants, form.selectedVariant, activityVariants, triggeredThresholds, optionalBonusPoints]);
+    return basePoints + bonusPoints + optionalBonusPoints + mediaBonusPoints;
+  }, [selectedActivityType, metricKey, form.metricValue, hasVariants, form.selectedVariant, activityVariants, triggeredThresholds, optionalBonusPoints, mediaFiles.length]);
 
   // Set default value for completion activities
   useEffect(() => {
@@ -1079,7 +1080,7 @@ export function ActivityLogDialog({ challengeId, trigger }: ActivityLogDialogPro
                       ? `${estimatedPoints.toFixed(2)} points (estimated)`
                       : "Points will be calculated when you submit."}
                   </p>
-                  {triggeredThresholds.length > 0 && (
+                  {(triggeredThresholds.length > 0 || mediaFiles.length > 0) && (
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       {triggeredThresholds.map((bonus, i) => (
                         <span
@@ -1090,6 +1091,12 @@ export function ActivityLogDialog({ challengeId, trigger }: ActivityLogDialogPro
                           {bonus.description} (+{bonus.bonusPoints})
                         </span>
                       ))}
+                      {mediaFiles.length > 0 && (
+                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-xs text-amber-500">
+                          <Zap className="h-3 w-3" />
+                          Photo bonus (+1)
+                        </span>
+                      )}
                     </div>
                   )}
                 </>
