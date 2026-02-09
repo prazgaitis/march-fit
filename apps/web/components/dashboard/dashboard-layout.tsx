@@ -123,7 +123,7 @@ export function DashboardLayout({
       </aside>
 
       {/* Main Content - Scrollable */}
-      <main className="flex-1 overflow-y-auto pb-20 lg:pb-0">
+      <main className="flex-1 overflow-y-auto scrollbar-hide pb-20 lg:pb-0">
         <PaymentRequiredBanner challengeId={challenge.id} />
         <AnnouncementBanner challengeId={challenge.id} />
         {children}
@@ -135,7 +135,7 @@ export function DashboardLayout({
           <div className="p-4">
             <UserSearch challengeId={challenge.id} />
           </div>
-          <div className="flex-1 overflow-y-auto p-4">
+          <div className="flex-1 overflow-y-auto scrollbar-hide p-4">
             <ChallengeSidebar challengeId={challenge.id} currentUserId={currentUserId} />
           </div>
         </aside>

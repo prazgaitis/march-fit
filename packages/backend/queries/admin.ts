@@ -257,6 +257,7 @@ export const getFlaggedActivityDetail = query({
       activity: {
         id: activity._id,
         challengeId: activity.challengeId,
+        activityTypeId: activity.activityTypeId,
         flagged: activity.flagged,
         flaggedReason: activity.flaggedReason,
         flaggedAt: activity.flaggedAt,
