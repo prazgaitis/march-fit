@@ -28,6 +28,7 @@ import type * as lib_resend from "../lib/resend.js";
 import type * as lib_scoring from "../lib/scoring.js";
 import type * as lib_strava from "../lib/strava.js";
 import type * as lib_stripe from "../lib/stripe.js";
+import type * as lib_weeks from "../lib/weeks.js";
 import type * as migrations from "../migrations.js";
 import type * as mutations_achievements from "../mutations/achievements.js";
 import type * as mutations_activities from "../mutations/activities.js";
@@ -107,6 +108,7 @@ declare const fullApi: ApiFromModules<{
   "lib/scoring": typeof lib_scoring;
   "lib/strava": typeof lib_strava;
   "lib/stripe": typeof lib_stripe;
+  "lib/weeks": typeof lib_weeks;
   migrations: typeof migrations;
   "mutations/achievements": typeof mutations_achievements;
   "mutations/activities": typeof mutations_activities;
