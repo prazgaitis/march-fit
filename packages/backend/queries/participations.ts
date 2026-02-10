@@ -4,6 +4,7 @@ import { paginationOptsValidator } from "convex/server";
 import { getCurrentUser } from "../lib/ids";
 import { getChallengeWeekNumber, getWeekDateRange, getTotalWeeks } from "../lib/weeks";
 import type { Id } from "../_generated/dataModel";
+import { notDeleted } from "../lib/activityFilters";
 
 /**
  * Get recent participants for a challenge
@@ -441,6 +442,7 @@ export const getWeeklyCategoryLeaderboard = query({
           .gte("loggedDate", start)
           .lt("loggedDate", end)
       )
+      .filter(notDeleted)
       .collect();
 
     // Group points: categoryId -> userId -> totalPoints

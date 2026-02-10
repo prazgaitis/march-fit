@@ -1,5 +1,6 @@
 import { query } from "../_generated/server";
 import { v } from "convex/values";
+import { notDeleted } from "../lib/activityFilters";
 
 /**
  * List all mini-games for a challenge
@@ -255,6 +256,7 @@ export const getUserStatus = query({
             .withIndex("by_user_challenge_date", (q) =>
               q.eq("userId", args.userId).eq("challengeId", args.challengeId),
             )
+            .filter(notDeleted)
             .collect();
 
           // Group by day and find max within game period

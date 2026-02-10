@@ -18,3 +18,6 @@
 - `page-with-header` CSS class = `pt-16` to offset fixed navbar
 - Seed data lives in `packages/backend/actions/seed.ts`
 - Schema changes auto-deploy locally via `pnpm dev`
+
+## Corrections
+| 2026-02-10 | self | Ran `ls` before reading napkin | Always read `.claude/napkin.md` before any other command |

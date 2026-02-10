@@ -7,6 +7,7 @@ import {
 } from "../lib/strava";
 import { calculateActivityPoints, calculateThresholdBonuses, calculateMediaBonus } from "../lib/scoring";
 import { isPaymentRequired } from "../lib/payments";
+import { notDeleted } from "../lib/activityFilters";
 
 /**
  * Get user's active challenge participations
@@ -54,6 +55,7 @@ export const getExistingActivity = internalQuery({
           .eq("challengeId", args.challengeId)
           .eq("externalId", args.externalId)
       )
+      .filter(notDeleted)
       .first();
   },
 });
@@ -155,6 +157,38 @@ export const createFromStrava = internalMutation({
       .first();
 
     if (existing) {
+      if (existing.deletedAt) {
+        await ctx.db.patch(existing._id, {
+          activityTypeId,
+          loggedDate: loggedDateTs,
+          metrics: mappedActivity.metrics,
+          pointsEarned,
+          triggeredBonuses: triggeredBonuses.length > 0 ? triggeredBonuses : undefined,
+          imageUrl: mappedActivity.imageUrl ?? existing.imageUrl,
+          externalData: mappedActivity.externalData,
+          deletedAt: undefined,
+          deletedById: undefined,
+          deletedReason: undefined,
+          updatedAt: Date.now(),
+        });
+
+        const participation = await ctx.db
+          .query("userChallenges")
+          .withIndex("userChallengeUnique", (q) =>
+            q.eq("userId", args.userId).eq("challengeId", args.challengeId)
+          )
+          .first();
+
+        if (participation) {
+          await ctx.db.patch(participation._id, {
+            totalPoints: participation.totalPoints + pointsEarned,
+            updatedAt: Date.now(),
+          });
+        }
+
+        return existing._id;
+      }
+
       // Update existing activity
       await ctx.db.patch(existing._id, {
         activityTypeId,
@@ -227,7 +261,7 @@ export const createFromStrava = internalMutation({
 });
 
 /**
- * Delete an activity from Strava (soft delete by removing)
+ * Delete an activity from Strava (soft delete)
  */
 export const deleteFromStrava = internalMutation({
   args: {
@@ -245,7 +279,12 @@ export const deleteFromStrava = internalMutation({
       )
       .collect();
 
+    const now = Date.now();
+    let deletedCount = 0;
     for (const activity of activities) {
+      if (activity.deletedAt) {
+        continue;
+      }
       // Update participation points
       const participation = await ctx.db
         .query("userChallenges")
@@ -261,28 +300,14 @@ export const deleteFromStrava = internalMutation({
         });
       }
 
-      // Delete related likes
-      const likes = await ctx.db
-        .query("likes")
-        .withIndex("activityId", (q) => q.eq("activityId", activity._id))
-        .collect();
-      for (const like of likes) {
-        await ctx.db.delete(like._id);
-      }
-
-      // Delete related comments
-      const comments = await ctx.db
-        .query("comments")
-        .withIndex("activityId", (q) => q.eq("activityId", activity._id))
-        .collect();
-      for (const comment of comments) {
-        await ctx.db.delete(comment._id);
-      }
-
-      // Delete the activity
-      await ctx.db.delete(activity._id);
+      await ctx.db.patch(activity._id, {
+        deletedAt: now,
+        deletedReason: "strava_delete",
+        updatedAt: now,
+      });
+      deletedCount += 1;
     }
 
-    return { deleted: activities.length };
+    return { deleted: deletedCount };
   },
 });

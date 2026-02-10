@@ -157,6 +157,9 @@ export default defineSchema({
     ),
     externalId: v.optional(v.string()),
     externalData: v.optional(v.any()),
+    deletedAt: v.optional(v.number()),
+    deletedById: v.optional(v.id("users")),
+    deletedReason: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })

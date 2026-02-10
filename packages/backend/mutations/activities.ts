@@ -6,6 +6,7 @@ import { isPaymentRequired } from "../lib/payments";
 import type { Id } from "../_generated/dataModel";
 import { dateOnlyToUtcMs } from "../lib/dateOnly";
 import { getChallengeWeekNumber } from "../lib/weeks";
+import { notDeleted } from "../lib/activityFilters";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -25,6 +26,7 @@ async function recomputeStreakForUserChallenge(
     .withIndex("by_user_challenge_date", (q: any) =>
       q.eq("userId", userId).eq("challengeId", challengeId)
     )
+    .filter(notDeleted)
     .collect();
 
   if (activities.length === 0) {
@@ -181,7 +183,8 @@ export const log = mutation({
         .filter((q) =>
           q.and(
             q.eq(q.field("challengeId"), args.challengeId),
-            q.eq(q.field("activityTypeId"), args.activityTypeId)
+            q.eq(q.field("activityTypeId"), args.activityTypeId),
+            notDeleted(q)
           )
         )
         .collect();
@@ -281,6 +284,7 @@ export const log = mutation({
              .gte("loggedDate", startOfDayUtc)
              .lt("loggedDate", endOfDayUtc)
         )
+        .filter(notDeleted)
         .collect();
 
     // 3. Calculate daily total for streak-contributing activities
@@ -525,7 +529,12 @@ async function getQualifyingActivities(
   const allActivities = await ctx.db
     .query("activities")
     .withIndex("userId", (q: any) => q.eq("userId", userId))
-    .filter((q: any) => q.eq(q.field("challengeId"), challengeId))
+    .filter((q: any) =>
+      q.and(
+        q.eq(q.field("challengeId"), challengeId),
+        notDeleted(q)
+      )
+    )
     .collect();
 
   return allActivities.filter((activity: any) => {
@@ -606,7 +615,7 @@ export const flagActivity = mutation({
     }
 
     const activity = await ctx.db.get(args.activityId);
-    if (!activity) {
+    if (!activity || activity.deletedAt) {
       throw new Error("Activity not found");
     }
 
@@ -675,15 +684,35 @@ export const flagActivity = mutation({
   },
 });
 
-// Delete an activity (for cleanup/admin purposes)
+// Soft delete an activity (for cleanup/admin purposes)
 export const remove = mutation({
   args: {
     activityId: v.id("activities"),
   },
   handler: async (ctx, args) => {
+    const actor = await getCurrentUser(ctx);
+    if (!actor) {
+      throw new Error("Not authenticated");
+    }
     const activity = await ctx.db.get(args.activityId);
     if (!activity) {
       throw new Error("Activity not found");
+    }
+    if (activity.deletedAt) {
+      return { deleted: true };
+    }
+
+    const challenge = await ctx.db.get(activity.challengeId);
+    if (!challenge) {
+      throw new Error("Challenge not found");
+    }
+
+    const canDelete =
+      actor.role === "admin" ||
+      challenge.creatorId === actor._id ||
+      activity.userId === actor._id;
+    if (!canDelete) {
+      throw new Error("Not authorized to delete activity");
     }
 
     // Update participation points
@@ -701,26 +730,13 @@ export const remove = mutation({
       });
     }
 
-    // Delete related likes
-    const likes = await ctx.db
-      .query("likes")
-      .withIndex("activityId", (q) => q.eq("activityId", args.activityId))
-      .collect();
-    for (const like of likes) {
-      await ctx.db.delete(like._id);
-    }
-
-    // Delete related comments
-    const comments = await ctx.db
-      .query("comments")
-      .withIndex("activityId", (q) => q.eq("activityId", args.activityId))
-      .collect();
-    for (const comment of comments) {
-      await ctx.db.delete(comment._id);
-    }
-
-    // Delete the activity
-    await ctx.db.delete(args.activityId);
+    const now = Date.now();
+    await ctx.db.patch(args.activityId, {
+      deletedAt: now,
+      deletedById: actor?._id,
+      deletedReason: "manual",
+      updatedAt: now,
+    });
 
     return { deleted: true };
   },

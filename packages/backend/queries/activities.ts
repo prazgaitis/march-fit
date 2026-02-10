@@ -2,6 +2,7 @@ import { internalQuery, query } from "../_generated/server";
 import { v } from "convex/values";
 import { paginationOptsValidator } from "convex/server";
 import { getCurrentUser } from "../lib/ids";
+import { notDeleted } from "../lib/activityFilters";
 
 /**
  * Get a single activity by ID with all related data
@@ -12,7 +13,7 @@ export const getById = query({
   },
   handler: async (ctx, args) => {
     const activity = await ctx.db.get(args.activityId);
-    if (!activity) {
+    if (!activity || activity.deletedAt) {
       return null;
     }
 
@@ -117,6 +118,7 @@ export const listByChallenge = internalQuery({
     return await ctx.db
       .query("activities")
       .withIndex("challengeId", (q) => q.eq("challengeId", args.challengeId))
+      .filter(notDeleted)
       .take(limit);
   },
 });
@@ -148,6 +150,7 @@ export const getChallengeFeed = query({
     const activities = await ctx.db
       .query("activities")
       .withIndex("challengeId", (q) => q.eq("challengeId", args.challengeId))
+      .filter(notDeleted)
       .order("desc")
       .paginate(args.paginationOpts);
 
@@ -243,7 +246,7 @@ export const getMediaUrls = query({
   },
   handler: async (ctx, args) => {
     const activity = await ctx.db.get(args.activityId);
-    if (!activity || !activity.mediaIds) {
+    if (!activity || activity.deletedAt || !activity.mediaIds) {
       return [];
     }
 
@@ -266,6 +269,7 @@ export const debugRecentActivities = query({
   handler: async (ctx) => {
     const activities = await ctx.db
       .query("activities")
+      .filter(notDeleted)
       .order("desc")
       .take(10);
 
@@ -341,5 +345,4 @@ export const debugAchievements = query({
     };
   },
 });
-
 

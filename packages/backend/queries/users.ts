@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import { paginationOptsValidator } from "convex/server";
 import { coerceDateOnlyToString } from "../lib/dateOnly";
 import { internalQuery } from "../_generated/server";
+import { notDeleted } from "../lib/activityFilters";
 
 /**
  * Get current authenticated user
@@ -129,6 +130,7 @@ export const getProfile = query({
     const activities = await ctx.db
       .query("activities")
       .withIndex("userId", (q) => q.eq("userId", args.userId))
+      .filter(notDeleted)
       .collect();
 
     const challengeActivities = activities.filter(
@@ -203,6 +205,7 @@ export const getGlobalProfile = query({
     const activities = await ctx.db
       .query("activities")
       .withIndex("userId", (q) => q.eq("userId", args.userId))
+      .filter(notDeleted)
       .collect();
 
     // Calculate totals
@@ -294,6 +297,7 @@ export const getActivities = query({
     const activities = await ctx.db
       .query("activities")
       .withIndex("userId", (q) => q.eq("userId", args.userId))
+      .filter(notDeleted)
       .order("desc")
       .collect();
 

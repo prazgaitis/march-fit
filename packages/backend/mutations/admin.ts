@@ -90,7 +90,7 @@ export const updateFlagResolution = mutation({
     }
 
     const activity = await ctx.db.get(args.activityId);
-    if (!activity) {
+    if (!activity || activity.deletedAt) {
       throw new Error("Activity not found");
     }
 
@@ -149,7 +149,7 @@ export const addAdminComment = mutation({
     }
 
     const activity = await ctx.db.get(args.activityId);
-    if (!activity) {
+    if (!activity || activity.deletedAt) {
       throw new Error("Activity not found");
     }
 
@@ -222,7 +222,7 @@ export const adminEditActivity = mutation({
     }
 
     const activity = await ctx.db.get(args.activityId);
-    if (!activity) {
+    if (!activity || activity.deletedAt) {
       throw new Error("Activity not found");
     }
 

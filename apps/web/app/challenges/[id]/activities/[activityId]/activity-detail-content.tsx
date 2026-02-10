@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { formatDistanceToNow, format } from 'date-fns';
 import { useMutation, useQuery, usePaginatedQuery } from 'convex/react';
 import { api } from '@repo/backend';
@@ -21,6 +22,7 @@ import {
   Shield,
   ThumbsUp,
   Trophy,
+  Trash2,
 } from 'lucide-react';
 
 import { ConvexError } from 'convex/values';
@@ -88,9 +90,14 @@ export function ActivityDetailContent({
   const [flagSubmitting, setFlagSubmitting] = useState(false);
   const [flagError, setFlagError] = useState<string | null>(null);
   const [flagSuccess, setFlagSuccess] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
+  const router = useRouter();
   const toggleLike = useMutation(api.mutations.likes.toggle);
   const flagActivity = useMutation(api.mutations.activities.flagActivity);
+  const deleteActivity = useMutation(api.mutations.activities.remove);
 
   const handleToggleLike = async () => {
     setPendingLike(true);
@@ -153,6 +160,20 @@ export function ActivityDetailContent({
     }
   };
 
+  const handleDelete = async () => {
+    setDeleteSubmitting(true);
+    setDeleteError(null);
+    try {
+      await deleteActivity({ activityId: activityId as Id<'activities'> });
+      router.push(`/challenges/${challengeId}/dashboard`);
+    } catch (err) {
+      setDeleteError(
+        err instanceof Error ? err.message : 'Failed to delete activity'
+      );
+      setDeleteSubmitting(false);
+    }
+  };
+
   if (activityData === undefined) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -183,7 +204,19 @@ export function ActivityDetailContent({
     );
   }
 
-  const { activity, user, activityType, challenge, likes, comments, likedByUser, mediaUrls, adminComment, isAdmin } =
+  const {
+    activity,
+    user,
+    activityType,
+    challenge,
+    likes,
+    comments,
+    likedByUser,
+    mediaUrls,
+    adminComment,
+    isAdmin,
+    isOwner,
+  } =
     activityData;
 
   const metrics = activity.metrics as Record<string, unknown> | undefined;
@@ -396,6 +429,18 @@ export function ActivityDetailContent({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
+                {isOwner && (
+                  <DropdownMenuItem
+                    onClick={() => {
+                      setDeleteError(null);
+                      setShowDeleteDialog(true);
+                    }}
+                    className="text-destructive focus:text-destructive"
+                  >
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Delete activity
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuItem
                   onClick={() => {
                     setFlagSuccess(false);
@@ -487,6 +532,48 @@ export function ActivityDetailContent({
                       </Button>
                     </>
                   )}
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+
+            <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+              <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Delete activity?</DialogTitle>
+                  <DialogDescription>
+                    This removes the activity from your logs and leaderboards. This action
+                    cannot be undone.
+                  </DialogDescription>
+                </DialogHeader>
+                {deleteError && (
+                  <Alert variant="destructive">
+                    <AlertDescription>{deleteError}</AlertDescription>
+                  </Alert>
+                )}
+                <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-end">
+                  <Button
+                    variant="outline"
+                    className="w-full sm:w-auto"
+                    onClick={() => setShowDeleteDialog(false)}
+                    disabled={deleteSubmitting}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="destructive"
+                    className="w-full sm:w-auto"
+                    onClick={handleDelete}
+                    disabled={deleteSubmitting}
+                  >
+                    {deleteSubmitting ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Deleting
+                      </>
+                    ) : (
+                      'Delete activity'
+                    )}
+                  </Button>
                 </DialogFooter>
               </DialogContent>
             </Dialog>
