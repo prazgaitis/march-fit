@@ -20,6 +20,7 @@ import type * as actions_strava from "../actions/strava.js";
 import type * as auth from "../auth.js";
 import type * as http from "../http.js";
 import type * as index from "../index.js";
+import type * as lib_activityFilters from "../lib/activityFilters.js";
 import type * as lib_dateOnly from "../lib/dateOnly.js";
 import type * as lib_defaultEmailPlan from "../lib/defaultEmailPlan.js";
 import type * as lib_emailTemplate from "../lib/emailTemplate.js";
@@ -103,6 +104,7 @@ declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   http: typeof http;
   index: typeof index;
+  "lib/activityFilters": typeof lib_activityFilters;
   "lib/dateOnly": typeof lib_dateOnly;
   "lib/defaultEmailPlan": typeof lib_defaultEmailPlan;
   "lib/emailTemplate": typeof lib_emailTemplate;

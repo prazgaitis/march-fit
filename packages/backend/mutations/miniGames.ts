@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import type { Id } from "../_generated/dataModel";
 import { getCurrentUser } from "../lib/ids";
 import { dateOnlyToUtcMs } from "../lib/dateOnly";
+import { notDeleted } from "../lib/activityFilters";
 
 // Helper to check if user is challenge admin
 async function requireChallengeAdmin(
@@ -413,6 +414,7 @@ async function calculateMaxDailyPoints(
     .withIndex("by_user_challenge_date", (q: any) =>
       q.eq("userId", userId).eq("challengeId", challengeId),
     )
+    .filter(notDeleted)
     .collect();
 
   // Filter to activities before game start and group by day
@@ -678,6 +680,7 @@ async function getPointsInPeriod(
     .withIndex("by_user_challenge_date", (q: any) =>
       q.eq("userId", userId).eq("challengeId", challengeId),
     )
+    .filter(notDeleted)
     .collect();
 
   return activities
@@ -702,6 +705,7 @@ async function getMaxDailyPointsInPeriod(
     .withIndex("by_user_challenge_date", (q: any) =>
       q.eq("userId", userId).eq("challengeId", challengeId),
     )
+    .filter(notDeleted)
     .collect();
 
   // Group by day (excluding mini_game bonus activities)

@@ -2,6 +2,7 @@ import { internalQuery, query } from "../_generated/server";
 import { v } from "convex/values";
 import type { Id, Doc } from "../_generated/dataModel";
 import { coerceDateOnlyToString, dateOnlyToUtcMs } from "../lib/dateOnly";
+import { notDeleted } from "../lib/activityFilters";
 
 /**
  * Internal query to get challenge with activity types (for scripts/migrations)
@@ -315,6 +316,7 @@ export const getDashboardData = query({
     const recentActivities = await ctx.db
       .query("activities")
       .withIndex("challengeId", (q) => q.eq("challengeId", args.challengeId))
+      .filter(notDeleted)
       .order("desc")
       .take(1);
     const latestActivity = recentActivities[0] ?? null;

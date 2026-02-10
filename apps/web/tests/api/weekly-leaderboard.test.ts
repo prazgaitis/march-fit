@@ -89,6 +89,7 @@ describe('getWeeklyCategoryLeaderboard', () => {
     activityTypeId: Id<'activityTypes'>,
     loggedDate: number,
     pointsEarned: number,
+    deletedAt?: number,
   ) => {
     return await t.run(async (ctx) => {
       return await ctx.db.insert('activities', {
@@ -102,6 +103,7 @@ describe('getWeeklyCategoryLeaderboard', () => {
         flagged: false,
         adminCommentVisibility: 'internal',
         resolutionStatus: 'pending',
+        deletedAt,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       });
@@ -217,6 +219,39 @@ describe('getWeeklyCategoryLeaderboard', () => {
     expect(strength!.entries[0].weeklyPoints).toBe(25);
     expect(strength!.entries[1].user.name).toBe('Alice');
     expect(strength!.entries[1].weeklyPoints).toBe(15);
+  });
+
+  it('should ignore deleted activities in leaderboard totals', async () => {
+    const { challengeId } = await setupChallenge();
+    const cardioCategory = await createCategory('Cardio');
+    const runningType = await createActivityType(challengeId, 'Running', cardioCategory);
+
+    const alice = await createParticipant(challengeId, 'alice@test.com', 'Alice');
+    const bob = await createParticipant(challengeId, 'bob@test.com', 'Bob');
+
+    await insertActivity(alice, challengeId, runningType, Date.UTC(2024, 0, 2), 30);
+    await insertActivity(
+      alice,
+      challengeId,
+      runningType,
+      Date.UTC(2024, 0, 3),
+      20,
+      Date.now(),
+    );
+    await insertActivity(bob, challengeId, runningType, Date.UTC(2024, 0, 4), 40);
+
+    const result = await t.query(api.queries.participations.getWeeklyCategoryLeaderboard, {
+      challengeId,
+      weekNumber: 1,
+    });
+
+    const cardio = result!.categories.find((c: any) => c.category.name === 'Cardio');
+    expect(cardio).toBeDefined();
+    expect(cardio!.entries).toHaveLength(2);
+    expect(cardio!.entries[0].user.name).toBe('Bob');
+    expect(cardio!.entries[0].weeklyPoints).toBe(40);
+    expect(cardio!.entries[1].user.name).toBe('Alice');
+    expect(cardio!.entries[1].weeklyPoints).toBe(30);
   });
 
   it('should only include activities from the requested week', async () => {

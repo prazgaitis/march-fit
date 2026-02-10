@@ -1,5 +1,6 @@
 import { MutationCtx, QueryCtx } from "../_generated/server";
 import { Id, Doc } from "../_generated/dataModel";
+import { notDeleted } from "./activityFilters";
 
 interface BonusThreshold {
   metric: string;
@@ -73,7 +74,12 @@ async function calculateDrinkPoints(
         .gte("loggedDate", startOfDayUtc)
         .lt("loggedDate", endOfDayUtc)
     )
-    .filter((q) => q.eq(q.field("activityTypeId"), activityType._id))
+    .filter((q) =>
+      q.and(
+        q.eq(q.field("activityTypeId"), activityType._id),
+        notDeleted(q)
+      )
+    )
     .collect();
 
   const existingTotal = existingDrinksLogs.reduce((sum, entry) => {

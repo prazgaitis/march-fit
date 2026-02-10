@@ -1,6 +1,7 @@
 import { query } from "../_generated/server";
 import { v } from "convex/values";
 import { getCurrentUser } from "../lib/ids";
+import { notDeleted } from "../lib/activityFilters";
 
 /**
  * Get all achievements for a challenge
@@ -58,7 +59,12 @@ export const getUserProgress = query({
     const activities = await ctx.db
       .query("activities")
       .withIndex("userId", (q) => q.eq("userId", user._id))
-      .filter((q) => q.eq(q.field("challengeId"), args.challengeId))
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("challengeId"), args.challengeId),
+          notDeleted(q)
+        )
+      )
       .collect();
 
     // Get user's earned achievements

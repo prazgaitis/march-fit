@@ -1179,5 +1179,70 @@ describe('Activities Logic', () => {
       expect(result2.bonusPoints).toBe(25);
       expect(result2.pointsEarned).toBeCloseTo(123.25, 1);
     });
+
+    it('should exclude deleted activities from drink scoring', async () => {
+      const testEmail = "test@example.com";
+      const userId = await createTestUser(t, { email: testEmail });
+      const tWithAuth = t.withIdentity({ subject: "test-user-id", email: testEmail });
+      const challengeId = await createTestChallenge(t, userId);
+
+      await t.run(async (ctx) => {
+        await ctx.db.insert("userChallenges", {
+          userId,
+          challengeId,
+          joinedAt: Date.now(),
+          totalPoints: 0,
+          currentStreak: 0,
+          modifierFactor: 1,
+          paymentStatus: "paid",
+          updatedAt: Date.now(),
+        });
+      });
+
+      const activityTypeId = await t.run(async (ctx) => {
+        return await ctx.db.insert("activityTypes", {
+          challengeId,
+          name: 'Drinks',
+          scoringConfig: {
+            unit: 'drinks',
+            pointsPerUnit: -1,
+            freebiesPerDay: 1,
+          },
+          contributesToStreak: false,
+          isNegative: true,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+      });
+
+      const day = new Date('2024-01-15T12:00:00Z');
+      await t.run(async (ctx) => {
+        await ctx.db.insert("activities", {
+          userId,
+          challengeId,
+          activityTypeId,
+          loggedDate: day.getTime(),
+          metrics: { drinks: 2 },
+          source: "manual",
+          pointsEarned: -2,
+          flagged: false,
+          adminCommentVisibility: "internal",
+          resolutionStatus: "pending",
+          deletedAt: Date.now(),
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+      });
+
+      const result = await tWithAuth.mutation(api.mutations.activities.log, {
+        challengeId,
+        activityTypeId,
+        loggedDate: day.toISOString(),
+        metrics: { drinks: 2 },
+        source: "manual",
+      });
+
+      expect(result.pointsEarned).toBe(-1);
+    });
   });
 });

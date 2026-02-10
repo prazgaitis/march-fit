@@ -1,6 +1,7 @@
 import { query, internalQuery } from "../_generated/server";
 import { v } from "convex/values";
 import { coerceDateOnlyToString, dateOnlyToUtcMs } from "../lib/dateOnly";
+import { notDeleted } from "../lib/activityFilters";
 
 /**
  * List all users (for debugging)
@@ -52,6 +53,7 @@ export const checkOutOfBoundsActivities = query({
       const activities = await ctx.db
         .query("activities")
         .withIndex("challengeId", (q) => q.eq("challengeId", challenge._id))
+        .filter(notDeleted)
         .collect();
 
       const challengeStartMs = dateOnlyToUtcMs(challenge.startDate);
@@ -123,6 +125,7 @@ export const listFlaggedActivities = query({
       .withIndex("challengeFlagged", (q) =>
         q.eq("challengeId", args.challengeId).eq("flagged", true)
       )
+      .filter(notDeleted)
       .collect();
 
     // Filter by status if provided
@@ -212,7 +215,7 @@ export const getFlaggedActivityDetail = query({
   },
   handler: async (ctx, args) => {
     const activity = await ctx.db.get(args.activityId);
-    if (!activity) {
+    if (!activity || activity.deletedAt) {
       return null;
     }
 
