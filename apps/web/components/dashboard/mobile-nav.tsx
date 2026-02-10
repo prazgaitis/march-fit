@@ -11,9 +11,10 @@ import { cn } from "@/lib/utils";
 interface MobileNavProps {
   challengeId: string;
   currentUserId: string;
+  challengeStartDate?: string;
 }
 
-export function MobileNav({ challengeId, currentUserId }: MobileNavProps) {
+export function MobileNav({ challengeId, currentUserId, challengeStartDate }: MobileNavProps) {
   const pathname = usePathname();
 
   // Take first 4 items for mobile (Home, Notifications, Leaderboard, Profile)
@@ -53,6 +54,7 @@ export function MobileNav({ challengeId, currentUserId }: MobileNavProps) {
         {/* Center Log Activity Button */}
         <ActivityLogDialog
           challengeId={challengeId}
+          challengeStartDate={challengeStartDate}
           trigger={
             <button className="flex h-12 w-12 items-center justify-center rounded-full bg-indigo-600 text-white shadow-lg transition hover:bg-indigo-500">
               <Plus className="h-6 w-6" />

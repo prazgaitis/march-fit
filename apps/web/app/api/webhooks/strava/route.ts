@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { ConvexHttpClient } from "convex/browser";
 import { api, internal } from "@repo/backend";
-import { dateOnlyToUtcMs } from "@/lib/date-only";
+import { formatDateOnlyFromUtcMs } from "@/lib/date-only";
 
 const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
@@ -26,6 +26,7 @@ interface StravaActivity {
   type: string;
   sport_type: string;
   start_date: string;
+  start_date_local?: string;
   elapsed_time: number;
   moving_time: number;
   distance?: number;
@@ -185,23 +186,26 @@ export async function POST(request: NextRequest) {
 
     console.log("Found challenge participations:", participations.length);
 
-    // Process each challenge
-    const activityDate = new Date(activity.start_date);
-    const activityDateTs = activityDate.getTime();
+    // Process each challenge using the activity's local date for comparison
+    const activityLocalDateStr = (activity.start_date_local ?? activity.start_date).split("T")[0];
     let processedChallenges = 0;
 
     for (const { challenge } of participations) {
       if (!challenge) continue;
 
-      const challengeStartMs = dateOnlyToUtcMs(challenge.startDate);
-      const challengeEndMs = dateOnlyToUtcMs(challenge.endDate);
+      const challengeStartStr = typeof challenge.startDate === "string"
+        ? challenge.startDate
+        : formatDateOnlyFromUtcMs(challenge.startDate as number);
+      const challengeEndStr = typeof challenge.endDate === "string"
+        ? challenge.endDate
+        : formatDateOnlyFromUtcMs(challenge.endDate as number);
 
-      // Check if activity date is within challenge bounds
-      if (activityDateTs < challengeStartMs || activityDateTs > challengeEndMs) {
+      // Check if activity local date is within challenge bounds (date-only comparison)
+      if (activityLocalDateStr < challengeStartStr || activityLocalDateStr > challengeEndStr) {
         console.log("Activity outside challenge dates:", {
-          activity_date: activity.start_date,
-          challenge_start: challenge.startDate,
-          challenge_end: challenge.endDate,
+          activity_local_date: activityLocalDateStr,
+          challenge_start: challengeStartStr,
+          challenge_end: challengeEndStr,
         });
         continue;
       }
