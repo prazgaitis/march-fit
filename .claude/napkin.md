@@ -3,6 +3,9 @@
 ## Corrections
 | Date | Source | What Went Wrong | What To Do Instead |
 |------|--------|----------------|-------------------|
+| 2026-02-11 | self | Ran `ls` before reading napkin (again) | Always read `.claude/napkin.md` before any other command |
+| 2026-02-10 | self | Ran `ls` before reading napkin | Always read `.claude/napkin.md` before any other command |
+| 2026-02-10 | self | Used backticks in a shell-quoted PR body so the shell tried to execute `turbo` | Use a heredoc or escape backticks when passing PR bodies to shell commands |
 
 ## User Preferences
 - Hide navbar on full-screen flow pages (invite, dashboard, admin) via `ConditionalHeader` patterns + remove `page-with-header` class
@@ -19,7 +22,4 @@
 - `page-with-header` CSS class = `pt-16` to offset fixed navbar
 - Seed data lives in `packages/backend/actions/seed.ts`
 - Schema changes auto-deploy locally via `pnpm dev`
-
-## Corrections
-| 2026-02-10 | self | Ran `ls` before reading napkin | Always read `.claude/napkin.md` before any other command |
-| 2026-02-10 | self | Used backticks in a shell-quoted PR body so the shell tried to execute `turbo` | Use a heredoc or escape backticks when passing PR bodies to shell commands |
+| 2026-02-11 | self | Set NEXT_PUBLIC_CONVEX_SITE_URL without export, so child process didn't receive it | Use `export` (or VAR=... cmd) when setting env vars for `next build` |
