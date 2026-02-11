@@ -23,3 +23,4 @@
 - Seed data lives in `packages/backend/actions/seed.ts`
 - Schema changes auto-deploy locally via `pnpm dev`
 | 2026-02-11 | self | Set NEXT_PUBLIC_CONVEX_SITE_URL without export, so child process didn't receive it | Use `export` (or VAR=... cmd) when setting env vars for `next build` |
+| 2026-02-11 | self | Assumed `CONVEX_URL` would always be set inside `--cmd` but it was empty in Vercel logs | Use `--cmd-url-env-var-name NEXT_PUBLIC_CONVEX_URL` and reference that explicitly; export it for `next build` |
