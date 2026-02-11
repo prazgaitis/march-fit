@@ -9,6 +9,7 @@ import {
   CheckCircle,
   ChevronDown,
   Clock,
+  Columns2,
   Eye,
   FileText,
   Mail,
@@ -22,6 +23,10 @@ import {
   UserPlus,
   XCircle,
 } from "lucide-react";
+
+import { marked } from "marked";
+import { toast } from "sonner";
+import { wrapEmailTemplate } from "@repo/backend/lib/emailTemplate";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -167,7 +172,18 @@ function clearDraft(challengeId: string, emailId: string | null): void {
 // ---------------------------------------------------------------------------
 // Composer mode: "compose" = edit fields, "preview" = rendered HTML
 // ---------------------------------------------------------------------------
-type ComposerTab = "compose" | "preview";
+type ComposerTab = "compose" | "preview" | "split";
+
+// ---------------------------------------------------------------------------
+// Markdown → HTML conversion
+// ---------------------------------------------------------------------------
+
+marked.setOptions({ breaks: true, gfm: true });
+
+function markdownToHtml(md: string): string {
+  const html = marked.parse(md, { async: false }) as string;
+  return wrapEmailTemplate({ content: html });
+}
 
 // ---------------------------------------------------------------------------
 // Main Page Component
@@ -179,8 +195,7 @@ export default function EmailsAdminPage() {
 
   // ---- State ----
   const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
-  const [composerTab, setComposerTab] = useState<ComposerTab>("compose");
-  const [isCreating, setIsCreating] = useState(false);
+  const [composerTab, setComposerTab] = useState<ComposerTab>("split");
   const [showTemplates, setShowTemplates] = useState(false);
 
   // Draft form state (used for both creating and editing)
@@ -226,19 +241,18 @@ export default function EmailsAdminPage() {
   const updateEmailSequence = useMutation(api.mutations.emailSequences.update);
   const deleteEmailSequence = useMutation(api.mutations.emailSequences.remove);
   const sendToAll = useMutation(api.mutations.emailSequences.sendToAll);
-  const sendToUser = useMutation(api.mutations.emailSequences.sendToUser);
+  const sendTest = useMutation(api.mutations.emailSequences.sendTest);
 
   // ---- Draft persistence (debounced localStorage save) ----
   const saveDraftDebounced = useCallback(
     (d: DraftState) => {
       if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
       saveTimerRef.current = setTimeout(() => {
-        const id = isCreating ? null : selectedEmailId;
-        saveDraft(challengeId, id, d);
+        saveDraft(challengeId, selectedEmailId, d);
         setDraftSavedAt(Date.now());
       }, 500);
     },
-    [challengeId, selectedEmailId, isCreating],
+    [challengeId, selectedEmailId],
   );
 
   // When draft changes, mark dirty and schedule save
@@ -254,25 +268,18 @@ export default function EmailsAdminPage() {
     [saveDraftDebounced],
   );
 
-  // Load draft from localStorage when selecting an email or entering create mode
+  // Load draft from localStorage when selecting an email
   useEffect(() => {
-    if (isCreating) {
-      const saved = loadDraft(challengeId, null);
-      if (saved) {
-        setDraft(saved);
-        setHasDraftChanges(true);
-      } else {
-        setDraft({ name: "", subject: "", body: "", trigger: "manual" });
-        setHasDraftChanges(false);
-      }
-    } else if (selectedEmail) {
+    if (selectedEmail) {
+      // Prefer bodySource (markdown) for editing, fall back to body (HTML)
+      const editableBody = selectedEmail.bodySource ?? selectedEmail.body;
       const saved = loadDraft(challengeId, selectedEmailId);
       if (saved) {
         // Check if draft differs from saved version
         const differs =
           saved.name !== selectedEmail.name ||
           saved.subject !== selectedEmail.subject ||
-          saved.body !== selectedEmail.body ||
+          saved.body !== editableBody ||
           saved.trigger !== selectedEmail.trigger;
         if (differs) {
           setDraft(saved);
@@ -281,7 +288,7 @@ export default function EmailsAdminPage() {
           setDraft({
             name: selectedEmail.name,
             subject: selectedEmail.subject,
-            body: selectedEmail.body,
+            body: editableBody,
             trigger: selectedEmail.trigger as EmailTrigger,
           });
           setHasDraftChanges(false);
@@ -291,45 +298,36 @@ export default function EmailsAdminPage() {
         setDraft({
           name: selectedEmail.name,
           subject: selectedEmail.subject,
-          body: selectedEmail.body,
+          body: editableBody,
           trigger: selectedEmail.trigger as EmailTrigger,
         });
         setHasDraftChanges(false);
       }
+      setComposerTab("split");
     }
-    setComposerTab("compose");
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedEmailId, selectedEmail?._id, isCreating]);
+  }, [selectedEmailId, selectedEmail?._id]);
 
   // ---- Handlers ----
 
   const handleSelectEmail = (id: string) => {
     setSelectedEmailId(id);
-    setIsCreating(false);
   };
 
-  const handleNewEmail = () => {
-    setSelectedEmailId(null);
-    setIsCreating(true);
-  };
-
-  const handleCreate = async () => {
-    if (!draft.name || !draft.subject || !draft.body) return;
+  const handleNewEmail = async () => {
     try {
       const result = await createEmailSequence({
         challengeId: challengeId as Id<"challenges">,
-        name: draft.name,
-        subject: draft.subject,
-        body: draft.body,
-        trigger: draft.trigger,
+        name: "Untitled Email",
+        subject: "",
+        body: "",
+        trigger: "manual",
+        enabled: false,
       });
-      clearDraft(challengeId, null);
-      setIsCreating(false);
       setSelectedEmailId(result.emailSequenceId);
-      setHasDraftChanges(false);
     } catch (error) {
-      console.error("Failed to create email:", error);
-      alert(error instanceof Error ? error.message : "Failed to create email");
+      console.error("Failed to create draft:", error);
+      alert(error instanceof Error ? error.message : "Failed to create draft");
     }
   };
 
@@ -340,7 +338,8 @@ export default function EmailsAdminPage() {
         emailSequenceId: selectedEmailId as Id<"emailSequences">,
         name: draft.name,
         subject: draft.subject,
-        body: draft.body,
+        body: markdownToHtml(draft.body),
+        bodySource: draft.body,
         trigger: draft.trigger,
       });
       clearDraft(challengeId, selectedEmailId);
@@ -352,16 +351,12 @@ export default function EmailsAdminPage() {
   };
 
   const handleDiscardDraft = () => {
-    if (isCreating) {
-      clearDraft(challengeId, null);
-      setDraft({ name: "", subject: "", body: "", trigger: "manual" });
-      setHasDraftChanges(false);
-    } else if (selectedEmail) {
+    if (selectedEmail) {
       clearDraft(challengeId, selectedEmailId);
       setDraft({
         name: selectedEmail.name,
         subject: selectedEmail.subject,
-        body: selectedEmail.body,
+        body: selectedEmail.bodySource ?? selectedEmail.body,
         trigger: selectedEmail.trigger as EmailTrigger,
       });
       setHasDraftChanges(false);
@@ -407,16 +402,34 @@ export default function EmailsAdminPage() {
     }
   };
 
-  const handleSendToUser = async (userId: Id<"users">) => {
+  const handleSendTest = async (userId: Id<"users">) => {
     if (!selectedEmailId) return;
+    const toastId = toast.loading("Sending test email...");
     try {
-      await sendToUser({
+      // Auto-save before sending so the DB has the latest content
+      if (hasDraftChanges) {
+        await updateEmailSequence({
+          emailSequenceId: selectedEmailId as Id<"emailSequences">,
+          name: draft.name,
+          subject: draft.subject,
+          body: markdownToHtml(draft.body),
+          bodySource: draft.body,
+          trigger: draft.trigger,
+        });
+        clearDraft(challengeId, selectedEmailId);
+        setHasDraftChanges(false);
+      }
+      await sendTest({
         emailSequenceId: selectedEmailId as Id<"emailSequences">,
         userId,
       });
+      toast.success("Test email sent!", { id: toastId });
     } catch (error) {
-      console.error("Failed to send:", error);
-      alert(error instanceof Error ? error.message : "Failed to send test");
+      console.error("Failed to send test:", error);
+      toast.error(
+        error instanceof Error ? error.message : "Failed to send test email",
+        { id: toastId },
+      );
     }
   };
 
@@ -426,7 +439,6 @@ export default function EmailsAdminPage() {
         challengeId: challengeId as Id<"challenges">,
         templateName,
       });
-      setIsCreating(false);
       setSelectedEmailId(result.emailSequenceId);
       setShowTemplates(false);
     } catch (error) {
@@ -436,8 +448,7 @@ export default function EmailsAdminPage() {
   };
 
   // ---- Derived state ----
-  const isComposerActive = isCreating || selectedEmailId !== null;
-  const canSave = draft.name && draft.subject && draft.body;
+  const isComposerActive = selectedEmailId !== null;
 
   // ---- Loading ----
   if (!emailSequences) {
@@ -487,8 +498,7 @@ export default function EmailsAdminPage() {
         <div className="flex-1 space-y-1 overflow-y-auto">
           {emailSequences.length > 0 ? (
             emailSequences.map((seq: EmailSequenceListItem) => {
-              const isSelected =
-                !isCreating && selectedEmailId === seq.id;
+              const isSelected = selectedEmailId === seq.id;
               const TriggerIcon = triggerInfo[seq.trigger as EmailTrigger]?.icon ?? Mail;
 
               return (
@@ -590,6 +600,18 @@ export default function EmailsAdminPage() {
                     <Eye className="h-3 w-3" />
                     Preview
                   </button>
+                  <button
+                    onClick={() => setComposerTab("split")}
+                    className={cn(
+                      "flex items-center gap-1.5 rounded px-3 py-1 text-xs font-medium transition-colors",
+                      composerTab === "split"
+                        ? "bg-zinc-700 text-zinc-100"
+                        : "text-zinc-500 hover:text-zinc-300",
+                    )}
+                  >
+                    <Columns2 className="h-3 w-3" />
+                    Split
+                  </button>
                 </div>
 
                 {/* Draft indicator */}
@@ -617,108 +639,80 @@ export default function EmailsAdminPage() {
                   </Button>
                 )}
 
-                {isCreating ? (
-                  <>
+                <Button
+                  size="sm"
+                  onClick={handleSave}
+                  disabled={!hasDraftChanges}
+                  className="h-7 bg-amber-500 px-3 text-xs text-black hover:bg-amber-400 disabled:opacity-40"
+                >
+                  <Save className="mr-1 h-3 w-3" />
+                  Save
+                </Button>
+
+                {/* More actions dropdown */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
                     <Button
                       size="sm"
                       variant="ghost"
-                      onClick={() => {
-                        clearDraft(challengeId, null);
-                        setIsCreating(false);
-                      }}
-                      className="h-7 px-2 text-xs text-zinc-400 hover:text-zinc-200"
+                      className="h-7 w-7 p-0 text-zinc-400 hover:text-zinc-200"
                     >
-                      Cancel
+                      <MoreHorizontal className="h-4 w-4" />
                     </Button>
-                    <Button
-                      size="sm"
-                      onClick={handleCreate}
-                      disabled={!canSave}
-                      className="h-7 bg-amber-500 px-3 text-xs text-black hover:bg-amber-400"
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    align="end"
+                    className="border-zinc-700 bg-zinc-900"
+                  >
+                    <DropdownMenuItem
+                      onClick={handleToggleEnabled}
+                      className="text-zinc-200 focus:bg-zinc-800"
                     >
-                      <Save className="mr-1 h-3 w-3" />
-                      Create Email
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    <Button
-                      size="sm"
-                      onClick={handleSave}
-                      disabled={!hasDraftChanges || !canSave}
-                      className="h-7 bg-amber-500 px-3 text-xs text-black hover:bg-amber-400 disabled:opacity-40"
-                    >
-                      <Save className="mr-1 h-3 w-3" />
-                      Save
-                    </Button>
-
-                    {/* More actions dropdown */}
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-7 w-7 p-0 text-zinc-400 hover:text-zinc-200"
-                        >
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent
-                        align="end"
-                        className="border-zinc-700 bg-zinc-900"
-                      >
+                      {selectedEmail?.enabled ? "Disable" : "Enable"} email
+                    </DropdownMenuItem>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
                         <DropdownMenuItem
-                          onClick={handleToggleEnabled}
-                          className="text-zinc-200 focus:bg-zinc-800"
+                          onSelect={(e) => e.preventDefault()}
+                          className="text-red-400 focus:bg-zinc-800 focus:text-red-400"
                         >
-                          {selectedEmail?.enabled ? "Disable" : "Enable"} email
+                          <Trash2 className="mr-2 h-3.5 w-3.5" />
+                          Delete email
                         </DropdownMenuItem>
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <DropdownMenuItem
-                              onSelect={(e) => e.preventDefault()}
-                              className="text-red-400 focus:bg-zinc-800 focus:text-red-400"
-                            >
-                              <Trash2 className="mr-2 h-3.5 w-3.5" />
-                              Delete email
-                            </DropdownMenuItem>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent className="border-zinc-800 bg-zinc-900">
-                            <AlertDialogHeader>
-                              <AlertDialogTitle className="text-zinc-100">
-                                Delete this email?
-                              </AlertDialogTitle>
-                              <AlertDialogDescription className="text-zinc-400">
-                                This will delete &quot;{selectedEmail?.name}&quot; and
-                                all send history. This cannot be undone.
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel className="border-zinc-700 bg-zinc-800 text-zinc-300 hover:bg-zinc-700">
-                                Cancel
-                              </AlertDialogCancel>
-                              <AlertDialogAction
-                                onClick={handleDelete}
-                                className="bg-red-500 text-white hover:bg-red-600"
-                              >
-                                Delete
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </>
-                )}
+                      </AlertDialogTrigger>
+                      <AlertDialogContent className="border-zinc-800 bg-zinc-900">
+                        <AlertDialogHeader>
+                          <AlertDialogTitle className="text-zinc-100">
+                            Delete this email?
+                          </AlertDialogTitle>
+                          <AlertDialogDescription className="text-zinc-400">
+                            This will delete &quot;{selectedEmail?.name}&quot; and
+                            all send history. This cannot be undone.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel className="border-zinc-700 bg-zinc-800 text-zinc-300 hover:bg-zinc-700">
+                            Cancel
+                          </AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={handleDelete}
+                            className="bg-red-500 text-white hover:bg-red-600"
+                          >
+                            Delete
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </div>
 
             {/* ------- Composer Body ------- */}
             <div className="flex flex-1 flex-col overflow-hidden">
-              {composerTab === "compose" ? (
-                /* ===== COMPOSE TAB ===== */
-                <div className="flex flex-1 flex-col overflow-y-auto p-4">
-                  {/* Name + Trigger row */}
+              {/* Fields row (name/trigger/subject) — shown in compose and split modes */}
+              {composerTab !== "preview" && (
+                <div className="border-b border-zinc-800 p-4 pb-3">
                   <div className="mb-3 grid grid-cols-3 gap-3">
                     <div className="col-span-2 space-y-1">
                       <Label className="text-[10px] font-medium uppercase tracking-wider text-zinc-500">
@@ -765,9 +759,7 @@ export default function EmailsAdminPage() {
                       </Select>
                     </div>
                   </div>
-
-                  {/* Subject */}
-                  <div className="mb-3 space-y-1">
+                  <div className="space-y-1">
                     <Label className="text-[10px] font-medium uppercase tracking-wider text-zinc-500">
                       Subject Line
                     </Label>
@@ -780,15 +772,38 @@ export default function EmailsAdminPage() {
                       className="h-8 border-zinc-700 bg-zinc-800 text-sm text-zinc-200 placeholder:text-zinc-600"
                     />
                   </div>
+                </div>
+              )}
 
-                  {/* Body */}
+              {/* Subject preview bar — shown in preview-only mode */}
+              {composerTab === "preview" && (
+                <div className="border-b border-zinc-800 bg-zinc-950 px-4 py-2">
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="text-zinc-500">Subject:</span>
+                    <span className="font-medium text-zinc-200">
+                      {draft.subject || "(no subject)"}
+                    </span>
+                  </div>
+                  <div className="mt-0.5 flex items-center gap-2 text-[10px]">
+                    <span className="text-zinc-600">From:</span>
+                    <span className="text-zinc-400">
+                      March Fitness &lt;noreply@march.fit&gt;
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Main content area */}
+              {composerTab === "compose" ? (
+                /* ===== COMPOSE ONLY ===== */
+                <div className="flex flex-1 flex-col overflow-y-auto p-4">
                   <div className="flex flex-1 flex-col space-y-1">
                     <div className="flex items-center justify-between">
                       <Label className="text-[10px] font-medium uppercase tracking-wider text-zinc-500">
-                        Body (HTML)
+                        Body (Markdown)
                       </Label>
                       <span className="text-[10px] text-zinc-600">
-                        Tip: Use the email template wrapper for branded emails
+                        **bold** &nbsp; *italic* &nbsp; [link](url) &nbsp; # heading &nbsp; - list
                       </span>
                     </div>
                     <textarea
@@ -796,35 +811,60 @@ export default function EmailsAdminPage() {
                       onChange={(e) =>
                         updateDraft({ body: e.target.value })
                       }
-                      placeholder={`<!DOCTYPE html>\n<html>\n<body>\n  <p>Your email content here...</p>\n</body>\n</html>`}
-                      className="flex-1 resize-none rounded-md border border-zinc-700 bg-zinc-800 px-3 py-2 font-mono text-xs leading-relaxed text-zinc-200 placeholder:text-zinc-600 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                      placeholder={`# Welcome!\n\nYou're signed up for the challenge. Here's what to expect:\n\n- **Week 1**: Build your routine\n- **Week 2**: Push your limits\n\nLet's go!`}
+                      className="flex-1 resize-none rounded-md border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm leading-relaxed text-zinc-200 placeholder:text-zinc-600 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
                       style={{ minHeight: "200px" }}
                     />
                   </div>
                 </div>
+              ) : composerTab === "preview" ? (
+                /* ===== PREVIEW ONLY ===== */
+                <div className="flex-1 overflow-hidden bg-[#09090b]">
+                  {draft.body ? (
+                    <iframe
+                      srcDoc={markdownToHtml(draft.body)}
+                      className="h-full w-full border-0"
+                      title="Email Preview"
+                      sandbox=""
+                    />
+                  ) : (
+                    <div className="flex h-full items-center justify-center text-zinc-600">
+                      <div className="text-center">
+                        <Eye className="mx-auto h-8 w-8 text-zinc-700" />
+                        <div className="mt-2 text-xs">
+                          Write some content to see the preview
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
               ) : (
-                /* ===== PREVIEW TAB ===== */
-                <div className="flex flex-1 flex-col overflow-hidden">
-                  {/* Subject preview bar */}
-                  <div className="border-b border-zinc-800 bg-zinc-950 px-4 py-2">
-                    <div className="flex items-center gap-2 text-xs">
-                      <span className="text-zinc-500">Subject:</span>
-                      <span className="font-medium text-zinc-200">
-                        {draft.subject || "(no subject)"}
+                /* ===== SPLIT VIEW ===== */
+                <div className="flex flex-1 overflow-hidden">
+                  {/* Left: Markdown editor */}
+                  <div className="flex flex-1 flex-col overflow-y-auto border-r border-zinc-800 p-4">
+                    <div className="mb-1 flex items-center justify-between">
+                      <Label className="text-[10px] font-medium uppercase tracking-wider text-zinc-500">
+                        Body (Markdown)
+                      </Label>
+                      <span className="text-[10px] text-zinc-600">
+                        **bold** &nbsp; *italic* &nbsp; [link](url)
                       </span>
                     </div>
-                    <div className="mt-0.5 flex items-center gap-2 text-[10px]">
-                      <span className="text-zinc-600">From:</span>
-                      <span className="text-zinc-400">
-                        March Fitness &lt;noreply@march.fit&gt;
-                      </span>
-                    </div>
+                    <textarea
+                      value={draft.body}
+                      onChange={(e) =>
+                        updateDraft({ body: e.target.value })
+                      }
+                      placeholder={`# Welcome!\n\nYou're signed up for the challenge.`}
+                      className="flex-1 resize-none rounded-md border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm leading-relaxed text-zinc-200 placeholder:text-zinc-600 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                    />
                   </div>
-                  {/* Rendered email */}
-                  <div className="flex-1 overflow-hidden bg-[#09090b]">
+                  {/* Right: Live preview */}
+                  <div className="flex flex-1 flex-col overflow-hidden bg-[#09090b]">
                     {draft.body ? (
                       <iframe
-                        srcDoc={draft.body}
+                        srcDoc={markdownToHtml(draft.body)}
                         className="h-full w-full border-0"
                         title="Email Preview"
                         sandbox=""
@@ -832,9 +872,9 @@ export default function EmailsAdminPage() {
                     ) : (
                       <div className="flex h-full items-center justify-center text-zinc-600">
                         <div className="text-center">
-                          <Eye className="mx-auto h-8 w-8 text-zinc-700" />
-                          <div className="mt-2 text-xs">
-                            Write some content to see the preview
+                          <Eye className="mx-auto h-6 w-6 text-zinc-700" />
+                          <div className="mt-1.5 text-[10px]">
+                            Preview appears here
                           </div>
                         </div>
                       </div>
@@ -844,7 +884,7 @@ export default function EmailsAdminPage() {
               )}
 
               {/* ------- Send Actions Footer (only for existing emails) ------- */}
-              {!isCreating && selectedEmail && (
+              {selectedEmail && (
                 <div className="border-t border-zinc-800 px-4 py-2.5">
                   <div className="flex items-center justify-between">
                     {/* Left: status badges */}
@@ -932,7 +972,7 @@ export default function EmailsAdminPage() {
                                 <DropdownMenuItem
                                   key={user.id}
                                   onClick={() =>
-                                    handleSendToUser(
+                                    handleSendTest(
                                       user.id as Id<"users">,
                                     )
                                   }

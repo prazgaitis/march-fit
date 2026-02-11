@@ -13,10 +13,14 @@
 - [x] Send to all participants
 - [x] Manage existing email sequences (list, create, edit, delete)
 - [x] Available templates sidebar
+- [x] Markdown editing support (write markdown, preview/send as HTML)
 
 ## Implementation Notes
 
-- Reuses existing Convex backend mutations/queries (no backend changes needed)
+- Reuses existing Convex backend mutations/queries (minor schema addition for bodySource)
 - localStorage key scoped per challenge + email sequence ID
 - Preview uses iframe with the branded email template wrapper
 - Draft state auto-saves on every change with debounce
+- Body editing uses markdown via `marked` library; converted to HTML on save
+- `bodySource` field stores original markdown for clean round-trip editing
+- Existing HTML-only emails gracefully fall back to showing raw HTML in editor

@@ -50,7 +50,9 @@ export const create = mutation({
     name: v.string(),
     subject: v.string(),
     body: v.string(),
+    bodySource: v.optional(v.string()),
     trigger: v.union(v.literal("manual"), v.literal("on_signup")),
+    enabled: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     await requireChallengeAdmin(ctx, args.challengeId);
@@ -62,8 +64,9 @@ export const create = mutation({
       name: args.name,
       subject: args.subject,
       body: args.body,
+      bodySource: args.bodySource,
       trigger: args.trigger,
-      enabled: true,
+      enabled: args.enabled ?? true,
       createdAt: now,
       updatedAt: now,
     });
@@ -81,6 +84,7 @@ export const update = mutation({
     name: v.optional(v.string()),
     subject: v.optional(v.string()),
     body: v.optional(v.string()),
+    bodySource: v.optional(v.string()),
     trigger: v.optional(v.union(v.literal("manual"), v.literal("on_signup"))),
     enabled: v.optional(v.boolean()),
   },
@@ -99,6 +103,7 @@ export const update = mutation({
     if (args.name !== undefined) updates.name = args.name;
     if (args.subject !== undefined) updates.subject = args.subject;
     if (args.body !== undefined) updates.body = args.body;
+    if (args.bodySource !== undefined) updates.bodySource = args.bodySource;
     if (args.trigger !== undefined) updates.trigger = args.trigger;
     if (args.enabled !== undefined) updates.enabled = args.enabled;
 
@@ -219,6 +224,39 @@ export const addDefaultTemplate = mutation({
     });
 
     return { emailSequenceId, name: template.name };
+  },
+});
+
+/**
+ * Send a test email to a specific user without recording it.
+ * The user remains in the "unsent" list so they still receive the real send.
+ */
+export const sendTest = mutation({
+  args: {
+    emailSequenceId: v.id("emailSequences"),
+    userId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    const emailSequence = await ctx.db.get(args.emailSequenceId);
+    if (!emailSequence) {
+      throw new Error("Email sequence not found");
+    }
+
+    await requireChallengeAdmin(ctx, emailSequence.challengeId);
+
+    const user = await ctx.db.get(args.userId);
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    await resend.sendEmail(ctx, {
+      from: DEFAULT_FROM_EMAIL,
+      to: user.email,
+      subject: `[TEST] ${emailSequence.subject}`,
+      html: emailSequence.body,
+    });
+
+    return { success: true };
   },
 });
 

@@ -12,7 +12,7 @@ if (!process.env.NEXT_PUBLIC_CONVEX_SITE_URL && process.env.NEXT_PUBLIC_CONVEX_U
 
 const nextConfig: NextConfig = {};
 
-export default withSentryConfig(nextConfig, {
+const sentryConfig = withSentryConfig(nextConfig, {
   tunnelRoute: "/monitoring",
   bundleSizeOptimizations: {
     excludeDebugStatements: true,
@@ -22,3 +22,5 @@ export default withSentryConfig(nextConfig, {
     excludeReplayWorker: true,
   },
 });
+
+export default process.env.NODE_ENV === "production" ? sentryConfig : nextConfig;
