@@ -1025,7 +1025,6 @@ export function ActivityLogDialog({ challengeId, trigger }: ActivityLogDialogPro
                       className="group relative aspect-square overflow-hidden rounded-lg border border-zinc-700 bg-zinc-900"
                     >
                       {media.type === "image" ? (
-                        // eslint-disable-next-line @next/next/no-img-element
                         <img
                           src={media.url}
                           alt={`Upload preview ${index + 1}`}

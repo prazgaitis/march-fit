@@ -23,6 +23,7 @@ const eslintConfig = [
       "react-hooks/static-components": "off",
       "react-hooks/error-boundaries": "off",
       "react-hooks/refs": "off",
+      "@next/next/no-img-element": "off",
     },
   },
   ...storybook.configs["flat/recommended"],

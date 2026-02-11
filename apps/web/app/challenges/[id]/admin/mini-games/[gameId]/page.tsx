@@ -410,7 +410,6 @@ export default function MiniGameDetailPage() {
                   <div className="col-span-3 flex items-center gap-2">
                     <div className="flex h-6 w-6 items-center justify-center rounded-full bg-zinc-800">
                       {participant.user?.avatarUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
                         <img
                           src={participant.user.avatarUrl}
                           alt=""
@@ -433,7 +432,6 @@ export default function MiniGameDetailPage() {
                           <>
                             <div className="flex h-6 w-6 items-center justify-center rounded-full bg-zinc-800">
                               {participant.partnerUser.avatarUrl ? (
-                                // eslint-disable-next-line @next/next/no-img-element
                                 <img
                                   src={participant.partnerUser.avatarUrl}
                                   alt=""
@@ -472,7 +470,6 @@ export default function MiniGameDetailPage() {
                           <>
                             <div className="flex h-5 w-5 items-center justify-center rounded-full bg-zinc-800">
                               {participant.preyUser.avatarUrl ? (
-                                // eslint-disable-next-line @next/next/no-img-element
                                 <img
                                   src={participant.preyUser.avatarUrl}
                                   alt=""
@@ -496,7 +493,6 @@ export default function MiniGameDetailPage() {
                           <>
                             <div className="flex h-5 w-5 items-center justify-center rounded-full bg-zinc-800">
                               {participant.hunterUser.avatarUrl ? (
-                                // eslint-disable-next-line @next/next/no-img-element
                                 <img
                                   src={participant.hunterUser.avatarUrl}
                                   alt=""

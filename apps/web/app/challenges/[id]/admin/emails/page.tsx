@@ -819,7 +819,6 @@ export default function EmailsAdminPage() {
                               >
                                 <div className="flex h-5 w-5 items-center justify-center rounded-full bg-zinc-800">
                                   {user.avatarUrl ? (
-                                    // eslint-disable-next-line @next/next/no-img-element
                                     <img
                                       src={user.avatarUrl}
                                       alt=""

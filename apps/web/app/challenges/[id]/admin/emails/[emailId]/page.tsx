@@ -470,7 +470,6 @@ export default function EmailDetailPage() {
                     <div className="flex items-center gap-2">
                       <div className="flex h-6 w-6 items-center justify-center rounded-full bg-zinc-800">
                         {user.avatarUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
                           <img
                             src={user.avatarUrl}
                             alt=""
@@ -537,7 +536,6 @@ export default function EmailDetailPage() {
                 <div className="flex items-center gap-2">
                   <div className="flex h-6 w-6 items-center justify-center rounded-full bg-zinc-800">
                     {send.user?.avatarUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
                       <img
                         src={send.user.avatarUrl}
                         alt=""
