@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "cd ../../packages/backend && npx convex deploy --cmd 'cd ../../apps/web && npx next build' --cmd-url-env-var-name NEXT_PUBLIC_CONVEX_URL",
+  "buildCommand": "cd ../../packages/backend && npx convex deploy --cmd \"NEXT_PUBLIC_CONVEX_SITE_URL=$(printf %s \\\"$NEXT_PUBLIC_CONVEX_URL\\\" | sed 's/\\\\.convex\\\\.cloud/.convex.site/'); cd ../../apps/web && npx next build\" --cmd-url-env-var-name NEXT_PUBLIC_CONVEX_URL",
   "installCommand": "pnpm install",
   "framework": "nextjs"
 }
