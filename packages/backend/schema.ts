@@ -457,7 +457,8 @@ export default defineSchema({
     challengeId: v.id("challenges"),
     name: v.string(),
     subject: v.string(),
-    body: v.string(), // HTML content
+    body: v.string(), // HTML content (compiled from bodySource if markdown)
+    bodySource: v.optional(v.string()), // Original markdown source
     trigger: v.union(
       v.literal("manual"), // Admin manually triggers
       v.literal("on_signup"), // Auto-send when user joins challenge

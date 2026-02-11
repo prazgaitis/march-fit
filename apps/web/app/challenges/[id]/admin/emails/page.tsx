@@ -1,26 +1,32 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams } from "next/navigation";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
 import {
   CheckCircle,
+  ChevronDown,
   Clock,
-  Edit2,
+  Columns2,
   Eye,
-  Layers,
+  FileText,
   Mail,
+  MoreHorizontal,
+  Pencil,
   Plus,
   Save,
   Send,
   Trash2,
   User,
   UserPlus,
-  X,
   XCircle,
 } from "lucide-react";
+
+import { marked } from "marked";
+import { toast } from "sonner";
+import { wrapEmailTemplate } from "@repo/backend/lib/emailTemplate";
 
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
@@ -29,7 +35,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -58,6 +63,10 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
 type EmailTrigger = "manual" | "on_signup";
 
 type DefaultTemplate = {
@@ -81,6 +90,28 @@ type EmailSend = {
   status: "pending" | "sent" | "failed";
 };
 
+type EmailSequenceListItem = {
+  id: string;
+  name: string;
+  trigger: string;
+  enabled: boolean;
+  subject: string;
+  sentCount: number;
+  pendingCount: number;
+  failedCount: number;
+};
+
+type DraftState = {
+  name: string;
+  subject: string;
+  body: string;
+  trigger: EmailTrigger;
+};
+
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
 const triggerInfo: Record<
   EmailTrigger,
   { label: string; icon: typeof Mail; description: string }
@@ -93,101 +124,211 @@ const triggerInfo: Record<
   on_signup: {
     label: "On Signup",
     icon: UserPlus,
-    description: "Automatically sent when a user joins the challenge",
+    description: "Sent when a user joins the challenge",
   },
 };
 
-type ViewMode = "sequences" | "template";
+// ---------------------------------------------------------------------------
+// localStorage helpers
+// ---------------------------------------------------------------------------
+
+function draftKey(challengeId: string, emailId: string | null): string {
+  return `email-draft-${challengeId}-${emailId ?? "new"}`;
+}
+
+function loadDraft(
+  challengeId: string,
+  emailId: string | null,
+): DraftState | null {
+  try {
+    const raw = localStorage.getItem(draftKey(challengeId, emailId));
+    if (!raw) return null;
+    return JSON.parse(raw) as DraftState;
+  } catch {
+    return null;
+  }
+}
+
+function saveDraft(
+  challengeId: string,
+  emailId: string | null,
+  draft: DraftState,
+): void {
+  try {
+    localStorage.setItem(draftKey(challengeId, emailId), JSON.stringify(draft));
+  } catch {
+    // localStorage full or unavailable – silently ignore
+  }
+}
+
+function clearDraft(challengeId: string, emailId: string | null): void {
+  try {
+    localStorage.removeItem(draftKey(challengeId, emailId));
+  } catch {
+    // ignore
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Composer mode: "compose" = edit fields, "preview" = rendered HTML
+// ---------------------------------------------------------------------------
+type ComposerTab = "compose" | "preview" | "split";
+
+// ---------------------------------------------------------------------------
+// Markdown → HTML conversion
+// ---------------------------------------------------------------------------
+
+marked.setOptions({ breaks: true, gfm: true });
+
+function markdownToHtml(md: string): string {
+  const html = marked.parse(md, { async: false }) as string;
+  return wrapEmailTemplate({ content: html });
+}
+
+// ---------------------------------------------------------------------------
+// Main Page Component
+// ---------------------------------------------------------------------------
 
 export default function EmailsAdminPage() {
   const params = useParams();
   const challengeId = params.id as string;
 
-  const [viewMode, setViewMode] = useState<ViewMode>("sequences");
+  // ---- State ----
   const [selectedEmailId, setSelectedEmailId] = useState<string | null>(null);
-  const [isCreateOpen, setIsCreateOpen] = useState(false);
-  const [isEditing, setIsEditing] = useState(false);
-  const [editForm, setEditForm] = useState({
-    name: "",
-    subject: "",
-    body: "",
-    trigger: "manual" as EmailTrigger,
-  });
-  const [newEmail, setNewEmail] = useState({
-    name: "",
-    subject: "",
-    body: "",
-    trigger: "manual" as EmailTrigger,
-  });
+  const [composerTab, setComposerTab] = useState<ComposerTab>("split");
+  const [showTemplates, setShowTemplates] = useState(false);
 
+  // Draft form state (used for both creating and editing)
+  const [draft, setDraft] = useState<DraftState>({
+    name: "",
+    subject: "",
+    body: "",
+    trigger: "manual",
+  });
+  const [hasDraftChanges, setHasDraftChanges] = useState(false);
+  const [draftSavedAt, setDraftSavedAt] = useState<number | null>(null);
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // ---- Convex queries ----
   const emailSequences = useQuery(api.queries.emailSequences.list, {
     challengeId: challengeId as Id<"challenges">,
   });
 
-  const defaultTemplates = useQuery(api.queries.emailSequences.getDefaultTemplates, {
-    challengeId: challengeId as Id<"challenges">,
-  });
-
-  const templatePreview = useQuery(api.queries.emailSequences.getEmailTemplatePreview);
+  const defaultTemplates = useQuery(
+    api.queries.emailSequences.getDefaultTemplates,
+    { challengeId: challengeId as Id<"challenges"> },
+  );
 
   const selectedEmail = useQuery(
     api.queries.emailSequences.getById,
-    selectedEmailId ? { emailSequenceId: selectedEmailId as Id<"emailSequences"> } : "skip"
+    selectedEmailId
+      ? { emailSequenceId: selectedEmailId as Id<"emailSequences"> }
+      : "skip",
   );
 
   const unsentParticipants = useQuery(
     api.queries.emailSequences.getUnsentParticipants,
-    selectedEmailId ? { emailSequenceId: selectedEmailId as Id<"emailSequences"> } : "skip"
+    selectedEmailId
+      ? { emailSequenceId: selectedEmailId as Id<"emailSequences"> }
+      : "skip",
   );
 
+  // ---- Convex mutations ----
   const createEmailSequence = useMutation(api.mutations.emailSequences.create);
-  const addDefaultTemplate = useMutation(api.mutations.emailSequences.addDefaultTemplate);
+  const addDefaultTemplate = useMutation(
+    api.mutations.emailSequences.addDefaultTemplate,
+  );
   const updateEmailSequence = useMutation(api.mutations.emailSequences.update);
   const deleteEmailSequence = useMutation(api.mutations.emailSequences.remove);
   const sendToAll = useMutation(api.mutations.emailSequences.sendToAll);
-  const sendToUser = useMutation(api.mutations.emailSequences.sendToUser);
+  const sendTest = useMutation(api.mutations.emailSequences.sendTest);
 
-  const handleAddTemplate = async (templateName: string) => {
-    try {
-      const result = await addDefaultTemplate({
-        challengeId: challengeId as Id<"challenges">,
-        templateName,
+  // ---- Draft persistence (debounced localStorage save) ----
+  const saveDraftDebounced = useCallback(
+    (d: DraftState) => {
+      if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = setTimeout(() => {
+        saveDraft(challengeId, selectedEmailId, d);
+        setDraftSavedAt(Date.now());
+      }, 500);
+    },
+    [challengeId, selectedEmailId],
+  );
+
+  // When draft changes, mark dirty and schedule save
+  const updateDraft = useCallback(
+    (partial: Partial<DraftState>) => {
+      setDraft((prev) => {
+        const next = { ...prev, ...partial };
+        setHasDraftChanges(true);
+        saveDraftDebounced(next);
+        return next;
       });
-      setSelectedEmailId(result.emailSequenceId);
-    } catch (error) {
-      console.error("Failed to add template:", error);
-      alert(error instanceof Error ? error.message : "Failed to add template");
+    },
+    [saveDraftDebounced],
+  );
+
+  // Load draft from localStorage when selecting an email
+  useEffect(() => {
+    if (selectedEmail) {
+      // Prefer bodySource (markdown) for editing, fall back to body (HTML)
+      const editableBody = selectedEmail.bodySource ?? selectedEmail.body;
+      const saved = loadDraft(challengeId, selectedEmailId);
+      if (saved) {
+        // Check if draft differs from saved version
+        const differs =
+          saved.name !== selectedEmail.name ||
+          saved.subject !== selectedEmail.subject ||
+          saved.body !== editableBody ||
+          saved.trigger !== selectedEmail.trigger;
+        if (differs) {
+          setDraft(saved);
+          setHasDraftChanges(true);
+        } else {
+          setDraft({
+            name: selectedEmail.name,
+            subject: selectedEmail.subject,
+            body: editableBody,
+            trigger: selectedEmail.trigger as EmailTrigger,
+          });
+          setHasDraftChanges(false);
+          clearDraft(challengeId, selectedEmailId);
+        }
+      } else {
+        setDraft({
+          name: selectedEmail.name,
+          subject: selectedEmail.subject,
+          body: editableBody,
+          trigger: selectedEmail.trigger as EmailTrigger,
+        });
+        setHasDraftChanges(false);
+      }
+      setComposerTab("split");
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedEmailId, selectedEmail?._id]);
+
+  // ---- Handlers ----
+
+  const handleSelectEmail = (id: string) => {
+    setSelectedEmailId(id);
   };
 
-  const handleCreate = async () => {
-    if (!newEmail.name || !newEmail.subject || !newEmail.body) return;
+  const handleNewEmail = async () => {
     try {
       const result = await createEmailSequence({
         challengeId: challengeId as Id<"challenges">,
-        name: newEmail.name,
-        subject: newEmail.subject,
-        body: newEmail.body,
-        trigger: newEmail.trigger,
+        name: "Untitled Email",
+        subject: "",
+        body: "",
+        trigger: "manual",
+        enabled: false,
       });
-      setIsCreateOpen(false);
-      setNewEmail({ name: "", subject: "", body: "", trigger: "manual" });
       setSelectedEmailId(result.emailSequenceId);
     } catch (error) {
-      console.error("Failed to create email sequence:", error);
-      alert(error instanceof Error ? error.message : "Failed to create email sequence");
+      console.error("Failed to create draft:", error);
+      alert(error instanceof Error ? error.message : "Failed to create draft");
     }
-  };
-
-  const handleStartEdit = () => {
-    if (!selectedEmail) return;
-    setEditForm({
-      name: selectedEmail.name,
-      subject: selectedEmail.subject,
-      body: selectedEmail.body,
-      trigger: selectedEmail.trigger as EmailTrigger,
-    });
-    setIsEditing(true);
   };
 
   const handleSave = async () => {
@@ -195,15 +336,30 @@ export default function EmailsAdminPage() {
     try {
       await updateEmailSequence({
         emailSequenceId: selectedEmailId as Id<"emailSequences">,
-        name: editForm.name,
-        subject: editForm.subject,
-        body: editForm.body,
-        trigger: editForm.trigger,
+        name: draft.name,
+        subject: draft.subject,
+        body: markdownToHtml(draft.body),
+        bodySource: draft.body,
+        trigger: draft.trigger,
       });
-      setIsEditing(false);
+      clearDraft(challengeId, selectedEmailId);
+      setHasDraftChanges(false);
     } catch (error) {
-      console.error("Failed to update email sequence:", error);
-      alert(error instanceof Error ? error.message : "Failed to update email sequence");
+      console.error("Failed to save email:", error);
+      alert(error instanceof Error ? error.message : "Failed to save email");
+    }
+  };
+
+  const handleDiscardDraft = () => {
+    if (selectedEmail) {
+      clearDraft(challengeId, selectedEmailId);
+      setDraft({
+        name: selectedEmail.name,
+        subject: selectedEmail.subject,
+        body: selectedEmail.bodySource ?? selectedEmail.body,
+        trigger: selectedEmail.trigger as EmailTrigger,
+      });
+      setHasDraftChanges(false);
     }
   };
 
@@ -215,8 +371,7 @@ export default function EmailsAdminPage() {
         enabled: !selectedEmail.enabled,
       });
     } catch (error) {
-      console.error("Failed to toggle email sequence:", error);
-      alert(error instanceof Error ? error.message : "Failed to toggle email sequence");
+      console.error("Failed to toggle:", error);
     }
   };
 
@@ -226,10 +381,11 @@ export default function EmailsAdminPage() {
       await deleteEmailSequence({
         emailSequenceId: selectedEmailId as Id<"emailSequences">,
       });
+      clearDraft(challengeId, selectedEmailId);
       setSelectedEmailId(null);
     } catch (error) {
-      console.error("Failed to delete email sequence:", error);
-      alert(error instanceof Error ? error.message : "Failed to delete email sequence");
+      console.error("Failed to delete:", error);
+      alert(error instanceof Error ? error.message : "Failed to delete");
     }
   };
 
@@ -239,26 +395,62 @@ export default function EmailsAdminPage() {
       const result = await sendToAll({
         emailSequenceId: selectedEmailId as Id<"emailSequences">,
       });
-      alert(`Sent to ${result.sentCount} users (${result.skippedCount} skipped)`);
+      alert(`Sent to ${result.sentCount} participants (${result.skippedCount} skipped)`);
     } catch (error) {
-      console.error("Failed to send emails:", error);
-      alert(error instanceof Error ? error.message : "Failed to send emails");
+      console.error("Failed to send:", error);
+      alert(error instanceof Error ? error.message : "Failed to send");
     }
   };
 
-  const handleSendToUser = async (userId: Id<"users">) => {
+  const handleSendTest = async (userId: Id<"users">) => {
     if (!selectedEmailId) return;
+    const toastId = toast.loading("Sending test email...");
     try {
-      await sendToUser({
+      // Auto-save before sending so the DB has the latest content
+      if (hasDraftChanges) {
+        await updateEmailSequence({
+          emailSequenceId: selectedEmailId as Id<"emailSequences">,
+          name: draft.name,
+          subject: draft.subject,
+          body: markdownToHtml(draft.body),
+          bodySource: draft.body,
+          trigger: draft.trigger,
+        });
+        clearDraft(challengeId, selectedEmailId);
+        setHasDraftChanges(false);
+      }
+      await sendTest({
         emailSequenceId: selectedEmailId as Id<"emailSequences">,
         userId,
       });
+      toast.success("Test email sent!", { id: toastId });
     } catch (error) {
-      console.error("Failed to send email:", error);
-      alert(error instanceof Error ? error.message : "Failed to send email");
+      console.error("Failed to send test:", error);
+      toast.error(
+        error instanceof Error ? error.message : "Failed to send test email",
+        { id: toastId },
+      );
     }
   };
 
+  const handleAddTemplate = async (templateName: string) => {
+    try {
+      const result = await addDefaultTemplate({
+        challengeId: challengeId as Id<"challenges">,
+        templateName,
+      });
+      setSelectedEmailId(result.emailSequenceId);
+      setShowTemplates(false);
+    } catch (error) {
+      console.error("Failed to add template:", error);
+      alert(error instanceof Error ? error.message : "Failed to add template");
+    }
+  };
+
+  // ---- Derived state ----
+  const isComposerActive = selectedEmailId !== null;
+
+  // ---- Loading ----
   if (!emailSequences) {
     return (
       <div className="flex items-center justify-center py-20 text-zinc-500">
@@ -268,309 +460,95 @@ export default function EmailsAdminPage() {
   }
 
   return (
-    <div className="flex h-[calc(100vh-140px)] flex-col gap-3">
-      {/* View Mode Toggle */}
-      <div className="flex items-center gap-2">
-        <button
-          onClick={() => setViewMode("sequences")}
-          className={cn(
-            "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
-            viewMode === "sequences"
-              ? "bg-amber-500/15 text-amber-400"
-              : "text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300"
-          )}
-        >
-          <Layers className="h-3.5 w-3.5" />
-          Email Sequences
-        </button>
-        <button
-          onClick={() => setViewMode("template")}
-          className={cn(
-            "flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
-            viewMode === "template"
-              ? "bg-amber-500/15 text-amber-400"
-              : "text-zinc-500 hover:bg-zinc-800 hover:text-zinc-300"
-          )}
-        >
-          <Eye className="h-3.5 w-3.5" />
-          Email Template
-        </button>
-      </div>
-
-      {/* Template Preview Mode */}
-      {viewMode === "template" ? (
-        <div className="flex flex-1 gap-4 overflow-hidden">
-          {/* Info Panel */}
-          <div className="flex w-1/3 flex-col gap-3">
-            <div className="rounded border border-zinc-800 bg-zinc-900 p-4">
-              <div className="mb-3 flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded bg-amber-500/15">
-                  <Mail className="h-4 w-4 text-amber-400" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-medium text-zinc-100">Base Email Template</h3>
-                  <p className="text-[10px] text-zinc-500">Used across all transactional emails</p>
-                </div>
-              </div>
-              <p className="text-xs leading-relaxed text-zinc-400">
-                This is the shared email template that wraps all transactional emails sent from March Fitness, including invite emails, welcome emails, and weekly recaps.
-              </p>
-            </div>
-
-            <div className="rounded border border-zinc-800 bg-zinc-900 p-4">
-              <h4 className="mb-2 text-[10px] font-medium uppercase tracking-wider text-zinc-500">
-                Template Components
-              </h4>
-              <div className="space-y-2">
-                <div className="rounded border border-zinc-800 bg-zinc-800/50 px-3 py-2">
-                  <div className="text-xs font-medium text-zinc-300">Brand Header</div>
-                  <div className="text-[10px] text-zinc-500">Wordmark + indigo-fuchsia gradient divider</div>
-                </div>
-                <div className="rounded border border-zinc-800 bg-zinc-800/50 px-3 py-2">
-                  <div className="text-xs font-medium text-zinc-300">Dark Card</div>
-                  <div className="text-[10px] text-zinc-500">Title, subtitle, content, callouts, and CTA buttons</div>
-                </div>
-                <div className="rounded border border-zinc-800 bg-zinc-800/50 px-3 py-2">
-                  <div className="text-xs font-medium text-zinc-300">Footer</div>
-                  <div className="text-[10px] text-zinc-500">Context line + march.fit wordmark link</div>
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded border border-zinc-800 bg-zinc-900 p-4">
-              <h4 className="mb-2 text-[10px] font-medium uppercase tracking-wider text-zinc-500">
-                Used In
-              </h4>
-              <div className="space-y-1.5">
-                {[
-                  { name: "Invite Emails", desc: "Sent when users invite friends" },
-                  { name: "Welcome Email", desc: "Auto-sent on challenge signup" },
-                  { name: "Weekly Recaps", desc: "Sent after each week" },
-                  { name: "Challenge Complete", desc: "Sent when challenge ends" },
-                ].map((item) => (
-                  <div key={item.name} className="flex items-center gap-2 rounded bg-zinc-800/50 px-3 py-1.5">
-                    <CheckCircle className="h-3 w-3 flex-shrink-0 text-emerald-400" />
-                    <div>
-                      <div className="text-xs text-zinc-300">{item.name}</div>
-                      <div className="text-[10px] text-zinc-500">{item.desc}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Template Preview */}
-          <div className="flex flex-1 flex-col overflow-hidden rounded border border-zinc-800 bg-zinc-900">
-            <div className="flex items-center justify-between border-b border-zinc-800 px-3 py-2">
-              <div className="flex items-center gap-2">
-                <h2 className="text-sm font-medium text-zinc-100">Template Preview</h2>
-                <span className="rounded bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-medium text-emerald-400">
-                  Active
-                </span>
-              </div>
-              <div className="text-[10px] text-zinc-500">
-                All emails use this layout
-              </div>
-            </div>
-            <div className="flex-1 overflow-hidden bg-[#09090b]">
-              {templatePreview ? (
-                <iframe
-                  srcDoc={templatePreview.html}
-                  className="h-full w-full border-0"
-                  title="Email Template Preview"
-                  sandbox=""
-                />
-              ) : (
-                <div className="flex h-full items-center justify-center text-zinc-500">
-                  Loading template...
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      ) : (
-      /* Email Sequences Mode */
-      <div className="flex flex-1 gap-4 overflow-hidden">
-      {/* Left Column - Email List */}
-      <div className="flex w-1/2 flex-col">
+    <div className="flex h-[calc(100vh-140px)] gap-3">
+      {/* ================================================================= */}
+      {/* LEFT SIDEBAR – Email list                                         */}
+      {/* ================================================================= */}
+      <div className="flex w-72 flex-shrink-0 flex-col">
         {/* Header */}
-        <div className="mb-3 flex items-center justify-between">
-          <div className="text-xs text-zinc-500">
-            {emailSequences.length} email sequence{emailSequences.length !== 1 ? "s" : ""}
-          </div>
-          <div className="flex items-center gap-2">
-            <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-              <DialogTrigger asChild>
+        <div className="mb-2 flex items-center justify-between">
+          <span className="text-[10px] font-medium uppercase tracking-wider text-zinc-500">
+            Emails ({emailSequences.length})
+          </span>
+          <div className="flex items-center gap-1">
+            <Button
+              size="sm"
+              onClick={handleNewEmail}
+              className="h-6 bg-amber-500 px-2 text-[10px] text-black hover:bg-amber-400"
+            >
+              <Plus className="mr-1 h-3 w-3" />
+              New
+            </Button>
+            {defaultTemplates &&
+              defaultTemplates.some((t: DefaultTemplate) => !t.alreadyAdded) && (
                 <Button
                   size="sm"
-                  className="h-7 bg-amber-500 px-3 text-xs text-black hover:bg-amber-400"
+                  variant="outline"
+                  onClick={() => setShowTemplates(true)}
+                  className="h-6 border-zinc-700 px-2 text-[10px] text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200"
                 >
-                  <Plus className="mr-1 h-3 w-3" />
-                  New Email
+                  <FileText className="mr-1 h-3 w-3" />
+                  Templates
                 </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-2xl border-zinc-800 bg-zinc-900">
-                <DialogHeader>
-                  <DialogTitle className="text-zinc-100">Create Email Sequence</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4 py-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label className="text-zinc-400">Name</Label>
-                      <Input
-                        value={newEmail.name}
-                        onChange={(e) => setNewEmail((prev) => ({ ...prev, name: e.target.value }))}
-                        placeholder="e.g., Welcome Email"
-                        className="border-zinc-700 bg-zinc-800 text-zinc-200 placeholder:text-zinc-600"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-zinc-400">Trigger</Label>
-                      <Select
-                        value={newEmail.trigger}
-                        onValueChange={(value: EmailTrigger) =>
-                          setNewEmail((prev) => ({ ...prev, trigger: value }))
-                        }
-                      >
-                        <SelectTrigger className="border-zinc-700 bg-zinc-800 text-zinc-200">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent className="border-zinc-700 bg-zinc-800">
-                          {Object.entries(triggerInfo).map(([trigger, info]) => (
-                            <SelectItem
-                              key={trigger}
-                              value={trigger}
-                              className="text-zinc-200 focus:bg-zinc-700 focus:text-zinc-100"
-                            >
-                              <div className="flex items-center gap-2">
-                                <info.icon className="h-4 w-4" />
-                                {info.label}
-                              </div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-zinc-400">Subject</Label>
-                    <Input
-                      value={newEmail.subject}
-                      onChange={(e) => setNewEmail((prev) => ({ ...prev, subject: e.target.value }))}
-                      placeholder="e.g., Welcome to the March Fitness Challenge!"
-                      className="border-zinc-700 bg-zinc-800 text-zinc-200 placeholder:text-zinc-600"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label className="text-zinc-400">Body (HTML)</Label>
-                    <textarea
-                      value={newEmail.body}
-                      onChange={(e) => setNewEmail((prev) => ({ ...prev, body: e.target.value }))}
-                      placeholder="<p>Welcome to the challenge!</p>"
-                      rows={8}
-                      className="w-full rounded-md border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-200 placeholder:text-zinc-600 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
-                    />
-                  </div>
-                  <div className="flex justify-end gap-2 pt-4">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setIsCreateOpen(false)}
-                      className="text-zinc-400 hover:text-zinc-200"
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      size="sm"
-                      onClick={handleCreate}
-                      disabled={!newEmail.name || !newEmail.subject || !newEmail.body}
-                      className="bg-amber-500 text-black hover:bg-amber-400"
-                    >
-                      Create
-                    </Button>
-                  </div>
-                </div>
-              </DialogContent>
-            </Dialog>
+              )}
           </div>
         </div>
 
-        {/* Email List */}
-        <div className="flex-1 space-y-2 overflow-y-auto">
+        {/* Email list */}
+        <div className="flex-1 space-y-1 overflow-y-auto">
           {emailSequences.length > 0 ? (
-            emailSequences.map((sequence: { id: string; name: string; trigger: string; enabled: boolean; subject: string; sentCount: number; pendingCount: number; failedCount: number }) => {
-              const triggerData = triggerInfo[sequence.trigger as EmailTrigger];
-              const Icon = triggerData.icon;
-              const isSelected = selectedEmailId === sequence.id;
+            emailSequences.map((seq: EmailSequenceListItem) => {
+              const isSelected = selectedEmailId === seq.id;
+              const TriggerIcon = triggerInfo[seq.trigger as EmailTrigger]?.icon ?? Mail;
 
               return (
                 <button
-                  key={sequence.id}
-                  onClick={() => {
-                    setSelectedEmailId(sequence.id);
-                    setIsEditing(false);
-                  }}
+                  key={seq.id}
+                  onClick={() => handleSelectEmail(seq.id)}
                   className={cn(
-                    "w-full rounded border p-3 text-left transition-colors",
+                    "w-full rounded border p-2.5 text-left transition-colors",
                     isSelected
                       ? "border-amber-500/50 bg-amber-500/10"
-                      : "border-zinc-800 bg-zinc-900 hover:border-zinc-700 hover:bg-zinc-800/50"
+                      : "border-zinc-800 bg-zinc-900 hover:border-zinc-700 hover:bg-zinc-800/50",
                   )}
                 >
-                  <div className="flex items-start justify-between">
-                    <div className="flex items-start gap-3">
-                      <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded bg-zinc-800">
-                        <Icon className="h-4 w-4 text-amber-400" />
+                  <div className="flex items-start gap-2">
+                    <TriggerIcon className="mt-0.5 h-3.5 w-3.5 flex-shrink-0 text-amber-400" />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="truncate text-xs font-medium text-zinc-200">
+                          {seq.name}
+                        </span>
+                        <span
+                          className={cn(
+                            "flex-shrink-0 rounded px-1 py-0.5 text-[9px] font-medium",
+                            seq.enabled
+                              ? "bg-emerald-500/20 text-emerald-400"
+                              : "bg-zinc-700 text-zinc-500",
+                          )}
+                        >
+                          {seq.enabled ? "On" : "Off"}
+                        </span>
                       </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium text-zinc-200">
-                            {sequence.name}
-                          </span>
-                          <span
-                            className={cn(
-                              "rounded px-1.5 py-0.5 text-[10px] font-medium",
-                              sequence.enabled
-                                ? "bg-emerald-500/20 text-emerald-400"
-                                : "bg-zinc-700 text-zinc-400"
-                            )}
-                          >
-                            {sequence.enabled ? "Enabled" : "Disabled"}
-                          </span>
-                          <span
-                            className={cn(
-                              "rounded px-1.5 py-0.5 text-[10px] font-medium",
-                              sequence.trigger === "on_signup"
-                                ? "bg-blue-500/20 text-blue-400"
-                                : "bg-zinc-700 text-zinc-400"
-                            )}
-                          >
-                            {triggerData.label}
-                          </span>
-                        </div>
-                        <div className="mt-0.5 text-xs text-zinc-500">
-                          {sequence.subject}
-                        </div>
+                      <div className="mt-0.5 truncate text-[10px] text-zinc-500">
+                        {seq.subject}
                       </div>
-                    </div>
-                    <div className="text-right">
-                      <div className="flex items-center justify-end gap-3 text-xs">
-                        <div className="flex items-center gap-1 text-emerald-400">
-                          <CheckCircle className="h-3 w-3" />
-                          {sequence.sentCount} sent
-                        </div>
-                        {sequence.pendingCount > 0 && (
-                          <div className="flex items-center gap-1 text-amber-400">
-                            <Clock className="h-3 w-3" />
-                            {sequence.pendingCount}
-                          </div>
+                      <div className="mt-1 flex items-center gap-2 text-[10px]">
+                        <span className="flex items-center gap-0.5 text-emerald-400">
+                          <CheckCircle className="h-2.5 w-2.5" />
+                          {seq.sentCount}
+                        </span>
+                        {seq.pendingCount > 0 && (
+                          <span className="flex items-center gap-0.5 text-amber-400">
+                            <Clock className="h-2.5 w-2.5" />
+                            {seq.pendingCount}
+                          </span>
                         )}
-                        {sequence.failedCount > 0 && (
-                          <div className="flex items-center gap-1 text-red-400">
-                            <XCircle className="h-3 w-3" />
-                            {sequence.failedCount}
-                          </div>
+                        {seq.failedCount > 0 && (
+                          <span className="flex items-center gap-0.5 text-red-400">
+                            <XCircle className="h-2.5 w-2.5" />
+                            {seq.failedCount}
+                          </span>
                         )}
                       </div>
                     </div>
@@ -579,169 +557,137 @@ export default function EmailsAdminPage() {
               );
             })
           ) : (
-            <div className="rounded border border-zinc-800 bg-zinc-900 p-8 text-center">
-              <Mail className="mx-auto h-8 w-8 text-zinc-600" />
-              <div className="mt-2 text-sm text-zinc-400">No email sequences yet</div>
-              <div className="mt-1 text-xs text-zinc-600">
-                Create an email sequence to communicate with participants
-              </div>
+            <div className="rounded border border-dashed border-zinc-800 p-6 text-center">
+              <Mail className="mx-auto h-6 w-6 text-zinc-700" />
+              <div className="mt-1.5 text-xs text-zinc-500">No emails yet</div>
             </div>
           )}
         </div>
-
-        {/* Available Templates */}
-        {defaultTemplates && defaultTemplates.some((t: DefaultTemplate) => !t.alreadyAdded) && (
-          <div className="mt-3 rounded border border-zinc-800 bg-zinc-900 p-3">
-            <div className="mb-2 text-[10px] font-medium uppercase tracking-wider text-zinc-500">
-              Available Templates
-            </div>
-            <div className="space-y-1.5">
-              {defaultTemplates
-                .filter((t: DefaultTemplate) => !t.alreadyAdded)
-                .map((template: DefaultTemplate) => (
-                  <div
-                    key={template.name}
-                    className="flex items-center justify-between rounded border border-zinc-800 bg-zinc-800/50 px-3 py-2"
-                  >
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-medium text-zinc-300">
-                          {template.name}
-                        </span>
-                        {template.sendOnDay && (
-                          <span className="text-[10px] text-zinc-500">
-                            Day {template.sendOnDay}
-                          </span>
-                        )}
-                      </div>
-                      <div className="text-[10px] text-zinc-500">
-                        {template.trigger === "on_signup"
-                          ? "Auto-sends on signup"
-                          : "Manual send"}
-                      </div>
-                    </div>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => handleAddTemplate(template.name)}
-                      className="h-6 border-zinc-700 px-2 text-[10px] text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100"
-                    >
-                      <Plus className="mr-1 h-2.5 w-2.5" />
-                      Add
-                    </Button>
-                  </div>
-                ))}
-            </div>
-          </div>
-        )}
       </div>
 
-      {/* Right Column - Preview */}
-      <div className="flex w-1/2 flex-col overflow-hidden rounded border border-zinc-800 bg-zinc-900">
-        {selectedEmail ? (
+      {/* ================================================================= */}
+      {/* MAIN AREA – Composer / Preview                                    */}
+      {/* ================================================================= */}
+      <div className="flex flex-1 flex-col overflow-hidden rounded border border-zinc-800 bg-zinc-900">
+        {isComposerActive ? (
           <>
-            {/* Preview Header */}
-            <div className="flex items-center justify-between border-b border-zinc-800 px-3 py-2">
-              <div className="min-w-0 flex-1">
-                {isEditing ? (
-                  <Input
-                    value={editForm.name}
-                    onChange={(e) => setEditForm((prev) => ({ ...prev, name: e.target.value }))}
-                    className="h-7 border-zinc-700 bg-zinc-800 text-sm font-medium text-zinc-200"
-                  />
-                ) : (
-                  <div className="flex items-center gap-2">
-                    <h2 className="truncate text-sm font-medium text-zinc-100">
-                      {selectedEmail.name}
-                    </h2>
-                    <span
-                      className={cn(
-                        "rounded px-1.5 py-0.5 text-[10px] font-medium",
-                        selectedEmail.enabled
-                          ? "bg-emerald-500/20 text-emerald-400"
-                          : "bg-zinc-700 text-zinc-400"
-                      )}
-                    >
-                      {selectedEmail.enabled ? "Enabled" : "Disabled"}
-                    </span>
-                    <span
-                      className={cn(
-                        "rounded px-1.5 py-0.5 text-[10px] font-medium",
-                        selectedEmail.trigger === "on_signup"
-                          ? "bg-blue-500/20 text-blue-400"
-                          : "bg-zinc-700 text-zinc-400"
-                      )}
-                    >
-                      {triggerInfo[selectedEmail.trigger as EmailTrigger].label}
-                    </span>
-                  </div>
-                )}
-                {isEditing ? (
-                  <Input
-                    value={editForm.subject}
-                    onChange={(e) => setEditForm((prev) => ({ ...prev, subject: e.target.value }))}
-                    placeholder="Subject"
-                    className="mt-1 h-6 border-zinc-700 bg-zinc-800 text-xs text-zinc-400"
-                  />
-                ) : (
-                  <div className="mt-0.5 truncate text-xs text-zinc-500">
-                    {selectedEmail.subject}
+            {/* ------- Composer Header ------- */}
+            <div className="flex items-center justify-between border-b border-zinc-800 px-4 py-2">
+              <div className="flex items-center gap-3">
+                {/* Compose / Preview tabs */}
+                <div className="flex items-center rounded-md bg-zinc-800 p-0.5">
+                  <button
+                    onClick={() => setComposerTab("compose")}
+                    className={cn(
+                      "flex items-center gap-1.5 rounded px-3 py-1 text-xs font-medium transition-colors",
+                      composerTab === "compose"
+                        ? "bg-zinc-700 text-zinc-100"
+                        : "text-zinc-500 hover:text-zinc-300",
+                    )}
+                  >
+                    <Pencil className="h-3 w-3" />
+                    Compose
+                  </button>
+                  <button
+                    onClick={() => setComposerTab("preview")}
+                    className={cn(
+                      "flex items-center gap-1.5 rounded px-3 py-1 text-xs font-medium transition-colors",
+                      composerTab === "preview"
+                        ? "bg-zinc-700 text-zinc-100"
+                        : "text-zinc-500 hover:text-zinc-300",
+                    )}
+                  >
+                    <Eye className="h-3 w-3" />
+                    Preview
+                  </button>
+                  <button
+                    onClick={() => setComposerTab("split")}
+                    className={cn(
+                      "flex items-center gap-1.5 rounded px-3 py-1 text-xs font-medium transition-colors",
+                      composerTab === "split"
+                        ? "bg-zinc-700 text-zinc-100"
+                        : "text-zinc-500 hover:text-zinc-300",
+                    )}
+                  >
+                    <Columns2 className="h-3 w-3" />
+                    Split
+                  </button>
+                </div>
+
+                {/* Draft indicator */}
+                {hasDraftChanges && (
+                  <div className="flex items-center gap-1.5 text-[10px]">
+                    <div className="h-1.5 w-1.5 rounded-full bg-amber-400" />
+                    <span className="text-amber-400">Unsaved changes</span>
+                    {draftSavedAt && (
+                      <span className="text-zinc-600">(draft saved locally)</span>
+                    )}
                   </div>
                 )}
               </div>
-              <div className="ml-2 flex items-center gap-1">
-                {isEditing ? (
-                  <>
+
+              {/* Actions */}
+              <div className="flex items-center gap-1.5">
+                {hasDraftChanges && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={handleDiscardDraft}
+                    className="h-7 px-2 text-xs text-zinc-500 hover:text-zinc-300"
+                  >
+                    Discard
+                  </Button>
+                )}
+
+                <Button
+                  size="sm"
+                  onClick={handleSave}
+                  disabled={!hasDraftChanges}
+                  className="h-7 bg-amber-500 px-3 text-xs text-black hover:bg-amber-400 disabled:opacity-40"
+                >
+                  <Save className="mr-1 h-3 w-3" />
+                  Save
+                </Button>
+
+                {/* More actions dropdown */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
                     <Button
                       size="sm"
                       variant="ghost"
-                      onClick={() => setIsEditing(false)}
-                      className="h-7 px-2 text-zinc-400 hover:text-zinc-200"
+                      className="h-7 w-7 p-0 text-zinc-400 hover:text-zinc-200"
                     >
-                      <X className="h-3 w-3" />
+                      <MoreHorizontal className="h-4 w-4" />
                     </Button>
-                    <Button
-                      size="sm"
-                      onClick={handleSave}
-                      className="h-7 bg-amber-500 px-2 text-black hover:bg-amber-400"
-                    >
-                      <Save className="mr-1 h-3 w-3" />
-                      Save
-                    </Button>
-                  </>
-                ) : (
-                  <>
-                    <Button
-                      size="sm"
-                      variant="ghost"
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    align="end"
+                    className="border-zinc-700 bg-zinc-900"
+                  >
+                    <DropdownMenuItem
                       onClick={handleToggleEnabled}
-                      className="h-7 px-2 text-xs text-zinc-400 hover:text-zinc-200"
+                      className="text-zinc-200 focus:bg-zinc-800"
                     >
-                      {selectedEmail.enabled ? "Disable" : "Enable"}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={handleStartEdit}
-                      className="h-7 px-2 text-zinc-400 hover:text-zinc-200"
-                    >
-                      <Edit2 className="h-3 w-3" />
-                    </Button>
+                      {selectedEmail?.enabled ? "Disable" : "Enable"} email
+                    </DropdownMenuItem>
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          className="h-7 px-2 text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                        <DropdownMenuItem
+                          onSelect={(e) => e.preventDefault()}
+                          className="text-red-400 focus:bg-zinc-800 focus:text-red-400"
                         >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
+                          <Trash2 className="mr-2 h-3.5 w-3.5" />
+                          Delete email
+                        </DropdownMenuItem>
                       </AlertDialogTrigger>
                       <AlertDialogContent className="border-zinc-800 bg-zinc-900">
                         <AlertDialogHeader>
-                          <AlertDialogTitle className="text-zinc-100">Delete?</AlertDialogTitle>
+                          <AlertDialogTitle className="text-zinc-100">
+                            Delete this email?
+                          </AlertDialogTitle>
                           <AlertDialogDescription className="text-zinc-400">
-                            Delete &quot;{selectedEmail.name}&quot; and all send history?
+                            This will delete &quot;{selectedEmail?.name}&quot; and
+                            all send history. This cannot be undone.
                           </AlertDialogDescription>
                         </AlertDialogHeader>
                         <AlertDialogFooter>
@@ -757,86 +703,308 @@ export default function EmailsAdminPage() {
                         </AlertDialogFooter>
                       </AlertDialogContent>
                     </AlertDialog>
-                  </>
-                )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </div>
 
-            {/* Preview Content */}
+            {/* ------- Composer Body ------- */}
             <div className="flex flex-1 flex-col overflow-hidden">
-              {isEditing ? (
-                <div className="flex-1 p-3">
-                  <Label className="text-xs text-zinc-400">Body (HTML)</Label>
-                  <textarea
-                    value={editForm.body}
-                    onChange={(e) => setEditForm((prev) => ({ ...prev, body: e.target.value }))}
-                    className="mt-1 h-[calc(100%-20px)] w-full rounded-md border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-200 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
-                  />
-                </div>
-              ) : (
-                <div className="flex-1 overflow-hidden bg-white">
-                  <iframe
-                    srcDoc={selectedEmail.body}
-                    className="h-full w-full border-0"
-                    title="Email Preview"
-                    sandbox=""
-                  />
+              {/* Fields row (name/trigger/subject) — shown in compose and split modes */}
+              {composerTab !== "preview" && (
+                <div className="border-b border-zinc-800 p-4 pb-3">
+                  <div className="mb-3 grid grid-cols-3 gap-3">
+                    <div className="col-span-2 space-y-1">
+                      <Label className="text-[10px] font-medium uppercase tracking-wider text-zinc-500">
+                        Name
+                      </Label>
+                      <Input
+                        value={draft.name}
+                        onChange={(e) =>
+                          updateDraft({ name: e.target.value })
+                        }
+                        placeholder="e.g., Week 1 Recap"
+                        className="h-8 border-zinc-700 bg-zinc-800 text-sm text-zinc-200 placeholder:text-zinc-600"
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-[10px] font-medium uppercase tracking-wider text-zinc-500">
+                        Trigger
+                      </Label>
+                      <Select
+                        value={draft.trigger}
+                        onValueChange={(value: EmailTrigger) =>
+                          updateDraft({ trigger: value })
+                        }
+                      >
+                        <SelectTrigger className="h-8 border-zinc-700 bg-zinc-800 text-sm text-zinc-200">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent className="border-zinc-700 bg-zinc-800">
+                          {Object.entries(triggerInfo).map(
+                            ([trigger, info]) => (
+                              <SelectItem
+                                key={trigger}
+                                value={trigger}
+                                className="text-zinc-200 focus:bg-zinc-700 focus:text-zinc-100"
+                              >
+                                <span className="flex items-center gap-2">
+                                  <info.icon className="h-3.5 w-3.5" />
+                                  {info.label}
+                                </span>
+                              </SelectItem>
+                            ),
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label className="text-[10px] font-medium uppercase tracking-wider text-zinc-500">
+                      Subject Line
+                    </Label>
+                    <Input
+                      value={draft.subject}
+                      onChange={(e) =>
+                        updateDraft({ subject: e.target.value })
+                      }
+                      placeholder="e.g., You're in. Let's go."
+                      className="h-8 border-zinc-700 bg-zinc-800 text-sm text-zinc-200 placeholder:text-zinc-600"
+                    />
+                  </div>
                 </div>
               )}
 
-              {/* Send Actions */}
-              {!isEditing && (
-                <div className="border-t border-zinc-800 p-3">
+              {/* Subject preview bar — shown in preview-only mode */}
+              {composerTab === "preview" && (
+                <div className="border-b border-zinc-800 bg-zinc-950 px-4 py-2">
+                  <div className="flex items-center gap-2 text-xs">
+                    <span className="text-zinc-500">Subject:</span>
+                    <span className="font-medium text-zinc-200">
+                      {draft.subject || "(no subject)"}
+                    </span>
+                  </div>
+                  <div className="mt-0.5 flex items-center gap-2 text-[10px]">
+                    <span className="text-zinc-600">From:</span>
+                    <span className="text-zinc-400">
+                      March Fitness &lt;noreply@march.fit&gt;
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* Main content area */}
+              {composerTab === "compose" ? (
+                /* ===== COMPOSE ONLY ===== */
+                <div className="flex flex-1 flex-col overflow-y-auto p-4">
+                  <div className="flex flex-1 flex-col space-y-1">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-[10px] font-medium uppercase tracking-wider text-zinc-500">
+                        Body (Markdown)
+                      </Label>
+                      <span className="text-[10px] text-zinc-600">
+                        **bold** &nbsp; *italic* &nbsp; [link](url) &nbsp; # heading &nbsp; - list
+                      </span>
+                    </div>
+                    <textarea
+                      value={draft.body}
+                      onChange={(e) =>
+                        updateDraft({ body: e.target.value })
+                      }
+                      placeholder={`# Welcome!\n\nYou're signed up for the challenge. Here's what to expect:\n\n- **Week 1**: Build your routine\n- **Week 2**: Push your limits\n\nLet's go!`}
+                      className="flex-1 resize-none rounded-md border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm leading-relaxed text-zinc-200 placeholder:text-zinc-600 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                      style={{ minHeight: "200px" }}
+                    />
+                  </div>
+                </div>
+              ) : composerTab === "preview" ? (
+                /* ===== PREVIEW ONLY ===== */
+                <div className="flex-1 overflow-hidden bg-[#09090b]">
+                  {draft.body ? (
+                    <iframe
+                      srcDoc={markdownToHtml(draft.body)}
+                      className="h-full w-full border-0"
+                      title="Email Preview"
+                      sandbox=""
+                    />
+                  ) : (
+                    <div className="flex h-full items-center justify-center text-zinc-600">
+                      <div className="text-center">
+                        <Eye className="mx-auto h-8 w-8 text-zinc-700" />
+                        <div className="mt-2 text-xs">
+                          Write some content to see the preview
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                /* ===== SPLIT VIEW ===== */
+                <div className="flex flex-1 overflow-hidden">
+                  {/* Left: Markdown editor */}
+                  <div className="flex flex-1 flex-col overflow-y-auto border-r border-zinc-800 p-4">
+                    <div className="mb-1 flex items-center justify-between">
+                      <Label className="text-[10px] font-medium uppercase tracking-wider text-zinc-500">
+                        Body (Markdown)
+                      </Label>
+                      <span className="text-[10px] text-zinc-600">
+                        **bold** &nbsp; *italic* &nbsp; [link](url)
+                      </span>
+                    </div>
+                    <textarea
+                      value={draft.body}
+                      onChange={(e) =>
+                        updateDraft({ body: e.target.value })
+                      }
+                      placeholder={`# Welcome!\n\nYou're signed up for the challenge.`}
+                      className="flex-1 resize-none rounded-md border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm leading-relaxed text-zinc-200 placeholder:text-zinc-600 focus:border-amber-500 focus:outline-none focus:ring-1 focus:ring-amber-500"
+                    />
+                  </div>
+                  {/* Right: Live preview */}
+                  <div className="flex flex-1 flex-col overflow-hidden bg-[#09090b]">
+                    {draft.body ? (
+                      <iframe
+                        srcDoc={markdownToHtml(draft.body)}
+                        className="h-full w-full border-0"
+                        title="Email Preview"
+                        sandbox=""
+                      />
+                    ) : (
+                      <div className="flex h-full items-center justify-center text-zinc-600">
+                        <div className="text-center">
+                          <Eye className="mx-auto h-6 w-6 text-zinc-700" />
+                          <div className="mt-1.5 text-[10px]">
+                            Preview appears here
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* ------- Send Actions Footer (only for existing emails) ------- */}
+              {selectedEmail && (
+                <div className="border-t border-zinc-800 px-4 py-2.5">
                   <div className="flex items-center justify-between">
-                    <div className="text-xs text-zinc-500">
-                      {unsentParticipants?.length ?? 0} unsent
-                      {selectedEmail.trigger === "on_signup" && (
-                        <span className="ml-1 text-zinc-600">(auto on signup)</span>
+                    {/* Left: status badges */}
+                    <div className="flex items-center gap-3">
+                      {selectedEmail.sends.length > 0 && (
+                        <div className="flex items-center gap-2 text-[10px]">
+                          <span className="flex items-center gap-1 text-emerald-400">
+                            <CheckCircle className="h-2.5 w-2.5" />
+                            {selectedEmail.sends.filter(
+                              (s: EmailSend) => s.status === "sent",
+                            ).length}{" "}
+                            sent
+                          </span>
+                          {selectedEmail.sends.filter(
+                            (s: EmailSend) => s.status === "pending",
+                          ).length > 0 && (
+                            <span className="flex items-center gap-1 text-amber-400">
+                              <Clock className="h-2.5 w-2.5" />
+                              {selectedEmail.sends.filter(
+                                (s: EmailSend) => s.status === "pending",
+                              ).length}{" "}
+                              pending
+                            </span>
+                          )}
+                          {selectedEmail.sends.filter(
+                            (s: EmailSend) => s.status === "failed",
+                          ).length > 0 && (
+                            <span className="flex items-center gap-1 text-red-400">
+                              <XCircle className="h-2.5 w-2.5" />
+                              {selectedEmail.sends.filter(
+                                (s: EmailSend) => s.status === "failed",
+                              ).length}{" "}
+                              failed
+                            </span>
+                          )}
+                        </div>
+                      )}
+                      <span className="text-[10px] text-zinc-500">
+                        {unsentParticipants?.length ?? 0} unsent
+                        {selectedEmail.trigger === "on_signup" && (
+                          <span className="ml-1 text-zinc-600">
+                            (auto on signup)
+                          </span>
+                        )}
+                      </span>
+                      {selectedEmail && (
+                        <span
+                          className={cn(
+                            "rounded px-1.5 py-0.5 text-[9px] font-medium",
+                            selectedEmail.enabled
+                              ? "bg-emerald-500/20 text-emerald-400"
+                              : "bg-zinc-700 text-zinc-500",
+                          )}
+                        >
+                          {selectedEmail.enabled ? "Enabled" : "Disabled"}
+                        </span>
                       )}
                     </div>
+
+                    {/* Right: send buttons */}
                     <div className="flex items-center gap-2">
+                      {/* Send Test */}
                       {unsentParticipants && unsentParticipants.length > 0 && (
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button
                               size="sm"
                               variant="outline"
-                              className="h-7 border-zinc-700 px-2 text-xs text-zinc-300"
+                              className="h-7 border-zinc-700 px-2.5 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100"
                             >
-                              <User className="mr-1 h-3 w-3" />
-                              Send to One
+                              <User className="mr-1.5 h-3 w-3" />
+                              Send Test
+                              <ChevronDown className="ml-1 h-3 w-3 text-zinc-500" />
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent
                             align="end"
-                            className="max-h-64 w-64 overflow-y-auto border-zinc-700 bg-zinc-900"
+                            className="max-h-64 w-72 overflow-y-auto border-zinc-700 bg-zinc-900"
                           >
-                            {unsentParticipants.map((user: UnsentParticipant) => (
-                              <DropdownMenuItem
-                                key={user.id}
-                                onClick={() => handleSendToUser(user.id as Id<"users">)}
-                                className="flex items-center gap-2 text-zinc-200 focus:bg-zinc-800"
-                              >
-                                <div className="flex h-5 w-5 items-center justify-center rounded-full bg-zinc-800">
-                                  {user.avatarUrl ? (
-                                    <img
-                                      src={user.avatarUrl}
-                                      alt=""
-                                      className="h-5 w-5 rounded-full object-cover"
-                                    />
-                                  ) : (
-                                    <User className="h-2.5 w-2.5 text-zinc-500" />
-                                  )}
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                  <div className="truncate text-xs">{user.name || user.username}</div>
-                                  <div className="truncate text-[10px] text-zinc-500">{user.email}</div>
-                                </div>
-                              </DropdownMenuItem>
-                            ))}
+                            <div className="px-2 py-1.5 text-[10px] font-medium uppercase tracking-wider text-zinc-500">
+                              Send to one participant
+                            </div>
+                            {unsentParticipants.map(
+                              (user: UnsentParticipant) => (
+                                <DropdownMenuItem
+                                  key={user.id}
+                                  onClick={() =>
+                                    handleSendTest(
+                                      user.id as Id<"users">,
+                                    )
+                                  }
+                                  className="flex items-center gap-2 text-zinc-200 focus:bg-zinc-800"
+                                >
+                                  <div className="flex h-5 w-5 items-center justify-center rounded-full bg-zinc-800">
+                                    {user.avatarUrl ? (
+                                      <img
+                                        src={user.avatarUrl}
+                                        alt=""
+                                        className="h-5 w-5 rounded-full object-cover"
+                                      />
+                                    ) : (
+                                      <User className="h-2.5 w-2.5 text-zinc-500" />
+                                    )}
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <div className="truncate text-xs">
+                                      {user.name || user.username}
+                                    </div>
+                                    <div className="truncate text-[10px] text-zinc-500">
+                                      {user.email}
+                                    </div>
+                                  </div>
+                                </DropdownMenuItem>
+                              ),
+                            )}
                           </DropdownMenuContent>
                         </DropdownMenu>
                       )}
+
+                      {/* Send to All */}
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
                           <Button
@@ -844,16 +1012,19 @@ export default function EmailsAdminPage() {
                             className="h-7 bg-amber-500 px-3 text-xs text-black hover:bg-amber-400"
                             disabled={!unsentParticipants?.length}
                           >
-                            <Send className="mr-1 h-3 w-3" />
+                            <Send className="mr-1.5 h-3 w-3" />
                             Send to All ({unsentParticipants?.length ?? 0})
                           </Button>
                         </AlertDialogTrigger>
                         <AlertDialogContent className="border-zinc-800 bg-zinc-900">
                           <AlertDialogHeader>
-                            <AlertDialogTitle className="text-zinc-100">Send to All?</AlertDialogTitle>
+                            <AlertDialogTitle className="text-zinc-100">
+                              Send to all participants?
+                            </AlertDialogTitle>
                             <AlertDialogDescription className="text-zinc-400">
-                              Send &quot;{selectedEmail.name}&quot; to {unsentParticipants?.length}{" "}
-                              participants?
+                              This will send &quot;{selectedEmail?.name}&quot;
+                              to {unsentParticipants?.length ?? 0} participants
+                              who haven&apos;t received it yet.
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
@@ -864,6 +1035,7 @@ export default function EmailsAdminPage() {
                               onClick={handleSendToAll}
                               className="bg-amber-500 text-black hover:bg-amber-400"
                             >
+                              <Send className="mr-1.5 h-3.5 w-3.5" />
                               Send
                             </AlertDialogAction>
                           </AlertDialogFooter>
@@ -871,47 +1043,119 @@ export default function EmailsAdminPage() {
                       </AlertDialog>
                     </div>
                   </div>
-
-                  {/* Send History Summary */}
-                  {selectedEmail.sends.length > 0 && (
-                    <div className="mt-2 flex items-center gap-3 text-[10px]">
-                      <span className="text-zinc-500">History:</span>
-                      <span className="flex items-center gap-1 text-emerald-400">
-                        <CheckCircle className="h-2.5 w-2.5" />
-                        {selectedEmail.sends.filter((s: EmailSend) => s.status === "sent").length} sent
-                      </span>
-                      {selectedEmail.sends.filter((s: EmailSend) => s.status === "pending").length > 0 && (
-                        <span className="flex items-center gap-1 text-amber-400">
-                          <Clock className="h-2.5 w-2.5" />
-                          {selectedEmail.sends.filter((s: EmailSend) => s.status === "pending").length} pending
-                        </span>
-                      )}
-                      {selectedEmail.sends.filter((s: EmailSend) => s.status === "failed").length > 0 && (
-                        <span className="flex items-center gap-1 text-red-400">
-                          <XCircle className="h-2.5 w-2.5" />
-                          {selectedEmail.sends.filter((s: EmailSend) => s.status === "failed").length} failed
-                        </span>
-                      )}
-                    </div>
-                  )}
                 </div>
               )}
             </div>
           </>
         ) : (
+          /* ===== EMPTY STATE ===== */
           <div className="flex flex-1 items-center justify-center">
             <div className="text-center">
               <Mail className="mx-auto h-10 w-10 text-zinc-700" />
-              <div className="mt-2 text-sm text-zinc-500">Select an email to preview</div>
+              <div className="mt-2 text-sm text-zinc-400">
+                Select an email or create a new one
+              </div>
               <div className="mt-1 text-xs text-zinc-600">
-                Or create a new one with the + button
+                Compose, preview, and send emails to challenge participants
+              </div>
+              <div className="mt-4 flex items-center justify-center gap-2">
+                <Button
+                  size="sm"
+                  onClick={handleNewEmail}
+                  className="bg-amber-500 text-black hover:bg-amber-400"
+                >
+                  <Plus className="mr-1.5 h-3.5 w-3.5" />
+                  New Email
+                </Button>
+                {defaultTemplates &&
+                  defaultTemplates.some(
+                    (t: DefaultTemplate) => !t.alreadyAdded,
+                  ) && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setShowTemplates(true)}
+                      className="border-zinc-700 text-zinc-300 hover:bg-zinc-800"
+                    >
+                      <FileText className="mr-1.5 h-3.5 w-3.5" />
+                      From Template
+                    </Button>
+                  )}
               </div>
             </div>
           </div>
         )}
       </div>
-      </div>
-      )}
+
+      {/* ================================================================= */}
+      {/* TEMPLATES DIALOG                                                  */}
+      {/* ================================================================= */}
+      <Dialog open={showTemplates} onOpenChange={setShowTemplates}>
+        <DialogContent className="max-w-lg border-zinc-800 bg-zinc-900">
+          <DialogHeader>
+            <DialogTitle className="text-zinc-100">
+              Email Templates
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2 py-2">
+            {defaultTemplates?.map((template: DefaultTemplate) => (
+              <div
+                key={template.name}
+                className={cn(
+                  "flex items-center justify-between rounded border px-3 py-2.5",
+                  template.alreadyAdded
+                    ? "border-zinc-800 bg-zinc-800/30"
+                    : "border-zinc-800 bg-zinc-800/50",
+                )}
+              >
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-medium text-zinc-200">
+                      {template.name}
+                    </span>
+                    {template.sendOnDay && (
+                      <span className="text-[10px] text-zinc-500">
+                        Day {template.sendOnDay}
+                      </span>
+                    )}
+                    <span
+                      className={cn(
+                        "rounded px-1 py-0.5 text-[9px] font-medium",
+                        template.trigger === "on_signup"
+                          ? "bg-blue-500/20 text-blue-400"
+                          : "bg-zinc-700 text-zinc-400",
+                      )}
+                    >
+                      {template.trigger === "on_signup"
+                        ? "On Signup"
+                        : "Manual"}
+                    </span>
+                  </div>
+                  <div className="mt-0.5 text-[10px] text-zinc-500">
+                    {template.subject}
+                  </div>
+                </div>
+                {template.alreadyAdded ? (
+                  <span className="flex items-center gap-1 text-[10px] text-emerald-400">
+                    <CheckCircle className="h-3 w-3" />
+                    Added
+                  </span>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleAddTemplate(template.name)}
+                    className="h-6 border-zinc-700 px-2 text-[10px] text-zinc-300 hover:bg-zinc-700 hover:text-zinc-100"
+                  >
+                    <Plus className="mr-1 h-2.5 w-2.5" />
+                    Add
+                  </Button>
+                )}
+              </div>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

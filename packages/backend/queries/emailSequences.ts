@@ -1,5 +1,6 @@
 import { query } from "../_generated/server";
 import { v } from "convex/values";
+import type { Doc } from "../_generated/dataModel";
 import { DEFAULT_EMAIL_PLAN } from "../lib/defaultEmailPlan";
 import { getEmailTemplatePreviewHtml } from "../lib/emailTemplate";
 
@@ -162,6 +163,60 @@ export const getEmailTemplatePreview = query({
   args: {},
   handler: async () => {
     return { html: getEmailTemplatePreviewHtml() };
+  },
+});
+
+/**
+ * List all email sends for a challenge with user and sequence info
+ */
+export const listSends = query({
+  args: {
+    challengeId: v.id("challenges"),
+  },
+  handler: async (ctx, args) => {
+    const sends = await ctx.db
+      .query("emailSends")
+      .withIndex("challengeId", (q) => q.eq("challengeId", args.challengeId))
+      .collect();
+
+    // Sort by createdAt descending (most recent first)
+    sends.sort((a, b) => b.createdAt - a.createdAt);
+
+    // Batch-fetch related data
+    const sequenceCache = new Map<string, Doc<"emailSequences"> | null>();
+    const userCache = new Map<string, Doc<"users"> | null>();
+
+    const result = await Promise.all(
+      sends.map(async (send) => {
+        if (!sequenceCache.has(send.emailSequenceId)) {
+          sequenceCache.set(
+            send.emailSequenceId,
+            await ctx.db.get(send.emailSequenceId),
+          );
+        }
+        if (!userCache.has(send.userId)) {
+          userCache.set(send.userId, await ctx.db.get(send.userId));
+        }
+
+        const sequence = sequenceCache.get(send.emailSequenceId);
+        const user = userCache.get(send.userId);
+
+        return {
+          id: send._id,
+          status: send.status,
+          error: send.error,
+          createdAt: send.createdAt,
+          sentAt: send.sentAt,
+          emailName: sequence?.name ?? "Deleted email",
+          subject: sequence?.subject ?? "",
+          userName: user?.name || user?.username || "Unknown",
+          userEmail: user?.email ?? "",
+          userAvatarUrl: user?.avatarUrl,
+        };
+      }),
+    );
+
+    return result;
   },
 });
 

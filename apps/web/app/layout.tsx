@@ -3,6 +3,7 @@ import Script from "next/script";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ConvexProviderWrapper } from "@/components/providers/convex-provider";
 import { ConditionalHeader } from "@/components/layout/conditional-header";
+import { Toaster } from "@/components/ui/sonner";
 import { getToken, preloadAuthQuery } from "@/lib/server-auth";
 import { api } from "@repo/backend";
 import "./globals.css";
@@ -61,6 +62,7 @@ export default async function RootLayout({
               {children}
             </div>
           </div>
+          <Toaster />
         </body>
       </html>
     </ConvexProviderWrapper>
