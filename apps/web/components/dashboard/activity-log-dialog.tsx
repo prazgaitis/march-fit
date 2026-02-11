@@ -39,10 +39,11 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { useMentionableUsers } from "@/hooks/use-mentionable-users";
 import { isEditorContentEmpty } from "@/lib/rich-text";
 import { cn } from "@/lib/utils";
-import { localDateToIsoNoon } from "@/lib/date-only";
+import { localDateToIsoNoon, formatDateOnlyFromLocalDate, formatDateShortFromDateOnly } from "@/lib/date-only";
 
 interface ActivityLogDialogProps {
   challengeId: string;
+  challengeStartDate?: string;
   trigger?: React.ReactNode;
 }
 
@@ -106,7 +107,7 @@ interface SuccessState {
   triggeredBonuses: string[];
 }
 
-export function ActivityLogDialog({ challengeId, trigger }: ActivityLogDialogProps) {
+export function ActivityLogDialog({ challengeId, challengeStartDate, trigger }: ActivityLogDialogProps) {
   const [open, setOpen] = useState(false);
   const [comboboxOpen, setComboboxOpen] = useState(false);
   const [form, setForm] = useState<FormState>(() => createInitialFormState());
@@ -144,6 +145,10 @@ export function ActivityLogDialog({ challengeId, trigger }: ActivityLogDialogPro
 
   const needsPayment =
     requiresPayment && participation && participation.paymentStatus !== "paid";
+
+  const challengeNotStarted = challengeStartDate
+    ? formatDateOnlyFromLocalDate(new Date()) < challengeStartDate
+    : false;
 
   const formatPrice = (cents: number, currency: string = "usd") => {
     return new Intl.NumberFormat("en-US", {
@@ -639,6 +644,27 @@ export function ActivityLogDialog({ challengeId, trigger }: ActivityLogDialogPro
                 )}
               </Button>
             </ResponsiveDialogFooter>
+          </div>
+        ) : challengeNotStarted ? (
+          <div className="space-y-4">
+            <ResponsiveDialogHeader>
+              <ResponsiveDialogTitle>Challenge not started</ResponsiveDialogTitle>
+              <ResponsiveDialogDescription>
+                This challenge has not started yet.
+              </ResponsiveDialogDescription>
+            </ResponsiveDialogHeader>
+
+            <ResponsiveDialogBody>
+              <div className="rounded-lg border border-zinc-700 bg-zinc-800/50 p-4 text-sm text-zinc-300">
+                <div className="flex items-center gap-2 font-semibold">
+                  <Calendar className="h-4 w-4" />
+                  Activities can be logged starting {challengeStartDate ? formatDateShortFromDateOnly(challengeStartDate) : "soon"}
+                </div>
+                <p className="mt-2 text-xs text-zinc-400">
+                  Check back when the challenge begins to start logging your activities.
+                </p>
+              </div>
+            </ResponsiveDialogBody>
           </div>
         ) : successState ? (
           // Success View

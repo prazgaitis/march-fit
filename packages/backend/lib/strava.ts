@@ -27,6 +27,7 @@ export interface StravaActivity {
   type: string;
   sport_type: string;
   start_date: string;
+  start_date_local?: string;
   elapsed_time: number;
   moving_time: number;
   distance?: number;
@@ -107,9 +108,8 @@ export function mapStravaActivity(
   activityTypeId: Id<"activityTypes">,
   metricMapping?: MetricMappingConfig
 ): MappedActivityData {
-  const loggedDate = new Date(stravaActivity.start_date)
-    .toISOString()
-    .split("T")[0];
+  // Use the activity's local date when available to get the correct calendar day
+  const loggedDate = (stravaActivity.start_date_local ?? stravaActivity.start_date).split("T")[0];
 
   const metrics = extractMetrics(stravaActivity, metricMapping);
 

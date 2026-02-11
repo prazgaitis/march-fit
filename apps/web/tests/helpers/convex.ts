@@ -2,7 +2,7 @@ import { convexTest } from "convex-test";
 import { schema } from "@repo/backend";
 import { GenericMutationCtx } from "convex/server";
 import { DataModel, Id } from "@repo/backend/_generated/dataModel";
-import { formatDateOnlyFromUtcMs } from "@/lib/date-only";
+
 
 // Import all backend modules lazily from the packages/backend directory
 // This runs in Vite/Vitest context which supports import.meta.glob
@@ -39,15 +39,13 @@ export const createTestUser = async (t: ReturnType<typeof createTestContext>, ov
 
 // Helper to create a challenge
 export const createTestChallenge = async (t: ReturnType<typeof createTestContext>, creatorId: string, overrides: Partial<DataModel["challenges"]["document"]> = {}) => {
-  const today = formatDateOnlyFromUtcMs(Date.now());
-  const end = formatDateOnlyFromUtcMs(Date.now() + 30 * 24 * 60 * 60 * 1000);
   const challengeId = await t.run(async (ctx: GenericMutationCtx<DataModel>) => {
     return await ctx.db.insert("challenges", {
       name: "Test Challenge",
       description: "A test challenge",
       creatorId: creatorId as Id<"users">,
-      startDate: today,
-      endDate: end,
+      startDate: "2024-01-01",
+      endDate: "2024-01-31",
       durationDays: 30,
       streakMinPoints: 10,
       weekCalcMethod: "from_start",

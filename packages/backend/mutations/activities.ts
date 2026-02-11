@@ -4,7 +4,7 @@ import { calculateActivityPoints, calculateThresholdBonuses, calculateOptionalBo
 import { getCurrentUser } from "../lib/ids";
 import { isPaymentRequired } from "../lib/payments";
 import type { Id } from "../_generated/dataModel";
-import { dateOnlyToUtcMs } from "../lib/dateOnly";
+import { dateOnlyToUtcMs, coerceDateOnlyToString, formatDateOnlyFromUtcMs } from "../lib/dateOnly";
 import { getChallengeWeekNumber } from "../lib/weeks";
 import { notDeleted } from "../lib/activityFilters";
 
@@ -163,6 +163,15 @@ export const log = mutation({
 
     // Parse logged date for validation
     const loggedDateTs = Date.parse(args.loggedDate);
+
+    // Prevent logging activities before the challenge start date (date-only comparison)
+    const challengeStartStr = coerceDateOnlyToString(challenge.startDate);
+    const loggedDateStr = formatDateOnlyFromUtcMs(loggedDateTs);
+    if (loggedDateStr < challengeStartStr) {
+      throw new Error(
+        `Cannot log activities before the challenge starts on ${challengeStartStr}`
+      );
+    }
 
     // Enforce validWeeks restriction
     if (activityType.validWeeks && activityType.validWeeks.length > 0) {

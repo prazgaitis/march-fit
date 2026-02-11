@@ -48,6 +48,7 @@ export function DashboardLayout({
             <div className="mb-1">
               <ActivityLogDialog
                 challengeId={challenge.id}
+                challengeStartDate={challenge.startDate}
                 trigger={
                   <button
                     className="flex items-center justify-center rounded-full p-3 text-indigo-400 transition-colors hover:bg-zinc-900 hover:text-indigo-300"
@@ -99,6 +100,7 @@ export function DashboardLayout({
             <div className="mb-1">
               <ActivityLogDialog
                 challengeId={challenge.id}
+                challengeStartDate={challenge.startDate}
                 trigger={
                   <button className="flex w-full items-center gap-4 rounded-full px-4 py-3 text-indigo-400 transition-colors hover:bg-zinc-900 hover:text-indigo-300">
                     <Plus className="h-6 w-6 flex-shrink-0" />
@@ -142,7 +144,7 @@ export function DashboardLayout({
       )}
 
       {/* Mobile Bottom Nav */}
-      <MobileNav challengeId={challenge.id} currentUserId={currentUserId} />
+      <MobileNav challengeId={challenge.id} currentUserId={currentUserId} challengeStartDate={challenge.startDate} />
     </div>
   );
 }
