@@ -3,16 +3,12 @@ import type { Doc } from "@repo/backend/_generated/dataModel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Play } from "lucide-react";
-import { formatDateLongFromDateOnly } from "@/lib/date-only";
-
 interface Challenge {
   id: string;
   name: string;
   description: string | null;
   startDate: string;
   endDate: string;
-  durationDays: number;
-  streakMinPoints: number;
   welcomeVideoUrl?: string;
   welcomeMessage?: string;
 }
@@ -123,33 +119,6 @@ export function ChallengeDetails({ challenge, activityTypes }: ChallengeDetailsP
           </CardContent>
         </Card>
       )}
-      <Card>
-        <CardHeader>
-          <CardTitle>About This Challenge</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-muted-foreground leading-relaxed">{challenge.description}</p>
-
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <h4 className="font-semibold text-foreground mb-2">Challenge Period</h4>
-              <p className="text-sm text-muted-foreground">
-                {formatDateLongFromDateOnly(challenge.startDate)} - {formatDateLongFromDateOnly(challenge.endDate)}
-              </p>
-              <p className="text-sm text-muted-foreground/70">{challenge.durationDays} days total</p>
-            </div>
-
-            <div>
-              <h4 className="font-semibold text-foreground mb-2">Daily Goal</h4>
-              <p className="text-sm text-muted-foreground">
-                Minimum {challenge.streakMinPoints} points per day
-              </p>
-              <p className="text-sm text-muted-foreground/70">to maintain your streak</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
       <Card>
         <CardHeader>
           <CardTitle>How to Participate</CardTitle>

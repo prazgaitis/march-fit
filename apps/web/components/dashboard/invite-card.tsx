@@ -97,31 +97,57 @@ export function InviteCard({ challengeId }: InviteCardProps) {
       </CardHeader>
       <CardContent>
         {code ? (
-          <div className="flex gap-2">
-            <div className="flex-1 truncate rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-muted-foreground">
-              {inviteUrl}
+          <>
+            {/* Mobile: action buttons */}
+            <div className="flex gap-2 sm:hidden">
+              <Button
+                variant="secondary"
+                className="flex-1"
+                onClick={handleCopy}
+              >
+                {copied ? (
+                  <Check className="mr-2 h-4 w-4 text-green-400" />
+                ) : (
+                  <Copy className="mr-2 h-4 w-4" />
+                )}
+                {copied ? "Copied!" : "Copy invite link"}
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={handleShare}
+                title="Share link"
+              >
+                <Share2 className="h-4 w-4" />
+              </Button>
             </div>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={handleCopy}
-              title="Copy link"
-            >
-              {copied ? (
-                <Check className="h-4 w-4 text-green-400" />
-              ) : (
-                <Copy className="h-4 w-4" />
-              )}
-            </Button>
-            <Button
-              variant="outline"
-              size="icon"
-              onClick={handleShare}
-              title="Share link"
-            >
-              <Share2 className="h-4 w-4" />
-            </Button>
-          </div>
+            {/* Desktop: URL + icon buttons */}
+            <div className="hidden sm:flex gap-2">
+              <div className="flex-1 truncate rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-muted-foreground">
+                {inviteUrl}
+              </div>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={handleCopy}
+                title="Copy link"
+              >
+                {copied ? (
+                  <Check className="h-4 w-4 text-green-400" />
+                ) : (
+                  <Copy className="h-4 w-4" />
+                )}
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                onClick={handleShare}
+                title="Share link"
+              >
+                <Share2 className="h-4 w-4" />
+              </Button>
+            </div>
+          </>
         ) : (
           <Button
             onClick={handleGenerateCode}
