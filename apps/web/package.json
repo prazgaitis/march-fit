@@ -26,6 +26,7 @@
     "@radix-ui/react-slot": "^1.2.3",
     "@radix-ui/react-switch": "^1.2.6",
     "@repo/backend": "workspace:*",
+    "@sentry/nextjs": "^10.38.0",
     "@tiptap/extension-mention": "^2.10.4",
     "@tiptap/extension-placeholder": "^2.10.4",
     "@tiptap/html": "^2.10.4",
