@@ -1,0 +1,13 @@
+{
+  "challenge": {
+    "name": "February Warmup 2026",
+    "description": "Get ready for March Fitness with this warmup challenge! Build your habits and get in shape before the main event.",
+    "startDate": "2026-02-01",
+    "endDate": "2026-02-28",
+    "streakMinPoints": 10,
+    "weekCalcMethod": "sunday",
+    "visibility": "public"
+  },
+  "creatorEmail": "prazgaitis@gmail.com",
+  "activityTypesFile": "activity-types.json"
+}

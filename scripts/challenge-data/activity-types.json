@@ -1,0 +1,315 @@
+[
+  {
+    "name": "Outdoor Run",
+    "description": "Running, jogging, hiking, walking for fitness. 7.5 points per mile.",
+    "category": "Outdoor Running",
+    "scoringConfig": { "type": "unit_based", "unit": "miles", "pointsPerUnit": 7.5 },
+    "contributesToStreak": true,
+    "isNegative": false,
+    "bonusThresholds": [
+      { "metric": "distance_miles", "threshold": 13.1, "bonusPoints": 25, "description": "Half Marathon bonus" },
+      { "metric": "distance_miles", "threshold": 26.2, "bonusPoints": 100, "description": "Marathon bonus" }
+    ]
+  },
+  {
+    "name": "Outdoor Cycling",
+    "description": "Outdoor cycling activities. 2.4 points per mile.",
+    "category": "Cycling",
+    "scoringConfig": { "type": "unit_based", "unit": "miles", "pointsPerUnit": 2.4 },
+    "contributesToStreak": true,
+    "isNegative": false,
+    "bonusThresholds": [
+      { "metric": "distance_miles", "threshold": 100, "bonusPoints": 50, "description": "Century ride bonus" },
+      { "metric": "distance_miles", "threshold": 112, "bonusPoints": 100, "description": "Ironman bike bonus" }
+    ]
+  },
+  {
+    "name": "Rowing",
+    "description": "Indoor rowers and ski ergs.",
+    "category": "Rowing",
+    "scoringConfig": { "type": "unit_based", "unit": "kilometers", "pointsPerUnit": 4.5 },
+    "contributesToStreak": true,
+    "isNegative": false,
+    "bonusThresholds": [
+      { "metric": "distance_km", "threshold": 42.2, "bonusPoints": 100, "description": "Marathon erg bonus" }
+    ]
+  },
+  {
+    "name": "Swimming",
+    "description": "Pool or open water swimming. 15 points per mile.",
+    "category": "High Intensity Cardio",
+    "scoringConfig": { "type": "unit_based", "unit": "miles", "pointsPerUnit": 15 },
+    "contributesToStreak": true,
+    "isNegative": false,
+    "bonusThresholds": [
+      { "metric": "distance_miles", "threshold": 2.4, "bonusPoints": 50, "description": "Ironman swim bonus" }
+    ]
+  },
+  {
+    "name": "Hi-Intensity Cardio",
+    "description": ">75% max HR - HIIT, interval training, boxing, cardio sports. 0.9 points per minute.",
+    "category": "High Intensity Cardio",
+    "scoringConfig": { "type": "unit_based", "unit": "minutes", "pointsPerUnit": 0.9 },
+    "contributesToStreak": true,
+    "isNegative": false
+  },
+  {
+    "name": "Lo-Intensity Cardio",
+    "description": "<75% max HR - lifting, pilates, bouldering, elliptical. 0.6 points per minute.",
+    "category": "Low Intensity Cardio",
+    "scoringConfig": { "type": "unit_based", "unit": "minutes", "pointsPerUnit": 0.6 },
+    "contributesToStreak": true,
+    "isNegative": false
+  },
+  {
+    "name": "Yoga / Stretching",
+    "description": "Yoga, stretching, mobility work. 0.4 points per minute.",
+    "category": "Low Intensity Cardio",
+    "scoringConfig": { "type": "unit_based", "unit": "minutes", "pointsPerUnit": 0.4 },
+    "contributesToStreak": true,
+    "isNegative": false
+  },
+  {
+    "name": "Horses",
+    "description": "Horse-related fitness activities. 16.75 points per horse.",
+    "category": "Horses",
+    "scoringConfig": { "type": "unit_based", "unit": "horses", "pointsPerUnit": 16.75 },
+    "contributesToStreak": true,
+    "isNegative": false
+  },
+  {
+    "name": "Skiing Full Day",
+    "description": "Full day of skiing. 35 points. Note: Does not extend streak.",
+    "category": "Low Intensity Cardio",
+    "scoringConfig": { "type": "unit_based", "unit": "full days", "pointsPerUnit": 35 },
+    "contributesToStreak": false,
+    "isNegative": false
+  },
+  {
+    "name": "Skiing Half Day",
+    "description": "Half day of skiing. 15 points. Note: Does not extend streak.",
+    "category": "Low Intensity Cardio",
+    "scoringConfig": { "type": "unit_based", "unit": "half days", "pointsPerUnit": 15 },
+    "contributesToStreak": false,
+    "isNegative": false
+  },
+  {
+    "name": "Hotel Room Workout",
+    "description": "Workout while traveling. 50 points.",
+    "category": "Special",
+    "scoringConfig": { "type": "completion", "fixedPoints": 50 },
+    "contributesToStreak": true,
+    "isNegative": false
+  },
+  {
+    "name": "Burpee Challenge Week 1",
+    "description": "100 burpees. Chest and thighs must touch ground. <10min=50pts, <12min=30pts, >12min=10pts.",
+    "category": "Special",
+    "scoringConfig": {
+      "type": "tiered",
+      "metric": "duration_minutes",
+      "tiers": [
+        { "maxValue": 10, "points": 50 },
+        { "maxValue": 12, "points": 30 },
+        { "points": 10 }
+      ]
+    },
+    "contributesToStreak": true,
+    "isNegative": false,
+    "validWeeks": [1]
+  },
+  {
+    "name": "Burpee Challenge Week 2",
+    "description": "110 burpees. Chest and thighs must touch ground. <10min=50pts, <12min=30pts, >12min=10pts.",
+    "category": "Special",
+    "scoringConfig": {
+      "type": "tiered",
+      "metric": "duration_minutes",
+      "tiers": [
+        { "maxValue": 10, "points": 50 },
+        { "maxValue": 12, "points": 30 },
+        { "points": 10 }
+      ]
+    },
+    "contributesToStreak": true,
+    "isNegative": false,
+    "validWeeks": [2]
+  },
+  {
+    "name": "Burpee Challenge Week 3",
+    "description": "120 burpees. Chest and thighs must touch ground. <10min=50pts, <12min=30pts, >12min=10pts.",
+    "category": "Special",
+    "scoringConfig": {
+      "type": "tiered",
+      "metric": "duration_minutes",
+      "tiers": [
+        { "maxValue": 10, "points": 50 },
+        { "maxValue": 12, "points": 30 },
+        { "points": 10 }
+      ]
+    },
+    "contributesToStreak": true,
+    "isNegative": false,
+    "validWeeks": [3]
+  },
+  {
+    "name": "Burpee Challenge Week 4",
+    "description": "130 burpees. Chest and thighs must touch ground. <10min=50pts, <12min=30pts, >12min=10pts.",
+    "category": "Special",
+    "scoringConfig": {
+      "type": "tiered",
+      "metric": "duration_minutes",
+      "tiers": [
+        { "maxValue": 10, "points": 50 },
+        { "maxValue": 12, "points": 30 },
+        { "points": 10 }
+      ]
+    },
+    "contributesToStreak": true,
+    "isNegative": false,
+    "validWeeks": [4]
+  },
+  {
+    "name": "The Max",
+    "description": "Circuit: 25 Squats + 20 Curls | 25 Squats + 20 Lunges | 25 Squats + 20 Overhead Press | 25 Squats + 20 Bent Over Rows. Never put the bar down! Max of 3 circuits.",
+    "category": "Special",
+    "scoringConfig": {
+      "type": "unit_based",
+      "unit": "circuits",
+      "pointsPerUnit": 25,
+      "maxUnits": 3
+    },
+    "contributesToStreak": true,
+    "isNegative": false
+  },
+  {
+    "name": "Sally-up Challenge",
+    "description": "How long can you hold? <60s=0pts, 60-90s=5pts, 90-120s=15pts, 120-180s=25pts, Full Video=40pts. One-time opportunity.",
+    "category": "Special",
+    "scoringConfig": {
+      "type": "tiered",
+      "metric": "duration_seconds",
+      "tiers": [
+        { "maxValue": 60, "points": 0 },
+        { "maxValue": 90, "points": 5 },
+        { "maxValue": 120, "points": 15 },
+        { "maxValue": 180, "points": 25 },
+        { "points": 40 }
+      ]
+    },
+    "contributesToStreak": true,
+    "isNegative": false,
+    "maxPerChallenge": 1
+  },
+  {
+    "name": "Tracy Anderson Arms",
+    "description": "See how long you can go without resting arms. 4+ min=20pts, Full Video=40pts. One-time opportunity.",
+    "category": "Special",
+    "scoringConfig": {
+      "type": "tiered",
+      "metric": "duration_minutes",
+      "tiers": [
+        { "maxValue": 4, "points": 0 },
+        { "maxValue": 999, "points": 20 },
+        { "points": 40 }
+      ]
+    },
+    "contributesToStreak": true,
+    "isNegative": false,
+    "maxPerChallenge": 1
+  },
+  {
+    "name": "The Murph",
+    "description": "1 Mile Run, 100 Pull ups, 200 Push ups, 300 Air squats, 1 Mile Run. 65pts base, +40pts with 20lb weighted vest.",
+    "category": "Special",
+    "scoringConfig": {
+      "type": "completion",
+      "fixedPoints": 65,
+      "optionalBonuses": [
+        { "name": "Weighted Vest", "bonusPoints": 40, "description": "Completed with 20lb weighted vest" }
+      ]
+    },
+    "contributesToStreak": true,
+    "isNegative": false
+  },
+  {
+    "name": "10 Days of Mindfulness",
+    "description": "Meditate, journal, reflect, pray for 10+ uninterrupted minutes for 10 straight days. 100 points. Limit 1 per challenge.",
+    "category": "Special",
+    "scoringConfig": { "type": "completion", "fixedPoints": 100 },
+    "contributesToStreak": true,
+    "isNegative": false,
+    "maxPerChallenge": 1
+  },
+  {
+    "name": "Workout with a Friend",
+    "description": "Log when you work out with a friend. 25 points. One-time, Week 3 only.",
+    "category": "Bonus",
+    "scoringConfig": { "type": "completion", "fixedPoints": 25 },
+    "contributesToStreak": false,
+    "isNegative": false,
+    "maxPerChallenge": 1,
+    "validWeeks": [3]
+  },
+  {
+    "name": "Retro Abs Bonus",
+    "description": "Complete the retro abs workout. 15 points.",
+    "category": "Special",
+    "scoringConfig": { "type": "completion", "fixedPoints": 15 },
+    "contributesToStreak": true,
+    "isNegative": false
+  },
+  {
+    "name": "Partner Week Bonus",
+    "description": "Awarded at the end of Partner Week based on your partnership performance.",
+    "category": "Bonus",
+    "scoringConfig": { "type": "variable" },
+    "contributesToStreak": false,
+    "isNegative": false
+  },
+  {
+    "name": "PR Week Bonus",
+    "description": "Awarded if you hit a PR during PR Week.",
+    "category": "Bonus",
+    "scoringConfig": { "type": "variable" },
+    "contributesToStreak": false,
+    "isNegative": false
+  },
+  {
+    "name": "The Hunt Bonus",
+    "description": "Awarded based on Hunt Week results.",
+    "category": "Bonus",
+    "scoringConfig": { "type": "variable" },
+    "contributesToStreak": false,
+    "isNegative": false
+  },
+  {
+    "name": "Category Leader Bonus",
+    "description": "Awarded to category leaders at end of challenge.",
+    "category": "Bonus",
+    "scoringConfig": { "type": "variable" },
+    "contributesToStreak": false,
+    "isNegative": false
+  },
+  {
+    "name": "Drinks",
+    "description": "Log your drinks. First one is free each day, then -5 points per drink.",
+    "category": "Penalty",
+    "scoringConfig": {
+      "type": "unit_based",
+      "unit": "drinks",
+      "pointsPerUnit": 5,
+      "dailyFreeUnits": 1
+    },
+    "contributesToStreak": false,
+    "isNegative": true
+  },
+  {
+    "name": "Overindulge",
+    "description": "Self-logged penalty for overindulgence. -10 points per occurrence.",
+    "category": "Penalty",
+    "scoringConfig": { "type": "unit_based", "unit": "count", "pointsPerUnit": 10 },
+    "contributesToStreak": false,
+    "isNegative": true
+  }
+]

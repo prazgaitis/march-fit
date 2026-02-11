@@ -23,4 +23,5 @@ if [ -z "${CONVEX_SELF_HOSTED_URL:-}" ] || [ -z "${CONVEX_SELF_HOSTED_ADMIN_KEY:
   exit 1
 fi
 
-exec npx convex "$@"
+cd "$ROOT_DIR"
+exec pnpm -F backend exec npx convex "$@"
