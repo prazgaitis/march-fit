@@ -2,6 +2,9 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { api } from '@repo/backend';
 import { createTestContext, createTestUser, createTestChallenge } from '../helpers/convex';
 
+// Fixed base timestamp within the test challenge window (Jan 10 2024)
+const TEST_NOW = new Date('2024-01-10T00:00:00Z').getTime();
+
 describe('Mini-Games Scoring', () => {
   let t: Awaited<ReturnType<typeof createTestContext>>;
 
@@ -112,7 +115,7 @@ describe('Mini-Games Scoring', () => {
       const user4 = await createUserWithParticipation(challengeId, 25, { username: 'user4' });  // Rank 4
 
       // Create a partner week mini-game
-      const now = Date.now();
+      const now = TEST_NOW;
       const { miniGameId } = await tWithAuth.mutation(api.mutations.miniGames.create, {
         challengeId,
         type: "partner_week",
@@ -159,7 +162,7 @@ describe('Mini-Games Scoring', () => {
       const user2 = await createUserWithParticipation(challengeId, 50, { username: 'user2' });  // Rank 2 (middle)
       await createUserWithParticipation(challengeId, 25, { username: 'user3' });  // Rank 3
 
-      const now = Date.now();
+      const now = TEST_NOW;
       const { miniGameId } = await tWithAuth.mutation(api.mutations.miniGames.create, {
         challengeId,
         type: "partner_week",
@@ -192,7 +195,7 @@ describe('Mini-Games Scoring', () => {
       const user1 = await createUserWithParticipation(challengeId, 100, { username: 'user1' });
       const user2 = await createUserWithParticipation(challengeId, 50, { username: 'user2' });
 
-      const now = Date.now();
+      const now = TEST_NOW;
       const gameStart = now;
       const gameEnd = now + 7 * 24 * 60 * 60 * 1000;
 
@@ -243,7 +246,7 @@ describe('Mini-Games Scoring', () => {
       const user1 = await createUserWithParticipation(challengeId, 100, { username: 'user1' });
       const user2 = await createUserWithParticipation(challengeId, 50, { username: 'user2' });
 
-      const now = Date.now();
+      const now = TEST_NOW;
       const { miniGameId } = await tWithAuth.mutation(api.mutations.miniGames.create, {
         challengeId,
         type: "partner_week",
@@ -283,7 +286,7 @@ describe('Mini-Games Scoring', () => {
       const user3 = await createUserWithParticipation(challengeId, 50, { username: 'user3' });  // Rank 3
       const user4 = await createUserWithParticipation(challengeId, 25, { username: 'user4' });  // Rank 4
 
-      const now = Date.now();
+      const now = TEST_NOW;
       const { miniGameId } = await tWithAuth.mutation(api.mutations.miniGames.create, {
         challengeId,
         type: "hunt_week",
@@ -332,7 +335,7 @@ describe('Mini-Games Scoring', () => {
       await createUserWithParticipation(challengeId, 100, { username: 'user1' }); // Rank 1
       const user2 = await createUserWithParticipation(challengeId, 50, { username: 'user2' });  // Rank 2
 
-      const now = Date.now();
+      const now = TEST_NOW;
       const { miniGameId } = await tWithAuth.mutation(api.mutations.miniGames.create, {
         challengeId,
         type: "hunt_week",
@@ -372,7 +375,7 @@ describe('Mini-Games Scoring', () => {
       const user1 = await createUserWithParticipation(challengeId, 100, { username: 'user1' }); // Rank 1
       const user2 = await createUserWithParticipation(challengeId, 50, { username: 'user2' });  // Rank 2
 
-      const now = Date.now();
+      const now = TEST_NOW;
       const { miniGameId } = await tWithAuth.mutation(api.mutations.miniGames.create, {
         challengeId,
         type: "hunt_week",
@@ -412,7 +415,7 @@ describe('Mini-Games Scoring', () => {
       const user2 = await createUserWithParticipation(challengeId, 50, { username: 'user2' });  // Rank 2
       const user3 = await createUserWithParticipation(challengeId, 25, { username: 'user3' });  // Rank 3
 
-      const now = Date.now();
+      const now = TEST_NOW;
       const { miniGameId } = await tWithAuth.mutation(api.mutations.miniGames.create, {
         challengeId,
         type: "hunt_week",
@@ -454,7 +457,7 @@ describe('Mini-Games Scoring', () => {
       const user1 = await createUserWithParticipation(challengeId, 100, { username: 'user1' }); // Rank 1
       await createUserWithParticipation(challengeId, 50, { username: 'user2' });  // Rank 2
 
-      const now = Date.now();
+      const now = TEST_NOW;
       const { miniGameId } = await tWithAuth.mutation(api.mutations.miniGames.create, {
         challengeId,
         type: "hunt_week",
@@ -493,7 +496,7 @@ describe('Mini-Games Scoring', () => {
       const user1 = await createUserWithParticipation(challengeId, 0, { username: 'user1' });
 
       // Log activities before game starts to establish PR
-      const beforeGameStart = Date.now() - 10 * 24 * 60 * 60 * 1000; // 10 days ago
+      const beforeGameStart = TEST_NOW - 5 * 24 * 60 * 60 * 1000; // 10 days ago
 
       // Day 1: 30 points
       await logActivity(user1, challengeId, activityTypeId, 30, beforeGameStart);
@@ -504,7 +507,7 @@ describe('Mini-Games Scoring', () => {
       // Day 3: 20 points
       await logActivity(user1, challengeId, activityTypeId, 20, beforeGameStart + 2 * 24 * 60 * 60 * 1000);
 
-      const now = Date.now();
+      const now = TEST_NOW;
       const { miniGameId } = await tWithAuth.mutation(api.mutations.miniGames.create, {
         challengeId,
         type: "pr_week",
@@ -535,10 +538,10 @@ describe('Mini-Games Scoring', () => {
       const user1 = await createUserWithParticipation(challengeId, 0, { username: 'user1' });
 
       // Establish PR of 50 before game
-      const beforeGameStart = Date.now() - 10 * 24 * 60 * 60 * 1000;
+      const beforeGameStart = TEST_NOW - 5 * 24 * 60 * 60 * 1000;
       await logActivity(user1, challengeId, activityTypeId, 50, beforeGameStart);
 
-      const now = Date.now();
+      const now = TEST_NOW;
       const gameStart = now;
       const gameEnd = now + 7 * 24 * 60 * 60 * 1000;
 
@@ -579,10 +582,10 @@ describe('Mini-Games Scoring', () => {
       const user1 = await createUserWithParticipation(challengeId, 0, { username: 'user1' });
 
       // Establish PR of 50 before game
-      const beforeGameStart = Date.now() - 10 * 24 * 60 * 60 * 1000;
+      const beforeGameStart = TEST_NOW - 5 * 24 * 60 * 60 * 1000;
       await logActivity(user1, challengeId, activityTypeId, 50, beforeGameStart);
 
-      const now = Date.now();
+      const now = TEST_NOW;
       const gameStart = now;
       const gameEnd = now + 7 * 24 * 60 * 60 * 1000;
 
@@ -623,10 +626,10 @@ describe('Mini-Games Scoring', () => {
       const user1 = await createUserWithParticipation(challengeId, 0, { username: 'user1' });
 
       // Establish PR of 50
-      const beforeGameStart = Date.now() - 10 * 24 * 60 * 60 * 1000;
+      const beforeGameStart = TEST_NOW - 5 * 24 * 60 * 60 * 1000;
       await logActivity(user1, challengeId, activityTypeId, 50, beforeGameStart);
 
-      const now = Date.now();
+      const now = TEST_NOW;
       const gameStart = now;
       const gameEnd = now + 7 * 24 * 60 * 60 * 1000;
 
@@ -666,10 +669,10 @@ describe('Mini-Games Scoring', () => {
       const user1 = await createUserWithParticipation(challengeId, 0, { username: 'user1' });
 
       // Establish PR of 50 before game
-      const beforeGameStart = Date.now() - 10 * 24 * 60 * 60 * 1000;
+      const beforeGameStart = TEST_NOW - 5 * 24 * 60 * 60 * 1000;
       await logActivity(user1, challengeId, activityTypeId, 50, beforeGameStart);
 
-      const now = Date.now();
+      const now = TEST_NOW;
       const gameStart = now;
       const gameEnd = now + 7 * 24 * 60 * 60 * 1000;
 
@@ -714,7 +717,7 @@ describe('Mini-Games Scoring', () => {
       const user1 = await createUserWithParticipation(challengeId, 100, { username: 'user1' });
       const user2 = await createUserWithParticipation(challengeId, 50, { username: 'user2' });
 
-      const now = Date.now();
+      const now = TEST_NOW;
       const { miniGameId } = await tWithAuth.mutation(api.mutations.miniGames.create, {
         challengeId,
         type: "partner_week",
