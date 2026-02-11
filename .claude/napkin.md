@@ -25,3 +25,4 @@
 | 2026-02-11 | self | Set NEXT_PUBLIC_CONVEX_SITE_URL without export, so child process didn't receive it | Use `export` (or VAR=... cmd) when setting env vars for `next build` |
 | 2026-02-11 | self | Assumed `CONVEX_URL` would always be set inside `--cmd` but it was empty in Vercel logs | Use `--cmd-url-env-var-name NEXT_PUBLIC_CONVEX_URL` and reference that explicitly; export it for `next build` |
 | 2026-02-11 | self | Vercel `buildCommand` schema max length 256 chars | Move long logic into a script and keep `buildCommand` short |
+| 2026-02-11 | self | `set -u` caused failure because `$NEXT_PUBLIC_CONVEX_URL` expanded in the outer script, not inside `--cmd` | Escape `$` in the `--cmd` string so it expands in the Convex-invoked shell |
