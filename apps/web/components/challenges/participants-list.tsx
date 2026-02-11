@@ -8,7 +8,7 @@ interface Participant {
   username: string;
   name: string | null;
   avatarUrl: string | null;
-  joinedAt: Date;
+  joinedAt: string;
 }
 
 interface ParticipantsListProps {
@@ -48,7 +48,7 @@ export function ParticipantsList({ challengeId, participants, totalCount }: Part
                 className="p-3 rounded-lg hover:bg-accent transition-colors"
               >
                 <p className="text-xs text-muted-foreground/70">
-                  Joined {formatDistanceToNow(participant.joinedAt)} ago
+                  Joined {formatDistanceToNow(new Date(participant.joinedAt))} ago
                 </p>
               </UserAvatar>
             ))}

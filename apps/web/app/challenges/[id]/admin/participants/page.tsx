@@ -181,7 +181,6 @@ export default function AdminParticipantsPage() {
                 <div className="col-span-4 flex items-center gap-2">
                   <div className="flex h-6 w-6 items-center justify-center rounded-full bg-zinc-800">
                     {participant.user.avatarUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
                       <img
                         src={participant.user.avatarUrl}
                         alt=""

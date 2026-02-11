@@ -503,7 +503,6 @@ export default function PaymentsAdminPage() {
                   <div className="flex items-center gap-3">
                     <div className="flex h-8 w-8 items-center justify-center rounded-full bg-zinc-800">
                       {payment.user?.avatarUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
                         <img
                           src={payment.user.avatarUrl}
                           alt=""

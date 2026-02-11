@@ -8,7 +8,7 @@ import { dateOnlyToUtcMs, formatDateShortFromDateOnly } from "@/lib/date-only";
 import { ArrowLeft } from "lucide-react";
 
 import { requireAuth } from "@/lib/auth";
-import { AdminNavigation } from "@/components/admin/admin-navigation";
+import { AdminNavigation, type AdminNavigationGroup } from "@/components/admin/admin-navigation";
 
 const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
@@ -44,61 +44,43 @@ export default async function ChallengeAdminLayout({
     challengeId: id as Id<"challenges">,
   });
 
-  const navItems: { href: string; label: string; segment: string }[] = [
+  const base = `/challenges/${challenge._id}/admin`;
+
+  const navGroups: AdminNavigationGroup[] = [
     {
-      href: `/challenges/${challenge._id}/admin`,
-      label: "Overview",
-      segment: "(overview)",
+      label: "Monitor",
+      items: [
+        { href: base, label: "Overview", segment: "(overview)" },
+        { href: `${base}/flagged-activities`, label: "Flagged", segment: "flagged-activities" },
+      ],
     },
     {
-      href: `/challenges/${challenge._id}/admin/settings`,
-      label: "Settings",
-      segment: "settings",
+      label: "Scoring",
+      items: [
+        { href: `${base}/activity-types`, label: "Activity Types", segment: "activity-types" },
+        { href: `${base}/integrations`, label: "Integrations", segment: "integrations" },
+        { href: `${base}/achievements`, label: "Achievements", segment: "achievements" },
+      ],
     },
     {
-      href: `/challenges/${challenge._id}/admin/flagged-activities`,
-      label: "Flagged",
-      segment: "flagged-activities",
+      label: "Engage",
+      items: [
+        { href: `${base}/mini-games`, label: "Mini Games", segment: "mini-games" },
+        { href: `${base}/emails`, label: "Emails", segment: "emails" },
+      ],
     },
     {
-      href: `/challenges/${challenge._id}/admin/activity-types`,
-      label: "Activity Types",
-      segment: "activity-types",
+      label: "People",
+      items: [
+        { href: `${base}/participants`, label: "Participants", segment: "participants" },
+        { href: `${base}/payments`, label: "Payments", segment: "payments" },
+      ],
     },
     {
-      href: `/challenges/${challenge._id}/admin/integrations`,
-      label: "Integrations",
-      segment: "integrations",
-    },
-    {
-      href: `/challenges/${challenge._id}/admin/strava-preview`,
-      label: "Strava Preview",
-      segment: "strava-preview",
-    },
-    {
-      href: `/challenges/${challenge._id}/admin/achievements`,
-      label: "Achievements",
-      segment: "achievements",
-    },
-    {
-      href: `/challenges/${challenge._id}/admin/mini-games`,
-      label: "Mini Games",
-      segment: "mini-games",
-    },
-    {
-      href: `/challenges/${challenge._id}/admin/emails`,
-      label: "Emails",
-      segment: "emails",
-    },
-    {
-      href: `/challenges/${challenge._id}/admin/participants`,
-      label: "Participants",
-      segment: "participants",
-    },
-    {
-      href: `/challenges/${challenge._id}/admin/payments`,
-      label: "Payments",
-      segment: "payments",
+      label: "Configure",
+      items: [
+        { href: `${base}/settings`, label: "Settings", segment: "settings" },
+      ],
     },
   ];
 
@@ -156,7 +138,7 @@ export default async function ChallengeAdminLayout({
 
         {/* Navigation Tabs */}
         <div className="border-t border-zinc-800/50 px-3">
-          <AdminNavigation items={navItems} />
+          <AdminNavigation groups={navGroups} />
         </div>
       </header>
 

@@ -2,9 +2,7 @@ import { notFound } from "next/navigation";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
-import { ChallengeHeader } from "@/components/challenges/challenge-header";
-import { ChallengeDetails } from "@/components/challenges/challenge-details";
-import { ParticipantsList } from "@/components/challenges/participants-list";
+import { ChallengePageContent } from "@/components/challenges/challenge-page-content";
 import { getCurrentUser } from "@/lib/auth";
 
 interface PageProps {
@@ -18,10 +16,8 @@ export default async function ChallengePage({ params }: PageProps) {
   const { id } = await params;
 
   try {
-    // Convert string ID to Convex ID format (it should already be a Convex ID)
     const challengeId = id as Id<"challenges">;
 
-    // Get challenge with participant count
     const challenge = await convex.query(
       api.queries.challenges.getByIdWithCount,
       { challengeId },
@@ -31,7 +27,6 @@ export default async function ChallengePage({ params }: PageProps) {
       notFound();
     }
 
-    // Check if current user is participating
     let isParticipating = false;
     if (user) {
       try {
@@ -45,8 +40,13 @@ export default async function ChallengePage({ params }: PageProps) {
       }
     }
 
-    // Get recent participants
-    let participants = [];
+    let participants: Array<{
+      id: string;
+      username: string;
+      name: string | null;
+      avatarUrl: string | null;
+      joinedAt: number;
+    }> = [];
     try {
       participants = await convex.query(api.queries.participations.getRecent, {
         challengeId,
@@ -63,46 +63,20 @@ export default async function ChallengePage({ params }: PageProps) {
     );
 
     return (
-      <div className="min-h-screen bg-background text-foreground page-with-header">
-        <ChallengeHeader
-          challenge={{
-            ...challenge,
-            startDate: challenge.startDate,
-            endDate: challenge.endDate,
-            createdAt: new Date(challenge.createdAt),
-          }}
-          isParticipating={isParticipating}
-          isSignedIn={Boolean(user)}
-        />
-
-        <div className="container mx-auto px-4 py-8">
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Main Content */}
-            <div className="lg:col-span-2">
-              <ChallengeDetails
-                challenge={{
-                  ...challenge,
-                  startDate: challenge.startDate,
-                  endDate: challenge.endDate,
-                }}
-                activityTypes={activityTypes}
-              />
-            </div>
-
-            {/* Sidebar */}
-            <div className="lg:col-span-1">
-              <ParticipantsList
-                challengeId={id}
-                totalCount={challenge.participantCount}
-                participants={participants.map((p: (typeof participants)[number]) => ({
-                  ...p,
-                  joinedAt: new Date(p.joinedAt),
-                }))}
-              />
-            </div>
-          </div>
-        </div>
-      </div>
+      <ChallengePageContent
+        challenge={{
+          ...challenge,
+          startDate: challenge.startDate,
+          endDate: challenge.endDate,
+        }}
+        isParticipating={isParticipating}
+        isSignedIn={Boolean(user)}
+        participants={participants.map((p) => ({
+          ...p,
+          joinedAt: new Date(p.joinedAt).toISOString(),
+        }))}
+        activityTypes={activityTypes}
+      />
     );
   } catch (error) {
     console.error("Error loading challenge page:", error);

@@ -484,7 +484,6 @@ function ActivityCard({
                       preload="metadata"
                     />
                   ) : (
-                    // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={url}
                       alt={`Activity media ${index + 1}`}

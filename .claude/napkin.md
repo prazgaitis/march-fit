@@ -10,6 +10,7 @@
 ## Patterns That Work
 - Convex queries can join related data inline (e.g., activity types + categories in one query)
 - `conditional-header.tsx` DASHBOARD_LAYOUT_PATTERNS array controls navbar visibility per route
+- Admin console sidebar approach was scrapped — revisit admin nav design in the future
 
 ## Patterns That Don't Work
 
