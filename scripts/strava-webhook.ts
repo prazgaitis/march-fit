@@ -15,12 +15,14 @@
  *   STRAVA_WEBHOOK_URL - Your webhook callback URL (e.g., https://yourdomain.com/api/webhooks/strava)
  */
 
-import "dotenv/config";
+import dotenv from "dotenv";
+dotenv.config({ path: ".env.production" });
+dotenv.config({ path: ".env.local" }); // fill in any vars not in .env.production
 
-const CLIENT_ID = process.env.NEXT_PUBLIC_STRAVA_CLIENT_ID;
+const CLIENT_ID = process.env.NEXT_PUBLIC_STRAVA_CLIENT_ID || process.env.STRAVA_CLIENT_ID;
 const CLIENT_SECRET = process.env.STRAVA_CLIENT_SECRET;
 const VERIFY_TOKEN = process.env.STRAVA_VERIFY_TOKEN;
-const DEFAULT_WEBHOOK_URL = "https://march.fit/api/webhooks/strava";
+const DEFAULT_WEBHOOK_URL = "https://www.march.fit/api/webhooks/strava";
 const CALLBACK_URL = process.env.STRAVA_WEBHOOK_URL ?? DEFAULT_WEBHOOK_URL;
 
 const STRAVA_API = "https://www.strava.com/api/v3/push_subscriptions";
