@@ -12,55 +12,53 @@ interface PageProps {
 const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
 export default async function ChallengePage({ params }: PageProps) {
-  const user = await getCurrentUser();
-  const { id } = await params;
+  const pageStart = performance.now();
+  const [user, { id }] = await Promise.all([getCurrentUser(), params]);
 
   try {
     const challengeId = id as Id<"challenges">;
 
-    const challenge = await convex.query(
-      api.queries.challenges.getByIdWithCount,
-      { challengeId },
+    const [challenge, participants, activityTypes, isParticipating] =
+      await Promise.all([
+        convex.query(api.queries.challenges.getByIdWithCount, { challengeId }),
+        convex
+          .query(api.queries.participations.getRecent, {
+            challengeId,
+            limit: 10,
+          })
+          .catch((error) => {
+            console.error("Error fetching participants:", error);
+            return [] as Array<{
+              id: string;
+              username: string;
+              name: string | null;
+              avatarUrl: string | null;
+              joinedAt: number;
+            }>;
+          }),
+        convex.query(api.queries.activityTypes.getByChallengeId, {
+          challengeId,
+        }),
+        user
+          ? convex
+              .query(api.queries.users.isParticipating, {
+                userId: user._id,
+                challengeId,
+              })
+              .catch((error) => {
+                console.error("Error fetching user participation:", error);
+                return false;
+              })
+          : Promise.resolve(false),
+      ]);
+
+    console.log(
+      `[perf] challenge page queries: ${Math.round(performance.now() - pageStart)}ms`,
     );
 
     if (!challenge) {
       notFound();
     }
-
-    let isParticipating = false;
-    if (user) {
-      try {
-        isParticipating = await convex.query(api.queries.users.isParticipating, {
-          userId: user._id,
-          challengeId,
-        });
-      } catch (error) {
-        console.error("Error fetching user participation:", error);
-        isParticipating = false;
-      }
-    }
-
-    let participants: Array<{
-      id: string;
-      username: string;
-      name: string | null;
-      avatarUrl: string | null;
-      joinedAt: number;
-    }> = [];
-    try {
-      participants = await convex.query(api.queries.participations.getRecent, {
-        challengeId,
-        limit: 10,
-      });
-    } catch (error) {
-      console.error("Error fetching participants:", error);
-      participants = [];
-    }
-
-    const activityTypes = await convex.query(
-      api.queries.activityTypes.getByChallengeId,
-      { challengeId }
-    );
 
     return (
       <ChallengePageContent
@@ -71,7 +69,7 @@ export default async function ChallengePage({ params }: PageProps) {
         }}
         isParticipating={isParticipating}
         isSignedIn={Boolean(user)}
-        participants={participants.map((p) => ({
+        participants={participants.map((p: (typeof participants)[number]) => ({
           ...p,
           joinedAt: new Date(p.joinedAt).toISOString(),
         }))}

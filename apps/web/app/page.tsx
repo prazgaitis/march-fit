@@ -8,7 +8,11 @@ import { api } from "@repo/backend";
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
+  const homeStart = performance.now();
   const { userId } = await getServerAuth();
+  console.log(
+    `[perf] home getServerAuth: ${Math.round(performance.now() - homeStart)}ms`,
+  );
 
   // Redirect logged-in users to their active challenge dashboard
   if (userId) {

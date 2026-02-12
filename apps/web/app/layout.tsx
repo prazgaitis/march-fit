@@ -28,8 +28,12 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const token = await getToken();
-  const preloadedUser = await preloadAuthQuery(api.queries.users.current);
+  const layoutStart = performance.now();
+  const [token, preloadedUser] = await Promise.all([
+    getToken(),
+    preloadAuthQuery(api.queries.users.current),
+  ]);
+  console.log(`[perf] layout auth: ${Math.round(performance.now() - layoutStart)}ms`);
 
   return (
     <ConvexProviderWrapper initialToken={token ?? null}>

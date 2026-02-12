@@ -7,7 +7,7 @@ import { ActivityFeed } from "@/components/dashboard/activity-feed";
 import { OnboardingCard } from "@/components/dashboard/onboarding-card";
 import { type ChallengeSummary } from "@/components/dashboard/challenge-realtime-context";
 import { getCurrentUser } from "@/lib/auth";
-import { isAuthenticated } from "@/lib/server-auth";
+import { getToken } from "@/lib/server-auth";
 import { DashboardLayoutWrapper } from "../notifications/dashboard-layout-wrapper";
 import { dateOnlyToUtcMs } from "@/lib/date-only";
 
@@ -21,14 +21,18 @@ interface ChallengeDashboardPageProps {
 export default async function ChallengeDashboardPage({
   params,
 }: ChallengeDashboardPageProps) {
-  const user = await getCurrentUser();
-  const { id } = await params;
+  const dashStart = performance.now();
+  const [user, { id }] = await Promise.all([getCurrentUser(), params]);
 
   if (!user) {
-    const authenticated = await isAuthenticated();
-    if (authenticated) {
-      // User is signed in but Convex record couldn't be resolved.
-      // Redirect to challenge page instead of sign-in to avoid a redirect loop.
+    // getCurrentUser() returns null when either:
+    // 1. No auth token exists (not signed in), or
+    // 2. Token exists but Convex user record couldn't be resolved
+    // Use getToken() to distinguish the two cases without an extra round trip
+    // (getToken is cached via React.cache from getCurrentUser's call)
+    const token = await getToken();
+    if (token) {
+      // Signed in but Convex record missing — redirect to challenge page
       redirect(`/challenges/${id}`);
     }
     redirect(`/sign-in?redirect_url=/challenges/${id}/dashboard`);
@@ -40,6 +44,10 @@ export default async function ChallengeDashboardPage({
     challengeId,
     userId: user._id,
   });
+
+  console.log(
+    `[perf] dashboard page total: ${Math.round(performance.now() - dashStart)}ms`,
+  );
 
   if (!dashboardData) {
     notFound();
