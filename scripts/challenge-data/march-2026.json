@@ -1,0 +1,13 @@
+{
+  "challenge": {
+    "name": "March Fitness 2026",
+    "description": "The ultimate fitness challenge! Join hundreds of participants for 31 days of fitness, competition, and community.",
+    "startDate": "2026-03-01",
+    "endDate": "2026-03-30",
+    "streakMinPoints": 10,
+    "weekCalcMethod": "sunday",
+    "visibility": "public"
+  },
+  "creatorEmail": "prazgaitis@gmail.com",
+  "activityTypesFile": "activity-types.json"
+}
