@@ -398,6 +398,7 @@ export const getParticipants = query({
             currentStreak: participation.currentStreak,
             modifierFactor: participation.modifierFactor,
           },
+          role: participation.role ?? "member",
           paymentStatus: participation.paymentStatus,
         };
       }),
