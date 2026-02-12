@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import type { Doc } from "../_generated/dataModel";
 import { DEFAULT_EMAIL_PLAN } from "../lib/defaultEmailPlan";
 import { getEmailTemplatePreviewHtml } from "../lib/emailTemplate";
+import { coerceDateOnlyToString, dateOnlyToUtcMs } from "../lib/dateOnly";
 
 /**
  * List all email sequences for a challenge
@@ -217,6 +218,101 @@ export const listSends = query({
     );
 
     return result;
+  },
+});
+
+/**
+ * List all challenges for the "import participants" picker.
+ * Excludes the current challenge. Returns id, name, dates, participant count.
+ */
+export const listChallengesForImport = query({
+  args: {
+    excludeChallengeId: v.id("challenges"),
+  },
+  handler: async (ctx, args) => {
+    const challenges = await ctx.db.query("challenges").collect();
+
+    // Exclude the current challenge
+    const filtered = challenges.filter(
+      (c) => c._id !== args.excludeChallengeId,
+    );
+
+    // Sort by startDate descending (most recent first)
+    filtered.sort(
+      (a, b) => dateOnlyToUtcMs(b.startDate) - dateOnlyToUtcMs(a.startDate),
+    );
+
+    const result = await Promise.all(
+      filtered.map(async (challenge) => {
+        const participations = await ctx.db
+          .query("userChallenges")
+          .withIndex("challengeId", (q) =>
+            q.eq("challengeId", challenge._id),
+          )
+          .collect();
+
+        return {
+          id: challenge._id,
+          name: challenge.name,
+          startDate: coerceDateOnlyToString(challenge.startDate),
+          endDate: coerceDateOnlyToString(challenge.endDate),
+          participantCount: participations.length,
+        };
+      }),
+    );
+
+    return result;
+  },
+});
+
+/**
+ * Get participants from another challenge for importing into an email send.
+ * Returns user info and whether they've already been sent this email.
+ */
+export const getOtherChallengeParticipants = query({
+  args: {
+    emailSequenceId: v.id("emailSequences"),
+    sourceChallengeId: v.id("challenges"),
+  },
+  handler: async (ctx, args) => {
+    const emailSequence = await ctx.db.get(args.emailSequenceId);
+    if (!emailSequence) return [];
+
+    // Get participants from the source challenge
+    const participations = await ctx.db
+      .query("userChallenges")
+      .withIndex("challengeId", (q) =>
+        q.eq("challengeId", args.sourceChallengeId),
+      )
+      .collect();
+
+    // Get existing sends for this email sequence
+    const sends = await ctx.db
+      .query("emailSends")
+      .withIndex("emailSequenceId", (q) =>
+        q.eq("emailSequenceId", args.emailSequenceId),
+      )
+      .collect();
+
+    const sentUserIds = new Set(sends.map((s) => s.userId));
+
+    // Get user data
+    const result = await Promise.all(
+      participations.map(async (p) => {
+        const user = await ctx.db.get(p.userId);
+        if (!user) return null;
+        return {
+          id: user._id,
+          username: user.username,
+          name: user.name,
+          email: user.email,
+          avatarUrl: user.avatarUrl,
+          alreadySent: sentUserIds.has(user._id),
+        };
+      }),
+    );
+
+    return result.filter((u): u is NonNullable<typeof u> => u !== null);
   },
 });
 

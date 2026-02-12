@@ -417,6 +417,84 @@ export const sendToAll = mutation({
 });
 
 /**
+ * Send an email to a specific list of users (e.g. imported from another challenge).
+ * Creates emailSends records and sends via Resend.
+ */
+export const sendToUsers = mutation({
+  args: {
+    emailSequenceId: v.id("emailSequences"),
+    userIds: v.array(v.id("users")),
+  },
+  handler: async (ctx, args) => {
+    const emailSequence = await ctx.db.get(args.emailSequenceId);
+    if (!emailSequence) {
+      throw new Error("Email sequence not found");
+    }
+
+    await requireChallengeAdmin(ctx, emailSequence.challengeId);
+
+    const now = Date.now();
+    let sentCount = 0;
+    let skippedCount = 0;
+    let failedCount = 0;
+
+    for (const userId of args.userIds) {
+      // Check if already sent to this user
+      const existingSend = await ctx.db
+        .query("emailSends")
+        .withIndex("userSequence", (q: any) =>
+          q.eq("userId", userId).eq("emailSequenceId", args.emailSequenceId),
+        )
+        .first();
+
+      if (existingSend) {
+        skippedCount++;
+        continue;
+      }
+
+      // Get user email
+      const user = await ctx.db.get(userId);
+      if (!user) {
+        skippedCount++;
+        continue;
+      }
+
+      // Create pending email send record
+      const sendId = await ctx.db.insert("emailSends", {
+        emailSequenceId: args.emailSequenceId,
+        userId,
+        challengeId: emailSequence.challengeId,
+        status: "pending",
+        createdAt: now,
+      });
+
+      try {
+        await resend.sendEmail(ctx, {
+          from: DEFAULT_FROM_EMAIL,
+          to: user.email,
+          subject: emailSequence.subject,
+          html: emailSequence.body,
+        });
+
+        await ctx.db.patch(sendId, {
+          status: "sent",
+          sentAt: Date.now(),
+        });
+        sentCount++;
+      } catch (error) {
+        await ctx.db.patch(sendId, {
+          status: "failed",
+          error: error instanceof Error ? error.message : "Unknown error",
+        });
+        failedCount++;
+      }
+    }
+
+    return { sentCount, skippedCount, failedCount };
+  },
+});
+
+/**
  * Internal mutation to send email on signup (called from participations mutation)
  */
 export const triggerOnSignup = internalMutation({

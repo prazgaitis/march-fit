@@ -6,21 +6,26 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
 import {
+  ArrowLeft,
+  Check,
   CheckCircle,
   ChevronDown,
   Clock,
   Columns2,
   Eye,
   FileText,
+  Loader2,
   Mail,
   MoreHorizontal,
   Pencil,
   Plus,
   Save,
+  Search,
   Send,
   Trash2,
   User,
   UserPlus,
+  Users,
   XCircle,
 } from "lucide-react";
 
@@ -106,6 +111,23 @@ type DraftState = {
   subject: string;
   body: string;
   trigger: EmailTrigger;
+};
+
+type ImportChallenge = {
+  id: string;
+  name: string;
+  startDate: string;
+  endDate: string;
+  participantCount: number;
+};
+
+type ImportParticipant = {
+  id: Id<"users">;
+  username: string;
+  name?: string;
+  email: string;
+  avatarUrl?: string;
+  alreadySent: boolean;
 };
 
 // ---------------------------------------------------------------------------
@@ -198,6 +220,17 @@ export default function EmailsAdminPage() {
   const [composerTab, setComposerTab] = useState<ComposerTab>("split");
   const [showTemplates, setShowTemplates] = useState(false);
 
+  // Import from challenge modal state
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importChallengeId, setImportChallengeId] = useState<string | null>(
+    null,
+  );
+  const [importSelectedUserIds, setImportSelectedUserIds] = useState<
+    Set<string>
+  >(new Set());
+  const [importSearch, setImportSearch] = useState("");
+  const [importSending, setImportSending] = useState(false);
+
   // Draft form state (used for both creating and editing)
   const [draft, setDraft] = useState<DraftState>({
     name: "",
@@ -233,6 +266,24 @@ export default function EmailsAdminPage() {
       : "skip",
   );
 
+  // Import from challenge queries
+  const importChallenges = useQuery(
+    api.queries.emailSequences.listChallengesForImport,
+    showImportModal
+      ? { excludeChallengeId: challengeId as Id<"challenges"> }
+      : "skip",
+  );
+
+  const importParticipants = useQuery(
+    api.queries.emailSequences.getOtherChallengeParticipants,
+    showImportModal && importChallengeId && selectedEmailId
+      ? {
+          emailSequenceId: selectedEmailId as Id<"emailSequences">,
+          sourceChallengeId: importChallengeId as Id<"challenges">,
+        }
+      : "skip",
+  );
+
   // ---- Convex mutations ----
   const createEmailSequence = useMutation(api.mutations.emailSequences.create);
   const addDefaultTemplate = useMutation(
@@ -241,6 +292,7 @@ export default function EmailsAdminPage() {
   const updateEmailSequence = useMutation(api.mutations.emailSequences.update);
   const deleteEmailSequence = useMutation(api.mutations.emailSequences.remove);
   const sendToAll = useMutation(api.mutations.emailSequences.sendToAll);
+  const sendToUsers = useMutation(api.mutations.emailSequences.sendToUsers);
   const sendTest = useMutation(api.mutations.emailSequences.sendTest);
 
   // ---- Draft persistence (debounced localStorage save) ----
@@ -446,6 +498,139 @@ export default function EmailsAdminPage() {
       alert(error instanceof Error ? error.message : "Failed to add template");
     }
   };
+
+  // ---- Import from challenge handlers ----
+
+  const handleOpenImportModal = () => {
+    setImportChallengeId(null);
+    setImportSelectedUserIds(new Set());
+    setImportSearch("");
+    setShowImportModal(true);
+  };
+
+  const handleSelectImportChallenge = (id: string) => {
+    setImportChallengeId(id);
+    setImportSelectedUserIds(new Set());
+    setImportSearch("");
+  };
+
+  const handleBackToChallengeList = () => {
+    setImportChallengeId(null);
+    setImportSelectedUserIds(new Set());
+    setImportSearch("");
+  };
+
+  const handleToggleImportUser = (userId: string) => {
+    setImportSelectedUserIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(userId)) {
+        next.delete(userId);
+      } else {
+        next.add(userId);
+      }
+      return next;
+    });
+  };
+
+  const handleToggleSelectAll = () => {
+    if (!importParticipants) return;
+    const selectable = importParticipants.filter(
+      (p: ImportParticipant) => !p.alreadySent,
+    );
+    const filteredSelectable = selectable.filter((p: ImportParticipant) => {
+      if (!importSearch) return true;
+      const q = importSearch.toLowerCase();
+      return (
+        p.username.toLowerCase().includes(q) ||
+        (p.name?.toLowerCase().includes(q) ?? false) ||
+        p.email.toLowerCase().includes(q)
+      );
+    });
+    const allSelected = filteredSelectable.every((p: ImportParticipant) =>
+      importSelectedUserIds.has(p.id),
+    );
+    if (allSelected) {
+      // Deselect all visible
+      setImportSelectedUserIds((prev) => {
+        const next = new Set(prev);
+        for (const p of filteredSelectable) {
+          next.delete(p.id);
+        }
+        return next;
+      });
+    } else {
+      // Select all visible
+      setImportSelectedUserIds((prev) => {
+        const next = new Set(prev);
+        for (const p of filteredSelectable) {
+          next.add(p.id);
+        }
+        return next;
+      });
+    }
+  };
+
+  const handleSendToImported = async () => {
+    if (!selectedEmailId || importSelectedUserIds.size === 0) return;
+    setImportSending(true);
+    const toastId = toast.loading(
+      `Sending to ${importSelectedUserIds.size} recipients...`,
+    );
+    try {
+      // Auto-save before sending so the DB has the latest content
+      if (hasDraftChanges) {
+        await updateEmailSequence({
+          emailSequenceId: selectedEmailId as Id<"emailSequences">,
+          name: draft.name,
+          subject: draft.subject,
+          body: markdownToHtml(draft.body),
+          bodySource: draft.body,
+          trigger: draft.trigger,
+        });
+        clearDraft(challengeId, selectedEmailId);
+        setHasDraftChanges(false);
+      }
+
+      const result = await sendToUsers({
+        emailSequenceId: selectedEmailId as Id<"emailSequences">,
+        userIds: Array.from(importSelectedUserIds) as Id<"users">[],
+      });
+
+      toast.success(
+        `Sent to ${result.sentCount} recipients` +
+          (result.skippedCount > 0
+            ? `, ${result.skippedCount} skipped`
+            : "") +
+          (result.failedCount > 0
+            ? `, ${result.failedCount} failed`
+            : ""),
+        { id: toastId },
+      );
+
+      setShowImportModal(false);
+    } catch (error) {
+      console.error("Failed to send:", error);
+      toast.error(
+        error instanceof Error ? error.message : "Failed to send emails",
+        { id: toastId },
+      );
+    } finally {
+      setImportSending(false);
+    }
+  };
+
+  // Filtered import participants (for search)
+  const filteredImportParticipants = importParticipants?.filter(
+    (p: ImportParticipant) => {
+      if (!importSearch) return true;
+      const q = importSearch.toLowerCase();
+      return (
+        p.username.toLowerCase().includes(q) ||
+        (p.name?.toLowerCase().includes(q) ?? false) ||
+        p.email.toLowerCase().includes(q)
+      );
+    },
+  );
 
   // ---- Derived state ----
   const isComposerActive = selectedEmailId !== null;
@@ -946,6 +1131,17 @@ export default function EmailsAdminPage() {
 
                     {/* Right: send buttons */}
                     <div className="flex items-center gap-2">
+                      {/* Invite from Challenge */}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={handleOpenImportModal}
+                        className="h-7 border-zinc-700 px-2.5 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100"
+                      >
+                        <Users className="mr-1.5 h-3 w-3" />
+                        Invite from Challenge
+                      </Button>
+
                       {/* Send Test */}
                       {unsentParticipants && unsentParticipants.length > 0 && (
                         <DropdownMenu>
@@ -1154,6 +1350,298 @@ export default function EmailsAdminPage() {
               </div>
             ))}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ================================================================= */}
+      {/* IMPORT FROM CHALLENGE DIALOG                                      */}
+      {/* ================================================================= */}
+      <Dialog
+        open={showImportModal}
+        onOpenChange={(open) => {
+          if (!open) {
+            setShowImportModal(false);
+            setImportChallengeId(null);
+            setImportSelectedUserIds(new Set());
+            setImportSearch("");
+          }
+        }}
+      >
+        <DialogContent className="flex max-h-[80vh] max-w-lg flex-col border-zinc-800 bg-zinc-900">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-zinc-100">
+              {importChallengeId ? (
+                <>
+                  <button
+                    onClick={handleBackToChallengeList}
+                    className="rounded p-0.5 text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-200"
+                  >
+                    <ArrowLeft className="h-4 w-4" />
+                  </button>
+                  <span>Select Participants</span>
+                </>
+              ) : (
+                <>
+                  <Users className="h-4 w-4 text-amber-400" />
+                  <span>Invite from Challenge</span>
+                </>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+
+          {!importChallengeId ? (
+            /* ---- Step 1: Pick a challenge ---- */
+            <div className="flex flex-col gap-1 overflow-y-auto py-1">
+              <div className="mb-1 text-[10px] font-medium uppercase tracking-wider text-zinc-500">
+                Select a challenge to import participants from
+              </div>
+              {!importChallenges ? (
+                <div className="flex items-center justify-center py-8 text-zinc-500">
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Loading challenges...
+                </div>
+              ) : importChallenges.length === 0 ? (
+                <div className="py-8 text-center text-xs text-zinc-500">
+                  No other challenges found
+                </div>
+              ) : (
+                importChallenges.map((challenge: ImportChallenge) => (
+                  <button
+                    key={challenge.id}
+                    onClick={() =>
+                      handleSelectImportChallenge(challenge.id)
+                    }
+                    className="flex items-center justify-between rounded border border-zinc-800 bg-zinc-800/50 px-3 py-2.5 text-left transition-colors hover:border-zinc-700 hover:bg-zinc-800"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-xs font-medium text-zinc-200">
+                        {challenge.name}
+                      </div>
+                      <div className="mt-0.5 text-[10px] text-zinc-500">
+                        {challenge.startDate} &mdash; {challenge.endDate}
+                      </div>
+                    </div>
+                    <div className="ml-3 flex flex-shrink-0 items-center gap-1 text-[10px] text-zinc-400">
+                      <Users className="h-3 w-3" />
+                      {challenge.participantCount}
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          ) : (
+            /* ---- Step 2: Pick participants ---- */
+            <div className="flex min-h-0 flex-1 flex-col gap-2">
+              {/* Search + select all bar */}
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-500" />
+                  <Input
+                    value={importSearch}
+                    onChange={(e) => setImportSearch(e.target.value)}
+                    placeholder="Search by name, username, or email..."
+                    className="h-8 border-zinc-700 bg-zinc-800 pl-8 text-xs text-zinc-200 placeholder:text-zinc-600"
+                  />
+                </div>
+              </div>
+
+              {/* Select all + count bar */}
+              {filteredImportParticipants && (
+                <div className="flex items-center justify-between">
+                  <button
+                    onClick={handleToggleSelectAll}
+                    className="flex items-center gap-2 text-[10px] text-zinc-400 transition-colors hover:text-zinc-200"
+                  >
+                    <div
+                      className={cn(
+                        "flex h-4 w-4 items-center justify-center rounded border transition-colors",
+                        (() => {
+                          const selectable =
+                            filteredImportParticipants.filter(
+                              (p: ImportParticipant) => !p.alreadySent,
+                            );
+                          const allSelected =
+                            selectable.length > 0 &&
+                            selectable.every((p: ImportParticipant) =>
+                              importSelectedUserIds.has(p.id),
+                            );
+                          return allSelected
+                            ? "border-amber-500 bg-amber-500"
+                            : "border-zinc-600 bg-zinc-800";
+                        })(),
+                      )}
+                    >
+                      {(() => {
+                        const selectable =
+                          filteredImportParticipants.filter(
+                            (p: ImportParticipant) => !p.alreadySent,
+                          );
+                        const allSelected =
+                          selectable.length > 0 &&
+                          selectable.every((p: ImportParticipant) =>
+                            importSelectedUserIds.has(p.id),
+                          );
+                        return allSelected ? (
+                          <Check className="h-2.5 w-2.5 text-black" />
+                        ) : null;
+                      })()}
+                    </div>
+                    Select all
+                  </button>
+                  <span className="text-[10px] text-zinc-500">
+                    {importSelectedUserIds.size > 0 && (
+                      <span className="mr-1 font-medium text-amber-400">
+                        {importSelectedUserIds.size} selected
+                      </span>
+                    )}
+                    {filteredImportParticipants.length} participant
+                    {filteredImportParticipants.length !== 1 ? "s" : ""}
+                    {filteredImportParticipants.filter(
+                      (p: ImportParticipant) => p.alreadySent,
+                    ).length > 0 && (
+                      <span className="ml-1 text-zinc-600">
+                        (
+                        {
+                          filteredImportParticipants.filter(
+                            (p: ImportParticipant) => p.alreadySent,
+                          ).length
+                        }{" "}
+                        already sent)
+                      </span>
+                    )}
+                  </span>
+                </div>
+              )}
+
+              {/* Participant list */}
+              <div className="flex-1 space-y-0.5 overflow-y-auto rounded border border-zinc-800 bg-zinc-950 p-1">
+                {!filteredImportParticipants ? (
+                  <div className="flex items-center justify-center py-8 text-zinc-500">
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Loading participants...
+                  </div>
+                ) : filteredImportParticipants.length === 0 ? (
+                  <div className="py-8 text-center text-xs text-zinc-500">
+                    {importSearch
+                      ? "No participants match your search"
+                      : "No participants in this challenge"}
+                  </div>
+                ) : (
+                  filteredImportParticipants.map(
+                    (participant: ImportParticipant) => {
+                      const isSelected = importSelectedUserIds.has(
+                        participant.id,
+                      );
+                      const isSent = participant.alreadySent;
+
+                      return (
+                        <button
+                          key={participant.id}
+                          onClick={() => {
+                            if (!isSent)
+                              handleToggleImportUser(participant.id);
+                          }}
+                          disabled={isSent}
+                          className={cn(
+                            "flex w-full items-center gap-2.5 rounded px-2.5 py-2 text-left transition-colors",
+                            isSent
+                              ? "cursor-not-allowed opacity-50"
+                              : isSelected
+                                ? "bg-amber-500/10"
+                                : "hover:bg-zinc-800/50",
+                          )}
+                        >
+                          {/* Checkbox */}
+                          <div
+                            className={cn(
+                              "flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border transition-colors",
+                              isSent
+                                ? "border-zinc-700 bg-zinc-800"
+                                : isSelected
+                                  ? "border-amber-500 bg-amber-500"
+                                  : "border-zinc-600 bg-zinc-800",
+                            )}
+                          >
+                            {isSent ? (
+                              <CheckCircle className="h-2.5 w-2.5 text-zinc-500" />
+                            ) : isSelected ? (
+                              <Check className="h-2.5 w-2.5 text-black" />
+                            ) : null}
+                          </div>
+
+                          {/* Avatar */}
+                          <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-zinc-800">
+                            {participant.avatarUrl ? (
+                              <img
+                                src={participant.avatarUrl}
+                                alt=""
+                                className="h-6 w-6 rounded-full object-cover"
+                              />
+                            ) : (
+                              <User className="h-3 w-3 text-zinc-500" />
+                            )}
+                          </div>
+
+                          {/* User info */}
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5">
+                              <span className="truncate text-xs font-medium text-zinc-200">
+                                {participant.name || participant.username}
+                              </span>
+                              {participant.name && (
+                                <span className="truncate text-[10px] text-zinc-500">
+                                  @{participant.username}
+                                </span>
+                              )}
+                            </div>
+                            <div className="truncate text-[10px] text-zinc-500">
+                              {participant.email}
+                            </div>
+                          </div>
+
+                          {/* Already sent badge */}
+                          {isSent && (
+                            <span className="flex-shrink-0 rounded bg-zinc-800 px-1.5 py-0.5 text-[9px] font-medium text-zinc-500">
+                              Already sent
+                            </span>
+                          )}
+                        </button>
+                      );
+                    },
+                  )
+                )}
+              </div>
+
+              {/* Send button */}
+              <div className="flex items-center justify-between border-t border-zinc-800 pt-3">
+                <div className="text-[10px] text-zinc-500">
+                  {importSelectedUserIds.size > 0
+                    ? `${importSelectedUserIds.size} recipient${importSelectedUserIds.size !== 1 ? "s" : ""} selected`
+                    : "Select participants to send to"}
+                </div>
+                <Button
+                  size="sm"
+                  onClick={handleSendToImported}
+                  disabled={
+                    importSelectedUserIds.size === 0 || importSending
+                  }
+                  className="h-8 bg-amber-500 px-4 text-xs text-black hover:bg-amber-400 disabled:opacity-40"
+                >
+                  {importSending ? (
+                    <>
+                      <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
+                      Sending...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="mr-1.5 h-3 w-3" />
+                      Send to {importSelectedUserIds.size || "..."}
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </div>
