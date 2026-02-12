@@ -1,8 +1,42 @@
 import { internalMutation, mutation } from "../_generated/server";
 import { v } from "convex/values";
+import type { Id } from "../_generated/dataModel";
 import { resend } from "../lib/resend";
 import { getCurrentUser } from "../lib/ids";
 import { isPaymentRequired } from "../lib/payments";
+
+// Helper to check if user is challenge admin (mirrors challenges.ts)
+async function requireChallengeAdmin(
+  ctx: { db: any; auth: any },
+  challengeId: Id<"challenges">
+) {
+  const user = await getCurrentUser(ctx as any);
+  if (!user) {
+    throw new Error("Not authenticated");
+  }
+
+  const challenge = await ctx.db.get(challengeId);
+  if (!challenge) {
+    throw new Error("Challenge not found");
+  }
+
+  const isGlobalAdmin = user.role === "admin";
+  const isCreator = challenge.creatorId === user._id;
+
+  const participation = await ctx.db
+    .query("userChallenges")
+    .withIndex("userChallengeUnique", (q: any) =>
+      q.eq("userId", user._id).eq("challengeId", challengeId)
+    )
+    .first();
+  const isChallengeAdmin = participation?.role === "admin";
+
+  if (!isGlobalAdmin && !isCreator && !isChallengeAdmin) {
+    throw new Error("Not authorized - challenge admin required");
+  }
+
+  return user;
+}
 
 // Default from address - should be configured per deployment
 const DEFAULT_FROM_EMAIL = "March Fitness <noreply@march.fit>";
@@ -231,5 +265,32 @@ export const join = mutation({
     }
 
     return participationId;
+  },
+});
+
+/**
+ * Update a participant's challenge role (admin/member)
+ */
+export const updateRole = mutation({
+  args: {
+    challengeId: v.id("challenges"),
+    userId: v.id("users"),
+    role: v.union(v.literal("member"), v.literal("admin")),
+  },
+  handler: async (ctx, args) => {
+    await requireChallengeAdmin(ctx, args.challengeId);
+
+    const participation = await ctx.db
+      .query("userChallenges")
+      .withIndex("userChallengeUnique", (q) =>
+        q.eq("userId", args.userId).eq("challengeId", args.challengeId)
+      )
+      .first();
+
+    if (!participation) {
+      throw new Error("Participation not found");
+    }
+
+    await ctx.db.patch(participation._id, { role: args.role });
   },
 });
