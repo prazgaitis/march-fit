@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useParams } from "next/navigation";
-import { useQuery } from "convex/react";
+import { useQuery, useMutation } from "convex/react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
 import {
@@ -26,12 +26,19 @@ const paymentStatusStyles: Record<string, string> = {
   failed: "bg-red-500/15 text-red-300 border-red-500/30",
 };
 
+const roleStyles: Record<string, string> = {
+  admin: "bg-indigo-500/15 text-indigo-300 border-indigo-500/30",
+  member: "bg-zinc-500/15 text-zinc-300 border-zinc-500/30",
+};
+
 export default function AdminParticipantsPage() {
   const params = useParams();
   const challengeId = params.id as string;
   const [search, setSearch] = useState("");
   const [sortField, setSortField] = useState<SortField>("points");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+
+  const updateRole = useMutation(api.mutations.participations.updateRole);
 
   const participants = useQuery(api.queries.challenges.getParticipants, {
     challengeId: challengeId as Id<"challenges">,
@@ -140,8 +147,13 @@ export default function AdminParticipantsPage() {
               #
             </span>
           </div>
-          <div className="col-span-4">
+          <div className="col-span-3">
             <SortHeader field="name">Participant</SortHeader>
+          </div>
+          <div className="col-span-1">
+            <span className="text-[10px] font-medium uppercase tracking-wider text-zinc-500">
+              Role
+            </span>
           </div>
           <div className="col-span-2">
             <span className="text-[10px] font-medium uppercase tracking-wider text-zinc-500">
@@ -153,12 +165,12 @@ export default function AdminParticipantsPage() {
               Points
             </SortHeader>
           </div>
-          <div className="col-span-2 text-right">
+          <div className="col-span-1 text-right">
             <SortHeader field="streak" className="justify-end">
               Streak
             </SortHeader>
           </div>
-          <div className="col-span-1 text-right">
+          <div className="col-span-2 text-right">
             <span className="text-[10px] font-medium uppercase tracking-wider text-zinc-500">
               Actions
             </span>
@@ -178,7 +190,7 @@ export default function AdminParticipantsPage() {
                     {index + 1}
                   </span>
                 </div>
-                <div className="col-span-4 flex items-center gap-2">
+                <div className="col-span-3 flex items-center gap-2">
                   <div className="flex h-6 w-6 items-center justify-center rounded-full bg-zinc-800">
                     {participant.user.avatarUrl ? (
                       <img
@@ -201,6 +213,17 @@ export default function AdminParticipantsPage() {
                     )}
                   </div>
                 </div>
+                <div className="col-span-1">
+                  <span
+                    className={cn(
+                      "inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide",
+                      roleStyles[participant.role] ||
+                        "bg-zinc-500/15 text-zinc-300 border-zinc-500/30"
+                    )}
+                  >
+                    {participant.role}
+                  </span>
+                </div>
                 <div className="col-span-2">
                   <span
                     className={cn(
@@ -220,7 +243,7 @@ export default function AdminParticipantsPage() {
                     </span>
                   </div>
                 </div>
-                <div className="col-span-2 text-right">
+                <div className="col-span-1 text-right">
                   <div className="flex items-center justify-end gap-1">
                     <Flame className="h-3 w-3 text-orange-400" />
                     <span className="font-mono text-sm text-zinc-300">
@@ -228,9 +251,23 @@ export default function AdminParticipantsPage() {
                     </span>
                   </div>
                 </div>
-                <div className="col-span-1 text-right">
-                  <button className="text-xs text-zinc-500 hover:text-zinc-300">
-                    View
+                <div className="col-span-2 text-right">
+                  <button
+                    onClick={() =>
+                      updateRole({
+                        challengeId: challengeId as Id<"challenges">,
+                        userId: participant.user.id,
+                        role: participant.role === "admin" ? "member" : "admin",
+                      })
+                    }
+                    className={cn(
+                      "text-xs hover:underline",
+                      participant.role === "admin"
+                        ? "text-red-400 hover:text-red-300"
+                        : "text-indigo-400 hover:text-indigo-300"
+                    )}
+                  >
+                    {participant.role === "admin" ? "Remove Admin" : "Make Admin"}
                   </button>
                 </div>
               </div>
