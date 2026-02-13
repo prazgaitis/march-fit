@@ -6,6 +6,27 @@ import { decryptKey } from "./lib/stripe";
 import { authComponent, createAuth } from "./auth";
 
 const http = httpRouter();
+const STRAVA_OBJECT_TYPES = new Set(["activity", "athlete"]);
+const STRAVA_ASPECT_TYPES = new Set(["create", "update", "delete"]);
+
+type StravaWebhookPayload = Record<string, unknown> & {
+  object_type: "activity" | "athlete";
+  aspect_type: "create" | "update" | "delete";
+};
+
+function isStravaWebhookPayload(value: unknown): value is StravaWebhookPayload {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const payload = value as Record<string, unknown>;
+  return (
+    typeof payload.object_type === "string" &&
+    STRAVA_OBJECT_TYPES.has(payload.object_type) &&
+    typeof payload.aspect_type === "string" &&
+    STRAVA_ASPECT_TYPES.has(payload.aspect_type)
+  );
+}
 
 // Register Better Auth routes
 authComponent.registerRoutes(http, createAuth, {
@@ -182,6 +203,9 @@ http.route({
 
     try {
       const body = await request.json();
+      if (!isStravaWebhookPayload(body)) {
+        throw new Error("Invalid Strava webhook payload");
+      }
       const eventType = `${body.object_type}.${body.aspect_type}`;
 
       // Store raw webhook payload immediately
