@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { format, formatDistanceToNow } from "date-fns";
-import { ConvexHttpClient } from "convex/browser";
+import { getConvexClient } from "@/lib/convex-server";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
 
@@ -9,8 +9,6 @@ import { getChallengeOrThrow } from "@/lib/challenge-helpers";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { FlaggedActivityActions } from "@/components/admin/flagged-activity-actions";
-
-const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
 interface FlaggedActivityDetailPageProps {
   params: Promise<{ id: string; activityId: string }>;
@@ -35,6 +33,7 @@ type HistoryEntry = {
 export default async function FlaggedActivityDetailPage({
   params,
 }: FlaggedActivityDetailPageProps) {
+  const convex = getConvexClient();
   const user = await requireAuth();
   const { activityId } = await params;
 

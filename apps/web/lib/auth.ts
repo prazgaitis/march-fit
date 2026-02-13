@@ -1,10 +1,16 @@
+import { cache } from "react";
 import { api } from "@repo/backend";
 import type { Doc } from "@repo/backend/_generated/dataModel";
 
 import { ApiError } from "./errors";
 import { fetchAuthMutation, fetchAuthQuery, getToken } from "./server-auth";
 
-export async function getCurrentUser(): Promise<Doc<"users"> | null> {
+/**
+ * Get the current user from Convex, deduplicated per-request via React.cache.
+ * Safe to call from multiple server components in the same render tree (layout + page)
+ * without triggering redundant network round-trips.
+ */
+export const getCurrentUser = cache(async function getCurrentUser(): Promise<Doc<"users"> | null> {
   const token = await getToken();
   if (!token) {
     return null;
@@ -27,7 +33,7 @@ export async function getCurrentUser(): Promise<Doc<"users"> | null> {
   }
 
   return user;
-}
+});
 
 export async function requireAuth() {
   const user = await getCurrentUser();

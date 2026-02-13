@@ -488,6 +488,7 @@ function ActivityCard({
                       src={url}
                       alt={`Activity media ${index + 1}`}
                       className="h-full w-full object-cover"
+                      loading="lazy"
                     />
                   )}
                   {isLastWithMore && (

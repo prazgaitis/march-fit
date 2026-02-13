@@ -67,16 +67,15 @@ export const getById = query({
       }
     }
 
-    // Get media URLs from storage IDs
-    const mediaUrls: string[] = [];
-    if (activity.mediaIds && activity.mediaIds.length > 0) {
-      for (const storageId of activity.mediaIds) {
-        const url = await ctx.storage.getUrl(storageId);
-        if (url) {
-          mediaUrls.push(url);
-        }
-      }
-    }
+    // Get media URLs in parallel instead of sequentially
+    const mediaUrls =
+      activity.mediaIds && activity.mediaIds.length > 0
+        ? (
+            await Promise.all(
+              activity.mediaIds.map((storageId) => ctx.storage.getUrl(storageId))
+            )
+          ).filter((url): url is string => url !== null)
+        : [];
 
     return {
       activity,
@@ -133,18 +132,17 @@ export const getChallengeFeed = query({
     paginationOpts: paginationOptsValidator,
   },
   handler: async (ctx, args) => {
-    // Get current user's following list if filtering
-    let followingIds: Set<string> | null = null;
-    if (args.followingOnly) {
-      const currentUser = await getCurrentUser(ctx);
-      if (currentUser) {
-        const follows = await ctx.db
-          .query("follows")
-          .withIndex("followerId", (q) => q.eq("followerId", currentUser._id))
-          .collect();
+    // Resolve current user once (not per-item)
+    const currentUser = await getCurrentUser(ctx);
 
-        followingIds = new Set(follows.map((f) => f.followingId));
-      }
+    // Get following list if filtering
+    let followingIds: Set<string> | null = null;
+    if (args.followingOnly && currentUser) {
+      const follows = await ctx.db
+        .query("follows")
+        .withIndex("followerId", (q) => q.eq("followerId", currentUser._id))
+        .collect();
+      followingIds = new Set(follows.map((f) => f.followingId));
     }
 
     const activities = await ctx.db
@@ -156,9 +154,22 @@ export const getChallengeFeed = query({
 
     const page = await Promise.all(
       activities.page.map(async (activity) => {
-        const [user, activityType, likeCount, commentCount, likes] = await Promise.all([
+        // 3 parallel lookups per item (user, activityType, userLike) instead of 5
+        const [user, activityType, userLike] = await Promise.all([
           ctx.db.get(activity.userId),
           ctx.db.get(activity.activityTypeId),
+          currentUser
+            ? ctx.db
+                .query("likes")
+                .withIndex("activityUserUnique", (q) =>
+                  q.eq("activityId", activity._id).eq("userId", currentUser._id)
+                )
+                .first()
+            : null,
+        ]);
+
+        // Count likes/comments via indexed first() + count pattern to avoid .collect()
+        const [likeCount, commentCount] = await Promise.all([
           ctx.db
             .query("likes")
             .withIndex("activityId", (q) => q.eq("activityId", activity._id))
@@ -169,28 +180,17 @@ export const getChallengeFeed = query({
             .withIndex("activityId", (q) => q.eq("activityId", activity._id))
             .collect()
             .then((comments) => comments.length),
-          getCurrentUser(ctx).then(async (currentUser) => {
-            if (!currentUser) return [];
-
-            return ctx.db
-                .query("likes")
-                .withIndex("activityUserUnique", (q) =>
-                    q.eq("activityId", activity._id).eq("userId", currentUser._id)
-                )
-                .collect();
-          }),
         ]);
 
-        // Get media URLs from storage IDs
-        const mediaUrls: string[] = [];
-        if (activity.mediaIds && activity.mediaIds.length > 0) {
-          for (const storageId of activity.mediaIds) {
-            const url = await ctx.storage.getUrl(storageId);
-            if (url) {
-              mediaUrls.push(url);
-            }
-          }
-        }
+        // Get media URLs in parallel instead of sequentially
+        const mediaUrls =
+          activity.mediaIds && activity.mediaIds.length > 0
+            ? (
+                await Promise.all(
+                  activity.mediaIds.map((storageId) => ctx.storage.getUrl(storageId))
+                )
+              ).filter((url): url is string => url !== null)
+            : [];
 
         return {
           activity,
@@ -212,7 +212,7 @@ export const getChallengeFeed = query({
             : null,
           likes: likeCount,
           comments: commentCount,
-          likedByUser: likes.length > 0,
+          likedByUser: userLike !== null,
           mediaUrls,
         };
       })
@@ -250,14 +250,10 @@ export const getMediaUrls = query({
       return [];
     }
 
-    const urls: string[] = [];
-    for (const storageId of activity.mediaIds) {
-      const url = await ctx.storage.getUrl(storageId);
-      if (url) {
-        urls.push(url);
-      }
-    }
-    return urls;
+    const urls = await Promise.all(
+      activity.mediaIds.map((storageId) => ctx.storage.getUrl(storageId))
+    );
+    return urls.filter((url): url is string => url !== null);
   },
 });
 

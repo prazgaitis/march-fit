@@ -1,5 +1,5 @@
 import { notFound, redirect } from "next/navigation";
-import { ConvexHttpClient } from "convex/browser";
+import { getConvexClient } from "@/lib/convex-server";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
 
@@ -8,15 +8,13 @@ import { isAuthenticated } from "@/lib/server-auth";
 import { DashboardLayoutWrapper } from "../notifications/dashboard-layout-wrapper";
 import { LeaderboardTabs } from "./leaderboard-tabs";
 
-const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
-
 interface LeaderboardPageProps {
   params: Promise<{ id: string }>;
 }
 
 export default async function LeaderboardPage({ params }: LeaderboardPageProps) {
-  const user = await getCurrentUser();
-  const { id } = await params;
+  const convex = getConvexClient();
+  const [user, { id }] = await Promise.all([getCurrentUser(), params]);
 
   if (!user) {
     const authenticated = await isAuthenticated();

@@ -51,11 +51,13 @@ export const listPublic = query({
     const limit = args.limit ?? 20;
     const offset = args.offset ?? 0;
 
-    // Get all challenges ordered by start date
+    // Fetch a bounded number of challenges instead of the entire table.
+    // Take extra to compensate for private challenges being filtered out.
+    const fetchLimit = (offset + limit) * 3 + 20;
     const challenges = await ctx.db
       .query("challenges")
       .order("desc")
-      .collect();
+      .take(fetchLimit);
 
     // Filter out private challenges
     const publicChallenges = challenges.filter(
@@ -65,9 +67,10 @@ export const listPublic = query({
     // Sort by startDate descending (most recent first)
     publicChallenges.sort((a, b) => dateOnlyToUtcMs(b.startDate) - dateOnlyToUtcMs(a.startDate));
 
-    // Get participant counts for each challenge
+    // Get participant counts in parallel for the paginated slice
+    const paginatedChallenges = publicChallenges.slice(offset, offset + limit);
     const challengesWithCounts = await Promise.all(
-      publicChallenges.slice(offset, offset + limit).map(async (challenge) => {
+      paginatedChallenges.map(async (challenge) => {
         const participations = await ctx.db
           .query("userChallenges")
           .withIndex("challengeId", (q) => q.eq("challengeId", challenge._id))

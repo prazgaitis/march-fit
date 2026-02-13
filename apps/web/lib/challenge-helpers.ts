@@ -1,12 +1,11 @@
-import { ConvexHttpClient } from "convex/browser";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
 
 import { ApiError } from "./errors";
-
-const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+import { getConvexClient } from "./convex-server";
 
 export async function getChallengeOrThrow(challengeId: string) {
+  const convex = getConvexClient();
   const challenge = await convex.query(api.queries.challenges.getById, {
     challengeId: challengeId as Id<"challenges">,
   });
@@ -31,6 +30,7 @@ export async function requireChallengeParticipant(
   userId: Id<"users">,
   challengeId: Id<"challenges">,
 ) {
+  const convex = getConvexClient();
   const participation = await convex.query(
     api.queries.participations.getByUserAndChallenge,
     {
@@ -50,6 +50,7 @@ export async function isChallengeParticipant(
   userId: Id<"users">,
   challengeId: Id<"challenges">,
 ) {
+  const convex = getConvexClient();
   const participation = await convex.query(
     api.queries.participations.getByUserAndChallenge,
     {

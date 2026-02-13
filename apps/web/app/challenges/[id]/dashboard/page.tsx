@@ -1,5 +1,5 @@
 import { notFound, redirect } from "next/navigation";
-import { ConvexHttpClient } from "convex/browser";
+import { getConvexClient } from "@/lib/convex-server";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
 
@@ -11,7 +11,6 @@ import { getToken } from "@/lib/server-auth";
 import { DashboardLayoutWrapper } from "../notifications/dashboard-layout-wrapper";
 import { dateOnlyToUtcMs } from "@/lib/date-only";
 
-const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 const DAY_IN_MS = 1000 * 60 * 60 * 24;
 
 interface ChallengeDashboardPageProps {
@@ -21,6 +20,7 @@ interface ChallengeDashboardPageProps {
 export default async function ChallengeDashboardPage({
   params,
 }: ChallengeDashboardPageProps) {
+  const convex = getConvexClient();
   const dashStart = performance.now();
   const [user, { id }] = await Promise.all([getCurrentUser(), params]);
 
