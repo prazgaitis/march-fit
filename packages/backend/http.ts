@@ -6,6 +6,27 @@ import { decryptKey } from "./lib/stripe";
 import { authComponent, createAuth } from "./auth";
 
 const http = httpRouter();
+const STRAVA_OBJECT_TYPES = new Set(["activity", "athlete"]);
+const STRAVA_ASPECT_TYPES = new Set(["create", "update", "delete"]);
+
+type StravaWebhookPayload = Record<string, unknown> & {
+  object_type: "activity" | "athlete";
+  aspect_type: "create" | "update" | "delete";
+};
+
+function isStravaWebhookPayload(value: unknown): value is StravaWebhookPayload {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const payload = value as Record<string, unknown>;
+  return (
+    typeof payload.object_type === "string" &&
+    STRAVA_OBJECT_TYPES.has(payload.object_type) &&
+    typeof payload.aspect_type === "string" &&
+    STRAVA_ASPECT_TYPES.has(payload.aspect_type)
+  );
+}
 
 // Register Better Auth routes
 authComponent.registerRoutes(http, createAuth, {
@@ -139,6 +160,94 @@ http.route({
       console.error("Error processing webhook:", err);
       return new Response("Webhook processing error", { status: 500 });
     }
+  }),
+});
+
+/**
+ * Strava webhook verification endpoint (GET)
+ * Called by Strava when setting up webhook subscription
+ */
+http.route({
+  path: "/strava/webhook",
+  method: "GET",
+  handler: httpAction(async (ctx, request) => {
+    const url = new URL(request.url);
+    const mode = url.searchParams.get("hub.mode");
+    const token = url.searchParams.get("hub.verify_token");
+    const challenge = url.searchParams.get("hub.challenge");
+
+    if (mode === "subscribe" && token === process.env.STRAVA_VERIFY_TOKEN) {
+      console.log("Strava webhook subscription verified");
+      return new Response(JSON.stringify({ "hub.challenge": challenge }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    return new Response(JSON.stringify({ error: "Invalid verification token" }), {
+      status: 403,
+      headers: { "Content-Type": "application/json" },
+    });
+  }),
+});
+
+/**
+ * Strava webhook event handler (POST)
+ * Stores raw payload and delegates processing to internalAction
+ */
+http.route({
+  path: "/strava/webhook",
+  method: "POST",
+  handler: httpAction(async (ctx, request) => {
+    let payloadId: string | null = null;
+
+    try {
+      const body = await request.json();
+      if (!isStravaWebhookPayload(body)) {
+        throw new Error("Invalid Strava webhook payload");
+      }
+      const eventType = `${body.object_type}.${body.aspect_type}`;
+
+      // Store raw webhook payload immediately
+      payloadId = await ctx.runMutation(
+        internal.mutations.webhookPayloads.store,
+        {
+          service: "strava" as const,
+          eventType,
+          payload: body,
+        }
+      );
+
+      // Delegate all processing to the internalAction
+      await ctx.runAction(
+        internal.actions.strava.processStravaWebhook,
+        {
+          payloadId,
+          event: body,
+        }
+      );
+    } catch (error) {
+      console.error("Strava Webhook Error:", error);
+
+      // Mark payload as failed if we managed to store it
+      if (payloadId) {
+        try {
+          await ctx.runMutation(internal.mutations.webhookPayloads.updateStatus, {
+            payloadId: payloadId as any,
+            status: "failed" as const,
+            error: error instanceof Error ? error.message : String(error),
+          });
+        } catch (updateError) {
+          console.error("Failed to update webhook payload status:", updateError);
+        }
+      }
+    }
+
+    // Always return 200 to Strava to prevent retries (payload stored for reprocessing)
+    return new Response(JSON.stringify({ received: true }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
   }),
 });
 

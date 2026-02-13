@@ -30,3 +30,5 @@
 - Seed data lives in `packages/backend/actions/seed.ts`
 - Schema changes auto-deploy locally via `pnpm dev`
 - Dev-only third-party scripts should be opt-in; avoid `beforeInteractive` for non-critical tooling (e.g., `react-grab`)
+| 2026-02-13 | self | Assumed `request.json()` in Convex HTTP actions returned typed JSON; TS now treats it as `unknown` | Add runtime type guards (or explicit schema validation) before accessing webhook payload fields |
+- Convex `httpAction` webhook handlers are safer with explicit type guards before deriving event keys (`object_type`, `aspect_type`) from `request.json()`

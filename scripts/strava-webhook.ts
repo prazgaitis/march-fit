@@ -22,7 +22,9 @@ dotenv.config({ path: ".env.local" }); // fill in any vars not in .env.productio
 const CLIENT_ID = process.env.NEXT_PUBLIC_STRAVA_CLIENT_ID || process.env.STRAVA_CLIENT_ID;
 const CLIENT_SECRET = process.env.STRAVA_CLIENT_SECRET;
 const VERIFY_TOKEN = process.env.STRAVA_VERIFY_TOKEN;
-const DEFAULT_WEBHOOK_URL = "https://www.march.fit/api/webhooks/strava";
+const DEFAULT_WEBHOOK_URL = process.env.CONVEX_SITE_URL
+  ? `${process.env.CONVEX_SITE_URL}/strava/webhook`
+  : "https://canny-labrador-252.convex.site/strava/webhook";
 const CALLBACK_URL = process.env.STRAVA_WEBHOOK_URL ?? DEFAULT_WEBHOOK_URL;
 
 const STRAVA_API = "https://www.strava.com/api/v3/push_subscriptions";
