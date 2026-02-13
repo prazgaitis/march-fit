@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { notFound, redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { getConvexClient } from "@/lib/convex-server";
@@ -53,28 +54,57 @@ interface InitialFeedResponse {
   }>;
 }
 
+function DashboardSkeleton() {
+  return (
+    <div className="mx-auto max-w-2xl px-4 py-6 space-y-4">
+      {/* Onboarding card skeleton */}
+      <div className="h-24 animate-pulse rounded-xl bg-zinc-900/50" />
+      {/* Feed skeletons */}
+      {[1, 2, 3].map((i) => (
+        <div key={i} className="h-48 animate-pulse rounded-xl bg-zinc-900/50" />
+      ))}
+    </div>
+  );
+}
+
+/**
+ * Page component — renders an immediate shell with Suspense,
+ * deferring auth + data fetches so the layout can stream.
+ */
 export default async function ChallengeDashboardPage({
   params,
 }: ChallengeDashboardPageProps) {
+  const { id } = await params;
+
+  return (
+    <Suspense fallback={<DashboardSkeleton />}>
+      <DashboardContent challengeSlug={id} />
+    </Suspense>
+  );
+}
+
+/**
+ * Async server component that performs all auth + data fetching.
+ * Wrapped in Suspense by the parent so the shell streams immediately.
+ */
+async function DashboardContent({
+  challengeSlug,
+}: {
+  challengeSlug: string;
+}) {
   const convex = getConvexClient();
   const dashStart = performance.now();
-  const [user, { id }] = await Promise.all([getCurrentUser(), params]);
+  const user = await getCurrentUser();
 
   if (!user) {
-    // getCurrentUser() returns null when either:
-    // 1. No auth token exists (not signed in), or
-    // 2. Token exists but Convex user record couldn't be resolved
-    // Use getToken() to distinguish the two cases without an extra round trip
-    // (getToken is cached via React.cache from getCurrentUser's call)
     const token = await getToken();
     if (token) {
-      // Signed in but Convex record missing — redirect to challenge page
-      redirect(`/challenges/${id}`);
+      redirect(`/challenges/${challengeSlug}`);
     }
-    redirect(`/sign-in?redirect_url=/challenges/${id}/dashboard`);
+    redirect(`/sign-in?redirect_url=/challenges/${challengeSlug}/dashboard`);
   }
 
-  const challengeId = id as Id<"challenges">;
+  const challengeId = challengeSlug as Id<"challenges">;
   const userAgent = (await headers()).get("user-agent") ?? "";
   const isMobileRequest = /Android|iPhone|iPad|iPod|Mobile|CriOS|FxiOS/i.test(
     userAgent,

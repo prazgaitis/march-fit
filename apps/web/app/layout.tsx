@@ -1,13 +1,13 @@
 import type { Metadata, Viewport } from "next";
+import { Suspense } from "react";
 import Script from "next/script";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ConvexProviderWrapper } from "@/components/providers/convex-provider";
-import { ConditionalHeader } from "@/components/layout/conditional-header";
+import { HeaderContent, HeaderSkeleton } from "@/components/layout/header-content";
 import { Toaster } from "@/components/ui/sonner";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
-import { getToken, preloadAuthQuery } from "@/lib/server-auth";
-import { api } from "@repo/backend";
+import { getToken } from "@/lib/server-auth";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -40,12 +40,9 @@ export default async function RootLayout({
     process.env.NODE_ENV === "development" &&
     process.env.NEXT_PUBLIC_ENABLE_REACT_GRAB === "1";
 
-  const layoutStart = performance.now();
-  const [token, preloadedUser] = await Promise.all([
-    getToken(),
-    preloadAuthQuery(api.queries.users.current),
-  ]);
-  console.log(`[perf] layout auth: ${Math.round(performance.now() - layoutStart)}ms`);
+  // getToken() is fast (cookie read) — safe to await in layout.
+  // The expensive preloadAuthQuery is deferred into Suspense via HeaderContent.
+  const token = await getToken();
 
   return (
     <ConvexProviderWrapper initialToken={token ?? null}>
@@ -73,7 +70,9 @@ export default async function RootLayout({
               <div className="absolute -left-20 -top-40 h-96 w-96 rounded-full bg-indigo-500/20 blur-[120px]" />
               <div className="absolute bottom-0 right-0 h-80 w-80 translate-x-1/4 translate-y-1/4 rounded-full bg-fuchsia-500/15 blur-[100px]" />
             </div>
-            <ConditionalHeader preloadedUser={preloadedUser} />
+            <Suspense fallback={<HeaderSkeleton />}>
+              <HeaderContent />
+            </Suspense>
             <div className="relative z-10">
               {children}
             </div>
