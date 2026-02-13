@@ -67,7 +67,7 @@ interface BonusThreshold {
 interface ActivityFeedItem {
   activity: {
     _id: string;
-    id: string; // mapped from _id for compatibility if needed, or just use _id
+    id?: string; // mapped from _id for compatibility if needed
     notes: string | null;
     pointsEarned: number;
     loggedDate: number; // Convex returns number
@@ -95,15 +95,30 @@ interface ActivityFeedItem {
 
 interface ActivityFeedProps {
   challengeId: string;
+  initialItems?: ActivityFeedItem[];
+  initialLightweightMode?: boolean;
 }
 
 type FeedFilter = 'all' | 'following';
 
-export function ActivityFeed({ challengeId }: ActivityFeedProps) {
+export function ActivityFeed({
+  challengeId,
+  initialItems = [],
+  initialLightweightMode = false,
+}: ActivityFeedProps) {
   const { hasNewActivity, acknowledgeActivity } = useChallengeRealtime();
   const { users: mentionUsers } = useMentionableUsers(challengeId);
   const [pendingLikes, setPendingLikes] = useState<Record<string, boolean>>({});
   const [feedFilter, setFeedFilter] = useState<FeedFilter>('all');
+  const isMobileClient = useMemo(() => {
+    if (typeof navigator === 'undefined') {
+      return false;
+    }
+    return /Android|iPhone|iPad|iPod|Mobile|CriOS|FxiOS/i.test(
+      navigator.userAgent,
+    );
+  }, []);
+  const lightweightFeedMode = initialLightweightMode || isMobileClient;
 
   const {
     results,
@@ -115,6 +130,8 @@ export function ActivityFeed({ challengeId }: ActivityFeedProps) {
     {
       challengeId: challengeId as Id<"challenges">,
       followingOnly: feedFilter === 'following',
+      includeEngagementCounts: !lightweightFeedMode,
+      includeMediaUrls: !lightweightFeedMode,
     },
     { initialNumItems: 10 }
   );
@@ -149,11 +166,24 @@ export function ActivityFeed({ challengeId }: ActivityFeedProps) {
   };
 
   const feedStatus = useMemo(() => {
-    if (isLoading) {
+    const hasInitialFeed = feedFilter === 'all' && initialItems.length > 0;
+    if (isLoading && !hasInitialFeed) {
       return 'Loading recent activities...';
     }
     return null;
-  }, [isLoading]);
+  }, [feedFilter, initialItems.length, isLoading]);
+
+  const displayResults = useMemo(() => {
+    if (feedFilter !== 'all') {
+      return results;
+    }
+
+    if (results === undefined || results.length === 0) {
+      return initialItems;
+    }
+
+    return results;
+  }, [feedFilter, initialItems, results]);
 
   return (
     <div className="space-y-4">
@@ -208,10 +238,11 @@ export function ActivityFeed({ challengeId }: ActivityFeedProps) {
         </div>
       )}
 
-      {results?.filter((item): item is NonNullable<typeof item> & { user: NonNullable<(typeof item)['user']> } => item.user !== null).map((item) => (
+      {displayResults?.filter((item): item is NonNullable<typeof item> & { user: NonNullable<(typeof item)['user']> } => item.user !== null).map((item) => (
         <ActivityCard
           key={item.activity._id}
           challengeId={challengeId}
+          showEngagementCounts={!lightweightFeedMode}
           item={{
               ...item,
               activity: {
@@ -226,7 +257,7 @@ export function ActivityFeed({ challengeId }: ActivityFeedProps) {
         />
       ))}
 
-      {!isLoading && results?.length === 0 && (
+      {!isLoading && (displayResults?.length ?? 0) === 0 && (
         <Card className="border-dashed text-center">
           <CardHeader>
             <CardTitle>
@@ -336,6 +367,7 @@ function ActivityStats({ item }: { item: ActivityFeedItem }) {
 interface ActivityCardProps {
   challengeId: string;
   item: ActivityFeedItem;
+  showEngagementCounts: boolean;
   onToggleLike: (activityId: string, shouldLike: boolean) => Promise<void> | void;
   isLiking: boolean;
   mentionOptions: MentionableUser[];
@@ -344,10 +376,12 @@ interface ActivityCardProps {
 function ActivityCard({
   challengeId,
   item,
+  showEngagementCounts,
   onToggleLike,
   isLiking,
   mentionOptions,
 }: ActivityCardProps) {
+  const activityId = item.activity.id ?? item.activity._id;
   const router = useRouter();
   const [showComments, setShowComments] = useState(false);
   const [showFlagDialog, setShowFlagDialog] = useState(false);
@@ -359,7 +393,7 @@ function ActivityCard({
 
   const flagActivity = useMutation(api.mutations.activities.flagActivity);
 
-  const activityUrl = `/challenges/${challengeId}/activities/${item.activity.id}`;
+  const activityUrl = `/challenges/${challengeId}/activities/${activityId}`;
 
   const handleCardClick = (e: React.MouseEvent) => {
     // Don't navigate if clicking on interactive elements
@@ -394,7 +428,7 @@ function ActivityCard({
         : categoryLabel;
     try {
       await flagActivity({
-        activityId: item.activity.id as Id<"activities">,
+        activityId: activityId as Id<"activities">,
         reason,
       });
       setFlagSuccess(true);
@@ -516,12 +550,12 @@ function ActivityCard({
           variant={item.likedByUser ? 'default' : 'outline'}
           size="sm"
           disabled={isLiking}
-          onClick={() => onToggleLike(item.activity.id, !item.likedByUser)}
+          onClick={() => onToggleLike(activityId, !item.likedByUser)}
         >
           <ThumbsUp
             className={cn('mr-2 h-4 w-4', item.likedByUser && 'fill-current')}
           />
-          {item.likes}
+          {showEngagementCounts ? item.likes : 'Like'}
         </Button>
         <Button
           variant={showComments ? 'default' : 'outline'}
@@ -529,7 +563,7 @@ function ActivityCard({
           onClick={() => setShowComments((prev) => !prev)}
         >
           <MessageCircle className="mr-2 h-4 w-4" />
-          {item.comments}
+          {showEngagementCounts ? item.comments : 'Comment'}
         </Button>
         <Button variant="ghost" size="sm" onClick={handleShare}>
           <Share2 className="mr-2 h-4 w-4" /> Share
@@ -641,7 +675,7 @@ function ActivityCard({
       {showComments && (
         <CardContent className="border-t bg-muted/40" onClick={(e) => e.stopPropagation()}>
            <ActivityComments
-              activityId={item.activity.id}
+              activityId={activityId}
               challengeId={challengeId}
               mentionOptions={mentionOptions}
             />

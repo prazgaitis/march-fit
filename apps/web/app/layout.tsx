@@ -36,6 +36,10 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const enableDevCursorScripts =
+    process.env.NODE_ENV === "development" &&
+    process.env.NEXT_PUBLIC_ENABLE_REACT_GRAB === "1";
+
   const layoutStart = performance.now();
   const [token, preloadedUser] = await Promise.all([
     getToken(),
@@ -47,14 +51,14 @@ export default async function RootLayout({
     <ConvexProviderWrapper initialToken={token ?? null}>
       <html lang="en">
       <head>
-        {process.env.NODE_ENV === "development" && (
+        {enableDevCursorScripts && (
           <Script
             src="//unpkg.com/react-grab/dist/index.global.js"
             crossOrigin="anonymous"
-            strategy="beforeInteractive"
+            strategy="lazyOnload"
           />
         )}
-        {process.env.NODE_ENV === "development" && (
+        {enableDevCursorScripts && (
           <Script
             src="//unpkg.com/@react-grab/cursor/dist/client.global.js"
             strategy="lazyOnload"

@@ -129,9 +129,14 @@ export const getChallengeFeed = query({
   args: {
     challengeId: v.id("challenges"),
     followingOnly: v.optional(v.boolean()),
+    includeEngagementCounts: v.optional(v.boolean()),
+    includeMediaUrls: v.optional(v.boolean()),
     paginationOpts: paginationOptsValidator,
   },
   handler: async (ctx, args) => {
+    const includeEngagementCounts = args.includeEngagementCounts ?? true;
+    const includeMediaUrls = args.includeMediaUrls ?? true;
+
     // Resolve current user once (not per-item)
     const currentUser = await getCurrentUser(ctx);
 
@@ -154,7 +159,15 @@ export const getChallengeFeed = query({
 
     const page = await Promise.all(
       activities.page.map(async (activity) => {
-        // 3 parallel lookups per item (user, activityType, userLike) instead of 5
+        // Skip expensive per-item lookups early when filtering by following.
+        if (
+          followingIds !== null &&
+          !followingIds.has(activity.userId as string)
+        ) {
+          return null;
+        }
+
+        // Core lookups per item
         const [user, activityType, userLike] = await Promise.all([
           ctx.db.get(activity.userId),
           ctx.db.get(activity.activityTypeId),
@@ -168,23 +181,26 @@ export const getChallengeFeed = query({
             : null,
         ]);
 
-        // Count likes/comments via indexed first() + count pattern to avoid .collect()
-        const [likeCount, commentCount] = await Promise.all([
-          ctx.db
-            .query("likes")
-            .withIndex("activityId", (q) => q.eq("activityId", activity._id))
-            .collect()
-            .then((likes) => likes.length),
-          ctx.db
-            .query("comments")
-            .withIndex("activityId", (q) => q.eq("activityId", activity._id))
-            .collect()
-            .then((comments) => comments.length),
-        ]);
+        // Counts can be expensive in large feeds. Allow clients to opt out.
+        const [likeCount, commentCount] = includeEngagementCounts
+          ? await Promise.all([
+              ctx.db
+                .query("likes")
+                .withIndex("activityId", (q) => q.eq("activityId", activity._id))
+                .collect()
+                .then((likes) => likes.length),
+              ctx.db
+                .query("comments")
+                .withIndex("activityId", (q) => q.eq("activityId", activity._id))
+                .collect()
+                .then((comments) => comments.length),
+            ])
+          : [0, 0];
 
-        // Get media URLs in parallel instead of sequentially
+        // Media URL generation can be expensive for paginated feeds.
+        // Allow clients to opt out and load media lazily.
         const mediaUrls =
-          activity.mediaIds && activity.mediaIds.length > 0
+          includeMediaUrls && activity.mediaIds && activity.mediaIds.length > 0
             ? (
                 await Promise.all(
                   activity.mediaIds.map((storageId) => ctx.storage.getUrl(storageId))
@@ -219,16 +235,12 @@ export const getChallengeFeed = query({
     );
 
     // Filter results
-    let filteredPage = page.filter(
+    let filteredPage = page.filter((item) => item !== null).filter(
       (item) => item.user !== null && item.activityType !== null
     );
 
     // Apply following filter if enabled
-    if (followingIds !== null) {
-      filteredPage = filteredPage.filter(
-        (item) => item.user && followingIds!.has(item.user.id)
-      );
-    }
+    // Note: following filter is primarily applied above before heavy lookups.
 
     return {
       ...activities,
@@ -341,4 +353,3 @@ export const debugAchievements = query({
     };
   },
 });
-
