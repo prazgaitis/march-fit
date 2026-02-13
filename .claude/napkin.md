@@ -32,3 +32,14 @@
 - Dev-only third-party scripts should be opt-in; avoid `beforeInteractive` for non-critical tooling (e.g., `react-grab`)
 | 2026-02-13 | self | Assumed `request.json()` in Convex HTTP actions returned typed JSON; TS now treats it as `unknown` | Add runtime type guards (or explicit schema validation) before accessing webhook payload fields |
 - Convex `httpAction` webhook handlers are safer with explicit type guards before deriving event keys (`object_type`, `aspect_type`) from `request.json()`
+- `apps/web` dev script runs `@react-grab/cursor` before `next dev`; this can create behavior differences vs production. Prefer validating layout bugs with `next build && next start` too.
+- Overflow debug scripts that add `window.scrollY` to fixed-position elements can produce misleading `top/bottom` values; filter out `position: fixed` when diagnosing document-flow overflow.
+- When user asks to branch with dirty worktree, preserve unrelated local modifications and scope edits to requested files only.
+| 2026-02-13 | self | Forgot to quote path containing parentheses (`(marketing)`) so zsh globbing failed | Quote paths with `()`, `[]`, and other glob chars in shell commands |
+- If user asks to open a PR, commit only task-relevant files and keep unrelated dirty files unstaged.
+| 2026-02-13 | self | Used backticks inside a double-quoted `gh pr create --body` string, triggering shell command substitution and noisy side effects | Use a heredoc/file for PR body or avoid backticks in shell-quoted strings |
+## User Preferences
+- Always commit `.claude/napkin.md` with related task commits.
+- Avoid module-scope `new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!)` in route handlers; lazy-init inside request handlers with env guards to prevent build-time crashes.
+- Root layout auth preloads can execute during static prerender (`/_not-found`); guard token preload and fail open when auth env vars are absent at build time.
+- Vercel can ignore root `vercel.json` when project Root Directory is `apps/web`; keep an `apps/web/vercel.json` with the Convex deploy build command to avoid accidental `pnpm build` fallback.
