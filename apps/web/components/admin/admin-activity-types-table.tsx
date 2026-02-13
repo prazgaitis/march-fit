@@ -60,6 +60,7 @@ export function AdminActivityTypesTable({
   const [editContributes, setEditContributes] = useState(true);
   const [editNegative, setEditNegative] = useState(false);
   const [editThresholds, setEditThresholds] = useState<BonusThreshold[]>([]);
+  const [editScoringConfig, setEditScoringConfig] = useState<Record<string, unknown> | null>(null);
 
   const [statusMessage, setStatusMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [isPending, setIsPending] = useState(false);
@@ -92,6 +93,7 @@ export function AdminActivityTypesTable({
   };
 
   const startEditing = (item: ActivityType) => {
+    const scoringConfig = (item.scoringConfig as Record<string, unknown>) ?? {};
     const basePoints = getBasePoints(item);
     setEditingId(item._id);
     setEditName(item.name);
@@ -99,11 +101,44 @@ export function AdminActivityTypesTable({
     setEditContributes(item.contributesToStreak);
     setEditNegative(item.isNegative);
     setEditThresholds((item.bonusThresholds as BonusThreshold[]) || []);
+    setEditScoringConfig(scoringConfig);
   };
 
   const cancelEditing = () => {
     setEditingId(null);
     setEditThresholds([]);
+    setEditScoringConfig(null);
+  };
+
+  const withUpdatedPoints = (
+    currentConfig: Record<string, unknown>,
+    points: number
+  ): Record<string, unknown> => {
+    const nextConfig = { ...currentConfig };
+    const scoringType = typeof nextConfig.type === "string" ? nextConfig.type : undefined;
+
+    if (scoringType === "completion") {
+      if ("fixedPoints" in nextConfig) {
+        nextConfig.fixedPoints = points;
+      } else {
+        nextConfig.points = points;
+      }
+      return nextConfig;
+    }
+
+    if (
+      scoringType === "unit_based" ||
+      scoringType === "distance" ||
+      scoringType === "duration" ||
+      scoringType === "count" ||
+      typeof nextConfig.unit === "string"
+    ) {
+      nextConfig.pointsPerUnit = points;
+      return nextConfig;
+    }
+
+    nextConfig.basePoints = points;
+    return nextConfig;
   };
 
   const handleUpdate = async (e: React.FormEvent) => {
@@ -111,16 +146,21 @@ export function AdminActivityTypesTable({
     if (!editingId) return;
     setIsPending(true);
     try {
+      const parsedPoints = Number(editPoints);
+      const safePoints = Number.isFinite(parsedPoints) ? parsedPoints : 1;
+      const nextScoringConfig = withUpdatedPoints(editScoringConfig ?? {}, safePoints);
+
       await updateActivityType({
         activityTypeId: editingId as Id<"activityTypes">,
         name: editName,
-        scoringConfig: { basePoints: Number(editPoints) || 1 },
+        scoringConfig: nextScoringConfig,
         contributesToStreak: editContributes,
         isNegative: editNegative,
         bonusThresholds: editThresholds,
       });
       setEditingId(null);
       setEditThresholds([]);
+      setEditScoringConfig(null);
       setStatusMessage({ type: "success", text: "Saved" });
       clearStatus();
     } catch {
@@ -149,7 +189,7 @@ export function AdminActivityTypesTable({
 
   const getBasePoints = (item: ActivityType) => {
     const config = item.scoringConfig as Record<string, unknown>;
-    return Number(config?.basePoints ?? config?.points ?? config?.pointsPerUnit ?? 1) || 1;
+    return Number(config?.pointsPerUnit ?? config?.fixedPoints ?? config?.points ?? config?.basePoints ?? 1) || 1;
   };
 
   return (

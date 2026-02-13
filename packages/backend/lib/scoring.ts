@@ -22,6 +22,60 @@ function toNumber(value: unknown): number {
   return Number.isFinite(numberValue) ? numberValue : 0;
 }
 
+function normalizeMetricKey(key: string): string {
+  return key
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_");
+}
+
+function getMetricValueForUnit(
+  unit: string | undefined,
+  metrics: Record<string, unknown>
+): number | undefined {
+  if (!unit) {
+    return undefined;
+  }
+
+  // Fast path: exact key as configured.
+  if (metrics[unit] !== undefined) {
+    return toNumber(metrics[unit]);
+  }
+
+  const normalizedUnit = normalizeMetricKey(unit);
+
+  // Common canonical aliases used across ingestion paths.
+  const canonicalAliases: Record<string, string[]> = {
+    miles: ["distance_miles", "mile", "distance_mile"],
+    kilometers: ["distance_km", "distance_kilometers", "km", "kilometres", "kilometer", "kilometre"],
+    minutes: ["duration_minutes", "moving_minutes", "minute"],
+    count: ["counts", "instances", "instance"],
+    completion: ["completed", "is_completed"],
+    full_days: ["full_day"],
+    half_days: ["half_day"],
+  };
+
+  const candidates = new Set<string>([normalizedUnit]);
+  const singular = normalizedUnit.endsWith("s") ? normalizedUnit.slice(0, -1) : normalizedUnit;
+  const plural = normalizedUnit.endsWith("s") ? normalizedUnit : `${normalizedUnit}s`;
+  candidates.add(singular);
+  candidates.add(plural);
+
+  const aliasKeys = canonicalAliases[normalizedUnit] ?? canonicalAliases[singular] ?? [];
+  for (const alias of aliasKeys) {
+    candidates.add(alias);
+  }
+
+  for (const [key, value] of Object.entries(metrics)) {
+    const normalizedKey = normalizeMetricKey(key);
+    if (candidates.has(normalizedKey) && value !== undefined) {
+      return toNumber(value);
+    }
+  }
+
+  return undefined;
+}
+
 function getScoringConfig(activityType: Doc<"activityTypes">): Record<string, unknown> {
   return (activityType.scoringConfig as Record<string, unknown>) ?? {};
 }
@@ -36,11 +90,11 @@ async function calculateDefaultPoints(
   const config = getScoringConfig(activityType);
   const { unit, pointsPerUnit = 1, basePoints = 0 } = config;
 
-  if (!unit || !context.metrics[unit as string]) {
+  const unitValue = getMetricValueForUnit(unit as string | undefined, context.metrics);
+  if (unitValue === undefined) {
     return toNumber(basePoints);
   }
 
-  const unitValue = toNumber(context.metrics[unit as string]);
   return toNumber(basePoints) + unitValue * toNumber(pointsPerUnit);
 }
 
@@ -210,11 +264,11 @@ function calculateVariantPoints(
   const { unit, pointsPerUnit = 1, basePoints = 0 } = variantConfig;
   const scoringUnit = unit || mainConfig["unit"];
 
-  if (!scoringUnit || !metrics[scoringUnit as string]) {
+  const unitValue = getMetricValueForUnit(scoringUnit as string | undefined, metrics);
+  if (unitValue === undefined) {
     return toNumber(basePoints);
   }
 
-  const unitValue = toNumber(metrics[scoringUnit as string]);
   return toNumber(basePoints) + unitValue * toNumber(pointsPerUnit);
 }
 
@@ -312,18 +366,19 @@ function calculateUnitBasedPoints(
   const maxUnits = config["maxUnits"] as number | undefined;
   const basePoints = toNumber(config["basePoints"] ?? 0);
 
-  if (!unit || !context.metrics[unit]) {
+  const unitValue = getMetricValueForUnit(unit, context.metrics);
+  if (unitValue === undefined) {
     return basePoints;
   }
 
-  let unitValue = toNumber(context.metrics[unit]);
+  let boundedUnitValue = unitValue;
 
   // Apply cap if maxUnits is defined
-  if (maxUnits !== undefined && unitValue > maxUnits) {
-    unitValue = maxUnits;
+  if (maxUnits !== undefined && boundedUnitValue > maxUnits) {
+    boundedUnitValue = maxUnits;
   }
 
-  return basePoints + unitValue * pointsPerUnit;
+  return basePoints + boundedUnitValue * pointsPerUnit;
 }
 
 /**

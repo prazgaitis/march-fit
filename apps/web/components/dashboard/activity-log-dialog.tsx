@@ -88,6 +88,11 @@ function parseNumber(value: unknown): number | null {
   return Number.isFinite(numberValue) ? numberValue : null;
 }
 
+function formatPoints(value: number): string {
+  const normalized = Math.round((value + Number.EPSILON) * 100) / 100;
+  return normalized.toString();
+}
+
 interface MediaPreview {
   file: File;
   url: string;
@@ -677,12 +682,12 @@ export function ActivityLogDialog({ challengeId, challengeStartDate, trigger }: 
               {successState.activityName}
             </p>
             <p className="mt-1 text-2xl font-bold text-green-500">
-              +{successState.pointsEarned.toFixed(0)} pts
+              +{formatPoints(successState.pointsEarned)} pts
             </p>
             {successState.triggeredBonuses.length > 0 && (
               <div className="mt-3 space-y-1">
                 <p className="text-xs text-muted-foreground">
-                  {successState.basePoints.toFixed(0)} base + {successState.bonusPoints.toFixed(0)} bonus
+                  {formatPoints(successState.basePoints)} base + {formatPoints(successState.bonusPoints)} bonus
                 </p>
                 {successState.triggeredBonuses.map((bonus, i) => (
                   <Badge key={i} variant="secondary" className="bg-amber-500/10 text-amber-500">
