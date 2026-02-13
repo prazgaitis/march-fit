@@ -41,3 +41,4 @@
 ## User Preferences
 - Always commit `.claude/napkin.md` with related task commits.
 - Avoid module-scope `new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!)` in route handlers; lazy-init inside request handlers with env guards to prevent build-time crashes.
+- Root layout auth preloads can execute during static prerender (`/_not-found`); guard token preload and fail open when auth env vars are absent at build time.

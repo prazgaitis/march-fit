@@ -22,11 +22,30 @@ type ServerAuthResult = {
 // Lazy initialization to avoid build-time errors when env vars aren't available
 let _betterAuthUtils: ReturnType<typeof convexBetterAuthNextJs> | null = null;
 
+function resolveConvexSiteUrl(convexUrl: string): string {
+  if (process.env.NEXT_PUBLIC_CONVEX_SITE_URL) {
+    return process.env.NEXT_PUBLIC_CONVEX_SITE_URL;
+  }
+
+  // Convex cloud deployments use a corresponding ".convex.site" host for auth.
+  if (convexUrl.includes(".convex.cloud")) {
+    return convexUrl.replace(".convex.cloud", ".convex.site");
+  }
+
+  // For self-hosted or already-site URLs, reuse the same host.
+  return convexUrl;
+}
+
 function getBetterAuthUtils() {
   if (!_betterAuthUtils) {
+    const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
+    if (!convexUrl) {
+      throw new Error("NEXT_PUBLIC_CONVEX_URL is not set.");
+    }
+
     _betterAuthUtils = convexBetterAuthNextJs({
-      convexUrl: process.env.NEXT_PUBLIC_CONVEX_URL!,
-      convexSiteUrl: process.env.NEXT_PUBLIC_CONVEX_SITE_URL!,
+      convexUrl,
+      convexSiteUrl: resolveConvexSiteUrl(convexUrl),
     });
   }
   return _betterAuthUtils;
