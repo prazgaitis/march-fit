@@ -108,8 +108,8 @@ export async function getServerAuth(): Promise<ServerAuthResult> {
         },
       };
     }
-  } catch {
-    // Query/mutation failed, fall through to unauthenticated response.
+  } catch (error) {
+    console.error("[server-auth] getServerAuth failed:", error);
   }
 
   return {

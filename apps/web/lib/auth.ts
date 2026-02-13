@@ -28,8 +28,8 @@ export const getCurrentUser = cache(async function getCurrentUser(): Promise<Doc
         {},
       );
     }
-  } catch {
-    // Auth query/mutation failed - user will remain null
+  } catch (error) {
+    console.error("[auth] getCurrentUser failed:", error);
   }
 
   return user;
