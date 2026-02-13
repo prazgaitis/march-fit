@@ -183,7 +183,9 @@ async function DashboardContent({
       initialSummary={initialSummary}
     >
       <div className="mx-auto max-w-2xl px-4 py-6 space-y-4">
-        <OnboardingCard challengeId={challenge.id} userId={user._id} />
+        {dateOnlyToUtcMs(challenge.startDate) > Date.now() && (
+          <OnboardingCard challengeId={challenge.id} userId={user._id} challengeStartDate={challenge.startDate} />
+        )}
         <ActivityFeed
           challengeId={challenge.id}
           initialItems={initialFeed.page}

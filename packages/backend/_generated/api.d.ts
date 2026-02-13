@@ -56,6 +56,7 @@ import type * as mutations_payments from "../mutations/payments.js";
 import type * as mutations_stravaWebhook from "../mutations/stravaWebhook.js";
 import type * as mutations_templates from "../mutations/templates.js";
 import type * as mutations_users from "../mutations/users.js";
+import type * as mutations_webhookPayloads from "../mutations/webhookPayloads.js";
 import type * as queries_achievements from "../queries/achievements.js";
 import type * as queries_activities from "../queries/activities.js";
 import type * as queries_activityTypes from "../queries/activityTypes.js";
@@ -141,6 +142,7 @@ declare const fullApi: ApiFromModules<{
   "mutations/stravaWebhook": typeof mutations_stravaWebhook;
   "mutations/templates": typeof mutations_templates;
   "mutations/users": typeof mutations_users;
+  "mutations/webhookPayloads": typeof mutations_webhookPayloads;
   "queries/achievements": typeof queries_achievements;
   "queries/activities": typeof queries_activities;
   "queries/activityTypes": typeof queries_activityTypes;

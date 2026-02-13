@@ -9,7 +9,6 @@ import { Input } from "@/components/ui/input";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -21,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { StravaConnectButton } from "@/components/integrations/strava-connect-button";
+import { parseDateOnlyToUtcMs } from "@/lib/date-only";
 import {
   CheckCircle2,
   UserPlus,
@@ -35,12 +35,22 @@ import {
   ChevronUp,
 } from "lucide-react";
 
+function getOnboardingTitle(startDate: string): string {
+  const startMs = parseDateOnlyToUtcMs(startDate);
+  const now = Date.now();
+  const daysUntilStart = Math.ceil((startMs - now) / (1000 * 60 * 60 * 24));
+  if (daysUntilStart > 1) return `${daysUntilStart} days until the challenge`;
+  if (daysUntilStart === 1) return "Challenge starts tomorrow";
+  return "Getting started";
+}
+
 interface OnboardingCardProps {
   challengeId: string;
   userId: string;
+  challengeStartDate: string;
 }
 
-export function OnboardingCard({ challengeId, userId }: OnboardingCardProps) {
+export function OnboardingCard({ challengeId, userId, challengeStartDate }: OnboardingCardProps) {
   const [dismissed, setDismissed] = useState(false);
   const [expandedStep, setExpandedStep] = useState<number | null>(null);
 
@@ -127,13 +137,6 @@ export function OnboardingCard({ challengeId, userId }: OnboardingCardProps) {
     },
   ];
 
-  const completedCount = steps.filter((s) => s.complete).length;
-  // Don't count the invite step in total since it's never "complete"
-  const completableCount = steps.filter((s) => s.key !== "invite").length;
-  const completedCompletable = steps.filter(
-    (s) => s.key !== "invite" && s.complete
-  ).length;
-
   const toggleStep = (index: number) => {
     setExpandedStep(expandedStep === index ? null : index);
   };
@@ -143,10 +146,7 @@ export function OnboardingCard({ challengeId, userId }: OnboardingCardProps) {
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle className="text-base">Get ready for the challenge</CardTitle>
-            <CardDescription>
-              {completedCompletable}/{completableCount} steps completed
-            </CardDescription>
+            <CardTitle className="text-base">{getOnboardingTitle(challengeStartDate)}</CardTitle>
           </div>
           {allCompletableStepsDone && (
             <Button
