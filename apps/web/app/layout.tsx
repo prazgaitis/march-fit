@@ -39,10 +39,18 @@ export default async function RootLayout({
   const enableDevCursorScripts =
     process.env.NODE_ENV === "development" &&
     process.env.NEXT_PUBLIC_ENABLE_REACT_GRAB === "1";
+  const canUseAuth = Boolean(process.env.NEXT_PUBLIC_CONVEX_URL);
 
-  // getToken() is fast (cookie read) — safe to await in layout.
-  // The expensive preloadAuthQuery is deferred into Suspense via HeaderContent.
-  const token = await getToken();
+  // getToken() is fast (cookie read). During static prerender (e.g. /_not-found)
+  // auth env vars may be unavailable, so fail open to avoid build-time crashes.
+  let token: string | null = null;
+  if (canUseAuth) {
+    try {
+      token = (await getToken()) ?? null;
+    } catch (error) {
+      console.error("[layout] failed to preload auth token:", error);
+    }
+  }
 
   return (
     <ConvexProviderWrapper initialToken={token ?? null}>
@@ -66,13 +74,11 @@ export default async function RootLayout({
           className={`${geistSans.variable} ${geistMono.variable} bg-black text-white antialiased`}
         >
           <div className="relative min-h-screen">
-            <div className="pointer-events-none fixed inset-0 overflow-hidden">
-              <div className="absolute -left-20 -top-40 h-96 w-96 rounded-full bg-indigo-500/20 blur-[120px]" />
-              <div className="absolute bottom-0 right-0 h-80 w-80 translate-x-1/4 translate-y-1/4 rounded-full bg-fuchsia-500/15 blur-[100px]" />
-            </div>
-            <Suspense fallback={<HeaderSkeleton />}>
-              <HeaderContent />
-            </Suspense>
+            {canUseAuth && (
+              <Suspense fallback={<HeaderSkeleton />}>
+                <HeaderContent />
+              </Suspense>
+            )}
             <div className="relative z-10">
               {children}
             </div>
