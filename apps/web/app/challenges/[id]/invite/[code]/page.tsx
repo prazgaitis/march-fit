@@ -149,6 +149,7 @@ export default async function InviteAcceptPage({ params }: InviteAcceptPageProps
           requiresPayment={requiresPayment}
           priceInCents={paymentInfo.priceInCents}
           currency={paymentInfo.currency}
+          isSignedIn={Boolean(token)}
         />
       </div>
     </div>
