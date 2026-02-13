@@ -5,6 +5,7 @@ import { useMutation } from "convex/react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { CreditCard, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -16,6 +17,7 @@ interface InviteJoinCtaProps {
   requiresPayment: boolean;
   priceInCents: number;
   currency: string;
+  isSignedIn: boolean;
 }
 
 function formatPrice(cents: number, currency: string = "usd") {
@@ -32,6 +34,7 @@ export function InviteJoinCta({
   requiresPayment,
   priceInCents,
   currency,
+  isSignedIn,
 }: InviteJoinCtaProps) {
   const router = useRouter();
   const joinChallenge = useMutation(api.mutations.participations.join);
@@ -84,6 +87,28 @@ export function InviteJoinCta({
       setIsJoining(false);
     }
   };
+
+  const redirectUrl = `/challenges/${routeChallengeId}/invite/${inviteCode}`;
+
+  if (!isSignedIn) {
+    return (
+      <div className="sticky bottom-4 z-10">
+        <div className="rounded-xl border bg-card/95 p-4 shadow-lg backdrop-blur space-y-3">
+          <Button asChild className="w-full" size="lg">
+            <Link href={`/sign-up?redirect_url=${encodeURIComponent(redirectUrl)}`}>
+              Sign Up to Join
+            </Link>
+          </Button>
+          <p className="text-center text-sm text-muted-foreground">
+            Already have an account?{" "}
+            <Link href={`/sign-in?redirect_url=${encodeURIComponent(redirectUrl)}`} className="text-foreground underline underline-offset-4 hover:text-foreground/80">
+              Sign in
+            </Link>
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="sticky bottom-4 z-10">

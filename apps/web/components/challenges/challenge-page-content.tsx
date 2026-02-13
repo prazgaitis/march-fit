@@ -200,10 +200,19 @@ export function ChallengePageContent({
     const cls = fullWidth ? "w-full" : "";
 
     if (!isSignedIn) {
+      const redirectUrl = encodeURIComponent(`/challenges/${challenge.id}`);
       return (
-        <Button asChild className={cls}>
-          <Link href="/sign-up">Sign Up to Join</Link>
-        </Button>
+        <div className={cls}>
+          <Button asChild className="w-full">
+            <Link href={`/sign-up?redirect_url=${redirectUrl}`}>Sign Up to Join</Link>
+          </Button>
+          <p className="mt-2 text-center text-sm text-muted-foreground">
+            Already have an account?{" "}
+            <Link href={`/sign-in?redirect_url=${redirectUrl}`} className="text-foreground underline underline-offset-4 hover:text-foreground/80">
+              Sign in
+            </Link>
+          </p>
+        </div>
       );
     }
 
