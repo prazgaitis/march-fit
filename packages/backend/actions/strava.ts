@@ -4,6 +4,7 @@ import { action, internalAction } from "../_generated/server";
 import { internal, api } from "../_generated/api";
 import { v } from "convex/values";
 import type { Id } from "../_generated/dataModel";
+import { coerceDateOnlyToString } from "../lib/dateOnly";
 
 interface StravaTokenResponse {
   access_token: string;
@@ -508,3 +509,192 @@ function getMetricValueForThreshold(
 
   return undefined;
 }
+
+interface StravaWebhookEvent {
+  aspect_type: "create" | "update" | "delete";
+  event_time: number;
+  object_id: number;
+  object_type: "activity" | "athlete";
+  owner_id: number;
+  subscription_id: number;
+  updates?: {
+    title?: string;
+    type?: string;
+    private?: boolean;
+    authorized?: boolean;
+  };
+}
+
+/**
+ * Process a Strava webhook event (called from HTTP action)
+ */
+export const processStravaWebhook = internalAction({
+  args: {
+    payloadId: v.id("webhookPayloads"),
+    event: v.any(),
+  },
+  handler: async (ctx, args) => {
+    const body = args.event as StravaWebhookEvent;
+
+    // Only process activity events
+    if (body.object_type !== "activity") {
+      console.log("Ignoring non-activity event:", body.object_type);
+      await ctx.runMutation(internal.mutations.webhookPayloads.updateStatus, {
+        payloadId: args.payloadId,
+        status: "completed" as const,
+        processingResult: { skipped: true, reason: "non_activity_event" },
+      });
+      return;
+    }
+
+    // Mark as processing
+    await ctx.runMutation(internal.mutations.webhookPayloads.updateStatus, {
+      payloadId: args.payloadId,
+      status: "processing" as const,
+    });
+
+    // Find user by Strava athlete ID
+    const integrationData = await ctx.runQuery(
+      internal.queries.integrations.getByAthleteId,
+      { athleteId: body.owner_id }
+    );
+
+    if (!integrationData) {
+      console.log("No user found for Strava athlete:", body.owner_id);
+      await ctx.runMutation(internal.mutations.webhookPayloads.updateStatus, {
+        payloadId: args.payloadId,
+        status: "completed" as const,
+        processingResult: { skipped: true, reason: "no_user_found", athleteId: body.owner_id },
+      });
+      return;
+    }
+
+    const { integration, user } = integrationData;
+    console.log("Found user:", { userId: user._id, athleteId: body.owner_id });
+
+    // Handle delete event
+    if (body.aspect_type === "delete") {
+      console.log("Processing delete for activity:", body.object_id);
+      const result = await ctx.runMutation(
+        internal.mutations.stravaWebhook.deleteFromStrava,
+        { externalId: body.object_id.toString() }
+      );
+      console.log("Delete result:", result);
+      await ctx.runMutation(internal.mutations.webhookPayloads.updateStatus, {
+        payloadId: args.payloadId,
+        status: "completed" as const,
+        processingResult: { deleted: result.deleted },
+      });
+      return;
+    }
+
+    // For create/update, we need to fetch activity details
+    let accessToken = integration.accessToken;
+    if (!accessToken || !integration.refreshToken || !integration.expiresAt) {
+      console.error("Missing token data for integration:", integration._id);
+      await ctx.runMutation(internal.mutations.webhookPayloads.updateStatus, {
+        payloadId: args.payloadId,
+        status: "failed" as const,
+        error: "Integration missing token data",
+      });
+      return;
+    }
+
+    // Refresh token if needed
+    const refreshedToken = await ctx.runAction(
+      api.actions.strava.refreshToken,
+      {
+        integrationId: integration._id,
+        currentExpiresAt: integration.expiresAt,
+        refreshToken: integration.refreshToken,
+      }
+    );
+
+    if (refreshedToken) {
+      accessToken = refreshedToken;
+    }
+
+    // Fetch activity details from Strava
+    console.log("Fetching activity details from Strava:", body.object_id);
+    const activity = await ctx.runAction(api.actions.strava.fetchActivity, {
+      accessToken: accessToken!,
+      activityId: body.object_id,
+    });
+
+    console.log("Activity details:", {
+      id: activity.id,
+      name: activity.name,
+      type: activity.type,
+      sport_type: activity.sport_type,
+      date: activity.start_date,
+    });
+
+    // Get user's challenge participations
+    const participations = await ctx.runQuery(
+      internal.mutations.stravaWebhook.getUserParticipations,
+      { userId: user._id }
+    );
+
+    if (!participations || participations.length === 0) {
+      console.log("No active challenges for user:", user._id);
+      await ctx.runMutation(internal.mutations.webhookPayloads.updateStatus, {
+        payloadId: args.payloadId,
+        status: "completed" as const,
+        processingResult: { processed_challenges: 0, reason: "no_active_challenges" },
+      });
+      return;
+    }
+
+    console.log("Found challenge participations:", participations.length);
+
+    // Process each challenge using the activity's local date for comparison
+    const activityLocalDateStr = (activity.start_date_local ?? activity.start_date).split("T")[0];
+    let processedChallenges = 0;
+
+    for (const { challenge } of participations) {
+      if (!challenge) continue;
+
+      const challengeStartStr = coerceDateOnlyToString(challenge.startDate);
+      const challengeEndStr = coerceDateOnlyToString(challenge.endDate);
+
+      // Check if activity local date is within challenge bounds (date-only comparison)
+      if (activityLocalDateStr < challengeStartStr || activityLocalDateStr > challengeEndStr) {
+        console.log("Activity outside challenge dates:", {
+          activity_local_date: activityLocalDateStr,
+          challenge_start: challengeStartStr,
+          challenge_end: challengeEndStr,
+        });
+        continue;
+      }
+
+      console.log("Processing activity for challenge:", challenge._id);
+
+      // Create/update activity
+      const result = await ctx.runMutation(
+        internal.mutations.stravaWebhook.createFromStrava,
+        {
+          userId: user._id,
+          challengeId: challenge._id,
+          stravaActivity: activity,
+        }
+      );
+
+      if (result) {
+        processedChallenges++;
+        console.log("Successfully processed activity for challenge:", challenge._id);
+      } else {
+        console.log("No matching activity type for challenge:", challenge._id);
+      }
+    }
+
+    console.log(
+      `Strava Webhook: Completed (processed ${processedChallenges} challenges)`
+    );
+
+    await ctx.runMutation(internal.mutations.webhookPayloads.updateStatus, {
+      payloadId: args.payloadId,
+      status: "completed" as const,
+      processingResult: { processed_challenges: processedChallenges },
+    });
+  },
+});
