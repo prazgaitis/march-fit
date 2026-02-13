@@ -518,6 +518,27 @@ export default defineSchema({
     .index("stripeCheckoutSessionId", ["stripeCheckoutSessionId"])
     .index("stripePaymentIntentId", ["stripePaymentIntentId"]),
 
+  // Webhook Payloads - raw webhook payloads for reprocessing
+  webhookPayloads: defineTable({
+    service: v.union(v.literal("strava"), v.literal("stripe")),
+    eventType: v.string(), // e.g., "activity.create", "activity.update", "activity.delete"
+    payload: v.any(), // Raw webhook body
+    status: v.union(
+      v.literal("received"),
+      v.literal("processing"),
+      v.literal("completed"),
+      v.literal("failed"),
+    ),
+    error: v.optional(v.string()), // Error message if failed
+    processingResult: v.optional(v.any()), // Result metadata from processing
+    processedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("status", ["status"])
+    .index("service", ["service"])
+    .index("serviceStatus", ["service", "status"]),
+
   // Email Sends - tracking sent emails
   emailSends: defineTable({
     emailSequenceId: v.id("emailSequences"),
