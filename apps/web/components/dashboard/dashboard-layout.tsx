@@ -40,7 +40,7 @@ export function DashboardLayout({
   }, []);
 
   return (
-    <div className="flex h-screen bg-black text-white">
+    <div className="flex h-dvh overflow-hidden bg-black text-white">
       {/* Left Sidebar - Collapsed (lg) */}
       <aside onWheel={forwardScroll} className="hidden w-[72px] flex-shrink-0 flex-col border-r border-zinc-800 lg:flex xl:hidden">
         <div className="flex h-full flex-col items-center py-4">
@@ -130,7 +130,7 @@ export function DashboardLayout({
       </aside>
 
       {/* Main Content - Scrollable */}
-      <main ref={mainRef} className="flex-1 overflow-y-auto overscroll-contain scrollbar-hide pb-20 lg:pb-0">
+      <main ref={mainRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain scrollbar-hide pb-20 lg:pb-0">
         <PaymentRequiredBanner challengeId={challenge.id} />
         <AnnouncementBanner challengeId={challenge.id} />
         {children}
@@ -138,7 +138,7 @@ export function DashboardLayout({
 
       {/* Right Sidebar - Fixed (xl only) */}
       {!hideRightSidebar && (
-        <aside onWheel={forwardScroll} className="hidden w-96 flex-shrink-0 flex-col border-l border-zinc-800 lg:flex">
+        <aside onWheel={forwardScroll} className="hidden min-h-0 w-96 flex-shrink-0 flex-col border-l border-zinc-800 lg:flex">
           <div className="p-4">
             <UserSearch challengeId={challenge.id} />
           </div>

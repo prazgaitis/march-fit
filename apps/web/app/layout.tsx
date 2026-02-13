@@ -66,10 +66,6 @@ export default async function RootLayout({
           className={`${geistSans.variable} ${geistMono.variable} bg-black text-white antialiased`}
         >
           <div className="relative min-h-screen">
-            <div className="pointer-events-none fixed inset-0 overflow-hidden">
-              <div className="absolute -left-20 -top-40 h-96 w-96 rounded-full bg-indigo-500/20 blur-[120px]" />
-              <div className="absolute bottom-0 right-0 h-80 w-80 translate-x-1/4 translate-y-1/4 rounded-full bg-fuchsia-500/15 blur-[100px]" />
-            </div>
             <Suspense fallback={<HeaderSkeleton />}>
               <HeaderContent />
             </Suspense>
