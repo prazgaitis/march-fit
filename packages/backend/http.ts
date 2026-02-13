@@ -35,6 +35,10 @@ authComponent.registerRoutes(http, createAuth, {
       "http://localhost:3000",
       "http://localhost:3001",
       process.env.SITE_URL || "",
+      // Also allow www variant (matches trustedOrigins in auth.ts)
+      ...(process.env.SITE_URL
+        ? [process.env.SITE_URL.replace("://", "://www.")]
+        : []),
     ].filter(Boolean),
   },
 });

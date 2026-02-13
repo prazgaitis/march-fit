@@ -39,6 +39,12 @@ export const createAuth = (ctx: GenericCtx<DataModel>) => {
     emailAndPassword: {
       enabled: true,
     },
+    session: {
+      cookieCache: {
+        enabled: true,
+        maxAge: 5 * 60, // 5 minutes — avoids DB lookup on every /get-session
+      },
+    },
     socialProviders: {
       google: {
         clientId: process.env.GOOGLE_CLIENT_ID!,

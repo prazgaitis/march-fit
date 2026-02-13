@@ -24,4 +24,10 @@ export const betterAuthClient = createAuthClient({
     credentials: "include",
   },
   plugins: [convexClient()],
+  sessionOptions: {
+    // Disable automatic refetch on tab focus — on mobile, switching apps or
+    // pulling down the notification shade triggers visibilitychange, causing
+    // unnecessary /get-session round-trips that temporarily clear auth state.
+    refetchOnWindowFocus: false,
+  },
 });
