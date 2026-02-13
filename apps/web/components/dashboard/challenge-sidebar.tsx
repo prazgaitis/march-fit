@@ -6,14 +6,17 @@ import { useChallengeRealtime } from './challenge-realtime-context';
 import { UserAvatar } from '@/components/user-avatar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ActiveMiniGames } from '@/components/mini-games';
+import { OnboardingCard } from './onboarding-card';
+import { dateOnlyToUtcMs } from '@/lib/date-only';
 import { cn } from '@/lib/utils';
 
 interface ChallengeSidebarProps {
   challengeId: string;
   currentUserId: string;
+  challengeStartDate: string;
 }
 
-export function ChallengeSidebar({ challengeId, currentUserId }: ChallengeSidebarProps) {
+export function ChallengeSidebar({ challengeId, currentUserId, challengeStartDate }: ChallengeSidebarProps) {
   const { summary } = useChallengeRealtime();
   const { stats, leaderboard } = summary;
 
@@ -112,6 +115,10 @@ export function ChallengeSidebar({ challengeId, currentUserId }: ChallengeSideba
           })}
         </CardContent>
       </Card>
+
+      {dateOnlyToUtcMs(challengeStartDate) <= Date.now() && (
+        <OnboardingCard challengeId={challengeId} userId={currentUserId} challengeStartDate={challengeStartDate} />
+      )}
     </div>
   );
 }
