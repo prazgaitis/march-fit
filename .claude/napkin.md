@@ -40,3 +40,4 @@
 | 2026-02-13 | self | Used backticks inside a double-quoted `gh pr create --body` string, triggering shell command substitution and noisy side effects | Use a heredoc/file for PR body or avoid backticks in shell-quoted strings |
 ## User Preferences
 - Always commit `.claude/napkin.md` with related task commits.
+- Avoid module-scope `new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!)` in route handlers; lazy-init inside request handlers with env guards to prevent build-time crashes.

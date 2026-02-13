@@ -4,7 +4,6 @@ import { api } from "@repo/backend";
 
 import { getServerAuth } from "@/lib/server-auth";
 
-const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 const STATE_COOKIE = "strava_oauth_state";
 const DEFAULT_SUCCESS_URL = "/integrations?success=strava_connected";
 const DEFAULT_ERROR_URL = "/integrations?error=strava_auth_failed";
@@ -38,6 +37,13 @@ interface StravaTokenResponse {
 }
 
 export async function GET(request: NextRequest) {
+  const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
+  if (!convexUrl) {
+    console.error("Missing NEXT_PUBLIC_CONVEX_URL for Strava callback route");
+    return redirectWithCookieClear(request, DEFAULT_ERROR_URL, true);
+  }
+  const convex = new ConvexHttpClient(convexUrl);
+
   const { userId, convexToken } = await getServerAuth();
 
   if (!userId) {
