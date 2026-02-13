@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { getServerAuth, fetchAuthQuery } from "@/lib/server-auth";
+import { getCurrentUser } from "@/lib/auth";
+import { fetchAuthQuery, getToken } from "@/lib/server-auth";
 import { dateOnlyToUtcMs } from "@/lib/date-only";
 import { api } from "@repo/backend";
 
@@ -9,35 +10,45 @@ export const dynamic = "force-dynamic";
 
 export default async function Home() {
   const homeStart = performance.now();
-  const { userId } = await getServerAuth();
-  console.log(
-    `[perf] home getServerAuth: ${Math.round(performance.now() - homeStart)}ms`,
-  );
 
-  // Redirect logged-in users to their active challenge dashboard
-  if (userId) {
-    let redirectTo = "/challenges";
+  // Fast check: if no token, skip all auth work and render landing page
+  const token = await getToken();
+  if (!token) {
+    console.log(
+      `[perf] home (anon): ${Math.round(performance.now() - homeStart)}ms`,
+    );
+    // Fall through to render landing page below
+  } else {
+    // Logged-in user: fetch user + challenges in parallel instead of sequentially
+    const user = await getCurrentUser();
+    console.log(
+      `[perf] home getCurrentUser: ${Math.round(performance.now() - homeStart)}ms`,
+    );
 
-    try {
-      const challenges = await fetchAuthQuery<
-        Array<{ id: string; startDate: string; endDate: string }>
-      >(api.queries.challenges.listForUser, { userId, limit: 20 });
+    if (user) {
+      let redirectTo = "/challenges";
 
-      const now = Date.now();
-      const active = challenges?.find((c) => {
-        const start = dateOnlyToUtcMs(c.startDate);
-        const end = dateOnlyToUtcMs(c.endDate);
-        return now >= start && now <= end;
-      });
+      try {
+        const challenges = await fetchAuthQuery<
+          Array<{ id: string; startDate: string; endDate: string }>
+        >(api.queries.challenges.listForUser, { userId: user._id, limit: 20 });
 
-      if (active) {
-        redirectTo = `/challenges/${active.id}/dashboard`;
+        const now = Date.now();
+        const active = challenges?.find((c) => {
+          const start = dateOnlyToUtcMs(c.startDate);
+          const end = dateOnlyToUtcMs(c.endDate);
+          return now >= start && now <= end;
+        });
+
+        if (active) {
+          redirectTo = `/challenges/${active.id}/dashboard`;
+        }
+      } catch {
+        // If query fails, fall through to /challenges
       }
-    } catch {
-      // If query fails, fall through to /challenges
-    }
 
-    redirect(redirectTo);
+      redirect(redirectTo);
+    }
   }
 
   return (

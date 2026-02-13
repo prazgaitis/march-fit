@@ -1,13 +1,13 @@
 import { redirect } from "next/navigation";
 import { ChallengesGrid } from "@/components/challenges/challenges-grid";
-import { getServerAuth } from "@/lib/server-auth";
+import { getCurrentUser } from "@/lib/auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function ChallengesPage() {
-  const { userId } = await getServerAuth();
+  const user = await getCurrentUser();
 
-  if (!userId) {
+  if (!user) {
     redirect("/sign-in");
   }
 

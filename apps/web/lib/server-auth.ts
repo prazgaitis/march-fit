@@ -70,8 +70,11 @@ export async function fetchAuthAction<T>(action: any, args: Record<string, unkno
 }
 
 export async function getServerAuth(): Promise<ServerAuthResult> {
-  const token = await getToken();
-  const authenticated = await isAuthenticated();
+  // Parallelize token + auth check instead of sequential calls
+  const [token, authenticated] = await Promise.all([
+    getToken(),
+    isAuthenticated(),
+  ]);
 
   if (!authenticated || !token) {
     return {

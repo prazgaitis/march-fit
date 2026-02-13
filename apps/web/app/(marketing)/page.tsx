@@ -1,11 +1,13 @@
 import Link from "next/link";
 
-import { getServerAuth } from "@/lib/server-auth";
+import { getToken } from "@/lib/server-auth";
 
 export const dynamic = "force-dynamic";
 
 export default async function Home() {
-  const { userId } = await getServerAuth();
+  // Just check for a token — no need for a full user fetch on the landing page
+  const token = await getToken();
+  const isLoggedIn = Boolean(token);
 
   return (
     <main className="min-h-screen bg-black text-white">
@@ -44,7 +46,7 @@ export default async function Home() {
           </div>
 
           <div className="flex flex-wrap gap-4">
-            {userId ? (
+            {isLoggedIn ? (
               <Link
                 href="/challenges"
                 className="inline-flex items-center justify-center rounded-full border border-white/30 bg-white px-10 py-4 text-base font-semibold uppercase tracking-[0.2em] text-black transition hover:border-white hover:bg-black hover:text-white"
