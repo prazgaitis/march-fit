@@ -1,154 +1,44 @@
-"use client";
-
-import { useParams, useRouter } from "next/navigation";
-import { useMutation, useQuery } from "convex/react";
+import Link from "next/link";
+import { fetchQuery } from "convex/nextjs";
 import { api } from "@repo/backend";
-import { useState, useMemo } from "react";
+import type { Id } from "@repo/backend/_generated/dataModel";
+import { ArrowLeft, CalendarDays, Flame, Users } from "lucide-react";
+
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  CalendarDays,
-  Loader2,
-  Users,
-  CreditCard,
-  Flame,
-  ArrowLeft,
-} from "lucide-react";
-import { formatDateShortFromDateOnly } from "@/lib/date-only";
 import { ActivityTypesList } from "../../activity-types/activity-types-list";
+import { formatDateShortFromDateOnly } from "@/lib/date-only";
+import { getToken } from "@/lib/server-auth";
+import { InviteJoinCta } from "./invite-join-cta";
 
-export default function InviteAcceptPage() {
-  const params = useParams<{ id: string; code: string }>();
-  const router = useRouter();
-  const [isJoining, setIsJoining] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+interface InviteAcceptPageProps {
+  params: Promise<{ id: string; code: string }>;
+}
 
-  const inviteData = useQuery(api.queries.challengeInvites.resolveInviteCode, {
-    code: params.code,
-  });
+interface Category {
+  _id: string;
+  name: string;
+}
 
-  const participation = useQuery(
-    api.queries.participations.getCurrentUserParticipation,
-    inviteData ? { challengeId: inviteData.challengeId } : "skip"
-  );
+export default async function InviteAcceptPage({ params }: InviteAcceptPageProps) {
+  const { id: routeChallengeId, code } = await params;
+  const token = await getToken();
 
-  const paymentInfo = useQuery(
-    api.queries.paymentConfig.getPublicPaymentInfo,
-    inviteData
-      ? { challengeId: inviteData.challengeId }
-      : "skip"
-  );
+  const inviteData = await fetchQuery(api.queries.challengeInvites.resolveInviteCode, { code });
 
-  const activityTypes = useQuery(
-    api.queries.activityTypes.getByChallengeId,
-    inviteData ? { challengeId: inviteData.challengeId } : "skip"
-  );
-
-  const categories = useQuery(
-    api.queries.categories.getChallengeCategories,
-    inviteData ? { challengeId: inviteData.challengeId } : "skip"
-  );
-
-  const categoryMap = useMemo(() => {
-    if (!categories) return new Map<string, { _id: string; name: string }>();
-    return new Map<string, { _id: string; name: string }>(
-      categories.map((c: { _id: string; name: string }) => [c._id, { _id: c._id, name: c.name }] as const)
-    );
-  }, [categories]);
-
-  const joinChallenge = useMutation(api.mutations.participations.join);
-  const createCheckoutSession = useMutation(api.mutations.payments.createCheckoutSession);
-
-  const handleJoin = async () => {
-    if (!inviteData) return;
-
-    try {
-      setError(null);
-      setIsJoining(true);
-
-      const requiresPayment =
-        paymentInfo?.requiresPayment && paymentInfo.priceInCents > 0;
-
-      if (requiresPayment) {
-        const result = await createCheckoutSession({
-          challengeId: inviteData.challengeId,
-          successUrl: `${window.location.origin}/challenges/${inviteData.challengeId}/payment-success`,
-          cancelUrl: window.location.href,
-        });
-
-        if (result.url) {
-          sessionStorage.setItem(
-            `invite_code_${inviteData.challengeId}`,
-            params.code
-          );
-          window.location.href = result.url;
-        } else {
-          throw new Error("Failed to create checkout session");
-        }
-        return;
-      }
-
-      await joinChallenge({
-        challengeId: inviteData.challengeId,
-        inviteCode: params.code,
-      });
-
-      router.push(`/challenges/${inviteData.challengeId}/dashboard`);
-    } catch (err) {
-      console.error("Failed to join challenge", err);
-      if (err instanceof Error) {
-        if (
-          err.message.includes("Not authenticated") ||
-          err.message.includes("User not found")
-        ) {
-          router.push(
-            `/sign-up?redirect_url=/challenges/${params.id}/invite/${params.code}`
-          );
-          return;
-        }
-        if (err.message.includes("Already joined")) {
-          router.push(`/challenges/${inviteData!.challengeId}/dashboard`);
-          return;
-        }
-      }
-      setError("Something went wrong while joining. Please try again.");
-    } finally {
-      setIsJoining(false);
-    }
-  };
-
-  // Loading state
-  if (inviteData === undefined) {
-    return (
-      <div className="flex min-h-screen items-center justify-center">
-        <div className="flex items-center gap-2 text-muted-foreground">
-          <Loader2 className="h-5 w-5 animate-spin" />
-          Loading invite...
-        </div>
-      </div>
-    );
-  }
-
-  // Invalid invite code
-  if (inviteData === null) {
+  if (!inviteData) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <Card className="max-w-md">
           <CardHeader>
             <CardTitle>Invalid Invite Link</CardTitle>
             <p className="text-sm text-muted-foreground">
-              This invite link is invalid or has expired. Ask your friend for a
-              new link.
+              This invite link is invalid or has expired. Ask your friend for a new link.
             </p>
           </CardHeader>
           <CardContent>
-            <Button variant="outline" onClick={() => router.push("/challenges")}>
-              Browse Challenges
+            <Button asChild variant="outline">
+              <Link href="/challenges">Browse Challenges</Link>
             </Button>
           </CardContent>
         </Card>
@@ -156,7 +46,19 @@ export default function InviteAcceptPage() {
     );
   }
 
-  // Already participating
+  const challengeId = inviteData.challengeId as Id<"challenges">;
+
+  const [paymentInfo, activityTypes, categories, participation] = await Promise.all([
+    fetchQuery(api.queries.paymentConfig.getPublicPaymentInfo, { challengeId }),
+    fetchQuery(api.queries.activityTypes.getByChallengeId, { challengeId }),
+    fetchQuery(api.queries.categories.getChallengeCategories, { challengeId }),
+    fetchQuery(
+      api.queries.participations.getCurrentUserParticipation,
+      { challengeId },
+      token ? { token } : {}
+    ),
+  ]);
+
   if (participation) {
     return (
       <div className="flex min-h-screen items-center justify-center">
@@ -168,14 +70,8 @@ export default function InviteAcceptPage() {
             </p>
           </CardHeader>
           <CardContent>
-            <Button
-              onClick={() =>
-                router.push(
-                  `/challenges/${inviteData.challengeId}/dashboard`
-                )
-              }
-            >
-              Go to Dashboard
+            <Button asChild>
+              <Link href={`/challenges/${inviteData.challengeId}/dashboard`}>Go to Dashboard</Link>
             </Button>
           </CardContent>
         </Card>
@@ -183,35 +79,27 @@ export default function InviteAcceptPage() {
     );
   }
 
-  const requiresPayment =
-    paymentInfo?.requiresPayment && paymentInfo.priceInCents > 0;
+  const categoryMap = new Map<string, Category>(
+    categories.map((c: Category) => [c._id, { _id: c._id, name: c.name }] as const)
+  );
 
-  const formatPrice = (cents: number, currency: string = "usd") => {
-    return new Intl.NumberFormat("en-US", {
-      style: "currency",
-      currency: currency.toUpperCase(),
-    }).format(cents / 100);
-  };
+  const requiresPayment = paymentInfo.requiresPayment && paymentInfo.priceInCents > 0;
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-background to-background/95">
       <div className="mx-auto max-w-2xl px-4 py-8 sm:py-12">
-        {/* Back link */}
-        <button
-          onClick={() => router.push("/challenges")}
-          className="mb-6 flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+        <Link
+          href="/challenges"
+          className="mb-6 flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
         >
           <ArrowLeft className="h-4 w-4" />
           Browse challenges
-        </button>
+        </Link>
 
-        {/* Hero section */}
         <div className="mb-8 text-center">
-          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">
-            {inviteData.challengeName}
-          </h1>
+          <h1 className="text-3xl font-bold tracking-tight sm:text-4xl">{inviteData.challengeName}</h1>
           {inviteData.challengeDescription && (
-            <p className="mt-3 text-base text-muted-foreground max-w-lg mx-auto">
+            <p className="mx-auto mt-3 max-w-lg text-base text-muted-foreground">
               {inviteData.challengeDescription}
             </p>
           )}
@@ -223,7 +111,6 @@ export default function InviteAcceptPage() {
           </p>
         </div>
 
-        {/* Stats row */}
         <div className="mb-8 grid grid-cols-3 gap-3">
           <div className="rounded-lg border bg-card p-3 text-center">
             <CalendarDays className="mx-auto mb-1 h-5 w-5 text-muted-foreground" />
@@ -245,8 +132,7 @@ export default function InviteAcceptPage() {
           </div>
         </div>
 
-        {/* Activity types & scoring - reuse the shared component */}
-        {activityTypes && activityTypes.length > 0 && (
+        {activityTypes.length > 0 && (
           <div className="mb-8">
             <ActivityTypesList
               activityTypes={activityTypes}
@@ -256,36 +142,14 @@ export default function InviteAcceptPage() {
           </div>
         )}
 
-        {/* Join CTA */}
-        <div className="sticky bottom-4 z-10">
-          <div className="rounded-xl border bg-card/95 backdrop-blur p-4 shadow-lg">
-            {error && (
-              <p className="mb-3 text-sm text-destructive text-center">{error}</p>
-            )}
-            <Button
-              className="w-full"
-              size="lg"
-              onClick={handleJoin}
-              disabled={isJoining}
-            >
-              {isJoining ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  {requiresPayment
-                    ? "Redirecting to payment..."
-                    : "Joining..."}
-                </>
-              ) : (
-                <>
-                  {requiresPayment && <CreditCard className="mr-2 h-4 w-4" />}
-                  {requiresPayment
-                    ? `Join for ${formatPrice(paymentInfo!.priceInCents, paymentInfo!.currency)}`
-                    : "Join Challenge"}
-                </>
-              )}
-            </Button>
-          </div>
-        </div>
+        <InviteJoinCta
+          challengeId={String(inviteData.challengeId)}
+          inviteCode={code}
+          routeChallengeId={routeChallengeId}
+          requiresPayment={requiresPayment}
+          priceInCents={paymentInfo.priceInCents}
+          currency={paymentInfo.currency}
+        />
       </div>
     </div>
   );
