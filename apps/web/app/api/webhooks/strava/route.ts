@@ -85,6 +85,8 @@ export async function GET(request: NextRequest) {
  * Called by Strava when activities are created/updated/deleted
  */
 export async function POST(request: NextRequest) {
+  let payloadId: string | null = null;
+
   try {
     console.log("=== Strava Webhook: Starting processing ===");
     const body = (await request.json()) as StravaWebhookEvent;
@@ -95,11 +97,33 @@ export async function POST(request: NextRequest) {
       owner_id: body.owner_id,
     });
 
+    // Store raw webhook payload immediately
+    const eventType = `${body.object_type}.${body.aspect_type}`;
+    payloadId = await convex.mutation(
+      internal.mutations.webhookPayloads.store,
+      {
+        service: "strava" as const,
+        eventType,
+        payload: body,
+      }
+    );
+
     // Only process activity events
     if (body.object_type !== "activity") {
       console.log("Ignoring non-activity event:", body.object_type);
+      await convex.mutation(internal.mutations.webhookPayloads.updateStatus, {
+        payloadId,
+        status: "completed" as const,
+        processingResult: { skipped: true, reason: "non_activity_event" },
+      });
       return NextResponse.json({ received: true });
     }
+
+    // Mark as processing
+    await convex.mutation(internal.mutations.webhookPayloads.updateStatus, {
+      payloadId,
+      status: "processing" as const,
+    });
 
     // Find user by Strava athlete ID
     const integrationData = await convex.query(
@@ -109,6 +133,11 @@ export async function POST(request: NextRequest) {
 
     if (!integrationData) {
       console.log("No user found for Strava athlete:", body.owner_id);
+      await convex.mutation(internal.mutations.webhookPayloads.updateStatus, {
+        payloadId,
+        status: "completed" as const,
+        processingResult: { skipped: true, reason: "no_user_found", athleteId: body.owner_id },
+      });
       // Return 200 to acknowledge receipt (don't retry)
       return NextResponse.json({ received: true, user_found: false });
     }
@@ -124,6 +153,11 @@ export async function POST(request: NextRequest) {
         { externalId: body.object_id.toString() }
       );
       console.log("Delete result:", result);
+      await convex.mutation(internal.mutations.webhookPayloads.updateStatus, {
+        payloadId,
+        status: "completed" as const,
+        processingResult: { deleted: result.deleted },
+      });
       return NextResponse.json({
         received: true,
         deleted: result.deleted,
@@ -135,6 +169,11 @@ export async function POST(request: NextRequest) {
     let accessToken = integration.accessToken;
     if (!accessToken || !integration.refreshToken || !integration.expiresAt) {
       console.error("Missing token data for integration:", integration._id);
+      await convex.mutation(internal.mutations.webhookPayloads.updateStatus, {
+        payloadId,
+        status: "failed" as const,
+        error: "Integration missing token data",
+      });
       return NextResponse.json(
         { error: "Integration missing token data" },
         { status: 500 }
@@ -178,6 +217,11 @@ export async function POST(request: NextRequest) {
 
     if (!participations || participations.length === 0) {
       console.log("No active challenges for user:", user._id);
+      await convex.mutation(internal.mutations.webhookPayloads.updateStatus, {
+        payloadId,
+        status: "completed" as const,
+        processingResult: { processed_challenges: 0, reason: "no_active_challenges" },
+      });
       return NextResponse.json({
         received: true,
         processed_challenges: 0,
@@ -234,15 +278,33 @@ export async function POST(request: NextRequest) {
       `=== Strava Webhook: Completed (processed ${processedChallenges} challenges) ===`
     );
 
+    await convex.mutation(internal.mutations.webhookPayloads.updateStatus, {
+      payloadId,
+      status: "completed" as const,
+      processingResult: { processed_challenges: processedChallenges },
+    });
+
     return NextResponse.json({
       received: true,
       processed_challenges: processedChallenges,
     });
   } catch (error) {
     console.error("=== Strava Webhook: Error ===", error);
-    return NextResponse.json(
-      { error: "Internal server error" },
-      { status: 500 }
-    );
+
+    // Mark payload as failed if we managed to store it
+    if (payloadId) {
+      try {
+        await convex.mutation(internal.mutations.webhookPayloads.updateStatus, {
+          payloadId,
+          status: "failed" as const,
+          error: error instanceof Error ? error.message : String(error),
+        });
+      } catch (updateError) {
+        console.error("Failed to update webhook payload status:", updateError);
+      }
+    }
+
+    // Still return 200 to Strava to prevent retries (payload is stored for reprocessing)
+    return NextResponse.json({ received: true, error: "Processing failed, stored for retry" });
   }
 }
