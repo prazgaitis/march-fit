@@ -1,7 +1,3 @@
-"use client";
-
-import { useQuery } from "convex/react";
-import { api } from "@repo/backend";
 import Link from "next/link";
 import { dateOnlyToUtcMs, formatDateShortFromDateOnly } from "@/lib/date-only";
 
@@ -71,45 +67,16 @@ function ChallengeCard({ challenge }: { challenge: Challenge }) {
   );
 }
 
-export function ChallengesGrid() {
-  const challenges = useQuery(api.queries.challenges.listPublic, {
-    limit: 20,
-    offset: 0,
-  });
-
-  const loading = challenges === undefined;
-  const error = challenges === null ? "Failed to load challenges" : null;
-
-  if (loading) {
-    return (
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {Array.from({ length: 6 }).map((_, i) => (
-          <div
-            key={i}
-            className="rounded-2xl bg-zinc-900/50 border border-zinc-800 p-6 animate-pulse"
-          >
-            <div className="mb-4 flex items-center justify-between">
-              <div className="h-4 bg-zinc-800 rounded w-16" />
-              <div className="h-4 bg-zinc-800 rounded w-20" />
-            </div>
-            <div className="h-6 bg-zinc-800 rounded mb-2" />
-            <div className="h-4 bg-zinc-800 rounded mb-4 w-3/4" />
-            <div className="flex items-center justify-between">
-              <div className="h-3 bg-zinc-800 rounded w-20" />
-              <div className="h-3 bg-zinc-800 rounded w-3" />
-              <div className="h-3 bg-zinc-800 rounded w-20" />
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  }
-
-  if (error) {
+export function ChallengesGrid({
+  challenges,
+}: {
+  challenges: Challenge[] | null;
+}) {
+  if (challenges === null) {
     return (
       <div className="text-center py-12">
         <div className="text-red-400 text-lg mb-2">Failed to load challenges</div>
-        <p className="text-zinc-500">{error}</p>
+        <p className="text-zinc-500">Try refreshing the page.</p>
       </div>
     );
   }

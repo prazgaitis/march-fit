@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { ConvexHttpClient } from "convex/browser";
+import { getConvexClient } from "@/lib/convex-server";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
 import { ChallengePageContent } from "@/components/challenges/challenge-page-content";
@@ -9,9 +9,8 @@ interface PageProps {
   params: Promise<{ id: string }>;
 }
 
-const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
-
 export default async function ChallengePage({ params }: PageProps) {
+  const convex = getConvexClient();
   const pageStart = performance.now();
   const [user, { id }] = await Promise.all([getCurrentUser(), params]);
 

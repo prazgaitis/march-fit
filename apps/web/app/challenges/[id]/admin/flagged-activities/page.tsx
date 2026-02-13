@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { format } from "date-fns";
-import { ConvexHttpClient } from "convex/browser";
+import { getConvexClient } from "@/lib/convex-server";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
 
@@ -12,8 +12,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FlaggingHelpDialog } from "@/components/admin/flagging-help-dialog";
-
-const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
 interface FlaggedActivitiesPageProps {
   params: Promise<{ id: string }>;
@@ -40,6 +38,7 @@ export default async function FlaggedActivitiesPage({
   params,
   searchParams,
 }: FlaggedActivitiesPageProps) {
+  const convex = getConvexClient();
   const user = await requireAuth();
   const { id } = await params;
   const searchParamsResolved = await searchParams;

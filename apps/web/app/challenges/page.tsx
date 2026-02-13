@@ -1,15 +1,31 @@
 import { redirect } from "next/navigation";
 import { ChallengesGrid } from "@/components/challenges/challenges-grid";
-import { getServerAuth } from "@/lib/server-auth";
+import { getCurrentUser } from "@/lib/auth";
+import { getConvexClient } from "@/lib/convex-server";
+import { api } from "@repo/backend";
 
 export const dynamic = "force-dynamic";
 
 export default async function ChallengesPage() {
-  const { userId } = await getServerAuth();
+  const user = await getCurrentUser();
 
-  if (!userId) {
+  if (!user) {
     redirect("/sign-in");
   }
+
+  const challengesStart = performance.now();
+  const challenges = await getConvexClient()
+    .query(api.queries.challenges.listPublic, {
+      limit: 20,
+      offset: 0,
+    })
+    .catch((error) => {
+      console.error("[perf] challenges listPublic failed", error);
+      return null;
+    });
+  console.log(
+    `[perf] challenges listPublic: ${Math.round(performance.now() - challengesStart)}ms`,
+  );
 
   return (
     <main className="min-h-screen bg-background text-foreground page-with-header">
@@ -26,7 +42,7 @@ export default async function ChallengesPage() {
           </p>
         </div>
 
-        <ChallengesGrid />
+        <ChallengesGrid challenges={challenges} />
       </div>
     </main>
   );

@@ -1,5 +1,5 @@
 import { notFound, redirect } from "next/navigation";
-import { ConvexHttpClient } from "convex/browser";
+import { getConvexClient } from "@/lib/convex-server";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
 
@@ -8,15 +8,16 @@ import { isAuthenticated } from "@/lib/server-auth";
 import { DashboardLayoutWrapper } from "../../notifications/dashboard-layout-wrapper";
 import { UserProfileContent } from "./user-profile-content";
 
-const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
-
 interface UserProfilePageProps {
   params: Promise<{ id: string; userId: string }>;
 }
 
 export default async function UserProfilePage({ params }: UserProfilePageProps) {
-  const currentUser = await getCurrentUser();
-  const { id, userId } = await params;
+  const convex = getConvexClient();
+  const [currentUser, { id, userId }] = await Promise.all([
+    getCurrentUser(),
+    params,
+  ]);
 
   if (!currentUser) {
     const authenticated = await isAuthenticated();

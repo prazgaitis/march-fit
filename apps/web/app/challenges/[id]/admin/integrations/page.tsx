@@ -1,4 +1,4 @@
-import { ConvexHttpClient } from "convex/browser";
+import { getConvexClient } from "@/lib/convex-server";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
 
@@ -10,11 +10,10 @@ interface IntegrationsAdminPageProps {
   params: Promise<{ id: string }>;
 }
 
-const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
-
 export default async function IntegrationsAdminPage({
   params,
 }: IntegrationsAdminPageProps) {
+  const convex = getConvexClient();
   const user = await requireAuth();
   const { id } = await params;
   const challenge = await getChallengeOrThrow(id);

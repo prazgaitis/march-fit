@@ -26,8 +26,13 @@ import {
 } from 'lucide-react';
 
 import { ConvexError } from 'convex/values';
-import { RichTextEditor } from '@/components/editor/rich-text-editor';
+import dynamic from 'next/dynamic';
 import { RichTextViewer } from '@/components/editor/rich-text-viewer';
+
+const RichTextEditor = dynamic(
+  () => import('@/components/editor/rich-text-editor').then((mod) => ({ default: mod.RichTextEditor })),
+  { ssr: false, loading: () => <div className="min-h-[120px] w-full animate-pulse rounded-md border border-input bg-background" /> }
+);
 import { UserAvatar, UserAvatarInline } from '@/components/user-avatar';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
@@ -66,7 +71,7 @@ import {
 } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { useMentionableUsers } from '@/hooks/use-mentionable-users';
-import { isEditorContentEmpty, type MentionableUser } from '@/lib/rich-text';
+import { isEditorContentEmpty, type MentionableUser } from '@/lib/rich-text-utils';
 import { cn } from '@/lib/utils';
 
 interface ActivityDetailContentProps {

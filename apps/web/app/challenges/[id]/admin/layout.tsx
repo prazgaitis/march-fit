@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
-import { ConvexHttpClient } from "convex/browser";
+import { getConvexClient } from "@/lib/convex-server";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
 import { dateOnlyToUtcMs, formatDateShortFromDateOnly } from "@/lib/date-only";
@@ -9,8 +9,6 @@ import { ArrowLeft } from "lucide-react";
 
 import { requireAuth } from "@/lib/auth";
 import { AdminNavigation, type AdminNavigationGroup } from "@/components/admin/admin-navigation";
-
-const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 
 interface ChallengeAdminLayoutProps {
   children: ReactNode;
@@ -21,6 +19,7 @@ export default async function ChallengeAdminLayout({
   children,
   params,
 }: ChallengeAdminLayoutProps) {
+  const convex = getConvexClient();
   const { id } = await params;
   const user = await requireAuth();
 

@@ -1,5 +1,6 @@
 import { notFound, redirect } from "next/navigation";
-import { ConvexHttpClient } from "convex/browser";
+import { headers } from "next/headers";
+import { getConvexClient } from "@/lib/convex-server";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
 
@@ -7,20 +8,55 @@ import { ActivityFeed } from "@/components/dashboard/activity-feed";
 import { OnboardingCard } from "@/components/dashboard/onboarding-card";
 import { type ChallengeSummary } from "@/components/dashboard/challenge-realtime-context";
 import { getCurrentUser } from "@/lib/auth";
-import { getToken } from "@/lib/server-auth";
+import { fetchAuthQuery, getToken } from "@/lib/server-auth";
 import { DashboardLayoutWrapper } from "../notifications/dashboard-layout-wrapper";
 import { dateOnlyToUtcMs } from "@/lib/date-only";
 
-const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
 const DAY_IN_MS = 1000 * 60 * 60 * 24;
 
 interface ChallengeDashboardPageProps {
   params: Promise<{ id: string }>;
 }
 
+interface InitialFeedResponse {
+  page: Array<{
+    activity: {
+      _id: string;
+      notes: string | null;
+      pointsEarned: number;
+      loggedDate: number;
+      createdAt: number;
+      metrics?: Record<string, unknown>;
+      triggeredBonuses?: Array<{
+        metric: string;
+        threshold: number;
+        bonusPoints: number;
+        description: string;
+      }>;
+    };
+    user: {
+      id: string;
+      name: string | null;
+      username: string;
+      avatarUrl: string | null;
+    } | null;
+    activityType: {
+      id: string | null;
+      name: string | null;
+      categoryId: string | null;
+      scoringConfig?: Record<string, unknown>;
+    } | null;
+    likes: number;
+    comments: number;
+    likedByUser: boolean;
+    mediaUrls: string[];
+  }>;
+}
+
 export default async function ChallengeDashboardPage({
   params,
 }: ChallengeDashboardPageProps) {
+  const convex = getConvexClient();
   const dashStart = performance.now();
   const [user, { id }] = await Promise.all([getCurrentUser(), params]);
 
@@ -39,11 +75,30 @@ export default async function ChallengeDashboardPage({
   }
 
   const challengeId = id as Id<"challenges">;
+  const userAgent = (await headers()).get("user-agent") ?? "";
+  const isMobileRequest = /Android|iPhone|iPad|iPod|Mobile|CriOS|FxiOS/i.test(
+    userAgent,
+  );
 
-  const dashboardData = await convex.query(api.queries.challenges.getDashboardData, {
-    challengeId,
-    userId: user._id,
-  });
+  const [dashboardData, initialFeed] = await Promise.all([
+    convex.query(api.queries.challenges.getDashboardData, {
+      challengeId,
+      userId: user._id,
+    }),
+    fetchAuthQuery<InitialFeedResponse>(api.queries.activities.getChallengeFeed, {
+      challengeId,
+      followingOnly: false,
+      includeEngagementCounts: !isMobileRequest,
+      includeMediaUrls: !isMobileRequest,
+      paginationOpts: {
+        numItems: 10,
+        cursor: null,
+      },
+    }).catch((error) => {
+      console.error("[perf] dashboard initial feed preload failed", error);
+      return { page: [] };
+    }),
+  ]);
 
   console.log(
     `[perf] dashboard page total: ${Math.round(performance.now() - dashStart)}ms`,
@@ -99,7 +154,11 @@ export default async function ChallengeDashboardPage({
     >
       <div className="mx-auto max-w-2xl px-4 py-6 space-y-4">
         <OnboardingCard challengeId={challenge.id} userId={user._id} />
-        <ActivityFeed challengeId={challenge.id} />
+        <ActivityFeed
+          challengeId={challenge.id}
+          initialItems={initialFeed.page}
+          initialLightweightMode={isMobileRequest}
+        />
       </div>
     </DashboardLayoutWrapper>
   );

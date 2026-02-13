@@ -4,7 +4,7 @@ import { format, formatDistanceToNow } from "date-fns";
 import { dateOnlyToUtcMs, formatDateShortFromDateOnly } from "@/lib/date-only";
 
 export const dynamic = "force-dynamic";
-import { ConvexHttpClient } from "convex/browser";
+import { getConvexClient } from "@/lib/convex-server";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
 
@@ -14,14 +14,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getCurrentUser } from "@/lib/auth";
 
-const convex = new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
-
 interface Achievement {
   title: string;
   description: string;
 }
 
 export default async function ProfilePage() {
+  const convex = getConvexClient();
   const user = await getCurrentUser();
 
   if (!user) {
