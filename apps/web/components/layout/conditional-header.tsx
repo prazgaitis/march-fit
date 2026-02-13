@@ -8,6 +8,7 @@ import { Header } from "./header";
 // Pages that use the full-height dashboard layout (no top header)
 const DASHBOARD_LAYOUT_PATTERNS = [
   /^\/challenges\/[^/]+\/dashboard$/,
+  /^\/challenges\/[^/]+\/dashboard-ssr-debug$/,
   /^\/challenges\/[^/]+\/notifications$/,
   /^\/challenges\/[^/]+\/leaderboard$/,
   /^\/challenges\/[^/]+\/activity-types$/,
