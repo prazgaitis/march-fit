@@ -16,10 +16,10 @@ const sentryConfig = withSentryConfig(nextConfig, {
   tunnelRoute: "/monitoring",
   bundleSizeOptimizations: {
     excludeDebugStatements: true,
-    excludeTracing: true,
+    excludeTracing: false,
     excludeReplayIframe: true,
     excludeReplayShadowDom: true,
-    excludeReplayWorker: true,
+    excludeReplayWorker: false,
   },
 });
 
