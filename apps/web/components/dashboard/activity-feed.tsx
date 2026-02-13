@@ -17,8 +17,13 @@ import { useMutation, usePaginatedQuery } from 'convex/react';
 import { api } from '@repo/backend';
 import type { Id } from '@repo/backend/_generated/dataModel';
 
-import { RichTextEditor } from '@/components/editor/rich-text-editor';
+import dynamic from 'next/dynamic';
 import { RichTextViewer } from '@/components/editor/rich-text-viewer';
+
+const RichTextEditor = dynamic(
+  () => import('@/components/editor/rich-text-editor').then((mod) => ({ default: mod.RichTextEditor })),
+  { ssr: false, loading: () => <div className="min-h-[120px] w-full animate-pulse rounded-md border border-input bg-background" /> }
+);
 import { useChallengeRealtime } from './challenge-realtime-context';
 import { UserAvatar, UserAvatarInline } from '@/components/user-avatar';
 import { Button } from '@/components/ui/button';
@@ -32,7 +37,7 @@ import {
 } from '@/components/ui/card';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { useMentionableUsers } from '@/hooks/use-mentionable-users';
-import { isEditorContentEmpty, type MentionableUser } from '@/lib/rich-text';
+import { isEditorContentEmpty, type MentionableUser } from '@/lib/rich-text-utils';
 import {
   Dialog,
   DialogContent,

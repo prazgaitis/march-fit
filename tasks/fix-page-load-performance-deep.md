@@ -2,66 +2,57 @@
 
 Date: 2026-02-13
 Issue: Slow page loads and intermittent failures to load in production, especially on mobile.
+Vercel Speed Insights: Desktop FCP 2.3s, Mobile FCP **59.4s**, Mobile INP **12,288ms**.
 
 ## Root Causes Identified
 
-### 1. No Suspense boundaries (loading.tsx)
-No `loading.tsx` files exist anywhere in the app. Without them, the full SSR waterfall
-must complete before *anything* renders. If any server query is slow or times out, the
-user sees a blank screen indefinitely. This is worse on mobile where network latency
-is higher.
+### CRITICAL: Tiptap rich text editor (~500KB) loaded on every page
+The #1 issue. Tiptap was imported through **three separate paths** on every dashboard page:
+1. `dashboard-layout.tsx` → `ActivityLogDialog` → `RichTextEditor` → `@tiptap/*`
+2. `mobile-nav.tsx` → `ActivityLogDialog` → same chain
+3. `activity-feed.tsx` → `RichTextViewer` → `rich-text.ts` → `@tiptap/html` + `StarterKit`
 
-### 2. N+1 queries in `getChallengeFeed` (CRITICAL)
-For each activity in the feed (10 per page), 5 parallel sub-queries run per item:
-- `db.get(userId)` — user lookup
-- `db.get(activityTypeId)` — activity type lookup
-- `likes.collect().then(l => l.length)` — full scan to count likes
-- `comments.collect().then(c => c.length)` — full scan to count comments
-- `getCurrentUser()` + likes query — per-item auth check (redundant per item!)
+Even the "lightweight" `RichTextViewer` pulled in StarterKit because `rich-text.ts`
+contained both the heavy Tiptap imports (generateHTML, StarterKit, Mention) and the
+lightweight utils (isEditorContentEmpty, parseEditorContent) in the same module.
+Importing ANY export from `rich-text.ts` pulled in ALL of Tiptap.
 
-That's **50+ database operations per page load**. The `getCurrentUser()` was being
-called inside every `.map()` iteration despite returning the same result.
+This ~500KB+ of JavaScript had to parse and hydrate on every page load, which on
+mobile CPUs (10-30x slower than desktop) resulted in 59-second FCP.
 
-### 3. Sequential media URL generation
-`activities.ts` uses `for...of` with `await` to generate media URLs one at a time
-instead of `Promise.all`. Applies to `getById`, `getChallengeFeed`, and `getMediaUrls`.
-
-### 4. `listPublic` full table scan
-`challenges.ts` collects ALL challenges into memory via `.collect()`, filters by
-visibility in JS, sorts in memory, then does N individual participant-count queries.
-
-### 5. 16 module-level `ConvexHttpClient` instances
-Every server component creates `new ConvexHttpClient(url)` at the module top level.
-In Vercel's serverless environment these can become stale between warm invocations or
-share state across requests. Particularly problematic on mobile where connections
-are less reliable.
-
-### 6. Redundant `getCurrentUser()` auth calls
-The root layout calls `getToken()` + `preloadAuthQuery(users.current)`.
-Child pages then call `getCurrentUser()` which calls `getToken()` +
-`fetchAuthQuery(users.current)` again — doubling auth round-trips.
-
-### 7. Missing viewport metadata (mobile-specific)
-No explicit `viewport` export in the root layout, which can cause mobile browsers
-to use incorrect viewport width.
-
-### 8. No image lazy loading (mobile-specific)
-Feed images in `activity-feed.tsx` use plain `<img>` tags without `loading="lazy"`,
-causing all images to load eagerly and wasting bandwidth on mobile.
-
-### 9. Waterfall in page server components
-Multiple pages (`await getCurrentUser()` then `await params`) resolve sequentially
-instead of in parallel with `Promise.all`.
+### Other issues (fixed in earlier commits)
+- No Suspense boundaries (loading.tsx)
+- N+1 queries in getChallengeFeed (50+ db ops per page)
+- Sequential media URL generation
+- listPublic full table scan
+- 16 module-level ConvexHttpClient instances
+- Redundant getCurrentUser() auth calls
+- Missing viewport metadata
+- No image lazy loading
+- Sequential waterfalls in server components
+- getServerAuth() sequential internal calls
 
 ## Fixes Applied
 
-- [x] Add `loading.tsx` files for key routes (dashboard, challenge detail, leaderboard)
-- [x] Optimize `getChallengeFeed` — move `getCurrentUser` out of per-item loop,
-      reduce from 50+ to ~30 db operations per page, use `Promise.all` for media URLs
-- [x] Fix sequential media URL generation in `getById`, `getChallengeFeed`, `getMediaUrls`
-- [x] Optimize `listPublic` — use `.take()` with bounded limit instead of `.collect()`
-- [x] Replace 16 module-level `ConvexHttpClient` instances with per-request `getConvexClient()` factory
-- [x] Cache `getCurrentUser()` with `React.cache` to deduplicate across layout + child pages
-- [x] Add explicit `viewport` metadata export for mobile
-- [x] Add `loading="lazy"` to feed images
-- [x] Parallelize `getCurrentUser()` + `params` in 6 page server components
+### Bundle / Hydration (this commit)
+- [x] Dynamic import `ActivityLogDialog` via `next/dynamic` with `ssr: false`
+      — defers ALL of Tiptap editor until user clicks "Log activity"
+- [x] Dynamic import `RichTextEditor` in activity-feed and activity-detail
+      — editor only loads when comments are expanded
+- [x] Write lightweight `rich-text-html.ts` JSON→HTML converter (~2KB) to replace
+      Tiptap's `generateHTML` (~500KB) in `RichTextViewer`
+- [x] Split `rich-text.ts` → `rich-text-utils.ts` (no Tiptap deps) for
+      `isEditorContentEmpty`, `MentionableUser`, parsing functions
+- [x] Update all consumer imports to use lightweight utils instead of `rich-text.ts`
+
+### Server-side (earlier commits)
+- [x] Add `loading.tsx` for key routes + root level
+- [x] Optimize getChallengeFeed N+1 query
+- [x] Fix sequential media URL generation (Promise.all)
+- [x] Optimize listPublic with .take() instead of .collect()
+- [x] Replace module-level ConvexHttpClient with per-request factory
+- [x] Cache getCurrentUser() with React.cache
+- [x] Add viewport metadata, lazy load images
+- [x] Parallelize params + auth in server components
+- [x] Parallelize getServerAuth() internals
+- [x] Optimize home page redirect waterfall

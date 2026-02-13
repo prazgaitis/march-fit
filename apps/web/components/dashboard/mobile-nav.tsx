@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Plus } from "lucide-react";
 
-import { ActivityLogDialog } from "./activity-log-dialog";
+import { ActivityLogDialogLazy as ActivityLogDialog } from "./activity-log-dialog-lazy";
 import { navItems } from "./dashboard-nav";
 import { cn } from "@/lib/utils";
 

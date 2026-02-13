@@ -37,7 +37,7 @@ import {
 } from "@/components/ui/popover";
 import { DatePicker } from "@/components/ui/date-picker";
 import { useMentionableUsers } from "@/hooks/use-mentionable-users";
-import { isEditorContentEmpty } from "@/lib/rich-text";
+import { isEditorContentEmpty } from "@/lib/rich-text-utils";
 import { cn } from "@/lib/utils";
 import { localDateToIsoNoon, formatDateOnlyFromLocalDate, formatDateShortFromDateOnly } from "@/lib/date-only";
 

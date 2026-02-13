@@ -5,7 +5,7 @@ import { Plus } from "lucide-react";
 import type { Doc } from "@repo/backend/_generated/dataModel";
 import { formatDateShortFromDateOnly } from "@/lib/date-only";
 
-import { ActivityLogDialog } from "./activity-log-dialog";
+import { ActivityLogDialogLazy as ActivityLogDialog } from "./activity-log-dialog-lazy";
 import { AnnouncementBanner } from "./announcement-banner";
 import { PaymentRequiredBanner } from "./payment-required-banner";
 import { DashboardNav } from "./dashboard-nav";
