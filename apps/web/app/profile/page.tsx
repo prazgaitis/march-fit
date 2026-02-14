@@ -13,6 +13,7 @@ import { StravaConnectButton } from "@/components/integrations/strava-connect-bu
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { getCurrentUser } from "@/lib/auth";
+import { ApiKeySection } from "@/components/api-key-section";
 
 interface Achievement {
   title: string;
@@ -211,6 +212,8 @@ export default async function ProfilePage() {
                 )}
               </CardContent>
             </Card>
+
+            <ApiKeySection />
           </div>
         </section>
 

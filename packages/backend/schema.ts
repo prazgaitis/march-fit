@@ -442,6 +442,19 @@ export default defineSchema({
     .index("invitedById", ["invitedById"])
     .index("invitedUserId", ["invitedUserId"]),
 
+  // API Keys - user-scoped keys for HTTP API / CLI / MCP access
+  apiKeys: defineTable({
+    userId: v.id("users"),
+    keyHash: v.string(), // SHA-256 hash of the raw API key
+    keyPrefix: v.string(), // First 8 chars for display (e.g., "mf_a1b2c3d4...")
+    name: v.string(), // User-assigned label (e.g., "CLI", "MCP Server")
+    lastUsedAt: v.optional(v.number()),
+    revokedAt: v.optional(v.number()),
+    createdAt: v.number(),
+  })
+    .index("userId", ["userId"])
+    .index("keyHash", ["keyHash"]),
+
   // Challenge Invites - personal invite codes per user per challenge
   challengeInvites: defineTable({
     challengeId: v.id("challenges"),

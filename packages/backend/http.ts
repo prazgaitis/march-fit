@@ -4,6 +4,7 @@ import { internal } from "./_generated/api";
 import Stripe from "stripe";
 import { decryptKey } from "./lib/stripe";
 import { authComponent, createAuth } from "./auth";
+import { apiV1Router } from "./httpApi";
 
 const http = httpRouter();
 const STRAVA_OBJECT_TYPES = new Set(["activity", "athlete"]);
@@ -254,5 +255,17 @@ http.route({
     });
   }),
 });
+
+// ─── REST API v1 ─────────────────────────────────────────────────────────────
+// All /api/v1/* routes are handled by the API router.
+// Register each HTTP method with pathPrefix to catch all API routes.
+const API_V1_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"] as const;
+for (const method of API_V1_METHODS) {
+  http.route({
+    pathPrefix: "/api/v1/",
+    method,
+    handler: apiV1Router,
+  });
+}
 
 export default http;
