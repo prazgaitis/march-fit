@@ -16,6 +16,8 @@ import {
   Plus,
   Key,
   ExternalLink,
+  Terminal,
+  Globe,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
@@ -27,6 +29,8 @@ export function ApiKeySection() {
   const [newRawKey, setNewRawKey] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [revokingId, setRevokingId] = useState<string | null>(null);
+  const [mcpTab, setMcpTab] = useState<"cli" | "ui">("cli");
+  const [mcpCopied, setMcpCopied] = useState(false);
 
   const keys = useQuery(api.queries.apiKeys.listKeys);
   const createKey = useMutation(api.mutations.apiKeys.createKey);
@@ -223,18 +227,106 @@ export function ApiKeySection() {
             </Button>
           )}
 
-          {/* MCP + Documentation links */}
+          {/* MCP Setup */}
           <div className="pt-2 border-t space-y-3">
-            <div className="space-y-1.5">
-              <p className="text-xs font-medium uppercase text-muted-foreground">
-                Use with Claude Code
-              </p>
-              <div className="rounded-lg border bg-muted/30 p-3">
-                <code className="text-xs font-mono break-all select-all">
-                  claude mcp add march-fit https://www.march.fit/api/mcp -t streamable-http -h &quot;Authorization: Bearer {keys?.[0]?.rawKey ?? keys?.[0]?.keyPrefix ?? "YOUR_API_KEY"}&quot;
-                </code>
-              </div>
+            <p className="text-xs font-medium uppercase text-muted-foreground">
+              Use with Claude
+            </p>
+            <div className="flex gap-1 rounded-lg border bg-muted/30 p-1">
+              <button
+                onClick={() => setMcpTab("cli")}
+                className={`flex-1 flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                  mcpTab === "cli"
+                    ? "bg-background shadow-sm text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Terminal className="h-3.5 w-3.5" />
+                Claude Code (CLI)
+              </button>
+              <button
+                onClick={() => setMcpTab("ui")}
+                className={`flex-1 flex items-center justify-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${
+                  mcpTab === "ui"
+                    ? "bg-background shadow-sm text-foreground"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Globe className="h-3.5 w-3.5" />
+                Claude.ai (Web)
+              </button>
             </div>
+
+            {mcpTab === "cli" ? (
+              <div className="space-y-2">
+                <p className="text-xs text-muted-foreground">
+                  Run this command in your terminal:
+                </p>
+                <div className="relative rounded-lg border bg-muted/30 p-3 pr-10">
+                  <code className="text-xs font-mono break-all select-all">
+                    claude mcp add march-fit https://www.march.fit/api/mcp -t
+                    streamable-http -h &quot;Authorization: Bearer{" "}
+                    {newRawKey ?? keys?.[0]?.rawKey ?? keys?.[0]?.keyPrefix ?? "YOUR_API_KEY"}&quot;
+                  </code>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="absolute top-2 right-2 h-6 w-6 p-0"
+                    onClick={async () => {
+                      const key =
+                        newRawKey ?? keys?.[0]?.rawKey ?? keys?.[0]?.keyPrefix ?? "YOUR_API_KEY";
+                      await navigator.clipboard.writeText(
+                        `claude mcp add march-fit https://www.march.fit/api/mcp -t streamable-http -h "Authorization: Bearer ${key}"`
+                      );
+                      setMcpCopied(true);
+                      setTimeout(() => setMcpCopied(false), 2000);
+                    }}
+                  >
+                    {mcpCopied ? (
+                      <Check className="h-3.5 w-3.5 text-green-600" />
+                    ) : (
+                      <Copy className="h-3.5 w-3.5" />
+                    )}
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <p className="text-xs text-muted-foreground">
+                  In Claude.ai &rarr; Settings &rarr; Integrations, add a new
+                  MCP server. Paste this URL (your API key is included):
+                </p>
+                <div className="relative rounded-lg border bg-muted/30 p-3 pr-10">
+                  <code className="text-xs font-mono break-all select-all">
+                    https://www.march.fit/api/mcp?token=
+                    {newRawKey ?? keys?.[0]?.rawKey ?? keys?.[0]?.keyPrefix ?? "YOUR_API_KEY"}
+                  </code>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="absolute top-2 right-2 h-6 w-6 p-0"
+                    onClick={async () => {
+                      const key =
+                        newRawKey ?? keys?.[0]?.rawKey ?? keys?.[0]?.keyPrefix ?? "YOUR_API_KEY";
+                      await navigator.clipboard.writeText(
+                        `https://www.march.fit/api/mcp?token=${key}`
+                      );
+                      setMcpCopied(true);
+                      setTimeout(() => setMcpCopied(false), 2000);
+                    }}
+                  >
+                    {mcpCopied ? (
+                      <Check className="h-3.5 w-3.5 text-green-600" />
+                    ) : (
+                      <Copy className="h-3.5 w-3.5" />
+                    )}
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Leave the OAuth Client ID and Client Secret fields empty.
+                </p>
+              </div>
+            )}
             <a
               href="https://github.com/prazgaitis/march-fit#api"
               target="_blank"
