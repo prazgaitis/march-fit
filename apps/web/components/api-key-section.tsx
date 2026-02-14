@@ -97,13 +97,13 @@ export function ApiKeySection() {
 
           {/* Newly created key banner */}
           {newRawKey && (
-            <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 space-y-2">
-              <p className="text-sm font-semibold text-amber-800">
+            <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-4 space-y-2">
+              <p className="text-sm font-semibold text-amber-700 dark:text-amber-400">
                 New API key created &mdash; copy it now. You won&apos;t see it
                 again.
               </p>
               <div className="flex items-center gap-2">
-                <code className="flex-1 rounded bg-white px-3 py-2 text-xs font-mono border select-all break-all">
+                <code className="flex-1 rounded bg-background px-3 py-2 text-xs font-mono border select-all break-all">
                   {newRawKey}
                 </code>
                 <Button
@@ -139,7 +139,7 @@ export function ApiKeySection() {
               {keys.map((key: { id: string; name: string; keyPrefix: string; lastUsedAt?: number; createdAt: number }) => (
                 <div
                   key={key.id}
-                  className="flex items-center justify-between rounded-lg border bg-white p-3"
+                  className="flex items-center justify-between rounded-lg border bg-muted/30 p-3"
                 >
                   <div className="space-y-0.5">
                     <p className="text-sm font-medium">{key.name}</p>

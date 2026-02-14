@@ -1,7 +1,6 @@
 "use client";
 
-import { LogOut, User } from "lucide-react";
-import Link from "next/link";
+import { LogOut } from "lucide-react";
 
 import {
   DropdownMenu,
@@ -58,16 +57,6 @@ export function UserButton({ user }: { user: UserButtonUser }) {
             )}
           </div>
         </DropdownMenuLabel>
-        <DropdownMenuSeparator className="bg-zinc-800" />
-        <DropdownMenuItem asChild>
-          <Link
-            href="/profile"
-            className="flex items-center gap-2 px-2 py-3 text-sm text-zinc-200 cursor-pointer hover:bg-zinc-800 hover:text-white"
-          >
-            <User className="h-4 w-4" />
-            Profile
-          </Link>
-        </DropdownMenuItem>
         <DropdownMenuSeparator className="bg-zinc-800" />
         <DropdownMenuItem
           onClick={async () => {

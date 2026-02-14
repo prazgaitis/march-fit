@@ -52,8 +52,30 @@ See [docs/hosting.md](docs/hosting.md) for full self-hosting details.
 ```
 apps/web/            Next.js frontend
 packages/backend/    Convex functions + schema
+packages/cli/        Bun CLI (`mf`) for HTTP API usage
 scripts/             Maintenance & seed scripts
 docs/                Architecture and hosting guides
+```
+
+## CLI
+
+Run the March Fit CLI with:
+
+```bash
+./mf --help
+```
+
+Configure API base URL and default challenge:
+
+```bash
+./mf config set --base-url https://<deployment>.convex.site --challenge <challengeId>
+```
+
+Install `mf` into your shell PATH (one-time):
+
+```bash
+pnpm mf:install
+mf --help
 ```
 
 ## AI-Assisted Development

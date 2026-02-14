@@ -36,6 +36,8 @@
     "db:import": "pnpm -F backend exec npx convex import ${CONVEX_EXPORT_PATH:-./scripts/seed-data/export.zip} --replace-all -y",
     "strava:webhook": "dotenv -e .env.local -- npx tsx scripts/strava-webhook.ts",
     "storybook": "pnpm -F web storybook",
+    "mf": "bun ./packages/cli/bin/mf.js",
+    "mf:install": "bash scripts/install-mf.sh",
     "challenge:create": "bash scripts/create-challenge.sh",
     "challenge:create:prod": "bash scripts/create-challenge.sh --prod",
     "challenge:delete": "bash scripts/delete-challenge.sh",

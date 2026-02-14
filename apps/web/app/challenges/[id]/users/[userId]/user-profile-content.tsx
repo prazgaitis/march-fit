@@ -30,6 +30,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { StravaConnectButton } from "@/components/integrations/strava-connect-button";
+import { ApiKeySection } from "@/components/api-key-section";
 import { cn } from "@/lib/utils";
 
 interface UserProfileContentProps {
@@ -350,6 +351,8 @@ export function UserProfileContent({
           )}
         </CardContent>
       </Card>
+      {/* API Key Management (own profile only) */}
+      {followData?.isOwnProfile && <ApiKeySection />}
     </div>
   );
 }
