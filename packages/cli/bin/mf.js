@@ -1,23 +1,49 @@
 #!/usr/bin/env bun
 
 import { parseArgs } from "node:util";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 
 const DEFAULT_BASE_URL = "http://127.0.0.1:3211/api/v1";
+const DEFAULT_CONFIG_NAME = "default";
 
-function getConfigFilePath() {
+function getConfigRootDir() {
   if (process.env.XDG_CONFIG_HOME) {
-    return join(process.env.XDG_CONFIG_HOME, "mf", "config.json");
+    return join(process.env.XDG_CONFIG_HOME, "mf");
   }
 
   if (process.platform === "win32" && process.env.APPDATA) {
-    return join(process.env.APPDATA, "mf", "config.json");
+    return join(process.env.APPDATA, "mf");
   }
 
-  return join(homedir(), ".config", "mf", "config.json");
+  return join(homedir(), ".config", "mf");
+}
+
+function getConfigsDirPath() {
+  return join(getConfigRootDir(), "configs");
+}
+
+function getLegacyConfigFilePath() {
+  return join(getConfigRootDir(), "config.json");
+}
+
+function getActiveConfigNamePath() {
+  return join(getConfigRootDir(), "active-config");
+}
+
+function validateConfigName(name) {
+  if (!/^[a-zA-Z0-9._-]+$/.test(name)) {
+    throw new Error(
+      "Invalid config name. Use only letters, numbers, '.', '_' or '-'."
+    );
+  }
+  return name;
+}
+
+function getConfigFilePath(configName) {
+  return join(getConfigsDirPath(), `${validateConfigName(configName)}.json`);
 }
 
 function normalizeBaseUrl(baseUrl) {
@@ -28,9 +54,66 @@ function normalizeBaseUrl(baseUrl) {
   return `${trimmed}/api/v1`;
 }
 
-async function readConfig() {
-  const configPath = getConfigFilePath();
+async function readActiveConfigName() {
+  const activePath = getActiveConfigNamePath();
+  if (!existsSync(activePath)) {
+    return null;
+  }
+
+  try {
+    const value = (await readFile(activePath, "utf8")).trim();
+    if (!value) {
+      return null;
+    }
+    return validateConfigName(value);
+  } catch {
+    return null;
+  }
+}
+
+async function resolveConfigName(explicitConfigName) {
+  if (explicitConfigName) {
+    return validateConfigName(explicitConfigName);
+  }
+
+  if (process.env.MF_CONFIG) {
+    return validateConfigName(process.env.MF_CONFIG);
+  }
+
+  const active = await readActiveConfigName();
+  if (active) {
+    return active;
+  }
+
+  return DEFAULT_CONFIG_NAME;
+}
+
+async function readConfig(configName) {
+  const configPath = getConfigFilePath(configName);
   if (!existsSync(configPath)) {
+    // Backward compatibility for old single-file config.
+    // If profile is default and old config exists, read it.
+    if (configName === DEFAULT_CONFIG_NAME) {
+      const legacyPath = getLegacyConfigFilePath();
+      if (existsSync(legacyPath)) {
+        try {
+          const raw = await readFile(legacyPath, "utf8");
+          const parsed = JSON.parse(raw);
+          return {
+            baseUrl:
+              typeof parsed.baseUrl === "string"
+                ? parsed.baseUrl
+                : DEFAULT_BASE_URL,
+            challengeId:
+              typeof parsed.challengeId === "string" ? parsed.challengeId : null,
+            apiKey: typeof parsed.apiKey === "string" ? parsed.apiKey : null,
+          };
+        } catch {
+          // fall through to defaults
+        }
+      }
+    }
+
     return { baseUrl: DEFAULT_BASE_URL, challengeId: null, apiKey: null };
   }
 
@@ -47,44 +130,138 @@ async function readConfig() {
   }
 }
 
-async function writeConfig(nextConfig) {
-  const configPath = getConfigFilePath();
+async function writeConfig(configName, nextConfig) {
+  const configPath = getConfigFilePath(configName);
   await mkdir(dirname(configPath), { recursive: true });
   await writeFile(configPath, `${JSON.stringify(nextConfig, null, 2)}\n`, "utf8");
   return configPath;
 }
 
-function resolveApiKey(options, config) {
-  const apiKey = options["api-key"] || process.env.MF_API_KEY || config.apiKey;
-  if (!apiKey) {
-    throw new Error(
-      "Missing API key. Pass --api-key <key>, set MF_API_KEY, or run `mf config set --api-key <key>`."
-    );
+async function setActiveConfigName(configName) {
+  const activePath = getActiveConfigNamePath();
+  await mkdir(dirname(activePath), { recursive: true });
+  await writeFile(activePath, `${validateConfigName(configName)}\n`, "utf8");
+  return activePath;
+}
+
+async function listConfigProfiles() {
+  const configDir = getConfigsDirPath();
+  if (!existsSync(configDir)) {
+    return [];
   }
-  return apiKey;
+
+  const entries = await readdir(configDir, { withFileTypes: true });
+  return entries
+    .filter((entry) => entry.isFile() && entry.name.endsWith(".json"))
+    .map((entry) => entry.name.slice(0, -5))
+    .sort((a, b) => a.localeCompare(b));
+}
+
+function resolveApiKey(options, config) {
+  if (options["api-key"]) {
+    return { apiKey: options["api-key"], source: "flag" };
+  }
+  if (process.env.MF_API_KEY) {
+    return { apiKey: process.env.MF_API_KEY, source: "env:MF_API_KEY" };
+  }
+  if (config.apiKey) {
+    return { apiKey: config.apiKey, source: "profile" };
+  }
+
+  throw new Error(
+    "Missing API key. Pass --api-key <key>, set MF_API_KEY, or run `mf config set --api-key <key>`."
+  );
 }
 
 function resolveBaseUrl(options, config) {
-  const provided = options["base-url"] || process.env.MF_BASE_URL;
-  if (provided) {
-    return normalizeBaseUrl(provided);
+  if (options["base-url"]) {
+    return {
+      baseUrl: normalizeBaseUrl(options["base-url"]),
+      source: "flag",
+    };
   }
-  return normalizeBaseUrl(config.baseUrl || DEFAULT_BASE_URL);
+  if (process.env.MF_BASE_URL) {
+    return {
+      baseUrl: normalizeBaseUrl(process.env.MF_BASE_URL),
+      source: "env:MF_BASE_URL",
+    };
+  }
+  if (config.baseUrl) {
+    return {
+      baseUrl: normalizeBaseUrl(config.baseUrl),
+      source: "profile",
+    };
+  }
+
+  return {
+    baseUrl: normalizeBaseUrl(DEFAULT_BASE_URL),
+    source: "default",
+  };
 }
 
 function resolveChallengeId(options, config) {
-  return options.challenge || config.challengeId || null;
+  if (options.challenge) {
+    return { challengeId: options.challenge, source: "flag" };
+  }
+  if (config.challengeId) {
+    return { challengeId: config.challengeId, source: "profile" };
+  }
+  return { challengeId: null, source: "none" };
+}
+
+function maskApiKey(apiKey) {
+  if (!apiKey) {
+    return "(none)";
+  }
+
+  if (apiKey.length <= 11) {
+    return apiKey;
+  }
+
+  return `${apiKey.slice(0, 11)}...`;
+}
+
+function printVerboseRequestInfo({
+  verbose,
+  profile,
+  baseUrl,
+  baseUrlSource,
+  apiKey,
+  apiKeySource,
+  challengeId,
+  challengeSource,
+  operations,
+}) {
+  if (!verbose) {
+    return;
+  }
+
+  console.error(`[verbose] profile=${profile}`);
+  console.error(`[verbose] baseUrl=${baseUrl} (source=${baseUrlSource})`);
+  console.error(
+    `[verbose] apiKey=${maskApiKey(apiKey)} (source=${apiKeySource})`
+  );
+  if (challengeId !== undefined) {
+    console.error(
+      `[verbose] challengeId=${challengeId ?? "(none)"} (source=${challengeSource ?? "none"})`
+    );
+  }
+  if (operations?.length) {
+    console.error(`[verbose] requests=${operations.join(", ")}`);
+  }
 }
 
 function printHelp() {
   console.log(`mf - March Fit CLI
 
 Usage:
-  mf <command> [options]
+  mf [--config <name>] [--verbose] <command> [options]
 
 Commands:
   mf config show
   mf config set [--base-url <url>] [--challenge <challengeId>] [--api-key <key>]
+  mf config profiles
+  mf config use <name>
   mf config clear-challenge
   mf config clear-api-key
 
@@ -97,7 +274,10 @@ Commands:
   mf leaderboard [--challenge <challengeId>] [--api-key <key>] [--base-url <url>]
 
 Notes:
-  - Config is stored at ~/.config/mf/config.json (or XDG/APPDATA equivalent)
+  - Config profiles are stored at ~/.config/mf/configs/<name>.json (or XDG/APPDATA equivalent)
+  - Active config is tracked in ~/.config/mf/active-config
+  - Use --config <name> (or MF_CONFIG) to target a specific profile per command
+  - Use --verbose (or -v) to print resolved environment/request context
   - baseUrl can be host root or /api/v1 endpoint; /api/v1 is normalized automatically
   - --challenge overrides the configured default challenge
   - API key resolution order: --api-key, MF_API_KEY, config.apiKey
@@ -140,7 +320,19 @@ async function apiRequest({ baseUrl, apiKey, path, method = "GET", query = null,
   }
 
   if (!response.ok) {
-    const message = payload?.error || `Request failed with ${response.status}`;
+    const serverMessage = payload?.error;
+    let message;
+    if (serverMessage) {
+      message = `${serverMessage} (HTTP ${response.status})`;
+    } else if (response.status === 401) {
+      message = "Unauthorized – check your API key with `mf config show`";
+    } else if (response.status === 403) {
+      message = "Forbidden – you don't have permission for this action";
+    } else if (response.status === 404) {
+      message = `Not found – ${url} returned 404. Check your base URL with \`mf config show\``;
+    } else {
+      message = `Request failed (HTTP ${response.status}): ${url}`;
+    }
     throw new Error(message);
   }
 
@@ -155,22 +347,67 @@ function requireChallengeId(challengeId) {
   }
 }
 
+function parseGlobalArgs(argv) {
+  const args = [];
+  let configName;
+  let verbose = false;
+
+  for (let i = 0; i < argv.length; i++) {
+    const arg = argv[i];
+
+    if (arg === "--config" || arg === "-c") {
+      const next = argv[i + 1];
+      if (!next) {
+        throw new Error("Missing value for --config");
+      }
+      configName = next;
+      i += 1;
+      continue;
+    }
+
+    if (arg === "--verbose" || arg === "-v") {
+      verbose = true;
+      continue;
+    }
+
+    if (arg.startsWith("--config=")) {
+      configName = arg.slice("--config=".length);
+      continue;
+    }
+
+    args.push(arg);
+  }
+
+  return { args, configName, verbose };
+}
+
 async function run() {
-  const [command, subcommand, ...rest] = process.argv.slice(2);
+  const {
+    args: cliArgs,
+    configName: globalConfigName,
+    verbose,
+  } = parseGlobalArgs(
+    process.argv.slice(2)
+  );
+  const [command, subcommand, ...rest] = cliArgs;
 
   if (!command || command === "help" || command === "--help" || command === "-h") {
     printHelp();
     return;
   }
 
-  const config = await readConfig();
+  const resolvedConfigName = await resolveConfigName(globalConfigName);
+  const config = await readConfig(resolvedConfigName);
 
   if (command === "config") {
     if (subcommand === "show") {
-      const configPath = getConfigFilePath();
+      const activeConfigName = await resolveConfigName();
+      const configPath = getConfigFilePath(resolvedConfigName);
       console.log(
         JSON.stringify(
           {
+            profile: resolvedConfigName,
+            isActive: resolvedConfigName === activeConfigName,
             path: configPath,
             baseUrl: config.baseUrl,
             challengeId: config.challengeId,
@@ -179,6 +416,40 @@ async function run() {
           null,
           2
         )
+      );
+      return;
+    }
+
+    if (subcommand === "profiles") {
+      const profiles = await listConfigProfiles();
+      const activeConfigName = await resolveConfigName();
+      console.log(
+        JSON.stringify(
+          {
+            activeProfile: activeConfigName,
+            profiles,
+          },
+          null,
+          2
+        )
+      );
+      return;
+    }
+
+    if (subcommand === "use") {
+      const { positionals } = parseSubcommandArgs(rest, {});
+      const nextConfigName = positionals[0];
+      if (!nextConfigName) {
+        throw new Error("Usage: mf config use <name>");
+      }
+
+      validateConfigName(nextConfigName);
+      // Ensure profile exists, creating a default profile file if needed.
+      const nextConfig = await readConfig(nextConfigName);
+      await writeConfig(nextConfigName, nextConfig);
+      const activePath = await setActiveConfigName(nextConfigName);
+      console.log(
+        `Active config set to '${nextConfigName}' (${activePath})`
       );
       return;
     }
@@ -202,8 +473,8 @@ async function run() {
         apiKey: values["api-key"] ?? config.apiKey,
       };
 
-      const configPath = await writeConfig(nextConfig);
-      console.log(`Config updated at ${configPath}`);
+      const configPath = await writeConfig(resolvedConfigName, nextConfig);
+      console.log(`Config '${resolvedConfigName}' updated at ${configPath}`);
       console.log(JSON.stringify(nextConfig, null, 2));
       return;
     }
@@ -214,8 +485,10 @@ async function run() {
         challengeId: null,
         apiKey: config.apiKey,
       };
-      const configPath = await writeConfig(nextConfig);
-      console.log(`Default challenge cleared in ${configPath}`);
+      const configPath = await writeConfig(resolvedConfigName, nextConfig);
+      console.log(
+        `Default challenge cleared in ${configPath} (profile '${resolvedConfigName}')`
+      );
       return;
     }
 
@@ -225,12 +498,16 @@ async function run() {
         challengeId: config.challengeId,
         apiKey: null,
       };
-      const configPath = await writeConfig(nextConfig);
-      console.log(`API key cleared in ${configPath}`);
+      const configPath = await writeConfig(resolvedConfigName, nextConfig);
+      console.log(
+        `API key cleared in ${configPath} (profile '${resolvedConfigName}')`
+      );
       return;
     }
 
-    throw new Error("Unknown config command. Use: show, set, clear-challenge, clear-api-key");
+    throw new Error(
+      "Unknown config command. Use: show, set, profiles, use, clear-challenge, clear-api-key"
+    );
   }
 
   if (command === "me") {
@@ -239,8 +516,17 @@ async function run() {
       "base-url": { type: "string" },
     });
 
-    const apiKey = resolveApiKey(values, config);
-    const baseUrl = resolveBaseUrl(values, config);
+    const { apiKey, source: apiKeySource } = resolveApiKey(values, config);
+    const { baseUrl, source: baseUrlSource } = resolveBaseUrl(values, config);
+    printVerboseRequestInfo({
+      verbose,
+      profile: resolvedConfigName,
+      baseUrl,
+      baseUrlSource,
+      apiKey,
+      apiKeySource,
+      operations: ["GET /me", "GET /challenges?limit=100&offset=0"],
+    });
     const [meData, challengesData] = await Promise.all([
       apiRequest({ baseUrl, apiKey, path: "/me" }),
       apiRequest({
@@ -283,8 +569,19 @@ async function run() {
       offset: { type: "string" },
     });
 
-    const apiKey = resolveApiKey(values, config);
-    const baseUrl = resolveBaseUrl(values, config);
+    const { apiKey, source: apiKeySource } = resolveApiKey(values, config);
+    const { baseUrl, source: baseUrlSource } = resolveBaseUrl(values, config);
+    printVerboseRequestInfo({
+      verbose,
+      profile: resolvedConfigName,
+      baseUrl,
+      baseUrlSource,
+      apiKey,
+      apiKeySource,
+      operations: [
+        `GET /challenges?limit=${values.limit ?? 20}&offset=${values.offset ?? 0}`,
+      ],
+    });
     const data = await apiRequest({
       baseUrl,
       apiKey,
@@ -307,11 +604,29 @@ async function run() {
       cursor: { type: "string" },
     });
 
-    const challengeId = resolveChallengeId(values, config);
+    const { challengeId, source: challengeSource } = resolveChallengeId(
+      values,
+      config
+    );
     requireChallengeId(challengeId);
 
-    const apiKey = resolveApiKey(values, config);
-    const baseUrl = resolveBaseUrl(values, config);
+    const { apiKey, source: apiKeySource } = resolveApiKey(values, config);
+    const { baseUrl, source: baseUrlSource } = resolveBaseUrl(values, config);
+    printVerboseRequestInfo({
+      verbose,
+      profile: resolvedConfigName,
+      baseUrl,
+      baseUrlSource,
+      apiKey,
+      apiKeySource,
+      challengeId,
+      challengeSource,
+      operations: [
+        `GET /challenges/${challengeId}/activities?limit=${values.limit ?? 20}${
+          values.cursor ? `&cursor=${values.cursor}` : ""
+        }`,
+      ],
+    });
 
     const data = await apiRequest({
       baseUrl,
@@ -339,7 +654,10 @@ async function run() {
       "base-url": { type: "string" },
     });
 
-    const challengeId = resolveChallengeId(values, config);
+    const { challengeId, source: challengeSource } = resolveChallengeId(
+      values,
+      config
+    );
     requireChallengeId(challengeId);
 
     if (!values["activity-type"]) {
@@ -358,8 +676,19 @@ async function run() {
       }
     }
 
-    const apiKey = resolveApiKey(values, config);
-    const baseUrl = resolveBaseUrl(values, config);
+    const { apiKey, source: apiKeySource } = resolveApiKey(values, config);
+    const { baseUrl, source: baseUrlSource } = resolveBaseUrl(values, config);
+    printVerboseRequestInfo({
+      verbose,
+      profile: resolvedConfigName,
+      baseUrl,
+      baseUrlSource,
+      apiKey,
+      apiKeySource,
+      challengeId,
+      challengeSource,
+      operations: [`POST /challenges/${challengeId}/activities`],
+    });
 
     const data = await apiRequest({
       baseUrl,
@@ -386,11 +715,25 @@ async function run() {
       "base-url": { type: "string" },
     });
 
-    const challengeId = resolveChallengeId(values, config);
+    const { challengeId, source: challengeSource } = resolveChallengeId(
+      values,
+      config
+    );
     requireChallengeId(challengeId);
 
-    const apiKey = resolveApiKey(values, config);
-    const baseUrl = resolveBaseUrl(values, config);
+    const { apiKey, source: apiKeySource } = resolveApiKey(values, config);
+    const { baseUrl, source: baseUrlSource } = resolveBaseUrl(values, config);
+    printVerboseRequestInfo({
+      verbose,
+      profile: resolvedConfigName,
+      baseUrl,
+      baseUrlSource,
+      apiKey,
+      apiKeySource,
+      challengeId,
+      challengeSource,
+      operations: [`GET /challenges/${challengeId}/leaderboard`],
+    });
 
     const data = await apiRequest({
       baseUrl,
@@ -406,6 +749,11 @@ async function run() {
 }
 
 run().catch((error) => {
-  console.error(`Error: ${error.message}`);
+  if (error?.cause?.code === "ECONNREFUSED" || error?.message?.includes("fetch failed")) {
+    const config = loadConfig();
+    console.error(`Error: Could not connect to ${config.baseUrl ?? "the API"}. Is the server running?`);
+  } else {
+    console.error(`Error: ${error.message}`);
+  }
   process.exit(1);
 });

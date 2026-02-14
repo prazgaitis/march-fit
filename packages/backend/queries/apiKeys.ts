@@ -24,6 +24,7 @@ export const listKeys = query({
         id: k._id,
         name: k.name,
         keyPrefix: k.keyPrefix,
+        rawKey: k.rawKey ?? null,
         lastUsedAt: k.lastUsedAt,
         createdAt: k.createdAt,
       }))

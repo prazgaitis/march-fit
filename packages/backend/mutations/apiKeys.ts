@@ -33,6 +33,7 @@ export const createKey = mutation({
       userId: user._id,
       keyHash,
       keyPrefix,
+      rawKey,
       name: args.name,
       createdAt: Date.now(),
     });
