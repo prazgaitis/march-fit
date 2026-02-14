@@ -27,7 +27,7 @@ export const createKey = mutation({
       throw new Error("Maximum of 10 active API keys per user");
     }
 
-    const { rawKey, keyHash, keyPrefix } = generateApiKey();
+    const { rawKey, keyHash, keyPrefix } = await generateApiKey();
 
     await ctx.db.insert("apiKeys", {
       userId: user._id,

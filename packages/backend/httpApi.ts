@@ -69,7 +69,7 @@ async function authenticateApiKey(
     return errorResponse("Invalid API key format", 401);
   }
 
-  const keyHash = hashApiKey(rawKey);
+  const keyHash = await hashApiKey(rawKey);
   const result = await ctx.runQuery(internal.queries.apiKeys.getUserByKeyHash, {
     keyHash,
   });
