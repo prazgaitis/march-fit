@@ -42,6 +42,7 @@
 | 2026-02-14 | self | Tried `bun link --global` for `mf` and it failed in this environment due global Bun metadata state | Prefer repo wrapper + symlink installer script for reliable `mf` invocation without pnpm |
 | 2026-02-14 | self | Ran parallel verification commands that both mutated the same config file, creating a race and misleading results | Only parallelize independent commands; run config mutation checks sequentially |
 | 2026-02-14 | self | Implemented MCP first as `/api/[transport]` + `withMcpAuth`; valid-token requests returned non-Response at runtime in this Next 16 setup | Prefer explicit `/api/mcp` route with direct Bearer auth wrapper and request-scoped token context for reliability |
+| 2026-02-14 | self | Reused a temp config directory during profile verification and got misleading active-profile state | Use a clean temp directory (`rm -rf ...`) for deterministic config-profile tests |
 ## User Preferences
 - Always commit `.claude/napkin.md` with related task commits.
 - Avoid module-scope `new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!)` in route handlers; lazy-init inside request handlers with env guards to prevent build-time crashes.

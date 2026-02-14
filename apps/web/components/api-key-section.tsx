@@ -136,15 +136,15 @@ export function ApiKeySection() {
               <p className="text-xs font-medium uppercase text-muted-foreground">
                 Active keys
               </p>
-              {keys.map((key: { id: string; name: string; keyPrefix: string; lastUsedAt?: number; createdAt: number }) => (
+              {keys.map((key: { id: string; name: string; keyPrefix: string; rawKey?: string | null; lastUsedAt?: number; createdAt: number }) => (
                 <div
                   key={key.id}
                   className="flex items-center justify-between rounded-lg border bg-muted/30 p-3"
                 >
-                  <div className="space-y-0.5">
+                  <div className="space-y-0.5 min-w-0 flex-1">
                     <p className="text-sm font-medium">{key.name}</p>
-                    <p className="text-xs text-muted-foreground font-mono">
-                      {key.keyPrefix}...
+                    <p className="text-xs text-muted-foreground font-mono break-all">
+                      {key.rawKey ?? `${key.keyPrefix}...`}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       Created{" "}
@@ -223,8 +223,18 @@ export function ApiKeySection() {
             </Button>
           )}
 
-          {/* Documentation link */}
-          <div className="pt-2 border-t">
+          {/* MCP + Documentation links */}
+          <div className="pt-2 border-t space-y-3">
+            <div className="space-y-1.5">
+              <p className="text-xs font-medium uppercase text-muted-foreground">
+                Use with Claude Code
+              </p>
+              <div className="rounded-lg border bg-muted/30 p-3">
+                <code className="text-xs font-mono break-all select-all">
+                  claude mcp add march-fit https://www.march.fit/api/mcp -t streamable-http -h &quot;Authorization: Bearer {keys?.[0]?.rawKey ?? keys?.[0]?.keyPrefix ?? "YOUR_API_KEY"}&quot;
+                </code>
+              </div>
+            </div>
             <a
               href="https://github.com/prazgaitis/march-fit#api"
               target="_blank"
