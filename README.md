@@ -47,6 +47,13 @@ The dev server runs:
 
 See [docs/hosting.md](docs/hosting.md) for full self-hosting details.
 
+## Documentation
+
+- [docs/architecture.md](docs/architecture.md) - system architecture
+- [docs/hosting.md](docs/hosting.md) - self-hosting and deployment
+- [docs/mcp.md](docs/mcp.md) - MCP endpoint setup and client connection
+- [packages/cli/README.md](packages/cli/README.md) - `mf` CLI usage
+
 ## Repository Layout
 
 ```
