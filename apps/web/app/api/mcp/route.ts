@@ -5,7 +5,7 @@ import { z } from "zod";
 export const runtime = "nodejs";
 
 type ApiRequestOptions = {
-  method?: "GET" | "POST";
+  method?: "GET" | "POST" | "PUT" | "PATCH";
   query?: Record<string, string | number | undefined>;
   body?: unknown;
 };
@@ -46,16 +46,21 @@ function getApiBaseUrl(): string {
 
 function getBearerToken(request: Request): string | null {
   const authHeader = request.headers.get("authorization");
-  if (!authHeader) {
-    return null;
+  if (authHeader) {
+    const [scheme, token] = authHeader.split(" ");
+    if (scheme?.toLowerCase() === "bearer" && token) {
+      return token;
+    }
   }
 
-  const [scheme, token] = authHeader.split(" ");
-  if (scheme?.toLowerCase() !== "bearer" || !token) {
-    return null;
+  // Fallback: token as URL param (for Claude.ai MCP which doesn't support bearer auth)
+  const url = new URL(request.url);
+  const paramToken = url.searchParams.get("token");
+  if (paramToken) {
+    return paramToken;
   }
 
-  return token;
+  return null;
 }
 
 async function apiRequest(
@@ -237,6 +242,177 @@ const mcpHandler = createMcpHandler(
             source,
           },
         });
+        return asTextResult(data);
+      }
+    );
+
+    // ─── Admin Tools (require challenge admin role) ─────────────────────
+
+    server.registerTool(
+      "update_challenge",
+      {
+        title: "Update Challenge",
+        description:
+          "Update challenge settings. Requires challenge admin role. Returns 403 if not authorized.",
+        inputSchema: {
+          challengeId: z.string().min(1),
+          name: z.string().optional(),
+          startDate: z.string().optional(),
+          endDate: z.string().optional(),
+          durationDays: z.number().int().optional(),
+          streakMinPoints: z.number().optional(),
+          announcement: z.string().nullable().optional(),
+        },
+      },
+      async ({ challengeId, ...updates }) => {
+        const token = requireApiToken();
+        const data = await apiRequest(
+          token,
+          `/challenges/${challengeId}`,
+          { method: "PUT", body: updates }
+        );
+        return asTextResult(data);
+      }
+    );
+
+    server.registerTool(
+      "set_announcement",
+      {
+        title: "Set Challenge Announcement",
+        description:
+          "Set or clear the announcement banner for a challenge. Requires challenge admin role.",
+        inputSchema: {
+          challengeId: z.string().min(1),
+          announcement: z.string().nullable(),
+        },
+      },
+      async ({ challengeId, announcement }) => {
+        const token = requireApiToken();
+        const data = await apiRequest(
+          token,
+          `/challenges/${challengeId}/announcement`,
+          { method: "POST", body: { announcement } }
+        );
+        return asTextResult(data);
+      }
+    );
+
+    server.registerTool(
+      "list_flagged_activities",
+      {
+        title: "List Flagged Activities",
+        description:
+          "List flagged activities for a challenge. Requires challenge admin role.",
+        inputSchema: {
+          challengeId: z.string().min(1),
+          status: z
+            .enum(["pending", "resolved"])
+            .optional()
+            .describe("Filter by flag status. Omit for all."),
+        },
+      },
+      async ({ challengeId, status }) => {
+        const token = requireApiToken();
+        const data = await apiRequest(
+          token,
+          `/challenges/${challengeId}/flagged`,
+          { query: { status } }
+        );
+        return asTextResult(data);
+      }
+    );
+
+    server.registerTool(
+      "get_flagged_activity",
+      {
+        title: "Get Flagged Activity Detail",
+        description:
+          "Get details of a flagged activity. Requires challenge admin role.",
+        inputSchema: {
+          challengeId: z.string().min(1),
+          activityId: z.string().min(1),
+        },
+      },
+      async ({ activityId }) => {
+        const token = requireApiToken();
+        const data = await apiRequest(
+          token,
+          `/flagged/${activityId}`
+        );
+        return asTextResult(data);
+      }
+    );
+
+    server.registerTool(
+      "resolve_flagged_activity",
+      {
+        title: "Resolve Flagged Activity",
+        description:
+          "Resolve or re-open a flagged activity. Requires challenge admin role.",
+        inputSchema: {
+          activityId: z.string().min(1),
+          status: z.enum(["pending", "resolved"]),
+          notes: z.string().optional(),
+        },
+      },
+      async ({ activityId, status, notes }) => {
+        const token = requireApiToken();
+        const data = await apiRequest(
+          token,
+          `/flagged/${activityId}/resolve`,
+          { method: "POST", body: { status, notes } }
+        );
+        return asTextResult(data);
+      }
+    );
+
+    server.registerTool(
+      "add_admin_comment",
+      {
+        title: "Add Admin Comment",
+        description:
+          "Add an admin comment to a flagged activity. Requires challenge admin role.",
+        inputSchema: {
+          activityId: z.string().min(1),
+          comment: z.string().min(1),
+          visibility: z
+            .enum(["internal", "public"])
+            .optional()
+            .describe("Defaults to internal."),
+        },
+      },
+      async ({ activityId, comment, visibility }) => {
+        const token = requireApiToken();
+        const data = await apiRequest(
+          token,
+          `/flagged/${activityId}/comment`,
+          { method: "POST", body: { comment, visibility } }
+        );
+        return asTextResult(data);
+      }
+    );
+
+    server.registerTool(
+      "admin_edit_activity",
+      {
+        title: "Admin Edit Activity",
+        description:
+          "Edit any activity as an admin (e.g. correct points or notes). Requires challenge admin role.",
+        inputSchema: {
+          activityId: z.string().min(1),
+          notes: z.string().optional(),
+          metrics: z.record(z.string(), z.unknown()).optional(),
+          loggedDate: z.string().optional(),
+          activityTypeId: z.string().optional(),
+        },
+      },
+      async ({ activityId, ...updates }) => {
+        const token = requireApiToken();
+        const data = await apiRequest(
+          token,
+          `/admin/activities/${activityId}`,
+          { method: "PATCH", body: updates }
+        );
         return asTextResult(data);
       }
     );
