@@ -1,0 +1,15 @@
+{
+  "name": "@repo/cli",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "mf": "./bin/mf.js"
+  },
+  "scripts": {
+    "mf": "bun ./bin/mf.js"
+  },
+  "engines": {
+    "bun": ">=1.1.0"
+  }
+}

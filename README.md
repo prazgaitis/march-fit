@@ -47,13 +47,42 @@ The dev server runs:
 
 See [docs/hosting.md](docs/hosting.md) for full self-hosting details.
 
+## Documentation
+
+- [docs/architecture.md](docs/architecture.md) - system architecture
+- [docs/hosting.md](docs/hosting.md) - self-hosting and deployment
+- [docs/mcp.md](docs/mcp.md) - MCP endpoint setup and client connection
+- [packages/cli/README.md](packages/cli/README.md) - `mf` CLI usage
+
 ## Repository Layout
 
 ```
 apps/web/            Next.js frontend
 packages/backend/    Convex functions + schema
+packages/cli/        Bun CLI (`mf`) for HTTP API usage
 scripts/             Maintenance & seed scripts
 docs/                Architecture and hosting guides
+```
+
+## CLI
+
+Run the March Fit CLI with:
+
+```bash
+./mf --help
+```
+
+Configure API base URL and default challenge:
+
+```bash
+./mf config set --base-url https://<deployment>.convex.site --challenge <challengeId>
+```
+
+Install `mf` into your shell PATH (one-time):
+
+```bash
+pnpm mf:install
+mf --help
 ```
 
 ## AI-Assisted Development
