@@ -46,16 +46,21 @@ function getApiBaseUrl(): string {
 
 function getBearerToken(request: Request): string | null {
   const authHeader = request.headers.get("authorization");
-  if (!authHeader) {
-    return null;
+  if (authHeader) {
+    const [scheme, token] = authHeader.split(" ");
+    if (scheme?.toLowerCase() === "bearer" && token) {
+      return token;
+    }
   }
 
-  const [scheme, token] = authHeader.split(" ");
-  if (scheme?.toLowerCase() !== "bearer" || !token) {
-    return null;
+  // Fallback: token as URL param (for Claude.ai MCP which doesn't support bearer auth)
+  const url = new URL(request.url);
+  const paramToken = url.searchParams.get("token");
+  if (paramToken) {
+    return paramToken;
   }
 
-  return token;
+  return null;
 }
 
 async function apiRequest(
