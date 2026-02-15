@@ -249,6 +249,29 @@ const mcpHandler = createMcpHandler(
     // ─── Admin Tools (require challenge admin role) ─────────────────────
 
     server.registerTool(
+      "update_participant_role",
+      {
+        title: "Update Participant Role",
+        description:
+          "Set a participant's role in a challenge (member or admin). Requires challenge admin role.",
+        inputSchema: {
+          challengeId: z.string().min(1),
+          userId: z.string().min(1),
+          role: z.enum(["member", "admin"]),
+        },
+      },
+      async ({ challengeId, userId, role }) => {
+        const token = requireApiToken();
+        const data = await apiRequest(
+          token,
+          `/challenges/${challengeId}/participants/${userId}`,
+          { method: "PATCH", body: { role } }
+        );
+        return asTextResult(data);
+      }
+    );
+
+    server.registerTool(
       "update_challenge",
       {
         title: "Update Challenge",

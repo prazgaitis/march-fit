@@ -271,6 +271,9 @@ Commands:
   mf activities list [--challenge <challengeId>] [--api-key <key>] [--base-url <url>] [--limit <n>] [--cursor <cursor>]
   mf activities log --activity-type <id> --date <yyyy-mm-dd> [--metrics <json>] [--notes <text>] [--source <source>] [--challenge <challengeId>] [--api-key <key>] [--base-url <url>]
 
+  mf participants list [--challenge <challengeId>] [--api-key <key>] [--base-url <url>] [--limit <n>] [--offset <n>]
+  mf participants set-role --user <userId> --role <member|admin> [--challenge <challengeId>] [--api-key <key>] [--base-url <url>]
+
   mf leaderboard [--challenge <challengeId>] [--api-key <key>] [--base-url <url>]
 
 Notes:
@@ -702,6 +705,78 @@ async function run() {
         notes: values.notes,
         source: values.source,
       },
+    });
+
+    console.log(JSON.stringify(data, null, 2));
+    return;
+  }
+
+  if (command === "participants" && subcommand === "list") {
+    const { values } = parseSubcommandArgs(rest, {
+      challenge: { type: "string" },
+      "api-key": { type: "string" },
+      "base-url": { type: "string" },
+      limit: { type: "string" },
+      offset: { type: "string" },
+    });
+
+    const { challengeId, source: challengeSource } = resolveChallengeId(values, config);
+    requireChallengeId(challengeId);
+    const { apiKey, source: apiKeySource } = resolveApiKey(values, config);
+    const { baseUrl, source: baseUrlSource } = resolveBaseUrl(values, config);
+
+    printVerboseRequestInfo({
+      verbose,
+      profile: resolvedConfigName,
+      baseUrl, baseUrlSource,
+      apiKey, apiKeySource,
+      challengeId, challengeSource,
+      operations: [`GET /challenges/${challengeId}/participants`],
+    });
+
+    const data = await apiRequest({
+      baseUrl, apiKey,
+      path: `/challenges/${challengeId}/participants`,
+      query: { limit: values.limit, offset: values.offset },
+    });
+
+    console.log(JSON.stringify(data, null, 2));
+    return;
+  }
+
+  if (command === "participants" && subcommand === "set-role") {
+    const { values } = parseSubcommandArgs(rest, {
+      user: { type: "string" },
+      role: { type: "string" },
+      challenge: { type: "string" },
+      "api-key": { type: "string" },
+      "base-url": { type: "string" },
+    });
+
+    if (!values.user) throw new Error("--user is required");
+    if (!values.role || !["member", "admin"].includes(values.role)) {
+      throw new Error("--role must be 'member' or 'admin'");
+    }
+
+    const { challengeId, source: challengeSource } = resolveChallengeId(values, config);
+    requireChallengeId(challengeId);
+    const { apiKey, source: apiKeySource } = resolveApiKey(values, config);
+    const { baseUrl, source: baseUrlSource } = resolveBaseUrl(values, config);
+
+    printVerboseRequestInfo({
+      verbose,
+      profile: resolvedConfigName,
+      baseUrl, baseUrlSource,
+      apiKey, apiKeySource,
+      challengeId, challengeSource,
+      operations: [`PATCH /challenges/${challengeId}/participants/${values.user}`],
+    });
+
+    const data = await apiRequest({
+      baseUrl, apiKey,
+      method: "PATCH",
+      path: `/challenges/${challengeId}/participants/${values.user}`,
+      body: { role: values.role },
     });
 
     console.log(JSON.stringify(data, null, 2));
