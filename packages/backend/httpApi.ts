@@ -690,6 +690,57 @@ async function handleAdminEditActivity(
   }
 }
 
+async function handleUpdateParticipantRole(
+  ctx: HttpCtx,
+  request: Request,
+  params: Record<string, string>
+): Promise<Response> {
+  const auth = await authenticateApiKey(ctx, request);
+  if (auth instanceof Response) return auth;
+
+  const challengeId = params.id as Id<"challenges">;
+  const targetUserId = params.userId as Id<"users">;
+
+  const isAdmin = await checkChallengeAdmin(
+    ctx,
+    auth.user._id,
+    challengeId,
+    auth.user
+  );
+  if (!isAdmin) {
+    return errorResponse("Not authorized - challenge admin required", 403);
+  }
+
+  const body = await parseJsonBody(request);
+  if (body instanceof Response) return body;
+
+  const { role } = body;
+  if (!role || !["member", "admin"].includes(role)) {
+    return errorResponse(
+      "Missing or invalid field: role (must be 'member' or 'admin')",
+      400
+    );
+  }
+
+  try {
+    const result = await ctx.runMutation(
+      internal.mutations.apiMutations.updateParticipantRoleForUser,
+      {
+        userId: auth.user._id,
+        challengeId,
+        targetUserId,
+        role,
+      }
+    );
+    return jsonResponse(result);
+  } catch (err: any) {
+    return errorResponse(
+      err.message || "Failed to update participant role",
+      400
+    );
+  }
+}
+
 // ─── Router ──────────────────────────────────────────────────────────────────
 
 type RouteEntry = {
@@ -743,6 +794,11 @@ const routes: RouteEntry[] = [
     method: "GET",
     pattern: "/api/v1/challenges/:id/participants",
     handler: handleListParticipants,
+  },
+  {
+    method: "PATCH",
+    pattern: "/api/v1/challenges/:id/participants/:userId",
+    handler: handleUpdateParticipantRole,
   },
   {
     method: "PUT",

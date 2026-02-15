@@ -588,6 +588,63 @@ export const addAdminCommentForUser = internalMutation({
 });
 
 /**
+ * Update a participant's role in a challenge (API key authenticated).
+ */
+export const updateParticipantRoleForUser = internalMutation({
+  args: {
+    userId: v.id("users"),
+    challengeId: v.id("challenges"),
+    targetUserId: v.id("users"),
+    role: v.union(v.literal("member"), v.literal("admin")),
+  },
+  handler: async (ctx, args) => {
+    const actor = await ctx.db.get(args.userId);
+    if (!actor) throw new Error("User not found");
+
+    // Check admin authorization
+    const challenge = await ctx.db.get(args.challengeId);
+    if (!challenge) throw new Error("Challenge not found");
+
+    const isGlobalAdmin = actor.role === "admin";
+    const isCreator = challenge.creatorId === actor._id;
+
+    let isChallengeAdmin = false;
+    if (!isGlobalAdmin && !isCreator) {
+      const actorParticipation = await ctx.db
+        .query("userChallenges")
+        .withIndex("userChallengeUnique", (q) =>
+          q.eq("userId", args.userId).eq("challengeId", args.challengeId)
+        )
+        .first();
+      isChallengeAdmin = actorParticipation?.role === "admin";
+    }
+
+    if (!isGlobalAdmin && !isCreator && !isChallengeAdmin) {
+      throw new Error("Not authorized - challenge admin required");
+    }
+
+    // Find target user's participation
+    const participation = await ctx.db
+      .query("userChallenges")
+      .withIndex("userChallengeUnique", (q) =>
+        q.eq("userId", args.targetUserId).eq("challengeId", args.challengeId)
+      )
+      .first();
+
+    if (!participation) {
+      throw new Error("Target user is not a participant in this challenge");
+    }
+
+    await ctx.db.patch(participation._id, {
+      role: args.role,
+      updatedAt: Date.now(),
+    });
+
+    return { success: true, userId: args.targetUserId, role: args.role };
+  },
+});
+
+/**
  * Admin edit activity on behalf of an admin (API key authenticated).
  */
 export const adminEditActivityForUser = internalMutation({
