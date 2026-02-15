@@ -640,10 +640,7 @@ export const flagActivity = mutation({
       throw new Error("You are not part of this challenge");
     }
 
-    // Prevent flagging your own activity
-    if (activity.userId === user._id) {
-      throw new ConvexError("You cannot flag your own activity");
-    }
+    // Allow flagging your own activity (useful for testing/self-reporting)
 
     // Check if user already flagged this activity
     const existingFlag = await ctx.db
