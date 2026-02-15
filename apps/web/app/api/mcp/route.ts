@@ -5,7 +5,7 @@ import { z } from "zod";
 export const runtime = "nodejs";
 
 type ApiRequestOptions = {
-  method?: "GET" | "POST" | "PUT" | "PATCH";
+  method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
   query?: Record<string, string | number | undefined>;
   body?: unknown;
 };
@@ -246,6 +246,100 @@ const mcpHandler = createMcpHandler(
       }
     );
 
+    server.registerTool(
+      "get_challenge",
+      {
+        title: "Get Challenge",
+        description: "Get details for a single challenge by ID.",
+        inputSchema: {
+          challengeId: z.string().min(1),
+        },
+      },
+      async ({ challengeId }) => {
+        const token = requireApiToken();
+        const data = await apiRequest(token, `/challenges/${challengeId}`);
+        return asTextResult(data);
+      }
+    );
+
+    server.registerTool(
+      "list_activity_types",
+      {
+        title: "List Activity Types",
+        description:
+          "List all activity types configured for a challenge. Returns scoring config, bonus thresholds, and restrictions.",
+        inputSchema: {
+          challengeId: z.string().min(1),
+        },
+      },
+      async ({ challengeId }) => {
+        const token = requireApiToken();
+        const data = await apiRequest(
+          token,
+          `/challenges/${challengeId}/activity-types`
+        );
+        return asTextResult(data);
+      }
+    );
+
+    server.registerTool(
+      "list_participants",
+      {
+        title: "List Participants",
+        description:
+          "List participants in a challenge with their roles, points, and payment status.",
+        inputSchema: {
+          challengeId: z.string().min(1),
+          limit: z.number().int().min(1).max(200).optional(),
+          offset: z.number().int().min(0).optional(),
+        },
+      },
+      async ({ challengeId, limit, offset }) => {
+        const token = requireApiToken();
+        const data = await apiRequest(
+          token,
+          `/challenges/${challengeId}/participants`,
+          { query: { limit: limit ?? 50, offset: offset ?? 0 } }
+        );
+        return asTextResult(data);
+      }
+    );
+
+    server.registerTool(
+      "get_activity",
+      {
+        title: "Get Activity",
+        description: "Get full details for a single activity by ID.",
+        inputSchema: {
+          activityId: z.string().min(1),
+        },
+      },
+      async ({ activityId }) => {
+        const token = requireApiToken();
+        const data = await apiRequest(token, `/activities/${activityId}`);
+        return asTextResult(data);
+      }
+    );
+
+    server.registerTool(
+      "delete_activity",
+      {
+        title: "Delete Activity",
+        description:
+          "Delete an activity. Users can delete their own activities; admins can delete any activity in their challenge.",
+        inputSchema: {
+          activityId: z.string().min(1),
+        },
+      },
+      async ({ activityId }) => {
+        const token = requireApiToken();
+        const data = await apiRequest(token, `/activities/${activityId}`, {
+          method: "DELETE",
+        });
+        return asTextResult(data);
+      }
+    );
+
     // ─── Admin Tools (require challenge admin role) ─────────────────────
 
     server.registerTool(
@@ -410,6 +504,86 @@ const mcpHandler = createMcpHandler(
           token,
           `/flagged/${activityId}/comment`,
           { method: "POST", body: { comment, visibility } }
+        );
+        return asTextResult(data);
+      }
+    );
+
+    server.registerTool(
+      "create_activity_type",
+      {
+        title: "Create Activity Type",
+        description:
+          "Create a new activity type in a challenge. Requires challenge admin role.",
+        inputSchema: {
+          challengeId: z.string().min(1),
+          name: z.string().min(1),
+          description: z.string().optional(),
+          scoringConfig: z
+            .record(z.string(), z.unknown())
+            .describe(
+              'Scoring configuration object (e.g. {"type":"fixed","points":10} or {"type":"per_unit","metric":"miles","pointsPerUnit":5})'
+            ),
+          contributesToStreak: z.boolean(),
+          isNegative: z.boolean(),
+          bonusThresholds: z
+            .array(
+              z.object({
+                metric: z.string(),
+                threshold: z.number(),
+                bonusPoints: z.number(),
+                description: z.string(),
+              })
+            )
+            .optional(),
+          maxPerChallenge: z.number().int().optional(),
+          validWeeks: z.array(z.number().int()).optional(),
+        },
+      },
+      async ({ challengeId, ...rest }) => {
+        const token = requireApiToken();
+        const data = await apiRequest(
+          token,
+          `/challenges/${challengeId}/activity-types`,
+          { method: "POST", body: rest }
+        );
+        return asTextResult(data);
+      }
+    );
+
+    server.registerTool(
+      "update_activity_type",
+      {
+        title: "Update Activity Type",
+        description:
+          "Update an existing activity type (name, scoring, thresholds, etc.). Requires challenge admin role.",
+        inputSchema: {
+          activityTypeId: z.string().min(1),
+          name: z.string().optional(),
+          description: z.string().optional(),
+          scoringConfig: z.record(z.string(), z.unknown()).optional(),
+          contributesToStreak: z.boolean().optional(),
+          isNegative: z.boolean().optional(),
+          bonusThresholds: z
+            .array(
+              z.object({
+                metric: z.string(),
+                threshold: z.number(),
+                bonusPoints: z.number(),
+                description: z.string(),
+              })
+            )
+            .optional(),
+          maxPerChallenge: z.number().int().optional(),
+          validWeeks: z.array(z.number().int()).optional(),
+        },
+      },
+      async ({ activityTypeId, ...updates }) => {
+        const token = requireApiToken();
+        const data = await apiRequest(
+          token,
+          `/activity-types/${activityTypeId}`,
+          { method: "PATCH", body: updates }
         );
         return asTextResult(data);
       }

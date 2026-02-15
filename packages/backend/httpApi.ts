@@ -741,6 +741,108 @@ async function handleUpdateParticipantRole(
   }
 }
 
+// ─── Activity Type Management ───────────────────────────────────────────────
+
+async function handleCreateActivityType(
+  ctx: HttpCtx,
+  request: Request,
+  params: Record<string, string>
+): Promise<Response> {
+  const auth = await authenticateApiKey(ctx, request);
+  if (auth instanceof Response) return auth;
+
+  const challengeId = params.id as Id<"challenges">;
+  const isAdmin = await checkChallengeAdmin(
+    ctx,
+    auth.user._id,
+    challengeId,
+    auth.user
+  );
+  if (!isAdmin) {
+    return errorResponse("Not authorized - challenge admin required", 403);
+  }
+
+  const body = await parseJsonBody(request);
+  if (body instanceof Response) return body;
+
+  const { name, description, scoringConfig, contributesToStreak, isNegative, bonusThresholds, maxPerChallenge, validWeeks } = body;
+
+  if (!name || scoringConfig === undefined || contributesToStreak === undefined || isNegative === undefined) {
+    return errorResponse(
+      "Missing required fields: name, scoringConfig, contributesToStreak, isNegative",
+      400
+    );
+  }
+
+  try {
+    const activityTypeId = await ctx.runMutation(
+      internal.mutations.apiMutations.createActivityTypeForUser,
+      {
+        userId: auth.user._id,
+        challengeId,
+        name,
+        description,
+        scoringConfig,
+        contributesToStreak,
+        isNegative,
+        bonusThresholds,
+        maxPerChallenge,
+        validWeeks,
+      }
+    );
+    return jsonResponse({ id: activityTypeId }, 201);
+  } catch (err: any) {
+    return errorResponse(err.message || "Failed to create activity type", 400);
+  }
+}
+
+async function handleUpdateActivityType(
+  ctx: HttpCtx,
+  request: Request,
+  params: Record<string, string>
+): Promise<Response> {
+  const auth = await authenticateApiKey(ctx, request);
+  if (auth instanceof Response) return auth;
+
+  const activityTypeId = params.id as Id<"activityTypes">;
+
+  // Look up the activity type to find its challenge
+  const activityType = await ctx.runQuery(
+    internal.queries.activityTypes.getByIdInternal,
+    { activityTypeId }
+  );
+  if (!activityType) {
+    return errorResponse("Activity type not found", 404);
+  }
+
+  const isAdmin = await checkChallengeAdmin(
+    ctx,
+    auth.user._id,
+    activityType.challengeId as Id<"challenges">,
+    auth.user
+  );
+  if (!isAdmin) {
+    return errorResponse("Not authorized - challenge admin required", 403);
+  }
+
+  const body = await parseJsonBody(request);
+  if (body instanceof Response) return body;
+
+  try {
+    await ctx.runMutation(
+      internal.mutations.apiMutations.updateActivityTypeForUser,
+      {
+        userId: auth.user._id,
+        activityTypeId,
+        ...body,
+      }
+    );
+    return jsonResponse({ success: true });
+  } catch (err: any) {
+    return errorResponse(err.message || "Failed to update activity type", 400);
+  }
+}
+
 // ─── Router ──────────────────────────────────────────────────────────────────
 
 type RouteEntry = {
@@ -774,6 +876,11 @@ const routes: RouteEntry[] = [
     method: "GET",
     pattern: "/api/v1/challenges/:id/activity-types",
     handler: handleListActivityTypes,
+  },
+  {
+    method: "POST",
+    pattern: "/api/v1/challenges/:id/activity-types",
+    handler: handleCreateActivityType,
   },
   {
     method: "GET",
@@ -857,6 +964,13 @@ const routes: RouteEntry[] = [
     method: "PATCH",
     pattern: "/api/v1/admin/activities/:id",
     handler: handleAdminEditActivity,
+  },
+
+  // Activity type management (admin)
+  {
+    method: "PATCH",
+    pattern: "/api/v1/activity-types/:id",
+    handler: handleUpdateActivityType,
   },
 ];
 
