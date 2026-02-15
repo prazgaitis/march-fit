@@ -1,6 +1,16 @@
 import { internalQuery, query } from "../_generated/server";
 import { v } from "convex/values";
 
+// Internal query for looking up a single activity type by ID
+export const getByIdInternal = internalQuery({
+  args: {
+    activityTypeId: v.id("activityTypes"),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.activityTypeId);
+  },
+});
+
 // Internal query for seeding
 export const listByChallenge = internalQuery({
   args: {

@@ -645,6 +645,90 @@ export const updateParticipantRoleForUser = internalMutation({
 });
 
 /**
+ * Create an activity type for a challenge (API key authenticated, admin only).
+ */
+export const createActivityTypeForUser = internalMutation({
+  args: {
+    userId: v.id("users"),
+    challengeId: v.id("challenges"),
+    name: v.string(),
+    description: v.optional(v.string()),
+    scoringConfig: v.any(),
+    contributesToStreak: v.boolean(),
+    isNegative: v.boolean(),
+    bonusThresholds: v.optional(
+      v.array(
+        v.object({
+          metric: v.string(),
+          threshold: v.number(),
+          bonusPoints: v.number(),
+          description: v.string(),
+        })
+      )
+    ),
+    maxPerChallenge: v.optional(v.number()),
+    validWeeks: v.optional(v.array(v.number())),
+  },
+  handler: async (ctx, args) => {
+    const { userId, ...rest } = args;
+    const now = Date.now();
+    const activityTypeId = await ctx.db.insert("activityTypes", {
+      ...rest,
+      createdAt: now,
+      updatedAt: now,
+    });
+    return activityTypeId;
+  },
+});
+
+/**
+ * Update an activity type (API key authenticated, admin only).
+ */
+export const updateActivityTypeForUser = internalMutation({
+  args: {
+    userId: v.id("users"),
+    activityTypeId: v.id("activityTypes"),
+    name: v.optional(v.string()),
+    description: v.optional(v.string()),
+    scoringConfig: v.optional(v.any()),
+    contributesToStreak: v.optional(v.boolean()),
+    isNegative: v.optional(v.boolean()),
+    bonusThresholds: v.optional(
+      v.array(
+        v.object({
+          metric: v.string(),
+          threshold: v.number(),
+          bonusPoints: v.number(),
+          description: v.string(),
+        })
+      )
+    ),
+    maxPerChallenge: v.optional(v.number()),
+    validWeeks: v.optional(v.array(v.number())),
+  },
+  handler: async (ctx, args) => {
+    const { userId, activityTypeId, ...updates } = args;
+
+    const activityType = await ctx.db.get(activityTypeId);
+    if (!activityType) throw new Error("Activity type not found");
+
+    const updateData: Record<string, any> = { updatedAt: Date.now() };
+
+    if (updates.name !== undefined) updateData.name = updates.name;
+    if (updates.description !== undefined) updateData.description = updates.description;
+    if (updates.scoringConfig !== undefined) updateData.scoringConfig = updates.scoringConfig;
+    if (updates.contributesToStreak !== undefined) updateData.contributesToStreak = updates.contributesToStreak;
+    if (updates.isNegative !== undefined) updateData.isNegative = updates.isNegative;
+    if (updates.bonusThresholds !== undefined) updateData.bonusThresholds = updates.bonusThresholds;
+    if (updates.maxPerChallenge !== undefined) updateData.maxPerChallenge = updates.maxPerChallenge;
+    if (updates.validWeeks !== undefined) updateData.validWeeks = updates.validWeeks;
+
+    await ctx.db.patch(activityTypeId, updateData);
+    return { success: true };
+  },
+});
+
+/**
  * Admin edit activity on behalf of an admin (API key authenticated).
  */
 export const adminEditActivityForUser = internalMutation({
