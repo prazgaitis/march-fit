@@ -22,16 +22,49 @@ When MCP is configured, you can say things like:
 
 ## Getting an API Key
 
-1. Sign in to [march.fit](https://march.fit) and go to your **Profile** page.
-2. Scroll to the **API Access** section.
-3. Click **Create API Key** and give it a name (e.g. "Claude MCP").
-4. Copy the key immediately — it starts with `mf_` and is only shown once.
+1. Sign in at [march.fit](https://march.fit) and open your **Profile** page (click your avatar in the top-right corner).
+2. Scroll down to the **API Access** section.
+3. Click **Create API Key**.
+4. Give the key a name so you remember what it's for (e.g. "Claude Desktop", "ChatGPT", "CLI").
+5. Click **Create** — the key will be shown **once**. It starts with `mf_`.
+6. Copy the key and save it somewhere safe. You won't be able to see it again.
 
-Keep this key secret. Anyone with it can act as you.
+If you lose a key, you can revoke it from the same page and create a new one.
 
-## Connecting to Claude
+> **Keep your API key secret.** Anyone who has it can act as you — log activities, view your challenges, and (if you're an admin) manage the challenge.
 
-### Claude Code (CLI)
+## Authentication
+
+March Fit's MCP endpoint supports two authentication methods:
+
+1. **`?token=` URL parameter** (recommended for most clients) — append your API key to the URL:
+   ```
+   https://www.march.fit/api/mcp?token=mf_YOUR_API_KEY
+   ```
+
+2. **`Authorization` header** — pass a Bearer token in the request header:
+   ```
+   Authorization: Bearer mf_YOUR_API_KEY
+   ```
+
+Both methods work identically. Use whichever your MCP client supports. Most web-based clients (Claude.ai, ChatGPT) work best with the URL parameter method, while CLI tools like Claude Code support headers natively.
+
+## Connecting to Claude.ai (Web)
+
+Claude.ai supports remote MCP servers directly in the web interface:
+
+1. Go to [claude.ai](https://claude.ai) and open **Settings**.
+2. Navigate to the **Integrations** section.
+3. Click **Add Integration** (or **Add MCP Server**).
+4. Enter the URL with your token:
+   ```
+   https://www.march.fit/api/mcp?token=mf_YOUR_API_KEY
+   ```
+5. Save the integration.
+
+You should now see March Fit tools available in your conversations. Try asking: "What challenges am I in?"
+
+## Connecting to Claude Code (CLI)
 
 Run this command in your terminal:
 
@@ -42,14 +75,13 @@ claude mcp add --transport http march-fit https://www.march.fit/api/mcp \
 
 Claude Code will now have access to all March Fit tools. Try asking: "What challenges am I in?"
 
-### Claude Desktop
+## Connecting to Claude Desktop
 
 1. Open **Settings > MCP Servers** (or find the MCP configuration file).
 2. Add a new server with:
    - **Name:** `march-fit`
-   - **URL:** `https://www.march.fit/api/mcp`
+   - **URL:** `https://www.march.fit/api/mcp?token=mf_YOUR_API_KEY`
    - **Transport:** Streamable HTTP
-   - **Headers:** `Authorization: Bearer mf_YOUR_API_KEY`
 
 Alternatively, edit the Claude Desktop config file (`claude_desktop_config.json`):
 
@@ -57,11 +89,8 @@ Alternatively, edit the Claude Desktop config file (`claude_desktop_config.json`
 {
   "mcpServers": {
     "march-fit": {
-      "url": "https://www.march.fit/api/mcp",
-      "transport": "streamable-http",
-      "headers": {
-        "Authorization": "Bearer mf_YOUR_API_KEY"
-      }
+      "url": "https://www.march.fit/api/mcp?token=mf_YOUR_API_KEY",
+      "transport": "streamable-http"
     }
   }
 }
@@ -71,11 +100,13 @@ Restart Claude Desktop after saving.
 
 ## Connecting to ChatGPT
 
-ChatGPT supports MCP connections through its Actions interface. The setup varies by plan:
+ChatGPT supports MCP connections through its interface:
 
-1. In a ChatGPT conversation, open the **GPT settings** or **Actions** panel.
-2. Add a new action pointing to `https://www.march.fit/api/mcp`.
-3. Set the authentication to **Bearer Token** with your `mf_` API key.
+1. In a ChatGPT conversation, open the **Tools** or **Actions** panel.
+2. Add a new MCP server with the URL:
+   ```
+   https://www.march.fit/api/mcp?token=mf_YOUR_API_KEY
+   ```
 
 > Note: ChatGPT's MCP support is evolving. Check OpenAI's current documentation for the latest setup steps.
 
@@ -83,15 +114,13 @@ ChatGPT supports MCP connections through its Actions interface. The setup varies
 
 Any client that supports the **Streamable HTTP** transport can connect:
 
-- **Endpoint URL:** `https://www.march.fit/api/mcp`
+- **Endpoint URL:** `https://www.march.fit/api/mcp?token=mf_YOUR_API_KEY`
 - **Transport:** Streamable HTTP
-- **Authentication:** Bearer token in the `Authorization` header
 
-For clients that don't support custom headers, you can pass the token as a URL parameter:
+If your client supports custom headers, you can also use:
 
-```
-https://www.march.fit/api/mcp?token=mf_YOUR_API_KEY
-```
+- **Endpoint URL:** `https://www.march.fit/api/mcp`
+- **Header:** `Authorization: Bearer mf_YOUR_API_KEY`
 
 ## Available Tools
 

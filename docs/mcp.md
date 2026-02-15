@@ -7,10 +7,16 @@ March Fit exposes a remote MCP endpoint from the web app:
 
 - **URL:** `https://www.march.fit/api/mcp`
 - **Transport:** Streamable HTTP
-- **Auth:** `Authorization: Bearer <mf_api_key>`
+- **Auth:** `?token=mf_...` URL parameter, or `Authorization: Bearer mf_...` header
 
-## Quick Start (Claude Code)
+## Quick Start
 
+**Claude.ai / Claude Desktop / ChatGPT** — use the URL with token parameter:
+```
+https://www.march.fit/api/mcp?token=mf_YOUR_API_KEY
+```
+
+**Claude Code (CLI)** — supports headers natively:
 ```bash
 claude mcp add --transport http march-fit https://www.march.fit/api/mcp \
   --header "Authorization: Bearer mf_..."
@@ -50,11 +56,11 @@ claude mcp add --transport http march-fit https://www.march.fit/api/mcp \
 
 ## Getting an API Key
 
-1. Open `https://www.march.fit/profile`.
-2. Expand the `API Access` section.
-3. Create a new API key (name it for your MCP client).
-4. Copy the key immediately (it is only shown once).
-5. Use it as `Authorization: Bearer mf_...`.
+1. Sign in at [march.fit](https://march.fit) and open your **Profile** page.
+2. Scroll to the **API Access** section.
+3. Click **Create API Key** and give it a name (e.g. "Claude Desktop").
+4. Copy the key immediately — it starts with `mf_` and is only shown once.
+5. Use it as `?token=mf_...` in the URL, or `Authorization: Bearer mf_...` in a header.
 
 ## Local Development
 
