@@ -16,6 +16,7 @@ import {
 import { useMutation, usePaginatedQuery } from 'convex/react';
 import { api } from '@repo/backend';
 import type { Id } from '@repo/backend/_generated/dataModel';
+import { ConvexError } from 'convex/values';
 
 import dynamic from 'next/dynamic';
 import { RichTextViewer } from '@/components/editor/rich-text-viewer';
@@ -435,6 +436,7 @@ function ActivityCard({
       setFlagReason('');
     } catch (err) {
       setFlagError(
+        err instanceof ConvexError ? (err.data as string) :
         err instanceof Error ? err.message : 'Failed to report activity'
       );
     } finally {
