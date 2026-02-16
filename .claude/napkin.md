@@ -3,6 +3,13 @@
 ## Corrections
 | Date | Source | What Went Wrong | What To Do Instead |
 |------|--------|----------------|-------------------|
+| 2026-02-16 | self | Ran eslint command with unquoted bracketed path (`app/api/challenges/[id]/...`) and zsh globbing failed | Quote any CLI path containing `[]` in this repo, including lint/file-specific commands |
+| 2026-02-16 | user | Fade behavior was interpreted as full hide, and reappearing nav felt inactive | Use partial opacity dimming (not `opacity-0`), keep nav interactive, and restore stronger foreground styling when revealed |
+| 2026-02-16 | self | Tried to use `python` for a quick text edit and the command wasn't available here | Use `apply_patch` or shell-native tools for small file edits; avoid Python for routine edits in this repo |
+| 2026-02-16 | user | After enabling `viewportFit: \"cover\"`, top dashboard feed nav could sit under mobile browser top chrome/notch | When using safe-area viewport mode, add top inset offsets to mobile main content and sticky top elements |
+| 2026-02-16 | user | Implemented mobile nav hide-on-scroll too aggressively; user perceived nav as disappearing entirely | Keep mobile bottom nav persistently visible by default; add hide-on-scroll only as an opt-in, tuned enhancement |
+| 2026-02-16 | self | Ran `pnpm -F web exec eslint` with `apps/web/...` paths, which failed because the command runs from `apps/web` | Use package-relative paths (e.g., `components/...`, `app/...`) when executing commands inside a filtered workspace |
+| 2026-02-16 | self | Ran `rg` with unquoted path containing `[id]` so zsh expanded it and command failed | Always single-quote paths with glob chars (`[]`, `()`) in shell commands |
 | 2026-02-11 | self | Ran `ls` before reading napkin (again) | Always read `.claude/napkin.md` before any other command |
 | 2026-02-10 | self | Ran `ls` before reading napkin | Always read `.claude/napkin.md` before any other command |
 | 2026-02-10 | self | Used backticks in a shell-quoted PR body so the shell tried to execute `turbo` | Use a heredoc or escape backticks when passing PR bodies to shell commands |
@@ -13,6 +20,8 @@
 ## User Preferences
 - Hide navbar on full-screen flow pages (invite, dashboard, admin) via `ConditionalHeader` patterns + remove `page-with-header` class
 - Avoid LAN-specific runtime rewrites in product code unless explicitly requested
+- For mobile bottom nav visual style, prefer transparent icon treatment over standout filled purple CTA button.
+- For production troubleshooting UX, do not add user-facing alerts for transient feed/connection issues; log to Sentry instead.
 
 ## Patterns That Work
 - Convex queries can join related data inline (e.g., activity types + categories in one query)
@@ -20,6 +29,10 @@
 - Admin console sidebar approach was scrapped — revisit admin nav design in the future
 - Mobile feed performance improves by skipping non-critical per-item work (engagement count scans and media URL generation) on initial query
 - For mobile perceived performance, SSR the first feed page from server auth and then let client `usePaginatedQuery` take over for realtime/pagination
+- For mobile browser chrome collapse behavior, use document scrolling on mobile and keep internal `overflow-y-auto` scrollers only on desktop breakpoints.
+- For x-like translucent mobile bottom nav, use low-alpha supported background (`supports-[backdrop-filter]:bg-zinc-950/15`) plus stronger blur/saturation.
+- If user prefers no glass treatment, remove all `backdrop-*` and `supports-[backdrop-filter]:*` classes and use a plain alpha background (`bg-zinc-950/55`).
+- Scroll-direction-driven nav fade works with a throttled `requestAnimationFrame` + `opacity` transition, and avoids layout jumps versus translate-based hide.
 
 ## Patterns That Don't Work
 - Deriving env vars inside `convex deploy --cmd` shell strings — escaping hell, fragile, hard to debug. Instead, derive them in `next.config.ts` which runs at build time and can set `process.env` before Next.js compiles.
@@ -27,6 +40,7 @@
 ## Domain Notes
 - Scoring configs have types: distance, duration, count, variant
 - `page-with-header` CSS class = `pt-16` to offset fixed navbar
+- Dashboard layout uses `h-dvh` + `overflow-hidden` shell with an internal `main` scroller (`overflow-y-auto`); mobile browser chrome hide behavior is tied to this choice.
 - Seed data lives in `packages/backend/actions/seed.ts`
 - Schema changes auto-deploy locally via `pnpm dev`
 - Local Convex HTTP routes (`httpAction`, `/api/v1/*`) are served from site origin (`127.0.0.1:3211`), not cloud origin (`127.0.0.1:3210`)

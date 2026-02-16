@@ -1,8 +1,9 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { formatDistanceToNow } from 'date-fns';
+import * as Sentry from '@sentry/nextjs';
 import {
   Flag,
   Loader2,
@@ -13,7 +14,7 @@ import {
   ThumbsUp,
   Zap,
 } from 'lucide-react';
-import { useMutation, usePaginatedQuery } from 'convex/react';
+import { useConvexConnectionState, useMutation, usePaginatedQuery } from 'convex/react';
 import { api } from '@repo/backend';
 import type { Id } from '@repo/backend/_generated/dataModel';
 import { ConvexError } from 'convex/values';
@@ -102,15 +103,28 @@ interface ActivityFeedProps {
 
 type FeedFilter = 'all' | 'following';
 
+interface FeedPageResponse {
+  page: ActivityFeedItem[];
+  continueCursor: string;
+  isDone: boolean;
+}
+
 export function ActivityFeed({
   challengeId,
   initialItems = [],
   initialLightweightMode = false,
 }: ActivityFeedProps) {
+  const connectionState = useConvexConnectionState();
   const { hasNewActivity, acknowledgeActivity } = useChallengeRealtime();
   const { users: mentionUsers } = useMentionableUsers(challengeId);
   const [pendingLikes, setPendingLikes] = useState<Record<string, boolean>>({});
   const [feedFilter, setFeedFilter] = useState<FeedFilter>('all');
+  const [useHttpFallback, setUseHttpFallback] = useState(false);
+  const [httpItems, setHttpItems] = useState<ActivityFeedItem[]>(initialItems);
+  const [httpCursor, setHttpCursor] = useState<string | null>(null);
+  const [httpIsDone, setHttpIsDone] = useState(false);
+  const [httpLoading, setHttpLoading] = useState(false);
+  const httpRequestIdRef = useRef(0);
   const isMobileClient = useMemo(() => {
     if (typeof navigator === 'undefined') {
       return false;
@@ -137,7 +151,126 @@ export function ActivityFeed({
     { initialNumItems: 10 }
   );
 
+  const loadHttpPage = useCallback(async (cursor: string | null, append: boolean) => {
+    const requestId = ++httpRequestIdRef.current;
+    setHttpLoading(true);
+
+    try {
+      const response = await fetch(`/api/challenges/${challengeId}/feed`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({
+          followingOnly: feedFilter === "following",
+          includeEngagementCounts: !lightweightFeedMode,
+          includeMediaUrls: !lightweightFeedMode,
+          cursor,
+          numItems: 10,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Feed request failed with status ${response.status}`);
+      }
+
+      const data = (await response.json()) as FeedPageResponse;
+      if (requestId !== httpRequestIdRef.current) {
+        return;
+      }
+
+      setHttpItems((prev) => (append ? [...prev, ...data.page] : data.page));
+      setHttpIsDone(data.isDone);
+      setHttpCursor(data.isDone ? null : (data.continueCursor ?? null));
+    } catch (error) {
+      if (requestId !== httpRequestIdRef.current) {
+        return;
+      }
+      console.error("Failed to load feed over HTTP fallback", error);
+      Sentry.captureException(error, {
+        tags: {
+          area: "activity-feed",
+          transport: "http-fallback",
+          feedFilter,
+          platform: isMobileClient ? "mobile" : "desktop",
+        },
+        extra: {
+          challengeId,
+          lightweightFeedMode,
+        },
+      });
+    } finally {
+      if (requestId === httpRequestIdRef.current) {
+        setHttpLoading(false);
+      }
+    }
+  }, [challengeId, feedFilter, isMobileClient, lightweightFeedMode]);
+
+  useEffect(() => {
+    if (useHttpFallback) {
+      return;
+    }
+    if (!isLoading) {
+      return;
+    }
+    if (connectionState.isWebSocketConnected || connectionState.hasEverConnected) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      Sentry.captureMessage("Convex websocket not ready; enabling HTTP feed fallback", {
+        level: "warning",
+        tags: {
+          area: "activity-feed",
+          feedFilter,
+          platform: isMobileClient ? "mobile" : "desktop",
+        },
+        extra: {
+          challengeId,
+          hasEverConnected: connectionState.hasEverConnected,
+          isWebSocketConnected: connectionState.isWebSocketConnected,
+          connectionRetries: connectionState.connectionRetries,
+        },
+      });
+      setUseHttpFallback(true);
+    }, 6000);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [
+    challengeId,
+    connectionState.connectionRetries,
+    connectionState.hasEverConnected,
+    connectionState.isWebSocketConnected,
+    feedFilter,
+    isMobileClient,
+    isLoading,
+    useHttpFallback,
+  ]);
+
+  useEffect(() => {
+    if (!useHttpFallback) {
+      return;
+    }
+
+    httpRequestIdRef.current += 1;
+    setHttpCursor(null);
+    setHttpIsDone(false);
+    setHttpItems(feedFilter === "all" ? initialItems : []);
+
+    void loadHttpPage(null, false);
+  }, [feedFilter, initialItems, loadHttpPage, useHttpFallback]);
+
   const handleLoadMore = () => {
+    if (useHttpFallback) {
+      if (!httpLoading && !httpIsDone && httpCursor) {
+        void loadHttpPage(httpCursor, true);
+      }
+      return;
+    }
+
     if (status === "CanLoadMore") {
       loadMore(10);
     }
@@ -166,15 +299,7 @@ export function ActivityFeed({
     }
   };
 
-  const feedStatus = useMemo(() => {
-    const hasInitialFeed = feedFilter === 'all' && initialItems.length > 0;
-    if (isLoading && !hasInitialFeed) {
-      return 'Loading recent activities...';
-    }
-    return null;
-  }, [feedFilter, initialItems.length, isLoading]);
-
-  const displayResults = useMemo(() => {
+  const liveDisplayResults = useMemo(() => {
     if (feedFilter !== 'all') {
       return results;
     }
@@ -186,10 +311,35 @@ export function ActivityFeed({
     return results;
   }, [feedFilter, initialItems, results]);
 
+  const displayResults = useMemo(() => {
+    if (!useHttpFallback) {
+      return liveDisplayResults;
+    }
+
+    if (feedFilter === "all" && httpItems.length === 0) {
+      return initialItems;
+    }
+
+    return httpItems;
+  }, [feedFilter, httpItems, initialItems, liveDisplayResults, useHttpFallback]);
+
+  const effectiveIsLoading = useHttpFallback ? httpLoading : isLoading;
+  const canLoadMore = useHttpFallback
+    ? !httpIsDone && !httpLoading && httpCursor !== null
+    : status === "CanLoadMore";
+
+  const feedStatus = useMemo(() => {
+    const hasInitialFeed = feedFilter === "all" && (displayResults?.length ?? 0) > 0;
+    if (effectiveIsLoading && !hasInitialFeed) {
+      return "Loading recent activities...";
+    }
+    return null;
+  }, [displayResults, effectiveIsLoading, feedFilter]);
+
   return (
     <div className="space-y-4">
       {/* Twitter-like Feed Filter Tabs */}
-      <div className="sticky top-0 z-10 -mx-4 border-b border-zinc-800 bg-black/80 backdrop-blur">
+      <div className="sticky top-[env(safe-area-inset-top)] z-10 -mx-4 border-b border-zinc-800 bg-black/80 backdrop-blur">
         <div className="flex">
           <button
             onClick={() => setFeedFilter('all')}
@@ -258,7 +408,7 @@ export function ActivityFeed({
         />
       ))}
 
-      {!isLoading && (displayResults?.length ?? 0) === 0 && (
+      {!effectiveIsLoading && (displayResults?.length ?? 0) === 0 && (
         <Card className="border-dashed text-center">
           <CardHeader>
             <CardTitle>
@@ -273,10 +423,10 @@ export function ActivityFeed({
         </Card>
       )}
 
-      {status === "CanLoadMore" && (
+      {canLoadMore && (
         <div className="flex justify-center">
-          <Button variant="outline" onClick={handleLoadMore}>
-            Load more
+          <Button variant="outline" onClick={handleLoadMore} disabled={effectiveIsLoading}>
+            {effectiveIsLoading ? "Loading..." : "Load more"}
           </Button>
         </div>
       )}

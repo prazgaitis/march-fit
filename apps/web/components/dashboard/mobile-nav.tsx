@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Plus } from "lucide-react";
@@ -16,6 +17,53 @@ interface MobileNavProps {
 
 export function MobileNav({ challengeId, currentUserId, challengeStartDate }: MobileNavProps) {
   const pathname = usePathname();
+  const [isDimmed, setIsDimmed] = useState(false);
+  const lastScrollY = useRef(0);
+  const isTicking = useRef(false);
+
+  useEffect(() => {
+    const fadeThresholdPx = 12;
+    const minScrollBeforeFadePx = 56;
+
+    const handleScroll = () => {
+      if (isTicking.current) {
+        return;
+      }
+
+      isTicking.current = true;
+      requestAnimationFrame(() => {
+        const nextScrollY = window.scrollY;
+        const delta = nextScrollY - lastScrollY.current;
+
+        if (Math.abs(delta) >= fadeThresholdPx) {
+          if (delta > 0 && nextScrollY > minScrollBeforeFadePx) {
+            setIsDimmed(true);
+          } else if (delta < 0 || nextScrollY <= 0) {
+            setIsDimmed(false);
+          }
+        }
+
+        if (nextScrollY <= 0) {
+          setIsDimmed(false);
+        }
+
+        lastScrollY.current = nextScrollY;
+        isTicking.current = false;
+      });
+    };
+
+    lastScrollY.current = window.scrollY;
+    window.addEventListener("scroll", handleScroll, { passive: true });
+
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+    };
+  }, []);
+
+  useEffect(() => {
+    setIsDimmed(false);
+    lastScrollY.current = window.scrollY;
+  }, [pathname]);
 
   // Take first 4 items for mobile (Home, Notifications, Leaderboard, Profile)
   // Skip Activity Types to make room for the + button
@@ -27,7 +75,15 @@ export function MobileNav({ challengeId, currentUserId, challengeStartDate }: Mo
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 border-t border-zinc-800 bg-black/95 backdrop-blur supports-[backdrop-filter]:bg-black/80 lg:hidden">
+    <nav
+      className={cn(
+        "fixed inset-x-0 bottom-0 z-50 transition-all duration-300 lg:hidden",
+        isDimmed
+          ? "border-t border-white/5 bg-zinc-950/35 opacity-45"
+          : "border-t border-white/10 bg-zinc-950/60 opacity-100 shadow-[0_-8px_24px_rgba(0,0,0,0.3)]"
+      )}
+      style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+    >
       <div className="flex items-center justify-around px-2 py-2">
         {mobileItems.slice(0, 2).map((item) => {
           const href = item.href(challengeId, currentUserId);
@@ -56,7 +112,7 @@ export function MobileNav({ challengeId, currentUserId, challengeStartDate }: Mo
           challengeId={challengeId}
           challengeStartDate={challengeStartDate}
           trigger={
-            <button className="flex h-12 w-12 items-center justify-center rounded-full bg-indigo-600 text-white shadow-lg transition hover:bg-indigo-500">
+            <button className="flex h-12 w-12 items-center justify-center rounded-full border border-white/15 bg-transparent text-zinc-100 transition hover:bg-white/10 hover:text-white">
               <Plus className="h-6 w-6" />
             </button>
           }
