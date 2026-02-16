@@ -199,10 +199,15 @@ function extractMetrics(
   metrics.minutes = Math.round(stravaActivity.elapsed_time / 60);
   metrics.moving_minutes = Math.round(stravaActivity.moving_time / 60);
 
-  // Add distance if available (both km and miles)
+  // Add distance if available (both km and miles, plus canonical scoring keys)
   if (stravaActivity.distance) {
-    metrics.distance_km = stravaActivity.distance / 1000;
-    metrics.distance_miles = stravaActivity.distance / 1609.344;
+    const km = stravaActivity.distance / 1000;
+    const miles = stravaActivity.distance / 1609.344;
+    metrics.distance_km = km;
+    metrics.distance_miles = miles;
+    // Canonical keys for scoring compatibility (scoring configs use "miles"/"kilometers")
+    metrics.miles = miles;
+    metrics.kilometers = km;
   }
 
   // Add heart rate data if available
