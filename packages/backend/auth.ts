@@ -6,12 +6,16 @@ import type { DataModel } from "./_generated/dataModel";
 import type { GenericCtx } from "@convex-dev/better-auth";
 import authConfig from "./auth.config";
 
+const authLogLevel = (process.env.AUTH_LOG_LEVEL ?? "").toUpperCase();
+const verboseAuthLogging =
+  authLogLevel === "DEBUG" || process.env.CONVEX_AUTH_VERBOSE === "1";
+
 /**
  * Better Auth client for Convex backend
  * This provides the adapter and HTTP route registration for Better Auth
  */
 export const authComponent = createClient<DataModel>(components.betterAuth, {
-  verbose: false,
+  verbose: verboseAuthLogging,
 });
 
 /**

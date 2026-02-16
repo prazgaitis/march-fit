@@ -40,7 +40,7 @@ export function DashboardLayout({
   }, []);
 
   return (
-    <div className="flex h-dvh overflow-hidden bg-black text-white">
+    <div className="flex min-h-dvh bg-black text-white lg:h-dvh lg:overflow-hidden">
       {/* Left Sidebar - Collapsed (lg) */}
       <aside onWheel={forwardScroll} className="hidden w-[72px] flex-shrink-0 flex-col border-r border-zinc-800 lg:flex xl:hidden">
         <div className="flex h-full flex-col items-center py-4">
@@ -129,8 +129,11 @@ export function DashboardLayout({
         </div>
       </aside>
 
-      {/* Main Content - Scrollable */}
-      <main ref={mainRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain scrollbar-hide pb-20 lg:pb-0">
+      {/* Main Content */}
+      <main
+        ref={mainRef}
+        className="min-h-0 flex-1 scrollbar-hide pt-[env(safe-area-inset-top)] pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:overflow-y-auto lg:overscroll-contain lg:pt-0 lg:pb-0"
+      >
         <PaymentRequiredBanner challengeId={challenge.id} />
         <AnnouncementBanner challengeId={challenge.id} />
         {children}
