@@ -136,9 +136,25 @@ export const getChallengeFeed = query({
   handler: async (ctx, args) => {
     const includeEngagementCounts = args.includeEngagementCounts ?? true;
     const includeMediaUrls = args.includeMediaUrls ?? true;
+    const authDebugEnabled =
+      (process.env.AUTH_LOG_LEVEL ?? "").toUpperCase() === "DEBUG";
 
     // Resolve current user once (not per-item)
     const currentUser = await getCurrentUser(ctx);
+
+    if (args.followingOnly && authDebugEnabled) {
+      if (!currentUser) {
+        console.warn(
+          "[auth-debug] getChallengeFeed called with followingOnly=true but no authenticated user identity",
+          { challengeId: args.challengeId }
+        );
+      } else {
+        console.info(
+          "[auth-debug] getChallengeFeed followingOnly request",
+          { challengeId: args.challengeId, userId: currentUser._id }
+        );
+      }
+    }
 
     // Get following list if filtering
     let followingIds: Set<string> | null = null;
@@ -148,6 +164,13 @@ export const getChallengeFeed = query({
         .withIndex("followerId", (q) => q.eq("followerId", currentUser._id))
         .collect();
       followingIds = new Set(follows.map((f) => f.followingId));
+
+      if (authDebugEnabled) {
+        console.info("[auth-debug] following list resolved", {
+          userId: currentUser._id,
+          followingCount: followingIds.size,
+        });
+      }
     }
 
     const activities = await ctx.db

@@ -2,11 +2,17 @@
 
 import { ConvexReactClient } from "convex/react";
 import { ConvexBetterAuthProvider } from "@convex-dev/better-auth/react";
+import * as Sentry from "@sentry/nextjs";
 import { ReactNode, useMemo } from "react";
 
 import { betterAuthClient } from "@/lib/better-auth/client";
 
 let convexClientSingleton: ConvexReactClient | null = null;
+
+function isConvexDebugEnabled() {
+  const value = process.env.NEXT_PUBLIC_CONVEX_DEBUG;
+  return value === "1" || value === "true";
+}
 
 function resolveConvexClientUrl() {
   const configuredUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
@@ -41,7 +47,34 @@ function resolveConvexClientUrl() {
 
 function getConvexClient() {
   if (!convexClientSingleton) {
-    convexClientSingleton = new ConvexReactClient(resolveConvexClientUrl());
+    const debugEnabled = isConvexDebugEnabled();
+    convexClientSingleton = new ConvexReactClient(resolveConvexClientUrl(), {
+      verbose: debugEnabled,
+      reportDebugInfoToConvex: debugEnabled,
+      onServerDisconnectError: (message) => {
+        if (!debugEnabled) {
+          return;
+        }
+
+        console.warn("[convex][disconnect]", message);
+        Sentry.captureMessage("Convex server disconnect", {
+          level: "warning",
+          tags: {
+            area: "convex-client",
+            source: "onServerDisconnectError",
+          },
+          extra: {
+            message,
+          },
+        });
+      },
+    });
+
+    if (debugEnabled) {
+      console.info("[convex][debug] client initialized", {
+        url: convexClientSingleton.url,
+      });
+    }
   }
   return convexClientSingleton;
 }

@@ -33,6 +33,7 @@
 - For x-like translucent mobile bottom nav, use low-alpha supported background (`supports-[backdrop-filter]:bg-zinc-950/15`) plus stronger blur/saturation.
 - If user prefers no glass treatment, remove all `backdrop-*` and `supports-[backdrop-filter]:*` classes and use a plain alpha background (`bg-zinc-950/55`).
 - Scroll-direction-driven nav fade works with a throttled `requestAnimationFrame` + `opacity` transition, and avoids layout jumps versus translate-based hide.
+- For Convex mobile diagnostics, prefer env-gated verbose logs (`NEXT_PUBLIC_CONVEX_DEBUG=1`, `AUTH_LOG_LEVEL=DEBUG`) plus Sentry capture over user-facing banners.
 
 ## Patterns That Don't Work
 - Deriving env vars inside `convex deploy --cmd` shell strings — escaping hell, fragile, hard to debug. Instead, derive them in `next.config.ts` which runs at build time and can set `process.env` before Next.js compiles.
