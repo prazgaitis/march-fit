@@ -32,10 +32,11 @@ export default async function ChallengeAdminLayout({
   }
 
   // Check if user can manage this challenge
-  const canManage =
-    user.role === "admin" || challenge.creatorId === user._id;
+  const adminStatus = await convex.query(api.queries.participations.isUserChallengeAdmin, {
+    challengeId: id as Id<"challenges">,
+  });
 
-  if (!canManage) {
+  if (!adminStatus.isAdmin) {
     redirect(`/challenges/${challenge._id}`);
   }
 
