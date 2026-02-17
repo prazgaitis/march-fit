@@ -248,6 +248,32 @@ export const getMentionable = query({
 });
 
 /**
+ * Get all challenges a user is participating in
+ */
+export const getUserChallenges = query({
+  args: {
+    userId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    const participations = await ctx.db
+      .query("userChallenges")
+      .withIndex("userId", (q) => q.eq("userId", args.userId))
+      .collect();
+
+    const challenges = await Promise.all(
+      participations.map(async (p) => {
+        const challenge = await ctx.db.get(p.challengeId);
+        return challenge;
+      })
+    );
+
+    return challenges
+      .filter((c): c is NonNullable<typeof c> => c !== null)
+      .sort((a, b) => b.startDate - a.startDate); // Sort by start date descending (most recent first)
+  },
+});
+
+/**
  * Get count of participants in a challenge
  */
 export const getCount = query({

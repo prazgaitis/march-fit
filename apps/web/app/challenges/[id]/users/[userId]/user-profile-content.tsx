@@ -12,6 +12,7 @@ import {
   Flame,
   Loader2,
   Medal,
+  Settings,
   Trophy,
   UserMinus,
   UserPlus,
@@ -129,29 +130,43 @@ export function UserProfileContent({
                   <p className="text-muted-foreground">@{user.username}</p>
                 </div>
 
-                {/* Follow Button */}
-                {followData && !followData.isOwnProfile && (
-                  <Button
-                    variant={followData.isFollowing ? "outline" : "default"}
-                    size="sm"
-                    onClick={handleToggleFollow}
-                    disabled={isTogglingFollow}
-                    className="min-w-[100px]"
-                  >
-                    {isTogglingFollow ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : followData.isFollowing ? (
-                      <>
-                        <UserMinus className="mr-2 h-4 w-4" />
-                        Unfollow
-                      </>
-                    ) : (
-                      <>
-                        <UserPlus className="mr-2 h-4 w-4" />
-                        Follow
-                      </>
-                    )}
-                  </Button>
+                {/* Settings Button (own profile) or Follow Button */}
+                {followData && (
+                  followData.isOwnProfile ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      asChild
+                      className="min-w-[100px]"
+                    >
+                      <Link href={`/challenges/${challengeId}/settings`}>
+                        <Settings className="mr-2 h-4 w-4" />
+                        Settings
+                      </Link>
+                    </Button>
+                  ) : (
+                    <Button
+                      variant={followData.isFollowing ? "outline" : "default"}
+                      size="sm"
+                      onClick={handleToggleFollow}
+                      disabled={isTogglingFollow}
+                      className="min-w-[100px]"
+                    >
+                      {isTogglingFollow ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : followData.isFollowing ? (
+                        <>
+                          <UserMinus className="mr-2 h-4 w-4" />
+                          Unfollow
+                        </>
+                      ) : (
+                        <>
+                          <UserPlus className="mr-2 h-4 w-4" />
+                          Follow
+                        </>
+                      )}
+                    </Button>
+                  )
                 )}
               </div>
 
