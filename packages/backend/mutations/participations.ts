@@ -208,11 +208,21 @@ export const join = mutation({
       }
     }
 
-    // Schedule on_signup emails asynchronously so they don't block the join
-    await ctx.scheduler.runAfter(0, internal.mutations.emailSequences.triggerOnSignup, {
-      challengeId: args.challengeId,
-      userId: user._id,
-    });
+    // Schedule on_signup emails asynchronously so they don't block the join.
+    // Only schedule if there are enabled signup sequences for this challenge.
+    const hasSignupEmails = await ctx.db
+      .query("emailSequences")
+      .withIndex("challengeTrigger", (q) =>
+        q.eq("challengeId", args.challengeId).eq("trigger", "on_signup")
+      )
+      .first();
+
+    if (hasSignupEmails?.enabled) {
+      await ctx.scheduler.runAfter(0, internal.mutations.emailSequences.triggerOnSignup, {
+        challengeId: args.challengeId,
+        userId: user._id,
+      });
+    }
 
     return participationId;
   },
