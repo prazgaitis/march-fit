@@ -5,7 +5,7 @@ import type { Id } from "@repo/backend/_generated/dataModel";
 
 import { getCurrentUser } from "@/lib/auth";
 import { isAuthenticated } from "@/lib/server-auth";
-import { DashboardLayoutWrapper } from "../../notifications/dashboard-layout-wrapper";
+import { DashboardLayoutWrapper } from "../notifications/dashboard-layout-wrapper";
 import { SettingsContent } from "./settings-content";
 
 interface SettingsPageProps {

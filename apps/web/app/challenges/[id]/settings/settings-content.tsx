@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@repo/backend";
-import type { Id } from "@repo/backend/_generated/dataModel";
+import type { Id, Doc } from "@repo/backend/_generated/dataModel";
 import { Loader2, Settings, User, List, Check } from "lucide-react";
 
 import { UserAvatar } from "@/components/user-avatar";
@@ -19,7 +19,6 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useToast } from "@/hooks/use-toast";
 
 interface SettingsContentProps {
   currentUser: {
@@ -37,8 +36,9 @@ export function SettingsContent({
   currentChallengeId,
 }: SettingsContentProps) {
   const router = useRouter();
-  const { toast } = useToast();
   const [isUpdating, setIsUpdating] = useState(false);
+  const [updateSuccess, setUpdateSuccess] = useState(false);
+  const [updateError, setUpdateError] = useState<string | null>(null);
 
   // Form state
   const [name, setName] = useState(currentUser.name ?? "");
@@ -54,6 +54,8 @@ export function SettingsContent({
   const handleSaveProfile = async () => {
     if (isUpdating) return;
     setIsUpdating(true);
+    setUpdateSuccess(false);
+    setUpdateError(null);
 
     try {
       await updateUser({
@@ -62,20 +64,12 @@ export function SettingsContent({
         avatarUrl: avatarUrl.trim() || undefined,
       });
 
-      toast({
-        title: "Profile updated",
-        description: "Your profile has been updated successfully.",
-      });
-
+      setUpdateSuccess(true);
       // Refresh the page to show updated data
       router.refresh();
     } catch (error) {
       console.error("Failed to update profile:", error);
-      toast({
-        title: "Update failed",
-        description: "Failed to update your profile. Please try again.",
-        variant: "destructive",
-      });
+      setUpdateError("Failed to update your profile. Please try again.");
     } finally {
       setIsUpdating(false);
     }
@@ -110,9 +104,10 @@ export function SettingsContent({
           <div className="flex items-center gap-4">
             <UserAvatar
               user={{
+                id: currentUser._id,
                 username: currentUser.username,
-                name: name || currentUser.name,
-                avatarUrl: avatarUrl || currentUser.avatarUrl,
+                name: name || currentUser.name || null,
+                avatarUrl: avatarUrl || currentUser.avatarUrl || null,
               }}
               size="xl"
             />
@@ -150,20 +145,28 @@ export function SettingsContent({
           </div>
 
           {/* Save Button */}
-          <Button
-            onClick={handleSaveProfile}
-            disabled={isUpdating}
-            className="w-full sm:w-auto"
-          >
-            {isUpdating ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Saving...
-              </>
-            ) : (
-              "Save Changes"
+          <div className="space-y-2">
+            <Button
+              onClick={handleSaveProfile}
+              disabled={isUpdating}
+              className="w-full sm:w-auto"
+            >
+              {isUpdating ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save Changes"
+              )}
+            </Button>
+            {updateSuccess && (
+              <p className="text-sm text-green-600">Profile updated successfully!</p>
             )}
-          </Button>
+            {updateError && (
+              <p className="text-sm text-red-600">{updateError}</p>
+            )}
+          </div>
         </CardContent>
       </Card>
 
@@ -175,7 +178,7 @@ export function SettingsContent({
             Your Challenges
           </CardTitle>
           <CardDescription>
-            Switch between challenges you're participating in
+            Switch between challenges you&apos;re participating in
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -185,7 +188,7 @@ export function SettingsContent({
             </div>
           ) : userChallenges && userChallenges.length > 0 ? (
             <div className="space-y-2">
-              {userChallenges.map((challenge) => {
+              {userChallenges.map((challenge: Doc<"challenges">) => {
                 const isCurrent = challenge._id === currentChallengeId;
                 return (
                   <Link
@@ -213,7 +216,7 @@ export function SettingsContent({
             </div>
           ) : (
             <p className="py-8 text-center text-sm text-muted-foreground">
-              You're not participating in any challenges yet.
+              You&apos;re not participating in any challenges yet.
             </p>
           )}
 

@@ -5,6 +5,7 @@ import { getCurrentUser } from "../lib/ids";
 import { getChallengeWeekNumber, getWeekDateRange, getTotalWeeks } from "../lib/weeks";
 import type { Id } from "../_generated/dataModel";
 import { notDeleted } from "../lib/activityFilters";
+import { dateOnlyToUtcMs } from "../lib/dateOnly";
 
 /**
  * Get recent participants for a challenge
@@ -269,7 +270,11 @@ export const getUserChallenges = query({
 
     return challenges
       .filter((c): c is NonNullable<typeof c> => c !== null)
-      .sort((a, b) => b.startDate - a.startDate); // Sort by start date descending (most recent first)
+      .sort((a, b) => {
+        const aDate = typeof a.startDate === "string" ? dateOnlyToUtcMs(a.startDate) : a.startDate;
+        const bDate = typeof b.startDate === "string" ? dateOnlyToUtcMs(b.startDate) : b.startDate;
+        return bDate - aDate;
+      }); // Sort by start date descending (most recent first)
   },
 });
 
