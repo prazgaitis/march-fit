@@ -7,6 +7,7 @@ import type { Id } from "@repo/backend/_generated/dataModel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { FlaggedActivityActions } from "@/components/admin/flagged-activity-actions";
+import { fetchAuthQuery } from "@/lib/server-auth";
 
 interface FlaggedActivityDetailPageProps {
   params: Promise<{ id: string; activityId: string }>;
@@ -42,7 +43,7 @@ export default async function FlaggedActivityDetailPage({
     notFound();
   }
 
-  const adminStatus = await convex.query(api.queries.participations.isUserChallengeAdmin, {
+  const adminStatus = await fetchAuthQuery<{ isAdmin: boolean; reason: "global_admin" | "creator" | "challenge_admin" | null }>(api.queries.participations.isUserChallengeAdmin, {
     challengeId: detail.activity.challengeId as Id<"challenges">,
   });
 
