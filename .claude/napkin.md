@@ -69,3 +69,4 @@
 | 2026-02-17 | self | Queried prod with `queries/users:getByEmailPublic` and failed because deployed function name was `queries/users:getByEmail` | When checking prod Convex, list available functions from error output and call the deployed name instead of assuming local function names |
 | 2026-02-17 | self | Missed a closing quote in a `sed` command for a bracketed path and got `unmatched '` | Double-check shell quoting when commands include `[id]` paths before execution |
 | 2026-02-17 | self | Switched server admin checks to `fetchAuthQuery` but forgot generic type args, causing TS `unknown` on response shape | When using `fetchAuthQuery`, provide explicit generic result typing at call sites |
+| 2026-02-17 | self | Used backticks in a double-quoted `gh pr create --body` string again; shell attempted command substitution | Always use `--body-file` with heredoc when PR text may include backticks |

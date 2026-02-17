@@ -1,7 +1,7 @@
 import { internalMutation, mutation } from "../_generated/server";
+import { internal } from "../_generated/api";
 import { v } from "convex/values";
 import type { Id } from "../_generated/dataModel";
-import { resend } from "../lib/resend";
 import { getCurrentUser } from "../lib/ids";
 import { isPaymentRequired } from "../lib/payments";
 
@@ -37,9 +37,6 @@ async function requireChallengeAdmin(
 
   return user;
 }
-
-// Default from address - should be configured per deployment
-const DEFAULT_FROM_EMAIL = "March Fitness <noreply@march.fit>";
 
 // Internal mutation for seeding
 export const create = internalMutation({
@@ -211,57 +208,20 @@ export const join = mutation({
       }
     }
 
-    // Trigger on_signup emails
-    const emailSequences = await ctx.db
+    // Schedule on_signup emails asynchronously so they don't block the join.
+    // Only schedule if there are enabled signup sequences for this challenge.
+    const hasSignupEmails = await ctx.db
       .query("emailSequences")
       .withIndex("challengeTrigger", (q) =>
-        q.eq("challengeId", args.challengeId).eq("trigger", "on_signup"),
+        q.eq("challengeId", args.challengeId).eq("trigger", "on_signup")
       )
-      .collect();
+      .first();
 
-    const enabledSequences = emailSequences.filter((seq) => seq.enabled);
-
-    for (const sequence of enabledSequences) {
-      // Check if already sent to this user (shouldn't happen on first join, but safety check)
-      const existingSend = await ctx.db
-        .query("emailSends")
-        .withIndex("userSequence", (q) =>
-          q.eq("userId", user._id).eq("emailSequenceId", sequence._id),
-        )
-        .first();
-
-      if (!existingSend) {
-        // Create email send record
-        const sendId = await ctx.db.insert("emailSends", {
-          emailSequenceId: sequence._id,
-          userId: user._id,
-          challengeId: args.challengeId,
-          status: "pending",
-          createdAt: now,
-        });
-
-        try {
-          // Send the email via Resend component
-          await resend.sendEmail(ctx, {
-            from: DEFAULT_FROM_EMAIL,
-            to: user.email,
-            subject: sequence.subject,
-            html: sequence.body,
-          });
-
-          await ctx.db.patch(sendId, {
-            status: "sent",
-            sentAt: Date.now(),
-          });
-        } catch (error) {
-          await ctx.db.patch(sendId, {
-            status: "failed",
-            error: error instanceof Error ? error.message : "Unknown error",
-          });
-          // Don't throw - we don't want to fail the join because of email issues
-          console.error("Failed to send signup email:", error);
-        }
-      }
+    if (hasSignupEmails?.enabled) {
+      await ctx.scheduler.runAfter(0, internal.mutations.emailSequences.triggerOnSignup, {
+        challengeId: args.challengeId,
+        userId: user._id,
+      });
     }
 
     return participationId;
