@@ -64,3 +64,7 @@
 - Root layout auth preloads can execute during static prerender (`/_not-found`); guard token preload and fail open when auth env vars are absent at build time.
 - Vercel can ignore root `vercel.json` when project Root Directory is `apps/web`; keep an `apps/web/vercel.json` with the Convex deploy build command to avoid accidental `pnpm build` fallback.
 - For CLI work in this repo, prefer Bun runtime (`bun ...`) when feasible.
+| 2026-02-17 | self | Ran `ls` before reading napkin at session start | Always read `.claude/napkin.md` as the first command in every session |
+| 2026-02-17 | self | Ran `sed` on bracketed Next route paths without quoting, causing zsh `no matches found` | Always single-quote paths containing `[id]` before `sed`/`cat`/`rg` |
+| 2026-02-17 | self | Queried prod with `queries/users:getByEmailPublic` and failed because deployed function name was `queries/users:getByEmail` | When checking prod Convex, list available functions from error output and call the deployed name instead of assuming local function names |
+| 2026-02-17 | self | Missed a closing quote in a `sed` command for a bracketed path and got `unmatched '` | Double-check shell quoting when commands include `[id]` paths before execution |

@@ -2,7 +2,6 @@ import { getConvexClient } from "@/lib/convex-server";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
 
-import { requireAuth } from "@/lib/auth";
 import { getChallengeOrThrow } from "@/lib/challenge-helpers";
 import { IntegrationsTabs } from "./integrations-tabs";
 
@@ -14,11 +13,14 @@ export default async function IntegrationsAdminPage({
   params,
 }: IntegrationsAdminPageProps) {
   const convex = getConvexClient();
-  const user = await requireAuth();
   const { id } = await params;
   const challenge = await getChallengeOrThrow(id);
 
-  if (challenge.creatorId !== user._id && user.role !== "admin") {
+  const adminStatus = await convex.query(api.queries.participations.isUserChallengeAdmin, {
+    challengeId: challenge.id as Id<"challenges">,
+  });
+
+  if (!adminStatus.isAdmin) {
     return null;
   }
 
