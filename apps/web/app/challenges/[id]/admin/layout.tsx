@@ -9,6 +9,7 @@ import { ArrowLeft } from "lucide-react";
 
 import { requireAuth } from "@/lib/auth";
 import { AdminNavigation, type AdminNavigationGroup } from "@/components/admin/admin-navigation";
+import { fetchAuthQuery } from "@/lib/server-auth";
 
 interface ChallengeAdminLayoutProps {
   children: ReactNode;
@@ -32,7 +33,7 @@ export default async function ChallengeAdminLayout({
   }
 
   // Check if user can manage this challenge
-  const adminStatus = await convex.query(api.queries.participations.isUserChallengeAdmin, {
+  const adminStatus = await fetchAuthQuery<{ isAdmin: boolean; reason: "global_admin" | "creator" | "challenge_admin" | null }>(api.queries.participations.isUserChallengeAdmin, {
     challengeId: id as Id<"challenges">,
   });
 

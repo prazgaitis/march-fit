@@ -4,6 +4,7 @@ import type { Id } from "@repo/backend/_generated/dataModel";
 
 import { getChallengeOrThrow } from "@/lib/challenge-helpers";
 import { IntegrationsTabs } from "./integrations-tabs";
+import { fetchAuthQuery } from "@/lib/server-auth";
 
 interface IntegrationsAdminPageProps {
   params: Promise<{ id: string }>;
@@ -16,7 +17,7 @@ export default async function IntegrationsAdminPage({
   const { id } = await params;
   const challenge = await getChallengeOrThrow(id);
 
-  const adminStatus = await convex.query(api.queries.participations.isUserChallengeAdmin, {
+  const adminStatus = await fetchAuthQuery<{ isAdmin: boolean; reason: "global_admin" | "creator" | "challenge_admin" | null }>(api.queries.participations.isUserChallengeAdmin, {
     challengeId: challenge.id as Id<"challenges">,
   });
 
