@@ -14,6 +14,7 @@ import type * as actions_createChallengeFromConfig from "../actions/createChalle
 import type * as actions_fix2025ActivityTypes from "../actions/fix2025ActivityTypes.js";
 import type * as actions_fixContributesToStreak from "../actions/fixContributesToStreak.js";
 import type * as actions_payments from "../actions/payments.js";
+import type * as actions_rescoreStravaActivities from "../actions/rescoreStravaActivities.js";
 import type * as actions_seed from "../actions/seed.js";
 import type * as actions_setup2026ActivityTypes from "../actions/setup2026ActivityTypes.js";
 import type * as actions_setup2026Challenges from "../actions/setup2026Challenges.js";
@@ -57,6 +58,7 @@ import type * as mutations_miniGames from "../mutations/miniGames.js";
 import type * as mutations_participations from "../mutations/participations.js";
 import type * as mutations_paymentConfig from "../mutations/paymentConfig.js";
 import type * as mutations_payments from "../mutations/payments.js";
+import type * as mutations_rescoreStrava from "../mutations/rescoreStrava.js";
 import type * as mutations_stravaWebhook from "../mutations/stravaWebhook.js";
 import type * as mutations_templates from "../mutations/templates.js";
 import type * as mutations_users from "../mutations/users.js";
@@ -105,6 +107,7 @@ declare const fullApi: ApiFromModules<{
   "actions/fix2025ActivityTypes": typeof actions_fix2025ActivityTypes;
   "actions/fixContributesToStreak": typeof actions_fixContributesToStreak;
   "actions/payments": typeof actions_payments;
+  "actions/rescoreStravaActivities": typeof actions_rescoreStravaActivities;
   "actions/seed": typeof actions_seed;
   "actions/setup2026ActivityTypes": typeof actions_setup2026ActivityTypes;
   "actions/setup2026Challenges": typeof actions_setup2026Challenges;
@@ -148,6 +151,7 @@ declare const fullApi: ApiFromModules<{
   "mutations/participations": typeof mutations_participations;
   "mutations/paymentConfig": typeof mutations_paymentConfig;
   "mutations/payments": typeof mutations_payments;
+  "mutations/rescoreStrava": typeof mutations_rescoreStrava;
   "mutations/stravaWebhook": typeof mutations_stravaWebhook;
   "mutations/templates": typeof mutations_templates;
   "mutations/users": typeof mutations_users;

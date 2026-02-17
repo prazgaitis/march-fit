@@ -11,6 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { FlaggingHelpDialog } from "@/components/admin/flagging-help-dialog";
+import { fetchAuthQuery } from "@/lib/server-auth";
 
 interface FlaggedActivitiesPageProps {
   params: Promise<{ id: string }>;
@@ -42,7 +43,7 @@ export default async function FlaggedActivitiesPage({
   const searchParamsResolved = await searchParams;
   const challenge = await getChallengeOrThrow(id);
 
-  const adminStatus = await convex.query(api.queries.participations.isUserChallengeAdmin, {
+  const adminStatus = await fetchAuthQuery<{ isAdmin: boolean; reason: "global_admin" | "creator" | "challenge_admin" | null }>(api.queries.participations.isUserChallengeAdmin, {
     challengeId: challenge.id as Id<"challenges">,
   });
 
