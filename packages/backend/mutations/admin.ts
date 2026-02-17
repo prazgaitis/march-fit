@@ -1,6 +1,43 @@
 import { internalMutation, mutation } from "../_generated/server";
 import { v } from "convex/values";
 import { getCurrentUser } from "../lib/ids";
+import type { Id } from "../_generated/dataModel";
+
+async function requireChallengeAdminForActivity(
+  ctx: { db: any; auth: any },
+  activityId: Id<"activities">,
+) {
+  const user = await getCurrentUser(ctx as any);
+  if (!user) {
+    throw new Error("Not authenticated");
+  }
+
+  const activity = await ctx.db.get(activityId);
+  if (!activity || activity.deletedAt) {
+    throw new Error("Activity not found");
+  }
+
+  const challenge = await ctx.db.get(activity.challengeId);
+  if (!challenge) {
+    throw new Error("Challenge not found");
+  }
+
+  const isGlobalAdmin = user.role === "admin";
+  const isCreator = challenge.creatorId === user._id;
+  const participation = await ctx.db
+    .query("userChallenges")
+    .withIndex("userChallengeUnique", (q: any) =>
+      q.eq("userId", user._id).eq("challengeId", activity.challengeId),
+    )
+    .first();
+  const isChallengeAdmin = participation?.role === "admin";
+
+  if (!isGlobalAdmin && !isCreator && !isChallengeAdmin) {
+    throw new Error("Not authorized - challenge admin required");
+  }
+
+  return { user, activity };
+}
 
 // Internal mutation to delete a challenge and all related data (for scripts/migrations)
 export const deleteChallenge = internalMutation({
@@ -84,28 +121,7 @@ export const updateFlagResolution = mutation({
     notes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const user = await getCurrentUser(ctx);
-    if (!user || user.role !== "admin") {
-      throw new Error("Not authorized - admin only");
-    }
-
-    const activity = await ctx.db.get(args.activityId);
-    if (!activity || activity.deletedAt) {
-      throw new Error("Activity not found");
-    }
-
-    // Check if user can manage this challenge
-    const challenge = await ctx.db.get(activity.challengeId);
-    if (!challenge) {
-      throw new Error("Challenge not found");
-    }
-
-    const canManage =
-      user.role === "admin" || challenge.creatorId === user._id;
-
-    if (!canManage) {
-      throw new Error("Not authorized to manage this challenge");
-    }
+    const { user } = await requireChallengeAdminForActivity(ctx, args.activityId);
 
     const now = Date.now();
 
@@ -143,28 +159,10 @@ export const addAdminComment = mutation({
     visibility: v.union(v.literal("internal"), v.literal("participant")),
   },
   handler: async (ctx, args) => {
-    const user = await getCurrentUser(ctx);
-    if (!user || user.role !== "admin") {
-      throw new Error("Not authorized - admin only");
-    }
-
-    const activity = await ctx.db.get(args.activityId);
-    if (!activity || activity.deletedAt) {
-      throw new Error("Activity not found");
-    }
-
-    // Check if user can manage this challenge
-    const challenge = await ctx.db.get(activity.challengeId);
-    if (!challenge) {
-      throw new Error("Challenge not found");
-    }
-
-    const canManage =
-      user.role === "admin" || challenge.creatorId === user._id;
-
-    if (!canManage) {
-      throw new Error("Not authorized to manage this challenge");
-    }
+    const { user, activity } = await requireChallengeAdminForActivity(
+      ctx,
+      args.activityId,
+    );
 
     const now = Date.now();
 
@@ -216,28 +214,10 @@ export const adminEditActivity = mutation({
     metrics: v.optional(v.any()),
   },
   handler: async (ctx, args) => {
-    const user = await getCurrentUser(ctx);
-    if (!user || user.role !== "admin") {
-      throw new Error("Not authorized - admin only");
-    }
-
-    const activity = await ctx.db.get(args.activityId);
-    if (!activity || activity.deletedAt) {
-      throw new Error("Activity not found");
-    }
-
-    // Check if user can manage this challenge
-    const challenge = await ctx.db.get(activity.challengeId);
-    if (!challenge) {
-      throw new Error("Challenge not found");
-    }
-
-    const canManage =
-      user.role === "admin" || challenge.creatorId === user._id;
-
-    if (!canManage) {
-      throw new Error("Not authorized to manage this challenge");
-    }
+    const { user, activity } = await requireChallengeAdminForActivity(
+      ctx,
+      args.activityId,
+    );
 
     const now = Date.now();
     const updates: Record<string, unknown> = {

@@ -4,8 +4,6 @@ import { getConvexClient } from "@/lib/convex-server";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
 
-import { requireAuth } from "@/lib/auth";
-import { getChallengeOrThrow } from "@/lib/challenge-helpers";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { FlaggedActivityActions } from "@/components/admin/flagged-activity-actions";
@@ -34,7 +32,6 @@ export default async function FlaggedActivityDetailPage({
   params,
 }: FlaggedActivityDetailPageProps) {
   const convex = getConvexClient();
-  const user = await requireAuth();
   const { activityId } = await params;
 
   const detail = await convex.query(api.queries.admin.getFlaggedActivityDetail, {
@@ -45,9 +42,11 @@ export default async function FlaggedActivityDetailPage({
     notFound();
   }
 
-  const challenge = await getChallengeOrThrow(detail.activity.challengeId as string);
+  const adminStatus = await convex.query(api.queries.participations.isUserChallengeAdmin, {
+    challengeId: detail.activity.challengeId as Id<"challenges">,
+  });
 
-  if (challenge.creatorId !== user._id && user.role !== "admin") {
+  if (!adminStatus.isAdmin) {
     notFound();
   }
 
