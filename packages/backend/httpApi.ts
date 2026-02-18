@@ -843,6 +843,185 @@ async function handleUpdateActivityType(
   }
 }
 
+// ─── Forum ──────────────────────────────────────────────────────────────────
+
+async function handleListForumPosts(
+  ctx: HttpCtx,
+  request: Request,
+  params: Record<string, string>
+): Promise<Response> {
+  const auth = await authenticateApiKey(ctx, request);
+  if (auth instanceof Response) return auth;
+
+  const url = new URL(request.url);
+  const challengeId = params.id as Id<"challenges">;
+  const limit = parseInt(url.searchParams.get("limit") ?? "20");
+
+  const result = await ctx.runQuery(
+    internal.queries.forumPosts.listByChallengeInternal,
+    {
+      userId: auth.user._id,
+      challengeId,
+      paginationOpts: {
+        numItems: limit,
+        cursor: url.searchParams.get("cursor") ?? null,
+      },
+    }
+  );
+
+  return jsonResponse({
+    posts: result.page,
+    continueCursor: result.continueCursor,
+    isDone: result.isDone,
+  });
+}
+
+async function handleGetForumPost(
+  ctx: HttpCtx,
+  request: Request,
+  params: Record<string, string>
+): Promise<Response> {
+  const auth = await authenticateApiKey(ctx, request);
+  if (auth instanceof Response) return auth;
+
+  const postId = params.id as Id<"forumPosts">;
+  const result = await ctx.runQuery(
+    internal.queries.forumPosts.getByIdInternal,
+    { userId: auth.user._id, postId }
+  );
+
+  if (!result) {
+    return errorResponse("Forum post not found", 404);
+  }
+
+  return jsonResponse(result);
+}
+
+async function handleCreateForumPost(
+  ctx: HttpCtx,
+  request: Request,
+  params: Record<string, string>
+): Promise<Response> {
+  const auth = await authenticateApiKey(ctx, request);
+  if (auth instanceof Response) return auth;
+
+  const challengeId = params.id as Id<"challenges">;
+  const body = await parseJsonBody(request);
+  if (body instanceof Response) return body;
+
+  const { title, content, parentPostId } = body;
+  if (!content) {
+    return errorResponse("Missing required field: content", 400);
+  }
+
+  try {
+    const postId = await ctx.runMutation(
+      internal.mutations.apiMutations.createForumPostForUser,
+      {
+        userId: auth.user._id,
+        challengeId,
+        title,
+        content,
+        parentPostId: parentPostId as Id<"forumPosts"> | undefined,
+      }
+    );
+    return jsonResponse({ id: postId }, 201);
+  } catch (err: any) {
+    return errorResponse(err.message || "Failed to create forum post", 400);
+  }
+}
+
+async function handleUpdateForumPost(
+  ctx: HttpCtx,
+  request: Request,
+  params: Record<string, string>
+): Promise<Response> {
+  const auth = await authenticateApiKey(ctx, request);
+  if (auth instanceof Response) return auth;
+
+  const postId = params.id as Id<"forumPosts">;
+  const body = await parseJsonBody(request);
+  if (body instanceof Response) return body;
+
+  try {
+    await ctx.runMutation(
+      internal.mutations.apiMutations.updateForumPostForUser,
+      {
+        userId: auth.user._id,
+        postId,
+        title: body.title,
+        content: body.content,
+      }
+    );
+    return jsonResponse({ success: true });
+  } catch (err: any) {
+    return errorResponse(err.message || "Failed to update forum post", 400);
+  }
+}
+
+async function handleDeleteForumPost(
+  ctx: HttpCtx,
+  request: Request,
+  params: Record<string, string>
+): Promise<Response> {
+  const auth = await authenticateApiKey(ctx, request);
+  if (auth instanceof Response) return auth;
+
+  const postId = params.id as Id<"forumPosts">;
+
+  try {
+    await ctx.runMutation(
+      internal.mutations.apiMutations.removeForumPostForUser,
+      { userId: auth.user._id, postId }
+    );
+    return jsonResponse({ success: true });
+  } catch (err: any) {
+    return errorResponse(err.message || "Failed to delete forum post", 400);
+  }
+}
+
+async function handleToggleForumUpvote(
+  ctx: HttpCtx,
+  request: Request,
+  params: Record<string, string>
+): Promise<Response> {
+  const auth = await authenticateApiKey(ctx, request);
+  if (auth instanceof Response) return auth;
+
+  const postId = params.id as Id<"forumPosts">;
+
+  try {
+    const result = await ctx.runMutation(
+      internal.mutations.apiMutations.toggleForumUpvoteForUser,
+      { userId: auth.user._id, postId }
+    );
+    return jsonResponse(result);
+  } catch (err: any) {
+    return errorResponse(err.message || "Failed to toggle upvote", 400);
+  }
+}
+
+async function handleToggleForumPin(
+  ctx: HttpCtx,
+  request: Request,
+  params: Record<string, string>
+): Promise<Response> {
+  const auth = await authenticateApiKey(ctx, request);
+  if (auth instanceof Response) return auth;
+
+  const postId = params.id as Id<"forumPosts">;
+
+  try {
+    const result = await ctx.runMutation(
+      internal.mutations.apiMutations.toggleForumPinForUser,
+      { userId: auth.user._id, postId }
+    );
+    return jsonResponse(result);
+  } catch (err: any) {
+    return errorResponse(err.message || "Failed to toggle pin", 400);
+  }
+}
+
 // ─── Router ──────────────────────────────────────────────────────────────────
 
 type RouteEntry = {
@@ -918,6 +1097,18 @@ const routes: RouteEntry[] = [
     handler: handleListFlagged,
   },
 
+  // Forum
+  {
+    method: "GET",
+    pattern: "/api/v1/challenges/:id/forum",
+    handler: handleListForumPosts,
+  },
+  {
+    method: "POST",
+    pattern: "/api/v1/challenges/:id/forum",
+    handler: handleCreateForumPost,
+  },
+
   // Single challenge
   {
     method: "GET",
@@ -957,6 +1148,33 @@ const routes: RouteEntry[] = [
     method: "GET",
     pattern: "/api/v1/flagged/:activityId",
     handler: handleGetFlaggedDetail,
+  },
+
+  // Forum posts (single post operations - longer paths first)
+  {
+    method: "POST",
+    pattern: "/api/v1/forum-posts/:id/upvote",
+    handler: handleToggleForumUpvote,
+  },
+  {
+    method: "POST",
+    pattern: "/api/v1/forum-posts/:id/pin",
+    handler: handleToggleForumPin,
+  },
+  {
+    method: "GET",
+    pattern: "/api/v1/forum-posts/:id",
+    handler: handleGetForumPost,
+  },
+  {
+    method: "PATCH",
+    pattern: "/api/v1/forum-posts/:id",
+    handler: handleUpdateForumPost,
+  },
+  {
+    method: "DELETE",
+    pattern: "/api/v1/forum-posts/:id",
+    handler: handleDeleteForumPost,
   },
 
   // Admin activity edit

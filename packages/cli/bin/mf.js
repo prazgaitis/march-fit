@@ -276,6 +276,14 @@ Commands:
 
   mf leaderboard [--challenge <challengeId>] [--api-key <key>] [--base-url <url>]
 
+  mf forum list [--challenge <challengeId>] [--limit <n>] [--cursor <cursor>]
+  mf forum get --post <postId>
+  mf forum create --title <title> --content <content> [--parent <postId>] [--challenge <challengeId>]
+  mf forum update --post <postId> [--title <title>] [--content <content>]
+  mf forum delete --post <postId>
+  mf forum upvote --post <postId>
+  mf forum pin --post <postId>
+
 Notes:
   - Config profiles are stored at ~/.config/mf/configs/<name>.json (or XDG/APPDATA equivalent)
   - Active config is tracked in ~/.config/mf/active-config
@@ -818,6 +826,190 @@ async function run() {
 
     console.log(JSON.stringify(data, null, 2));
     return;
+  }
+
+  if (command === "forum") {
+    if (subcommand === "list") {
+      const { values } = parseSubcommandArgs(rest, {
+        challenge: { type: "string" },
+        "api-key": { type: "string" },
+        "base-url": { type: "string" },
+        limit: { type: "string" },
+        cursor: { type: "string" },
+      });
+
+      const { challengeId, source: challengeSource } = resolveChallengeId(values, config);
+      requireChallengeId(challengeId);
+      const { apiKey, source: apiKeySource } = resolveApiKey(values, config);
+      const { baseUrl, source: baseUrlSource } = resolveBaseUrl(values, config);
+
+      printVerboseRequestInfo({
+        verbose,
+        profile: resolvedConfigName,
+        baseUrl, baseUrlSource,
+        apiKey, apiKeySource,
+        challengeId, challengeSource,
+        operations: [`GET /challenges/${challengeId}/forum`],
+      });
+
+      const data = await apiRequest({
+        baseUrl, apiKey,
+        path: `/challenges/${challengeId}/forum`,
+        query: { limit: values.limit, cursor: values.cursor },
+      });
+
+      console.log(JSON.stringify(data, null, 2));
+      return;
+    }
+
+    if (subcommand === "get") {
+      const { values } = parseSubcommandArgs(rest, {
+        post: { type: "string" },
+        "api-key": { type: "string" },
+        "base-url": { type: "string" },
+      });
+
+      if (!values.post) throw new Error("--post is required");
+      const { apiKey } = resolveApiKey(values, config);
+      const { baseUrl } = resolveBaseUrl(values, config);
+
+      const data = await apiRequest({
+        baseUrl, apiKey,
+        path: `/forum-posts/${values.post}`,
+      });
+
+      console.log(JSON.stringify(data, null, 2));
+      return;
+    }
+
+    if (subcommand === "create") {
+      const { values } = parseSubcommandArgs(rest, {
+        title: { type: "string" },
+        content: { type: "string" },
+        parent: { type: "string" },
+        challenge: { type: "string" },
+        "api-key": { type: "string" },
+        "base-url": { type: "string" },
+      });
+
+      if (!values.content) throw new Error("--content is required");
+
+      const { challengeId } = resolveChallengeId(values, config);
+      requireChallengeId(challengeId);
+      const { apiKey } = resolveApiKey(values, config);
+      const { baseUrl } = resolveBaseUrl(values, config);
+
+      const body = {
+        content: values.content,
+        title: values.title,
+        parentPostId: values.parent,
+      };
+
+      const data = await apiRequest({
+        baseUrl, apiKey,
+        method: "POST",
+        path: `/challenges/${challengeId}/forum`,
+        body,
+      });
+
+      console.log(JSON.stringify(data, null, 2));
+      return;
+    }
+
+    if (subcommand === "update") {
+      const { values } = parseSubcommandArgs(rest, {
+        post: { type: "string" },
+        title: { type: "string" },
+        content: { type: "string" },
+        "api-key": { type: "string" },
+        "base-url": { type: "string" },
+      });
+
+      if (!values.post) throw new Error("--post is required");
+      const { apiKey } = resolveApiKey(values, config);
+      const { baseUrl } = resolveBaseUrl(values, config);
+
+      const body = {};
+      if (values.title !== undefined) body.title = values.title;
+      if (values.content !== undefined) body.content = values.content;
+
+      const data = await apiRequest({
+        baseUrl, apiKey,
+        method: "PATCH",
+        path: `/forum-posts/${values.post}`,
+        body,
+      });
+
+      console.log(JSON.stringify(data, null, 2));
+      return;
+    }
+
+    if (subcommand === "delete") {
+      const { values } = parseSubcommandArgs(rest, {
+        post: { type: "string" },
+        "api-key": { type: "string" },
+        "base-url": { type: "string" },
+      });
+
+      if (!values.post) throw new Error("--post is required");
+      const { apiKey } = resolveApiKey(values, config);
+      const { baseUrl } = resolveBaseUrl(values, config);
+
+      const data = await apiRequest({
+        baseUrl, apiKey,
+        method: "DELETE",
+        path: `/forum-posts/${values.post}`,
+      });
+
+      console.log(JSON.stringify(data, null, 2));
+      return;
+    }
+
+    if (subcommand === "upvote") {
+      const { values } = parseSubcommandArgs(rest, {
+        post: { type: "string" },
+        "api-key": { type: "string" },
+        "base-url": { type: "string" },
+      });
+
+      if (!values.post) throw new Error("--post is required");
+      const { apiKey } = resolveApiKey(values, config);
+      const { baseUrl } = resolveBaseUrl(values, config);
+
+      const data = await apiRequest({
+        baseUrl, apiKey,
+        method: "POST",
+        path: `/forum-posts/${values.post}/upvote`,
+      });
+
+      console.log(JSON.stringify(data, null, 2));
+      return;
+    }
+
+    if (subcommand === "pin") {
+      const { values } = parseSubcommandArgs(rest, {
+        post: { type: "string" },
+        "api-key": { type: "string" },
+        "base-url": { type: "string" },
+      });
+
+      if (!values.post) throw new Error("--post is required");
+      const { apiKey } = resolveApiKey(values, config);
+      const { baseUrl } = resolveBaseUrl(values, config);
+
+      const data = await apiRequest({
+        baseUrl, apiKey,
+        method: "POST",
+        path: `/forum-posts/${values.post}/pin`,
+      });
+
+      console.log(JSON.stringify(data, null, 2));
+      return;
+    }
+
+    throw new Error(
+      "Unknown forum command. Use: list, get, create, update, delete, upvote, pin"
+    );
   }
 
   throw new Error("Unknown command. Run `mf --help`.");
