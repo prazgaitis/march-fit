@@ -10,6 +10,7 @@ import { formatDistanceToNow } from "date-fns";
 
 import { Button } from "@/components/ui/button";
 import { UserAvatar } from "@/components/user-avatar";
+import { getPlainTextFromValue } from "@/lib/rich-text-utils";
 import { NewPostDialog } from "./new-post-dialog";
 
 interface ForumContentProps {
@@ -144,7 +145,7 @@ function ForumPostCard({ item, challengeId }: ForumPostCardProps) {
         </div>
 
         <p className="mt-1 line-clamp-2 text-sm text-zinc-400">
-          {item.post.content}
+          {getPlainTextFromValue(item.post.content)}
         </p>
 
         <div className="mt-2 flex items-center gap-3 text-xs text-zinc-500">

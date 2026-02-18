@@ -14,8 +14,11 @@ import {
 import { formatDistanceToNow } from "date-fns";
 
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { UserAvatar } from "@/components/user-avatar";
+import { RichTextEditor } from "@/components/editor/rich-text-editor";
+import { RichTextViewer } from "@/components/editor/rich-text-viewer";
+import { useMentionableUsers } from "@/hooks/use-mentionable-users";
+import { isEditorContentEmpty } from "@/lib/rich-text-utils";
 import { ActivityLinkCard } from "./activity-link-card";
 
 interface ForumPostDetailProps {
@@ -34,6 +37,7 @@ export function ForumPostDetail({ postId, challengeId }: ForumPostDetailProps) {
   const toggleUpvote = useMutation(api.mutations.forumPosts.toggleUpvote);
   const togglePin = useMutation(api.mutations.forumPosts.togglePin);
   const removePost = useMutation(api.mutations.forumPosts.remove);
+  const { users: mentionOptions } = useMentionableUsers(challengeId);
 
   if (data === undefined) {
     return <div className="py-12 text-center text-zinc-500">Loading...</div>;
@@ -45,15 +49,17 @@ export function ForumPostDetail({ postId, challengeId }: ForumPostDetailProps) {
     );
   }
 
+  const replyEmpty = !replyContent || isEditorContentEmpty(replyContent);
+
   const handleReply = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!replyContent.trim()) return;
+    if (replyEmpty) return;
 
     setSubmitting(true);
     try {
       await createPost({
         challengeId: challengeId as Id<"challenges">,
-        content: replyContent.trim(),
+        content: replyContent,
         parentPostId: postId as Id<"forumPosts">,
       });
       setReplyContent("");
@@ -139,11 +145,8 @@ export function ForumPostDetail({ postId, challengeId }: ForumPostDetailProps) {
               </span>
             </div>
 
-            <div className="mt-4 whitespace-pre-wrap text-sm text-zinc-300">
-              <PostContentWithLinks
-                content={data.post.content}
-                challengeId={challengeId}
-              />
+            <div className="mt-4 break-words text-sm text-zinc-300">
+              <PostContent content={data.post.content} challengeId={challengeId} />
             </div>
 
             {/* Actions */}
@@ -225,11 +228,8 @@ export function ForumPostDetail({ postId, challengeId }: ForumPostDetailProps) {
                       })}
                     </span>
                   </div>
-                  <div className="mt-2 whitespace-pre-wrap text-sm text-zinc-300">
-                    <PostContentWithLinks
-                      content={reply.post.content}
-                      challengeId={challengeId}
-                    />
+                  <div className="mt-2 break-words text-sm text-zinc-300">
+                    <PostContent content={reply.post.content} challengeId={challengeId} />
                   </div>
                   {(data.isAdmin || (reply.user && data.isAuthor)) && (
                     <div className="mt-2">
@@ -252,23 +252,47 @@ export function ForumPostDetail({ postId, challengeId }: ForumPostDetailProps) {
 
         {/* Reply form */}
         <form onSubmit={handleReply} className="mt-4">
-          <Textarea
+          <RichTextEditor
             placeholder="Write a reply..."
             value={replyContent}
-            onChange={(e) => setReplyContent(e.target.value)}
-            rows={3}
+            onChange={setReplyContent}
+            mentionOptions={mentionOptions}
           />
           <div className="mt-2 flex justify-end">
             <Button
               type="submit"
               size="sm"
-              disabled={submitting || !replyContent.trim()}
+              disabled={submitting || replyEmpty}
             >
               {submitting ? "Replying..." : "Reply"}
             </Button>
           </div>
         </form>
       </div>
+    </div>
+  );
+}
+
+/**
+ * Renders post content — uses RichTextViewer for JSON (Tiptap) content,
+ * falls back to plain text with activity link detection for legacy posts.
+ */
+function PostContent({
+  content,
+  challengeId,
+}: {
+  content: string;
+  challengeId: string;
+}) {
+  // If it looks like Tiptap JSON, render with RichTextViewer
+  if (content.trim().startsWith("{")) {
+    return <RichTextViewer content={content} />;
+  }
+
+  // Legacy plain text: detect activity links
+  return (
+    <div className="whitespace-pre-wrap">
+      <PostContentWithLinks content={content} challengeId={challengeId} />
     </div>
   );
 }
@@ -284,9 +308,9 @@ function PostContentWithLinks({
   content: string;
   challengeId: string;
 }) {
-  // Match activity URLs in the content
+  // Match activity URLs in the content, including optional protocol+host prefix
   const activityUrlPattern =
-    /\/challenges\/([a-zA-Z0-9_]+)\/activities\/([a-zA-Z0-9_]+)/g;
+    /(?:https?:\/\/[^\s/]+)?\/challenges\/([a-zA-Z0-9_]+)\/activities\/([a-zA-Z0-9_]+)/g;
 
   const parts: Array<{ type: "text" | "activity"; value: string; activityId?: string }> = [];
   let lastIndex = 0;

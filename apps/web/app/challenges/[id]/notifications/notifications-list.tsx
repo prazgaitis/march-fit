@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
-import { Heart, MessageCircle, UserPlus, Trophy, Bell, Shield } from "lucide-react";
+import { Heart, MessageCircle, MessageSquare, UserPlus, Trophy, Bell, Shield } from "lucide-react";
 
 import { UserAvatar } from "@/components/user-avatar";
 import { cn } from "@/lib/utils";
@@ -38,6 +38,8 @@ function getNotificationIcon(type: string) {
     case "achievement":
     case "streak":
       return <Trophy className="h-4 w-4 text-amber-500" />;
+    case "forum_mention":
+      return <MessageSquare className="h-4 w-4 text-indigo-500" />;
     case "admin_comment":
     case "admin_edit":
       return <Shield className="h-4 w-4 text-amber-500" />;
@@ -56,6 +58,8 @@ function getNotificationMessage(notification: Notification) {
       return `${actorName} commented on your activity`;
     case "mention":
       return `${actorName} mentioned you`;
+    case "forum_mention":
+      return `${actorName} mentioned you in a forum post`;
     case "follow":
       return `${actorName} started following you`;
     case "join":
@@ -74,6 +78,10 @@ function getNotificationMessage(notification: Notification) {
 }
 
 function getNotificationLink(notification: Notification, challengeId: string) {
+  if (notification.type === "forum_mention" && notification.data?.postId) {
+    const cId = notification.data.challengeId ?? challengeId;
+    return `/challenges/${cId}/forum/${notification.data.postId}`;
+  }
   if (notification.data?.activityId) {
     return `/challenges/${challengeId}/activities/${notification.data.activityId}`;
   }

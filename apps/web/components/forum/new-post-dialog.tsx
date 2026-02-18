@@ -7,13 +7,15 @@ import type { Id } from "@repo/backend/_generated/dataModel";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { RichTextEditor } from "@/components/editor/rich-text-editor";
+import { useMentionableUsers } from "@/hooks/use-mentionable-users";
+import { isEditorContentEmpty } from "@/lib/rich-text-utils";
 
 interface NewPostDialogProps {
   challengeId: string;
@@ -30,17 +32,20 @@ export function NewPostDialog({
   const [content, setContent] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const createPost = useMutation(api.mutations.forumPosts.create);
+  const { users: mentionOptions } = useMentionableUsers(challengeId);
+
+  const contentEmpty = !content || isEditorContentEmpty(content);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!title.trim() || !content.trim()) return;
+    if (!title.trim() || contentEmpty) return;
 
     setSubmitting(true);
     try {
       await createPost({
         challengeId: challengeId as Id<"challenges">,
         title: title.trim(),
-        content: content.trim(),
+        content,
       });
       setTitle("");
       setContent("");
@@ -66,12 +71,11 @@ export function NewPostDialog({
             />
           </div>
           <div>
-            <Textarea
+            <RichTextEditor
               placeholder="What's on your mind?"
               value={content}
-              onChange={(e) => setContent(e.target.value)}
-              rows={5}
-              required
+              onChange={setContent}
+              mentionOptions={mentionOptions}
             />
           </div>
           <div className="flex justify-end gap-2">
@@ -82,7 +86,7 @@ export function NewPostDialog({
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={submitting || !title.trim() || !content.trim()}>
+            <Button type="submit" disabled={submitting || !title.trim() || contentEmpty}>
               {submitting ? "Posting..." : "Post"}
             </Button>
           </div>

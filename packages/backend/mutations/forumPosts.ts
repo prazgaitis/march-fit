@@ -1,6 +1,8 @@
-import { mutation } from "../_generated/server";
+import { internalMutation, mutation } from "../_generated/server";
 import { v } from "convex/values";
 import { getCurrentUser } from "../lib/ids";
+import { extractMentionedUserIds } from "../lib/mentions";
+import { internal } from "../_generated/api";
 
 /**
  * Create a new forum post (top-level or reply).
@@ -68,6 +70,21 @@ export const create = mutation({
       createdAt: now,
       updatedAt: now,
     });
+
+    // Send mention notifications async
+    const mentionedUserIds = extractMentionedUserIds(args.content);
+    if (mentionedUserIds.length > 0) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.mutations.forumPosts.sendMentionNotifications,
+        {
+          postId,
+          actorId: user._id,
+          challengeId: args.challengeId,
+          mentionedUserIds,
+        },
+      );
+    }
 
     return postId;
   },
@@ -267,5 +284,64 @@ export const togglePin = mutation({
 
     await ctx.db.patch(args.postId, { isPinned: !post.isPinned });
     return { isPinned: !post.isPinned };
+  },
+});
+
+/**
+ * Internal: create a forum post directly (for seeding).
+ */
+export const internalCreate = internalMutation({
+  args: {
+    challengeId: v.id("challenges"),
+    userId: v.id("users"),
+    title: v.optional(v.string()),
+    content: v.string(),
+    parentPostId: v.optional(v.id("forumPosts")),
+    isPinned: v.optional(v.boolean()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db.insert("forumPosts", {
+      challengeId: args.challengeId,
+      userId: args.userId,
+      title: args.title,
+      content: args.content,
+      parentPostId: args.parentPostId,
+      isPinned: args.isPinned ?? false,
+      createdAt: args.createdAt,
+      updatedAt: args.updatedAt,
+    });
+  },
+});
+
+/**
+ * Internal: send mention notifications for a forum post.
+ */
+export const sendMentionNotifications = internalMutation({
+  args: {
+    postId: v.id("forumPosts"),
+    actorId: v.id("users"),
+    challengeId: v.id("challenges"),
+    mentionedUserIds: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    for (const userId of args.mentionedUserIds) {
+      // Skip self-mentions
+      if (userId === args.actorId) continue;
+
+      // Verify the user exists
+      const user = await ctx.db.get(userId as any);
+      if (!user) continue;
+
+      await ctx.db.insert("notifications", {
+        userId: userId as any,
+        actorId: args.actorId,
+        type: "forum_mention",
+        data: { postId: args.postId, challengeId: args.challengeId },
+        createdAt: now,
+      });
+    }
   },
 });

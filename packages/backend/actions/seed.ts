@@ -2,7 +2,7 @@
 
 import { action } from "../_generated/server";
 import { v } from "convex/values";
-import { internal } from "../_generated/api";
+import { api, internal } from "../_generated/api";
 
 /**
  * Seed the database with initial data
@@ -41,6 +41,10 @@ export const seed = action({
     console.log("🏃 Seeding activities...");
     await seedActivities(ctx, challenges, users);
 
+    // Seed forum posts
+    console.log("💬 Seeding forum posts...");
+    await seedForumPosts(ctx, challenges, users);
+
     // Ensure admin users are set up correctly
     console.log("👑 Ensuring admin users...");
     await ctx.runMutation(internal.mutations.users.ensureAdmins, {});
@@ -75,6 +79,9 @@ export const seedIfMissing = action({
 
     console.log("🏃 Ensuring activities...");
     await seedActivities(ctx, challenges, users, true);
+
+    console.log("💬 Ensuring forum posts...");
+    await seedForumPosts(ctx, challenges, users, true);
 
     console.log("👑 Ensuring admin users...");
     await ctx.runMutation(internal.mutations.users.ensureAdmins, {});
@@ -691,5 +698,135 @@ async function seedActivities(ctx: any, challengeIds: any[], users: any, idempot
 
   for (const activity of sampleActivities) {
     await ctx.runMutation(internal.mutations.activities.create, activity);
+  }
+}
+
+async function seedForumPosts(ctx: any, challengeIds: any[], users: any, idempotent = false) {
+  const challengeId = challengeIds[0];
+
+  if (idempotent) {
+    const existing = await ctx.runQuery(api.queries.forumPosts.listByChallenge, {
+      challengeId,
+      paginationOpts: { numItems: 1, cursor: null },
+    });
+    if (existing.page.length > 0) return;
+  }
+
+  const now = Date.now();
+  const DAY = 86400000;
+
+  const allUsers = [users.admin, users.sample, ...users.additional];
+
+  const posts = [
+    {
+      userId: users.admin,
+      title: "Welcome to the Challenge Forum!",
+      content:
+        "Hey everyone! Use this space to share tips, ask questions, and motivate each other throughout the challenge. Let's crush it this month!",
+      isPinned: true,
+      createdAt: now - 7 * DAY,
+    },
+    {
+      userId: allUsers[2] ?? users.sample,
+      title: "Best pre-workout meals?",
+      content:
+        "I've been struggling with energy during morning workouts. What do you all eat before exercising? Looking for something quick that won't sit heavy.",
+      createdAt: now - 5 * DAY,
+    },
+    {
+      userId: allUsers[3] ?? users.sample,
+      title: "Rest day guilt — anyone else?",
+      content:
+        "I know rest days are important for recovery but I always feel guilty taking them during the challenge. How do you deal with it?",
+      createdAt: now - 4 * DAY,
+    },
+    {
+      userId: users.sample,
+      title: "New personal best on my 5K!",
+      content:
+        "Just ran my fastest 5K ever — 22:34! The streak motivation from this challenge is really pushing me. Thanks for the energy everyone 🏃",
+      createdAt: now - 3 * DAY,
+    },
+    {
+      userId: allUsers[4] ?? users.admin,
+      title: "Stretching routine recommendations",
+      content:
+        "I've been getting tight hamstrings from all the running. Does anyone have a good 10-15 minute stretching routine they swear by?",
+      createdAt: now - 2 * DAY,
+    },
+    {
+      userId: allUsers[5] ?? users.sample,
+      title: "Week 2 check-in — how's everyone doing?",
+      content:
+        "We're halfway through week 2! Share your progress, struggles, or wins. I've managed to keep my streak alive so far but yesterday was close.",
+      createdAt: now - 1 * DAY,
+    },
+  ];
+
+  const postIds = [];
+  for (const post of posts) {
+    const id = await ctx.runMutation(internal.mutations.forumPosts.internalCreate, {
+      challengeId,
+      userId: post.userId,
+      title: post.title,
+      content: post.content,
+      isPinned: post.isPinned ?? false,
+      createdAt: post.createdAt,
+      updatedAt: post.createdAt,
+    });
+    postIds.push(id);
+  }
+
+  // Add some replies
+  const replies = [
+    {
+      parentIndex: 0,
+      userId: users.sample,
+      content: "Thanks for setting this up! Excited to be part of the challenge.",
+      createdAt: now - 6.5 * DAY,
+    },
+    {
+      parentIndex: 0,
+      userId: allUsers[3] ?? users.sample,
+      content: "Let's go!! Already logged my first workout today.",
+      createdAt: now - 6 * DAY,
+    },
+    {
+      parentIndex: 1,
+      userId: users.admin,
+      content:
+        "I usually go with a banana and some peanut butter about 30 minutes before. Light but gives good energy.",
+      createdAt: now - 4.5 * DAY,
+    },
+    {
+      parentIndex: 1,
+      userId: allUsers[4] ?? users.sample,
+      content: "Oatmeal with berries has been my go-to. Easy to digest and keeps me fueled for a full hour.",
+      createdAt: now - 4 * DAY,
+    },
+    {
+      parentIndex: 2,
+      userId: users.admin,
+      content:
+        "Rest days are part of the program! Your muscles need recovery to get stronger. No guilt needed.",
+      createdAt: now - 3.5 * DAY,
+    },
+    {
+      parentIndex: 3,
+      userId: allUsers[2] ?? users.admin,
+      content: "That's awesome! Congrats on the PR! 🎉",
+      createdAt: now - 2.5 * DAY,
+    },
+  ];
+
+  for (const reply of replies) {
+    await ctx.runMutation(internal.mutations.forumPosts.internalCreate, {
+      challengeId,
+      userId: reply.userId,
+      content: reply.content,
+      parentPostId: postIds[reply.parentIndex],
+      createdAt: reply.createdAt,
+      updatedAt: reply.createdAt,
+    });
   }
 }

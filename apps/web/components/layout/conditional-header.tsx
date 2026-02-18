@@ -14,6 +14,7 @@ const DASHBOARD_LAYOUT_PATTERNS = [
   /^\/challenges\/[^/]+\/activity-types$/,
   /^\/challenges\/[^/]+\/users\/[^/]+$/,
   /^\/challenges\/[^/]+\/activities\/[^/]+$/,
+  /^\/challenges\/[^/]+\/forum(\/.*)?$/,
   /^\/challenges\/[^/]+\/admin(\/.*)?$/,
   /^\/challenges\/[^/]+\/invite\/[^/]+$/,
 ];
