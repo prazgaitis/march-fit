@@ -45,13 +45,19 @@ export default function AdminParticipantsPage() {
     limit: 1000, // Get all participants for admin view
   });
 
-  if (!participants) {
+  const paymentInfo = useQuery(api.queries.paymentConfig.getPublicPaymentInfo, {
+    challengeId: challengeId as Id<"challenges">,
+  });
+
+  if (!participants || !paymentInfo) {
     return (
       <div className="flex items-center justify-center py-20 text-zinc-500">
         Loading...
       </div>
     );
   }
+
+  const showPaymentColumn = paymentInfo.requiresPayment;
 
   // Filter by search
   const filtered = participants.filter((p: (typeof participants)[number]) => {
@@ -147,7 +153,7 @@ export default function AdminParticipantsPage() {
               #
             </span>
           </div>
-          <div className="col-span-3">
+          <div className={showPaymentColumn ? "col-span-3" : "col-span-4"}>
             <SortHeader field="name">Participant</SortHeader>
           </div>
           <div className="col-span-1">
@@ -155,11 +161,13 @@ export default function AdminParticipantsPage() {
               Role
             </span>
           </div>
-          <div className="col-span-2">
-            <span className="text-[10px] font-medium uppercase tracking-wider text-zinc-500">
-              Payment
-            </span>
-          </div>
+          {showPaymentColumn && (
+            <div className="col-span-2">
+              <span className="text-[10px] font-medium uppercase tracking-wider text-zinc-500">
+                Payment
+              </span>
+            </div>
+          )}
           <div className="col-span-2 text-right">
             <SortHeader field="points" className="justify-end">
               Points
@@ -190,7 +198,7 @@ export default function AdminParticipantsPage() {
                     {index + 1}
                   </span>
                 </div>
-                <div className="col-span-3 flex items-center gap-2">
+                <div className={cn("flex items-center gap-2", showPaymentColumn ? "col-span-3" : "col-span-4")}>
                   <div className="flex h-6 w-6 items-center justify-center rounded-full bg-zinc-800">
                     {participant.user.avatarUrl ? (
                       <img
@@ -224,17 +232,19 @@ export default function AdminParticipantsPage() {
                     {participant.role}
                   </span>
                 </div>
-                <div className="col-span-2">
-                  <span
-                    className={cn(
-                      "inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide",
-                      paymentStatusStyles[participant.paymentStatus] ||
-                        "bg-zinc-500/15 text-zinc-300 border-zinc-500/30"
-                    )}
-                  >
-                    {participant.paymentStatus}
-                  </span>
-                </div>
+                {showPaymentColumn && (
+                  <div className="col-span-2">
+                    <span
+                      className={cn(
+                        "inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide",
+                        paymentStatusStyles[participant.paymentStatus] ||
+                          "bg-zinc-500/15 text-zinc-300 border-zinc-500/30"
+                      )}
+                    >
+                      {participant.paymentStatus}
+                    </span>
+                  </div>
+                )}
                 <div className="col-span-2 text-right">
                   <div className="flex items-center justify-end gap-1">
                     <Trophy className="h-3 w-3 text-amber-400" />
