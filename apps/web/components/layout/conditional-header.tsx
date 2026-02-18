@@ -12,6 +12,7 @@ const HIDDEN_CHALLENGE_SECTIONS = new Set([
   "notifications",
   "leaderboard",
   "activity-types",
+  "settings",
   "users",
   "activities",
   "forum",

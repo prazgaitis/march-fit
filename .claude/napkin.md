@@ -21,6 +21,7 @@
 
 ## User Preferences
 - Hide navbar on full-screen flow pages (invite, dashboard, admin) via `ConditionalHeader` patterns + remove `page-with-header` class
+- Hide top nav on challenge `settings` route as well, consistent with dashboard-style challenge sections.
 - Avoid LAN-specific runtime rewrites in product code unless explicitly requested
 - For mobile bottom nav visual style, prefer transparent icon treatment over standout filled purple CTA button.
 - For production troubleshooting UX, do not add user-facing alerts for transient feed/connection issues; log to Sentry instead.
