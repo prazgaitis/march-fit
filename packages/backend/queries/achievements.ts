@@ -2,7 +2,10 @@ import { internalQuery, query } from "../_generated/server";
 import { v } from "convex/values";
 import { getCurrentUser } from "../lib/ids";
 import { notDeleted } from "../lib/activityFilters";
-import { computeCriteriaProgress } from "../lib/achievements";
+import {
+  computeCriteriaProgress,
+  getCriteriaActivityTypeIds,
+} from "../lib/achievements";
 
 /**
  * Internal lookup by ID — used by HTTP API handlers (update/delete).
@@ -32,7 +35,7 @@ export const getByChallengeId = query({
     const result = await Promise.all(
       achievements.map(async (achievement) => {
         const activityTypes = await Promise.all(
-          achievement.criteria.activityTypeIds.map((id) => ctx.db.get(id))
+          getCriteriaActivityTypeIds(achievement.criteria).map((id) => ctx.db.get(id))
         );
         return {
           ...achievement,

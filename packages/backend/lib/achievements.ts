@@ -2,6 +2,7 @@
  * Shared helpers for achievement criteria evaluation.
  * Used by both queries (for progress display) and mutations (for awarding).
  */
+import type { Id } from "../_generated/dataModel";
 import { notDeleted } from "./activityFilters";
 
 // Map achievement metric names to possible keys in activity.metrics
@@ -39,9 +40,12 @@ export function computeCriteriaProgress(
   qualifyingActivityIds: any[];
 } {
   const criteriaType: string = criteria.criteriaType ?? "count";
-  const matchingActivities = activities.filter((a: any) =>
-    criteria.activityTypeIds.includes(a.activityTypeId)
-  );
+  const matchingActivities =
+    criteriaType === "all_activity_type_thresholds"
+      ? activities
+      : activities.filter((a: any) =>
+          criteria.activityTypeIds.includes(a.activityTypeId)
+        );
 
   switch (criteriaType) {
     case "count": {
@@ -129,9 +133,42 @@ export function computeCriteriaProgress(
       };
     }
 
+    case "all_activity_type_thresholds": {
+      const qualifyingByType = new Map<string, any>();
+
+      for (const requirement of criteria.requirements ?? []) {
+        const found = matchingActivities.find((a: any) => {
+          if (a.activityTypeId !== requirement.activityTypeId) return false;
+          const metrics = (a.metrics ?? {}) as Record<string, unknown>;
+          return getMetricValue(metrics, requirement.metric) >= requirement.threshold;
+        });
+
+        if (found) {
+          qualifyingByType.set(requirement.activityTypeId, found._id);
+        }
+      }
+
+      return {
+        currentCount: qualifyingByType.size,
+        requiredCount: (criteria.requirements ?? []).length,
+        qualifyingActivityIds: Array.from(qualifyingByType.values()),
+      };
+    }
+
     default:
       return { currentCount: 0, requiredCount: 0, qualifyingActivityIds: [] };
   }
+}
+
+/** Get criteria activity type IDs regardless of criteria variant. */
+export function getCriteriaActivityTypeIds(criteria: any): Id<"activityTypes">[] {
+  const criteriaType: string = criteria.criteriaType ?? "count";
+  if (criteriaType === "all_activity_type_thresholds") {
+    return Array.from(
+      new Set((criteria.requirements ?? []).map((r: any) => r.activityTypeId))
+    ) as Id<"activityTypes">[];
+  }
+  return (criteria.activityTypeIds ?? []) as Id<"activityTypes">[];
 }
 
 /**

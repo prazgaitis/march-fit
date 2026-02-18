@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
+import ReactMarkdown from "react-markdown";
 import {
   ArrowBigUp,
   ArrowLeft,
@@ -146,7 +147,7 @@ export function ForumPostDetail({ postId, challengeId }: ForumPostDetailProps) {
             </div>
 
             <div className="mt-4 break-words text-sm text-zinc-300">
-              <PostContent content={data.post.content} challengeId={challengeId} />
+              <PostContent content={data.post.content} />
             </div>
 
             {/* Actions */}
@@ -229,7 +230,7 @@ export function ForumPostDetail({ postId, challengeId }: ForumPostDetailProps) {
                     </span>
                   </div>
                   <div className="mt-2 break-words text-sm text-zinc-300">
-                    <PostContent content={reply.post.content} challengeId={challengeId} />
+                    <PostContent content={reply.post.content} />
                   </div>
                   {(data.isAdmin || (reply.user && data.isAuthor)) && (
                     <div className="mt-2">
@@ -275,80 +276,64 @@ export function ForumPostDetail({ postId, challengeId }: ForumPostDetailProps) {
 
 /**
  * Renders post content — uses RichTextViewer for JSON (Tiptap) content,
- * falls back to plain text with activity link detection for legacy posts.
+ * falls back to markdown rendering with activity link card detection for legacy posts.
  */
 function PostContent({
   content,
-  challengeId,
 }: {
   content: string;
-  challengeId: string;
 }) {
   // If it looks like Tiptap JSON, render with RichTextViewer
   if (content.trim().startsWith("{")) {
     return <RichTextViewer content={content} />;
   }
 
-  // Legacy plain text: detect activity links
+  // Legacy plain text/markdown
   return (
-    <div className="whitespace-pre-wrap">
-      <PostContentWithLinks content={content} challengeId={challengeId} />
+    <div className="space-y-3">
+      <div className="prose prose-sm prose-invert max-w-none break-words prose-p:my-2 prose-pre:bg-zinc-900 prose-pre:text-zinc-200 prose-code:text-zinc-200 prose-a:text-indigo-300 prose-a:underline">
+        <ReactMarkdown>{content}</ReactMarkdown>
+      </div>
+      <PostActivityCards content={content} />
     </div>
   );
 }
 
 /**
- * Renders post content with activity links detected and shown as rich cards.
- * Looks for URLs matching /challenges/.../activities/... pattern.
+ * Renders rich activity cards for any activity URLs found in content.
  */
-function PostContentWithLinks({
+function PostActivityCards({
   content,
-  challengeId,
 }: {
   content: string;
-  challengeId: string;
 }) {
   // Match activity URLs in the content, including optional protocol+host prefix
   const activityUrlPattern =
-    /(?:https?:\/\/[^\s/]+)?\/challenges\/([a-zA-Z0-9_]+)\/activities\/([a-zA-Z0-9_]+)/g;
+    /(?:https?:\/\/[^\s/]+)?\/challenges\/[a-zA-Z0-9_]+\/activities\/([a-zA-Z0-9_]+)/g;
 
-  const parts: Array<{ type: "text" | "activity"; value: string; activityId?: string }> = [];
-  let lastIndex = 0;
+  const activityIds: string[] = [];
   let match;
 
   while ((match = activityUrlPattern.exec(content)) !== null) {
-    if (match.index > lastIndex) {
-      parts.push({ type: "text", value: content.slice(lastIndex, match.index) });
+    const activityId = match[1];
+    if (!activityIds.includes(activityId)) {
+      activityIds.push(activityId);
     }
-    parts.push({
-      type: "activity",
-      value: match[0],
-      activityId: match[2],
-    });
-    lastIndex = match.index + match[0].length;
   }
 
-  if (lastIndex < content.length) {
-    parts.push({ type: "text", value: content.slice(lastIndex) });
-  }
-
-  if (parts.length === 0) {
-    return <>{content}</>;
+  if (activityIds.length === 0) {
+    return null;
   }
 
   return (
-    <>
-      {parts.map((part, i) => {
-        if (part.type === "activity" && part.activityId) {
-          return (
-            <span key={i}>
-              <span className="text-indigo-400">{part.value}</span>
-              <ActivityLinkCard activityId={part.activityId} />
-            </span>
-          );
-        }
-        return <span key={i}>{part.value}</span>;
+    <div className="space-y-2">
+      {activityIds.map((activityId) => {
+        return (
+          <div key={activityId}>
+            <ActivityLinkCard activityId={activityId} />
+          </div>
+        );
       })}
-    </>
+    </div>
   );
 }

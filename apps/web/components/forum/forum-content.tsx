@@ -1,6 +1,5 @@
 "use client";
 
-import { useState } from "react";
 import Link from "next/link";
 import { usePaginatedQuery, useMutation } from "convex/react";
 import { api } from "@repo/backend";
@@ -11,14 +10,12 @@ import { formatDistanceToNow } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { UserAvatar } from "@/components/user-avatar";
 import { getPlainTextFromValue } from "@/lib/rich-text-utils";
-import { NewPostDialog } from "./new-post-dialog";
 
 interface ForumContentProps {
   challengeId: string;
 }
 
 export function ForumContent({ challengeId }: ForumContentProps) {
-  const [showNewPost, setShowNewPost] = useState(false);
   const { results, status, loadMore } = usePaginatedQuery(
     api.queries.forumPosts.listByChallenge,
     { challengeId: challengeId as Id<"challenges"> },
@@ -29,17 +26,13 @@ export function ForumContent({ challengeId }: ForumContentProps) {
     <div>
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-bold">Forum</h1>
-        <Button onClick={() => setShowNewPost(true)}>
-          <Plus className="h-4 w-4" />
-          New Post
+        <Button asChild>
+          <Link href={`/challenges/${challengeId}/forum/new`}>
+            <Plus className="h-4 w-4" />
+            New Post
+          </Link>
         </Button>
       </div>
-
-      <NewPostDialog
-        challengeId={challengeId}
-        open={showNewPost}
-        onOpenChange={setShowNewPost}
-      />
 
       <div className="space-y-2">
         {results.map((item) => (
