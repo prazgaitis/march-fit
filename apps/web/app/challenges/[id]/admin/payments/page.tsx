@@ -80,7 +80,7 @@ export default function PaymentsAdminPage() {
         allowCustomAmount: paymentConfig?.allowCustomAmount ?? false,
       }));
     }
-  }, [paymentConfig?.allowCustomAmount]);
+  }, [paymentConfig]);
 
   const handleSave = async () => {
     setIsSaving(true);
