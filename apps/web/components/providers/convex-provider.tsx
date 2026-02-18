@@ -35,7 +35,7 @@ function resolveConvexClientUrl() {
       const runtimeHost = window.location.hostname;
       if (runtimeHost && runtimeHost !== parsed.hostname) {
         parsed.hostname = runtimeHost;
-        return parsed.toString();
+        return parsed.toString().replace(/\/$/, "");
       }
     }
   } catch {

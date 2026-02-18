@@ -553,6 +553,33 @@ export default defineSchema({
     .index("service", ["service"])
     .index("serviceStatus", ["service", "status"]),
 
+  // Forum Posts - per-challenge discussion threads
+  forumPosts: defineTable({
+    challengeId: v.id("challenges"),
+    userId: v.id("users"),
+    title: v.optional(v.string()), // Only top-level posts have titles
+    content: v.string(),
+    parentPostId: v.optional(v.id("forumPosts")), // null = top-level, set = reply
+    isPinned: v.boolean(),
+    deletedAt: v.optional(v.number()),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("challengeId", ["challengeId"])
+    .index("parentPostId", ["parentPostId"])
+    .index("userId", ["userId"])
+    .index("challengePinned", ["challengeId", "isPinned"]),
+
+  // Forum Post Upvotes
+  forumPostUpvotes: defineTable({
+    postId: v.id("forumPosts"),
+    userId: v.id("users"),
+    createdAt: v.number(),
+  })
+    .index("postId", ["postId"])
+    .index("userId", ["userId"])
+    .index("postUserUnique", ["postId", "userId"]),
+
   // Email Sends - tracking sent emails
   emailSends: defineTable({
     emailSequenceId: v.id("emailSequences"),

@@ -8,6 +8,7 @@ import {
   Trophy,
   Zap,
   User,
+  MessageSquare,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -33,6 +34,11 @@ export const navItems = [
     label: "Leaderboard",
     icon: Trophy,
     href: (challengeId: string) => `/challenges/${challengeId}/leaderboard`,
+  },
+  {
+    label: "Forum",
+    icon: MessageSquare,
+    href: (challengeId: string) => `/challenges/${challengeId}/forum`,
   },
   {
     label: "Earning Points",
