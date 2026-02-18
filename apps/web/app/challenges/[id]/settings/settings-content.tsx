@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@repo/backend";
 import type { Id, Doc } from "@repo/backend/_generated/dataModel";
-import { Loader2, Settings, User, List, Check } from "lucide-react";
+import { Loader2, User, List, Check } from "lucide-react";
 
 import { UserAvatar } from "@/components/user-avatar";
 import { Button } from "@/components/ui/button";
@@ -77,17 +77,6 @@ export function SettingsContent({
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-3xl font-bold flex items-center gap-2">
-          <Settings className="h-8 w-8" />
-          Settings
-        </h1>
-        <p className="text-muted-foreground mt-1">
-          Manage your profile and preferences
-        </p>
-      </div>
-
       {/* Profile Settings */}
       <Card>
         <CardHeader>
