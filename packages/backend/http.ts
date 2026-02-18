@@ -136,6 +136,7 @@ http.route({
               stripePaymentIntentId: session.payment_intent as string | undefined,
               stripeCustomerId: session.customer as string | undefined,
               stripeCustomerEmail: session.customer_email || undefined,
+              amountInCents: session.amount_total ?? undefined, // Actual amount paid (captures donation overpay)
             });
           }
           break;

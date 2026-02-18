@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams } from "next/navigation";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "@repo/backend";
@@ -53,6 +53,7 @@ export default function PaymentsAdminPage() {
     stripeTestWebhookSecret: "",
     testMode: true,
     priceInDollars: "",
+    allowCustomAmount: false,
   });
 
   const paymentConfig = useQuery(api.queries.paymentConfig.getPaymentConfig, {
@@ -71,6 +72,16 @@ export default function PaymentsAdminPage() {
   const toggleTestMode = useMutation(api.mutations.paymentConfig.toggleTestMode);
   const testConnection = useAction(api.actions.payments.testStripeConnection);
 
+  // Sync allowCustomAmount from paymentConfig when it loads
+  useEffect(() => {
+    if (paymentConfig !== undefined) {
+      setFormData((prev) => ({
+        ...prev,
+        allowCustomAmount: paymentConfig?.allowCustomAmount ?? false,
+      }));
+    }
+  }, [paymentConfig?.allowCustomAmount]);
+
   const handleSave = async () => {
     setIsSaving(true);
     setTestResult(null);
@@ -87,6 +98,7 @@ export default function PaymentsAdminPage() {
         stripeTestWebhookSecret: formData.stripeTestWebhookSecret || undefined,
         testMode: formData.testMode,
         priceInCents,
+        allowCustomAmount: formData.allowCustomAmount,
       });
 
       // Clear sensitive fields after save
@@ -292,6 +304,29 @@ export default function PaymentsAdminPage() {
                 </div>
               )}
             </div>
+          </div>
+
+          {/* Donation Mode */}
+          <div className="flex items-center justify-between rounded border border-zinc-800 bg-zinc-900 p-4">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded bg-zinc-800">
+                <DollarSign className="h-5 w-5 text-emerald-400" />
+              </div>
+              <div>
+                <div className="text-sm font-medium text-zinc-100">Donation mode</div>
+                <div className="text-xs text-zinc-500 max-w-xs">
+                  Allow participants to pay more than the minimum amount. The price you set
+                  becomes the suggested minimum — participants can choose to contribute more
+                  at checkout.
+                </div>
+              </div>
+            </div>
+            <Switch
+              checked={formData.allowCustomAmount}
+              onCheckedChange={(checked) =>
+                setFormData((prev) => ({ ...prev, allowCustomAmount: checked }))
+              }
+            />
           </div>
 
           {/* API Keys */}

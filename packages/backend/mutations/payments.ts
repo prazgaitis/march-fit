@@ -79,7 +79,17 @@ export const createCheckoutSession = mutation({
               name: `Join ${challenge.name}`,
               description: challenge.description || `Entry fee for ${challenge.name}`,
             },
-            unit_amount: config.priceInCents,
+            ...(config.allowCustomAmount
+              ? {
+                  custom_unit_amount: {
+                    enabled: true,
+                    minimum: config.priceInCents, // floor — can't pay less than this
+                    preset: config.priceInCents,  // pre-filled suggestion
+                  },
+                }
+              : {
+                  unit_amount: config.priceInCents, // fixed price (existing behavior)
+                }),
           },
           quantity: 1,
         },
@@ -146,6 +156,7 @@ export const handlePaymentSuccess = internalMutation({
     stripePaymentIntentId: v.optional(v.string()),
     stripeCustomerId: v.optional(v.string()),
     stripeCustomerEmail: v.optional(v.string()),
+    amountInCents: v.optional(v.number()), // Actual amount paid (may exceed minimum in donation mode)
   },
   handler: async (ctx, args) => {
     const now = Date.now();
@@ -163,12 +174,13 @@ export const handlePaymentSuccess = internalMutation({
       return { success: false, error: "Payment record not found" };
     }
 
-    // Update payment record
+    // Update payment record — use actual amount paid if provided (donation mode)
     await ctx.db.patch(paymentRecord._id, {
       status: "completed",
       stripePaymentIntentId: args.stripePaymentIntentId,
       stripeCustomerId: args.stripeCustomerId,
       stripeCustomerEmail: args.stripeCustomerEmail,
+      ...(args.amountInCents !== undefined && { amountInCents: args.amountInCents }),
       completedAt: now,
       updatedAt: now,
     });
