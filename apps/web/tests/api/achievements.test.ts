@@ -585,6 +585,37 @@ describe("Achievement CRUD mutations", () => {
     expect(stored.criteria.activityTypeIds).toHaveLength(2);
   });
 
+  it("createAchievement works for all_activity_type_thresholds criteria", async () => {
+    const swim = await createTestActivityType(t, challengeId, { name: "Swim" });
+    const cycle = await createTestActivityType(t, challengeId, { name: "Cycle" });
+
+    const achievementId = await t.mutation(
+      api.mutations.achievements.createAchievement,
+      {
+        challengeId,
+        name: "March Fitness Triathlon",
+        description: "Run 26.2 + Swim 2.4 + Cycle 112",
+        bonusPoints: 250,
+        criteria: {
+          criteriaType: "all_activity_type_thresholds",
+          requirements: [
+            { activityTypeId: runTypeId, metric: "distance_miles", threshold: 26.2 },
+            { activityTypeId: swim, metric: "distance_miles", threshold: 2.4 },
+            { activityTypeId: cycle, metric: "distance_miles", threshold: 112 },
+          ],
+        },
+        frequency: "once_per_challenge",
+      }
+    );
+
+    const stored = await t.run((ctx: any) => ctx.db.get(achievementId));
+    expect(stored.criteria.criteriaType).toBe("all_activity_type_thresholds");
+    expect(stored.criteria.requirements).toHaveLength(3);
+    expect(stored.criteria.requirements[0].threshold).toBe(26.2);
+    expect(stored.criteria.requirements[1].threshold).toBe(2.4);
+    expect(stored.criteria.requirements[2].threshold).toBe(112);
+  });
+
   it("updateAchievement patches fields", async () => {
     const achievementId = await createTestAchievement(t, challengeId, {
       criteriaType: "count",

@@ -757,6 +757,133 @@ describe('Activities Logic', () => {
       expect(bonusActivity).not.toBeNull();
       expect(bonusActivity!.pointsEarned).toBe(250);
     });
+
+    it('should include achievement bonus points in challenge leaderboard ranking', async () => {
+      const testEmail = "triathlete-leaderboard@example.com";
+      const userId = await createTestUser(t, { email: testEmail });
+      const tWithAuth = t.withIdentity({ subject: "triathlete-leaderboard", email: testEmail });
+      const challengeId = await createTestChallenge(t, userId);
+
+      const rivalId = await createTestUser(t, {
+        email: "rival@example.com",
+        username: "rival",
+        name: "Rival",
+      });
+
+      await t.run(async (ctx) => {
+        await ctx.db.insert("userChallenges", {
+          userId,
+          challengeId,
+          joinedAt: Date.now(),
+          totalPoints: 0,
+          currentStreak: 0,
+          modifierFactor: 1,
+          paymentStatus: "paid",
+          updatedAt: Date.now(),
+        });
+
+        await ctx.db.insert("userChallenges", {
+          userId: rivalId,
+          challengeId,
+          joinedAt: Date.now(),
+          totalPoints: 200,
+          currentStreak: 0,
+          modifierFactor: 1,
+          paymentStatus: "paid",
+          updatedAt: Date.now(),
+        });
+      });
+
+      const [runTypeId, cycleTypeId, swimTypeId] = await t.run(async (ctx) => {
+        const now = Date.now();
+        const runId = await ctx.db.insert("activityTypes", {
+          challengeId,
+          name: "Run",
+          scoringConfig: { unit: "miles", pointsPerUnit: 1, basePoints: 0 },
+          contributesToStreak: true,
+          isNegative: false,
+          createdAt: now,
+          updatedAt: now,
+        });
+        const cycleId = await ctx.db.insert("activityTypes", {
+          challengeId,
+          name: "Cycle",
+          scoringConfig: { unit: "miles", pointsPerUnit: 1, basePoints: 0 },
+          contributesToStreak: true,
+          isNegative: false,
+          createdAt: now,
+          updatedAt: now,
+        });
+        const swimId = await ctx.db.insert("activityTypes", {
+          challengeId,
+          name: "Swim",
+          scoringConfig: { unit: "miles", pointsPerUnit: 1, basePoints: 0 },
+          contributesToStreak: true,
+          isNegative: false,
+          createdAt: now,
+          updatedAt: now,
+        });
+        return [runId, cycleId, swimId];
+      });
+
+      await tWithAuth.mutation(api.mutations.achievements.createAchievement, {
+        challengeId,
+        name: "March Fitness Triathlon",
+        description: "Run 26.2 + Swim 2.4 + Cycle 112",
+        bonusPoints: 250,
+        criteria: {
+          criteriaType: "all_activity_type_thresholds",
+          requirements: [
+            { activityTypeId: runTypeId, metric: "distance_miles", threshold: 26.2 },
+            { activityTypeId: cycleTypeId, metric: "distance_miles", threshold: 112 },
+            { activityTypeId: swimTypeId, metric: "distance_miles", threshold: 2.4 },
+          ],
+        },
+        frequency: "once_per_challenge",
+      });
+
+      await tWithAuth.mutation(api.mutations.activities.log, {
+        challengeId,
+        activityTypeId: runTypeId,
+        loggedDate: '2024-01-15T10:00:00Z',
+        metrics: { miles: 26.2 },
+        source: 'manual',
+      });
+
+      await tWithAuth.mutation(api.mutations.activities.log, {
+        challengeId,
+        activityTypeId: cycleTypeId,
+        loggedDate: '2024-01-16T10:00:00Z',
+        metrics: { miles: 112 },
+        source: 'manual',
+      });
+
+      const beforeBonusLeaderboard = await t.query(
+        api.queries.participations.getChallengeLeaderboard,
+        { challengeId, paginationOpts: { numItems: 10, cursor: null } }
+      );
+      const beforeUserEntry = beforeBonusLeaderboard.page.find((entry) => entry.user.id === userId);
+      expect(beforeUserEntry).toBeDefined();
+      expect(beforeUserEntry!.totalPoints).toBeCloseTo(138.2, 5);
+      expect(beforeUserEntry!.rank).toBe(2);
+
+      await tWithAuth.mutation(api.mutations.activities.log, {
+        challengeId,
+        activityTypeId: swimTypeId,
+        loggedDate: '2024-01-17T10:00:00Z',
+        metrics: { miles: 2.4 },
+        source: 'manual',
+      });
+
+      const afterBonusLeaderboard = await t.query(
+        api.queries.participations.getChallengeLeaderboard,
+        { challengeId, paginationOpts: { numItems: 10, cursor: null } }
+      );
+      const afterUserEntry = afterBonusLeaderboard.page.find((entry) => entry.user.id === userId);
+      expect(afterUserEntry).toBeDefined();
+      expect(afterUserEntry!.totalPoints).toBeCloseTo(390.6, 5);
+      expect(afterUserEntry!.rank).toBe(1);
+    });
   });
 
   describe('maxPerChallenge enforcement', () => {

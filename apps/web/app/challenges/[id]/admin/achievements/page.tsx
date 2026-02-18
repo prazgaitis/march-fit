@@ -20,7 +20,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-type CriteriaType = "count" | "cumulative" | "distinct_types" | "one_of_each";
+type CriteriaType =
+  | "count"
+  | "cumulative"
+  | "distinct_types"
+  | "one_of_each"
+  | "all_activity_type_thresholds";
 type Frequency = "once_per_challenge" | "once_per_week" | "unlimited";
 
 /** Build a human-readable summary of an achievement's criteria. */
@@ -40,7 +45,10 @@ function describeCriteria(achievement: any): string {
       return `One of each: ${typeNames}`;
     case "all_activity_type_thresholds":
       return (c.requirements ?? [])
-        .map((r: any) => `${r.metric} ≥ ${r.threshold}`)
+        .map((r: any, index: number) => {
+          const label = achievement.activityTypeNames?.[index] ?? `Type ${index + 1}`;
+          return `${label}: ${r.metric} ≥ ${r.threshold}`;
+        })
         .join(" + ");
     default:
       return typeNames;
@@ -71,6 +79,7 @@ export default function AchievementsAdminPage() {
     // unitConversions: entered as JSON string e.g. {"<id>": 0.621371}
     unitConversionsJson: "",
   });
+  const [perTypeThresholds, setPerTypeThresholds] = useState<Record<string, string>>({});
 
   const achievements = useQuery(api.queries.achievements.getByChallengeId, {
     challengeId: challengeId as Id<"challenges">,
@@ -123,6 +132,15 @@ export default function AchievementsAdminPage() {
           criteriaType: "one_of_each" as const,
           activityTypeIds: typeIds,
         };
+      case "all_activity_type_thresholds":
+        return {
+          criteriaType: "all_activity_type_thresholds" as const,
+          requirements: typeIds.map((activityTypeId) => ({
+            activityTypeId,
+            metric: formData.metric,
+            threshold: parseFloat(perTypeThresholds[activityTypeId] || "0") || 0,
+          })),
+        };
     }
   };
 
@@ -130,6 +148,19 @@ export default function AchievementsAdminPage() {
     if (formData.selectedActivityTypeIds.length === 0) {
       setSaveResult({ success: false, message: "Select at least one activity type" });
       return;
+    }
+
+    if (criteriaType === "all_activity_type_thresholds") {
+      const hasInvalidThreshold = formData.selectedActivityTypeIds.some(
+        (id) => (parseFloat(perTypeThresholds[id] || "0") || 0) <= 0,
+      );
+      if (hasInvalidThreshold) {
+        setSaveResult({
+          success: false,
+          message: "Set a threshold above 0 for every selected activity type",
+        });
+        return;
+      }
     }
 
     const criteria = buildCriteria();
@@ -160,6 +191,7 @@ export default function AchievementsAdminPage() {
         unitConversionsJson: "",
       });
       setCriteriaType("count");
+      setPerTypeThresholds({});
       setIsCreating(false);
     } catch (error) {
       setSaveResult({
@@ -194,12 +226,20 @@ export default function AchievementsAdminPage() {
   };
 
   const toggleActivityType = (id: string) => {
+    const isSelected = formData.selectedActivityTypeIds.includes(id);
     setFormData((prev) => ({
       ...prev,
-      selectedActivityTypeIds: prev.selectedActivityTypeIds.includes(id)
+      selectedActivityTypeIds: isSelected
         ? prev.selectedActivityTypeIds.filter((x) => x !== id)
         : [...prev.selectedActivityTypeIds, id],
     }));
+    setPerTypeThresholds((prev) => {
+      if (isSelected) {
+        const { [id]: _, ...rest } = prev;
+        return rest;
+      }
+      return { ...prev, [id]: prev[id] ?? formData.threshold };
+    });
   };
 
   if (achievements === undefined || activityTypes === undefined) {
@@ -210,11 +250,15 @@ export default function AchievementsAdminPage() {
     );
   }
 
-  const showMetricField = criteriaType === "count" || criteriaType === "cumulative";
+  const showMetricField =
+    criteriaType === "count" ||
+    criteriaType === "cumulative" ||
+    criteriaType === "all_activity_type_thresholds";
   const showThresholdField = criteriaType === "count" || criteriaType === "cumulative";
   const showRequiredCountField =
     criteriaType === "count" || criteriaType === "distinct_types";
   const showUnitConversions = criteriaType === "cumulative";
+  const showPerTypeThresholds = criteriaType === "all_activity_type_thresholds";
 
   return (
     <div className="space-y-4">
@@ -330,6 +374,9 @@ export default function AchievementsAdminPage() {
                 <option value="one_of_each">
                   One of Each — at least 1 activity from every type in the list
                 </option>
+                <option value="all_activity_type_thresholds">
+                  Per-Type Thresholds — each selected type must meet its own threshold
+                </option>
               </select>
               <p className="text-[10px] text-zinc-500">
                 {criteriaType === "count" &&
@@ -340,6 +387,8 @@ export default function AchievementsAdminPage() {
                   "e.g. 'Do any 3 of: run, swim, row, cycle'"}
                 {criteriaType === "one_of_each" &&
                   "e.g. 'Complete every special challenge activity'"}
+                {criteriaType === "all_activity_type_thresholds" &&
+                  "e.g. 'Run 26.2 mi + Swim 2.4 mi + Cycle 112 mi'"}
               </p>
             </div>
 
@@ -472,6 +521,51 @@ export default function AchievementsAdminPage() {
                   Example: Rowing is logged in km but threshold is in miles →
                   factor = 0.621371
                 </p>
+              </div>
+            )}
+
+            {/* Per-type thresholds */}
+            {showPerTypeThresholds && (
+              <div className="space-y-2">
+                <Label className="text-xs text-zinc-400">
+                  Threshold per selected activity type
+                </Label>
+                <div className="space-y-2">
+                  {formData.selectedActivityTypeIds.length === 0 ? (
+                    <p className="text-[10px] text-zinc-500">
+                      Select activity types above to configure thresholds.
+                    </p>
+                  ) : (
+                    formData.selectedActivityTypeIds.map((id) => {
+                      const activityType = activityTypes.find(
+                        (at: { _id: string; name: string }) => at._id === id
+                      );
+                      return (
+                        <div key={id} className="flex items-center gap-2">
+                          <span className="w-40 text-xs text-zinc-300">
+                            {activityType?.name ?? "Activity"}
+                          </span>
+                          <Input
+                            type="number"
+                            step="0.1"
+                            value={perTypeThresholds[id] ?? ""}
+                            onChange={(e) =>
+                              setPerTypeThresholds((prev) => ({
+                                ...prev,
+                                [id]: e.target.value,
+                              }))
+                            }
+                            placeholder="0"
+                            className="w-40 border-zinc-700 bg-zinc-800 text-zinc-200"
+                          />
+                          <span className="text-[10px] text-zinc-500">
+                            {formData.metric}
+                          </span>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
               </div>
             )}
 
