@@ -741,6 +741,164 @@ async function handleUpdateParticipantRole(
   }
 }
 
+// ─── Achievement Management ─────────────────────────────────────────────────
+
+async function handleListAchievements(
+  ctx: HttpCtx,
+  request: Request,
+  params: Record<string, string>
+): Promise<Response> {
+  const auth = await authenticateApiKey(ctx, request);
+  if (auth instanceof Response) return auth;
+
+  const challengeId = params.id as Id<"challenges">;
+  const achievements = await ctx.runQuery(
+    api.queries.achievements.getByChallengeId,
+    { challengeId }
+  );
+
+  return jsonResponse({ achievements });
+}
+
+async function handleCreateAchievement(
+  ctx: HttpCtx,
+  request: Request,
+  params: Record<string, string>
+): Promise<Response> {
+  const auth = await authenticateApiKey(ctx, request);
+  if (auth instanceof Response) return auth;
+
+  const challengeId = params.id as Id<"challenges">;
+  const isAdmin = await checkChallengeAdmin(
+    ctx,
+    auth.user._id,
+    challengeId,
+    auth.user
+  );
+  if (!isAdmin) {
+    return errorResponse("Not authorized - challenge admin required", 403);
+  }
+
+  const body = await parseJsonBody(request);
+  if (body instanceof Response) return body;
+
+  const { name, description, bonusPoints, criteria, frequency } = body;
+
+  if (!name || !description || bonusPoints === undefined || !criteria || !frequency) {
+    return errorResponse(
+      "Missing required fields: name, description, bonusPoints, criteria, frequency",
+      400
+    );
+  }
+
+  try {
+    const achievementId = await ctx.runMutation(
+      api.mutations.achievements.createAchievement,
+      { challengeId, name, description, bonusPoints, criteria, frequency }
+    );
+    return jsonResponse({ id: achievementId }, 201);
+  } catch (err: any) {
+    return errorResponse(err.message || "Failed to create achievement", 400);
+  }
+}
+
+async function handleGetAchievementProgress(
+  ctx: HttpCtx,
+  request: Request,
+  params: Record<string, string>
+): Promise<Response> {
+  const auth = await authenticateApiKey(ctx, request);
+  if (auth instanceof Response) return auth;
+
+  const challengeId = params.id as Id<"challenges">;
+  const progress = await ctx.runQuery(
+    internal.queries.achievements.getUserProgressInternal,
+    { challengeId, userId: auth.user._id }
+  );
+
+  return jsonResponse({ progress });
+}
+
+async function handleUpdateAchievement(
+  ctx: HttpCtx,
+  request: Request,
+  params: Record<string, string>
+): Promise<Response> {
+  const auth = await authenticateApiKey(ctx, request);
+  if (auth instanceof Response) return auth;
+
+  const achievementId = params.id as Id<"achievements">;
+
+  const achievement = await ctx.runQuery(
+    internal.queries.achievements.getByIdInternal,
+    { achievementId }
+  );
+  if (!achievement) {
+    return errorResponse("Achievement not found", 404);
+  }
+
+  const isAdmin = await checkChallengeAdmin(
+    ctx,
+    auth.user._id,
+    achievement.challengeId as Id<"challenges">,
+    auth.user
+  );
+  if (!isAdmin) {
+    return errorResponse("Not authorized - challenge admin required", 403);
+  }
+
+  const body = await parseJsonBody(request);
+  if (body instanceof Response) return body;
+
+  try {
+    await ctx.runMutation(api.mutations.achievements.updateAchievement, {
+      achievementId,
+      ...body,
+    });
+    return jsonResponse({ success: true });
+  } catch (err: any) {
+    return errorResponse(err.message || "Failed to update achievement", 400);
+  }
+}
+
+async function handleDeleteAchievement(
+  ctx: HttpCtx,
+  request: Request,
+  params: Record<string, string>
+): Promise<Response> {
+  const auth = await authenticateApiKey(ctx, request);
+  if (auth instanceof Response) return auth;
+
+  const achievementId = params.id as Id<"achievements">;
+
+  const achievement = await ctx.runQuery(
+    internal.queries.achievements.getByIdInternal,
+    { achievementId }
+  );
+  if (!achievement) {
+    return errorResponse("Achievement not found", 404);
+  }
+
+  const isAdmin = await checkChallengeAdmin(
+    ctx,
+    auth.user._id,
+    achievement.challengeId as Id<"challenges">,
+    auth.user
+  );
+  if (!isAdmin) {
+    return errorResponse("Not authorized - challenge admin required", 403);
+  }
+
+  try {
+    await ctx.runMutation(api.mutations.achievements.deleteAchievement, {
+      achievementId,
+    });
+    return jsonResponse({ success: true });
+  } catch (err: any) {
+    return errorResponse(err.message || "Failed to delete achievement", 400);
+  }
+}
+
 // ─── Activity Type Management ───────────────────────────────────────────────
 
 async function handleCreateActivityType(
@@ -1051,6 +1209,23 @@ const routes: RouteEntry[] = [
   },
 
   // Challenge sub-resources (longer paths first)
+  // Achievements (progress must come before the plain list route)
+  {
+    method: "GET",
+    pattern: "/api/v1/challenges/:id/achievements/progress",
+    handler: handleGetAchievementProgress,
+  },
+  {
+    method: "GET",
+    pattern: "/api/v1/challenges/:id/achievements",
+    handler: handleListAchievements,
+  },
+  {
+    method: "POST",
+    pattern: "/api/v1/challenges/:id/achievements",
+    handler: handleCreateAchievement,
+  },
+  // Activity types
   {
     method: "GET",
     pattern: "/api/v1/challenges/:id/activity-types",
@@ -1189,6 +1364,18 @@ const routes: RouteEntry[] = [
     method: "PATCH",
     pattern: "/api/v1/activity-types/:id",
     handler: handleUpdateActivityType,
+  },
+
+  // Achievement management (admin)
+  {
+    method: "PATCH",
+    pattern: "/api/v1/achievements/:id",
+    handler: handleUpdateAchievement,
+  },
+  {
+    method: "DELETE",
+    pattern: "/api/v1/achievements/:id",
+    handler: handleDeleteAchievement,
   },
 ];
 

@@ -352,12 +352,38 @@ export default defineSchema({
     name: v.string(), // e.g., "Marathon Club"
     description: v.string(), // e.g., "Complete 3 marathon-length activities"
     bonusPoints: v.number(),
-    criteria: v.object({
-      activityTypeIds: v.array(v.id("activityTypes")), // Which activity types count
-      metric: v.string(), // e.g., "distance_miles"
-      threshold: v.number(), // e.g., 26.2
-      requiredCount: v.number(), // e.g., 3
-    }),
+    criteria: v.union(
+      // Count-based: N activities of matching types where metric >= threshold (EXISTING behavior)
+      // criteriaType is optional for backward compatibility with records created before this field existed
+      v.object({
+        criteriaType: v.optional(v.literal("count")),
+        activityTypeIds: v.array(v.id("activityTypes")),
+        metric: v.string(),
+        threshold: v.number(),
+        requiredCount: v.number(),
+      }),
+      // Cumulative: Sum of a metric across matching activity types >= threshold
+      // unitConversions is an optional map of activityTypeId -> conversion factor
+      // e.g., for Rowing (logged in km) toward a distance_miles threshold: { rowingTypeId: 0.621371 }
+      v.object({
+        criteriaType: v.literal("cumulative"),
+        activityTypeIds: v.array(v.id("activityTypes")),
+        metric: v.string(),
+        threshold: v.number(),
+        unitConversions: v.optional(v.record(v.string(), v.number())),
+      }),
+      // Distinct types: Complete at least 1 activity from N different types in the list
+      v.object({
+        criteriaType: v.literal("distinct_types"),
+        activityTypeIds: v.array(v.id("activityTypes")),
+        requiredCount: v.number(),
+      }),
+      // One of each: Complete at least 1 activity from EVERY type in the list
+      v.object({
+        criteriaType: v.literal("one_of_each"),
+        activityTypeIds: v.array(v.id("activityTypes")),
+      }),
+    ),
     frequency: v.union(
       v.literal("once_per_challenge"),
       v.literal("once_per_week"),
