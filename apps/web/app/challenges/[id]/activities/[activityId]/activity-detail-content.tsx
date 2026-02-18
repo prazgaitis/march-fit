@@ -24,6 +24,7 @@ import {
   Trophy,
   Trash2,
 } from 'lucide-react';
+import { toast } from 'sonner';
 
 import { ConvexError } from 'convex/values';
 import dynamic from 'next/dynamic';
@@ -87,6 +88,11 @@ export function ActivityDetailContent({
     activityId: activityId as Id<'activities'>,
   });
 
+  const challengeActivityTypes = useQuery(
+    api.queries.activityTypes.getByChallengeId,
+    { challengeId: challengeId as Id<'challenges'> }
+  );
+
   const { users: mentionUsers } = useMentionableUsers(challengeId);
   const [pendingLike, setPendingLike] = useState(false);
   const [showFlagDialog, setShowFlagDialog] = useState(false);
@@ -99,10 +105,19 @@ export function ActivityDetailContent({
   const [deleteSubmitting, setDeleteSubmitting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
 
+  // Edit dialog state
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [editNotes, setEditNotes] = useState('');
+  const [editLoggedDate, setEditLoggedDate] = useState('');
+  const [editMetricValue, setEditMetricValue] = useState('');
+  const [editActivityTypeId, setEditActivityTypeId] = useState('');
+  const [editSubmitting, setEditSubmitting] = useState(false);
+
   const router = useRouter();
   const toggleLike = useMutation(api.mutations.likes.toggle);
   const flagActivity = useMutation(api.mutations.activities.flagActivity);
   const deleteActivity = useMutation(api.mutations.activities.remove);
+  const editActivityMutation = useMutation(api.mutations.activities.editActivity);
 
   const handleToggleLike = async () => {
     setPendingLike(true);
@@ -176,6 +191,58 @@ export function ActivityDetailContent({
         err instanceof Error ? err.message : 'Failed to delete activity'
       );
       setDeleteSubmitting(false);
+    }
+  };
+
+  const openEditDialog = () => {
+    if (!activityData || activityData === null) return;
+    const { activity, activityType } = activityData as {
+      activity: { notes?: string; loggedDate: number; metrics?: Record<string, unknown>; pointsEarned: number };
+      activityType: { _id: string; scoringConfig: Record<string, unknown> };
+    };
+    setEditNotes(typeof activity.notes === 'string' ? activity.notes : '');
+    setEditLoggedDate(format(new Date(activity.loggedDate), 'yyyy-MM-dd'));
+    setEditActivityTypeId(activityType._id);
+    // Pre-populate metric value from existing metrics
+    const config = activityType.scoringConfig ?? {};
+    const unit = config['unit'] as string | undefined;
+    const metrics = (activity.metrics ?? {}) as Record<string, unknown>;
+    const metricVal = unit ? (metrics[unit] ?? '') : '';
+    setEditMetricValue(String(metricVal));
+    setShowEditDialog(true);
+  };
+
+  const handleEditSubmit = async () => {
+    if (!activityData || activityData === null) return;
+    setEditSubmitting(true);
+    try {
+      const { activityType } = activityData as {
+        activityType: { _id: string; scoringConfig: Record<string, unknown> };
+      };
+      const config = (activityType.scoringConfig ?? {}) as Record<string, unknown>;
+      const unit = config['unit'] as string | undefined;
+
+      // Build metrics from the metric input
+      let newMetrics: Record<string, unknown> | undefined;
+      if (unit && editMetricValue !== '') {
+        newMetrics = { [unit]: Number(editMetricValue) };
+      }
+
+      const payload: Parameters<typeof editActivityMutation>[0] = {
+        activityId: activityId as Id<'activities'>,
+        notes: editNotes,
+        loggedDate: editLoggedDate,
+        ...(editActivityTypeId !== activityType._id ? { activityTypeId: editActivityTypeId as Id<'activityTypes'> } : {}),
+        ...(newMetrics !== undefined ? { metrics: newMetrics } : {}),
+      };
+
+      const result = await editActivityMutation(payload);
+      toast.success(`Activity updated! ${result.pointsEarned.toFixed(1)} pts earned.`);
+      setShowEditDialog(false);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update activity');
+    } finally {
+      setEditSubmitting(false);
     }
   };
 
@@ -434,6 +501,12 @@ export function ActivityDetailContent({
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end">
                 {isOwner && (
+                  <DropdownMenuItem onClick={openEditDialog}>
+                    <Pencil className="mr-2 h-4 w-4" />
+                    Edit activity
+                  </DropdownMenuItem>
+                )}
+                {isOwner && (
                   <DropdownMenuItem
                     onClick={() => {
                       setDeleteError(null);
@@ -459,6 +532,100 @@ export function ActivityDetailContent({
                   Report activity
                 </DropdownMenuItem>
               </DropdownMenuContent>
+
+              {/* Edit Activity Dialog */}
+              <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+                <DialogContent className="sm:max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Edit Activity</DialogTitle>
+                    <DialogDescription>
+                      Update the details for this activity. Points will be recalculated automatically.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    {/* Activity Type */}
+                    <div className="space-y-1">
+                      <Label htmlFor="edit-activity-type">Activity Type</Label>
+                      <Select value={editActivityTypeId} onValueChange={setEditActivityTypeId}>
+                        <SelectTrigger id="edit-activity-type">
+                          <SelectValue placeholder="Select type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {challengeActivityTypes?.map((at: { _id: string; name: string }) => (
+                            <SelectItem key={at._id} value={at._id}>
+                              {at.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Logged Date */}
+                    <div className="space-y-1">
+                      <Label htmlFor="edit-logged-date">Date</Label>
+                      <Input
+                        id="edit-logged-date"
+                        type="date"
+                        value={editLoggedDate}
+                        onChange={(e) => setEditLoggedDate(e.target.value)}
+                      />
+                    </div>
+
+                    {/* Metric Value */}
+                    {(() => {
+                      const at = challengeActivityTypes?.find((a: { _id: string }) => a._id === editActivityTypeId);
+                      const config = (at?.scoringConfig ?? {}) as Record<string, unknown>;
+                      const unit = config['unit'] as string | undefined;
+                      if (!unit) return null;
+                      return (
+                        <div className="space-y-1">
+                          <Label htmlFor="edit-metric">{unit.charAt(0).toUpperCase() + unit.slice(1)}</Label>
+                          <Input
+                            id="edit-metric"
+                            type="number"
+                            min="0"
+                            step="any"
+                            value={editMetricValue}
+                            onChange={(e) => setEditMetricValue(e.target.value)}
+                            placeholder={`Enter ${unit}`}
+                          />
+                        </div>
+                      );
+                    })()}
+
+                    {/* Notes */}
+                    <div className="space-y-1">
+                      <Label htmlFor="edit-notes">Notes</Label>
+                      <Textarea
+                        id="edit-notes"
+                        value={editNotes}
+                        onChange={(e) => setEditNotes(e.target.value)}
+                        placeholder="Add notes about this activity..."
+                        rows={3}
+                      />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button
+                      variant="outline"
+                      onClick={() => setShowEditDialog(false)}
+                      disabled={editSubmitting}
+                    >
+                      Cancel
+                    </Button>
+                    <Button onClick={handleEditSubmit} disabled={editSubmitting}>
+                      {editSubmitting ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Saving
+                        </>
+                      ) : (
+                        'Save Changes'
+                      )}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
             </DropdownMenu>
 
             <Dialog open={showFlagDialog} onOpenChange={setShowFlagDialog}>

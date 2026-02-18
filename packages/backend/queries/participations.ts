@@ -417,6 +417,154 @@ export const debugAdminStatus = query({
 });
 
 /**
+ * Get cumulative (all-time) category leaderboard for a challenge.
+ * Returns top 5 users per category, split by gender (women / men / noGender).
+ */
+export const getCumulativeCategoryLeaderboard = query({
+  args: {
+    challengeId: v.id("challenges"),
+  },
+  handler: async (ctx, args) => {
+    const challenge = await ctx.db.get(args.challengeId);
+    if (!challenge) {
+      return null;
+    }
+
+    // Fetch activity types for this challenge
+    const activityTypes = await ctx.db
+      .query("activityTypes")
+      .withIndex("challengeId", (q) => q.eq("challengeId", args.challengeId))
+      .collect();
+
+    const activityTypeMap = new Map(
+      activityTypes.map((at) => [at._id, at])
+    );
+
+    // Collect unique category IDs and fetch category docs
+    const categoryIds = new Set<Id<"categories">>();
+    for (const at of activityTypes) {
+      if (at.categoryId) categoryIds.add(at.categoryId);
+    }
+    const categoryDocs = await Promise.all(
+      Array.from(categoryIds).map((id) => ctx.db.get(id))
+    );
+    const categoryMap = new Map(
+      categoryDocs
+        .filter((c): c is NonNullable<typeof c> => c !== null)
+        .map((c) => [c._id, c])
+    );
+
+    // Query ALL non-deleted activities for this challenge
+    const activities = await ctx.db
+      .query("activities")
+      .withIndex("challengeId", (q) => q.eq("challengeId", args.challengeId))
+      .filter(notDeleted)
+      .collect();
+
+    // Group points: categoryId -> userId -> totalPoints
+    const categoryUserPoints = new Map<string, Map<string, number>>();
+
+    for (const activity of activities) {
+      const at = activityTypeMap.get(activity.activityTypeId);
+      if (!at) continue;
+
+      const catId = at.categoryId ?? "uncategorized";
+      const catKey = catId as string;
+
+      if (!categoryUserPoints.has(catKey)) {
+        categoryUserPoints.set(catKey, new Map());
+      }
+      const userPoints = categoryUserPoints.get(catKey)!;
+      const current = userPoints.get(activity.userId) ?? 0;
+      userPoints.set(activity.userId, current + activity.pointsEarned);
+    }
+
+    // Cache for user lookups
+    const userCache = new Map<
+      string,
+      {
+        id: string;
+        name: string | null;
+        username: string;
+        avatarUrl: string | null;
+        gender: string | null;
+      } | null
+    >();
+
+    const categories = await Promise.all(
+      Array.from(categoryUserPoints.entries()).map(async ([catKey, userPointsMap]) => {
+        // Sort all users by points descending
+        const sorted = Array.from(userPointsMap.entries()).sort((a, b) => b[1] - a[1]);
+
+        // Fetch user data with caching and split by gender
+        const womenEntries: Array<{ rank: number; user: NonNullable<typeof userCache extends Map<string, infer V> ? V : never>; totalPoints: number }> = [];
+        // Men's/Open bucket: includes users with gender==="male" and users with no gender set
+        const menEntries: Array<{ rank: number; user: NonNullable<typeof userCache extends Map<string, infer V> ? V : never>; totalPoints: number }> = [];
+
+        for (const [userId, points] of sorted) {
+          if (!userCache.has(userId)) {
+            const user = await ctx.db.get(userId as Id<"users">);
+            userCache.set(
+              userId,
+              user
+                ? {
+                    id: user._id,
+                    name: user.name ?? null,
+                    username: user.username,
+                    avatarUrl: user.avatarUrl ?? null,
+                    gender: user.gender ?? null,
+                  }
+                : null
+            );
+          }
+          const user = userCache.get(userId);
+          if (!user) continue;
+
+          if (user.gender === "female") {
+            womenEntries.push({ rank: 0, user, totalPoints: points });
+          } else {
+            // gender === "male" or gender === null/undefined → Men's/Open
+            menEntries.push({ rank: 0, user, totalPoints: points });
+          }
+        }
+
+        // Assign ranks and take top 5 per gender group
+        const assignRanks = <T extends { rank: number }>(arr: T[]): T[] =>
+          arr.slice(0, 5).map((e, i) => ({ ...e, rank: i + 1 }));
+
+        const category =
+          catKey === "uncategorized"
+            ? { id: "uncategorized" as string, name: "Other" }
+            : categoryMap.has(catKey as Id<"categories">)
+              ? { id: catKey, name: categoryMap.get(catKey as Id<"categories">)!.name }
+              : { id: catKey, name: "Unknown" };
+
+        return {
+          category,
+          women: assignRanks(womenEntries),
+          men: assignRanks(menEntries),
+          noGender: [] as Array<{ rank: number; user: NonNullable<typeof userCache extends Map<string, infer V> ? V : never>; totalPoints: number }>,
+        };
+      })
+    );
+
+    // Filter out categories where all gender groups are empty
+    const nonEmpty = categories.filter(
+      (c) => c.women.length > 0 || c.men.length > 0
+    );
+
+    // Sort alphabetically, "Other" last
+    nonEmpty.sort((a, b) => {
+      if (a.category.id === "uncategorized") return 1;
+      if (b.category.id === "uncategorized") return -1;
+      return a.category.name.localeCompare(b.category.name);
+    });
+
+    return { categories: nonEmpty };
+  },
+});
+
+/**
  * Get weekly category leaderboard for a challenge.
  * Returns top users per category for a specific week number.
  * Uses the challengeLoggedDate index for efficient date-range filtering.

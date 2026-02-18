@@ -53,6 +53,8 @@ export default async function SettingsPage({ params }: SettingsPageProps) {
         <SettingsContent
           currentUser={currentUser}
           currentChallengeId={challenge._id}
+          allowGenderEdit={challenge.allowGenderEdit ?? false}
+          currentGender={currentUser.gender ?? null}
         />
       </div>
     </DashboardLayoutWrapper>

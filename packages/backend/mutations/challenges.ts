@@ -138,6 +138,7 @@ export const updateChallenge = mutation({
     welcomeMessage: v.optional(v.string()),
     announcement: v.optional(v.string()),
     visibility: v.optional(v.union(v.literal("public"), v.literal("private"))),
+    allowGenderEdit: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     await requireChallengeAdmin(ctx, args.challengeId);

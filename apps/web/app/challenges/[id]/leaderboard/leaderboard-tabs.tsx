@@ -4,6 +4,7 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { LeaderboardList } from "./leaderboard-list";
 import { WeeklyCategoryLeaderboard } from "./weekly-category-leaderboard";
+import { CumulativeCategoryLeaderboard } from "./cumulative-category-leaderboard";
 
 interface LeaderboardEntry {
   rank: number;
@@ -23,7 +24,7 @@ interface LeaderboardTabsProps {
   currentUserId: string;
 }
 
-type Tab = "overall" | "weekly";
+type Tab = "overall" | "cumulative" | "weekly";
 
 export function LeaderboardTabs({
   entries,
@@ -48,6 +49,17 @@ export function LeaderboardTabs({
           Overall
         </button>
         <button
+          onClick={() => setActiveTab("cumulative")}
+          className={cn(
+            "flex-1 rounded-md px-4 py-2 text-sm font-medium transition",
+            activeTab === "cumulative"
+              ? "bg-zinc-800 text-white shadow-sm"
+              : "text-zinc-400 hover:text-zinc-300"
+          )}
+        >
+          Cumulative by Category
+        </button>
+        <button
           onClick={() => setActiveTab("weekly")}
           className={cn(
             "flex-1 rounded-md px-4 py-2 text-sm font-medium transition",
@@ -61,13 +73,20 @@ export function LeaderboardTabs({
       </div>
 
       {/* Tab content */}
-      {activeTab === "overall" ? (
+      {activeTab === "overall" && (
         <LeaderboardList
           entries={entries}
           challengeId={challengeId}
           currentUserId={currentUserId}
         />
-      ) : (
+      )}
+      {activeTab === "cumulative" && (
+        <CumulativeCategoryLeaderboard
+          challengeId={challengeId}
+          currentUserId={currentUserId}
+        />
+      )}
+      {activeTab === "weekly" && (
         <WeeklyCategoryLeaderboard
           challengeId={challengeId}
           currentUserId={currentUserId}

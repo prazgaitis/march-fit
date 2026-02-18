@@ -29,11 +29,15 @@ interface SettingsContentProps {
     avatarUrl?: string;
   };
   currentChallengeId: Id<"challenges">;
+  allowGenderEdit?: boolean;
+  currentGender?: "male" | "female" | null;
 }
 
 export function SettingsContent({
   currentUser,
   currentChallengeId,
+  allowGenderEdit,
+  currentGender,
 }: SettingsContentProps) {
   const router = useRouter();
   const [isUpdating, setIsUpdating] = useState(false);
@@ -43,6 +47,10 @@ export function SettingsContent({
   // Form state
   const [name, setName] = useState(currentUser.name ?? "");
   const [avatarUrl, setAvatarUrl] = useState(currentUser.avatarUrl ?? "");
+  // Gender: "male" | "female" | "prefer_not" (maps to undefined/clear)
+  const [gender, setGender] = useState<"male" | "female" | "prefer_not">(
+    currentGender === "male" ? "male" : currentGender === "female" ? "female" : "prefer_not"
+  );
 
   // Fetch user's challenges
   const userChallenges = useQuery(api.queries.participations.getUserChallenges, {
@@ -62,6 +70,9 @@ export function SettingsContent({
         userId: currentUser._id,
         name: name.trim() || undefined,
         avatarUrl: avatarUrl.trim() || undefined,
+        ...(allowGenderEdit
+          ? { gender: gender === "prefer_not" ? undefined : gender }
+          : {}),
       });
 
       setUpdateSuccess(true);
@@ -117,6 +128,39 @@ export function SettingsContent({
               placeholder="Your name"
             />
           </div>
+
+          {/* Gender Field (only shown when allowGenderEdit is enabled) */}
+          {allowGenderEdit && (
+            <div className="space-y-2">
+              <Label>Gender (for prize categories)</Label>
+              <div className="flex flex-col gap-2">
+                {(["female", "male", "prefer_not"] as const).map((option) => (
+                  <label
+                    key={option}
+                    className="flex cursor-pointer items-center gap-2 text-sm"
+                  >
+                    <input
+                      type="radio"
+                      name="gender"
+                      value={option}
+                      checked={gender === option}
+                      onChange={() => setGender(option)}
+                      className="accent-primary"
+                    />
+                    {option === "female"
+                      ? "Female"
+                      : option === "male"
+                        ? "Male"
+                        : "Prefer not to say"}
+                  </label>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                ℹ️ If you don&apos;t set a gender, you&apos;ll be placed in the Men&apos;s/Open
+                category for prize tracking.
+              </p>
+            </div>
+          )}
 
           {/* Avatar URL Field */}
           <div className="space-y-2">

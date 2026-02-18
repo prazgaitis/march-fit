@@ -52,6 +52,8 @@ export default defineSchema({
     // Announcement
     announcement: v.optional(v.string()), // Current announcement text
     announcementUpdatedAt: v.optional(v.number()), // When announcement was last changed
+    // Gender collection
+    allowGenderEdit: v.optional(v.boolean()), // Admin can enable gender editing for participants
     createdAt: v.number(),
     updatedAt: v.number(),
   }).index("creatorId", ["creatorId"]),
