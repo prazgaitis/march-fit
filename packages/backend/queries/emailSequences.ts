@@ -317,6 +317,63 @@ export const getOtherChallengeParticipants = query({
 });
 
 /**
+ * Look up users by a list of email addresses and check if they've already
+ * received a specific email sequence.
+ */
+export const getUsersByEmailsCsv = query({
+  args: {
+    emailSequenceId: v.id("emailSequences"),
+    emails: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    // Deduplicate emails on the backend as well
+    const uniqueEmails = Array.from(new Set(args.emails.map((e) => e.toLowerCase().trim())));
+
+    // Get existing sends for this email sequence (for alreadySent check)
+    const sends = await ctx.db
+      .query("emailSends")
+      .withIndex("emailSequenceId", (q) =>
+        q.eq("emailSequenceId", args.emailSequenceId),
+      )
+      .collect();
+
+    const sentUserIds = new Set(sends.map((s) => s.userId));
+
+    const matched: Array<{
+      id: string;
+      username: string;
+      name?: string;
+      email: string;
+      avatarUrl?: string;
+      alreadySent: boolean;
+    }> = [];
+    const notFound: string[] = [];
+
+    for (const email of uniqueEmails) {
+      const user = await ctx.db
+        .query("users")
+        .withIndex("email", (q) => q.eq("email", email))
+        .first();
+
+      if (!user) {
+        notFound.push(email);
+      } else {
+        matched.push({
+          id: user._id,
+          username: user.username,
+          name: user.name,
+          email: user.email,
+          avatarUrl: user.avatarUrl,
+          alreadySent: sentUserIds.has(user._id),
+        });
+      }
+    }
+
+    return { matched, notFound };
+  },
+});
+
+/**
  * Get the default email templates with info about which are already added
  */
 export const getDefaultTemplates = query({

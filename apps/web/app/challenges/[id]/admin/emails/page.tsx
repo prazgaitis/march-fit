@@ -10,6 +10,7 @@ import {
   Check,
   CheckCircle,
   ChevronDown,
+  ChevronRight,
   Clock,
   Columns2,
   Eye,
@@ -23,11 +24,13 @@ import {
   Search,
   Send,
   Trash2,
+  Upload,
   User,
   UserPlus,
   Users,
   XCircle,
 } from "lucide-react";
+import { parseCsvEmails } from "@/lib/parse-csv-emails";
 
 import { marked } from "marked";
 import { toast } from "sonner";
@@ -122,6 +125,15 @@ type ImportChallenge = {
 };
 
 type ImportParticipant = {
+  id: Id<"users">;
+  username: string;
+  name?: string;
+  email: string;
+  avatarUrl?: string;
+  alreadySent: boolean;
+};
+
+type CsvParticipant = {
   id: Id<"users">;
   username: string;
   name?: string;
@@ -231,6 +243,18 @@ export default function EmailsAdminPage() {
   const [importSearch, setImportSearch] = useState("");
   const [importSending, setImportSending] = useState(false);
 
+  // CSV upload modal state
+  const [showCsvModal, setShowCsvModal] = useState(false);
+  const [csvMatchedParticipants, setCsvMatchedParticipants] = useState<CsvParticipant[]>([]);
+  const [csvNotFound, setCsvNotFound] = useState<string[]>([]);
+  const [csvSelectedUserIds, setCsvSelectedUserIds] = useState<Set<string>>(new Set());
+  const [csvSearch, setCsvSearch] = useState("");
+  const [csvSending, setCsvSending] = useState(false);
+  const [csvParsing, setCsvParsing] = useState(false);
+  const [csvEmails, setCsvEmails] = useState<string[]>([]);
+  const [csvNotFoundExpanded, setCsvNotFoundExpanded] = useState(false);
+  const csvFileInputRef = useRef<HTMLInputElement>(null);
+
   // Draft form state (used for both creating and editing)
   const [draft, setDraft] = useState<DraftState>({
     name: "",
@@ -283,6 +307,45 @@ export default function EmailsAdminPage() {
         }
       : "skip",
   );
+
+  // CSV email lookup query
+  const csvQueryResult = useQuery(
+    api.queries.emailSequences.getUsersByEmailsCsv,
+    csvParsing && csvEmails.length > 0 && selectedEmailId
+      ? {
+          emailSequenceId: selectedEmailId as Id<"emailSequences">,
+          emails: csvEmails,
+        }
+      : "skip",
+  );
+
+  // When CSV query returns results, populate the modal
+  useEffect(() => {
+    if (csvQueryResult && csvParsing) {
+      const matched: CsvParticipant[] = csvQueryResult.matched.map((u: {
+        id: string;
+        username: string;
+        name?: string;
+        email: string;
+        avatarUrl?: string;
+        alreadySent: boolean;
+      }) => ({
+        id: u.id as Id<"users">,
+        username: u.username,
+        name: u.name,
+        email: u.email,
+        avatarUrl: u.avatarUrl,
+        alreadySent: u.alreadySent,
+      }));
+      setCsvMatchedParticipants(matched);
+      setCsvNotFound(csvQueryResult.notFound);
+      // Pre-select all non-already-sent users
+      const selectable = matched.filter((p) => !p.alreadySent);
+      setCsvSelectedUserIds(new Set(selectable.map((p) => p.id)));
+      setCsvParsing(false);
+      setShowCsvModal(true);
+    }
+  }, [csvQueryResult, csvParsing]);
 
   // ---- Convex mutations ----
   const createEmailSequence = useMutation(api.mutations.emailSequences.create);
@@ -618,6 +681,136 @@ export default function EmailsAdminPage() {
       setImportSending(false);
     }
   };
+
+  // ---- CSV upload handlers ----
+
+  const handleCsvFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    // Reset file input so same file can be re-selected
+    e.target.value = "";
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const text = evt.target?.result as string;
+      const emails = parseCsvEmails(text);
+      if (emails.length === 0) {
+        alert("No valid email addresses found in the CSV file.");
+        return;
+      }
+      setCsvEmails(emails);
+      setCsvParsing(true);
+      setCsvSearch("");
+      setCsvNotFoundExpanded(false);
+    };
+    reader.readAsText(file);
+  };
+
+  const handleToggleCsvUser = (userId: string) => {
+    setCsvSelectedUserIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(userId)) {
+        next.delete(userId);
+      } else {
+        next.add(userId);
+      }
+      return next;
+    });
+  };
+
+  const handleCsvSelectAll = () => {
+    const selectable = csvMatchedParticipants.filter((p) => !p.alreadySent);
+    const filteredSelectable = selectable.filter((p) => {
+      if (!csvSearch) return true;
+      const q = csvSearch.toLowerCase();
+      return (
+        p.username.toLowerCase().includes(q) ||
+        (p.name?.toLowerCase().includes(q) ?? false) ||
+        p.email.toLowerCase().includes(q)
+      );
+    });
+    const allSelected =
+      filteredSelectable.length > 0 &&
+      filteredSelectable.every((p) => csvSelectedUserIds.has(p.id));
+    if (allSelected) {
+      setCsvSelectedUserIds((prev) => {
+        const next = new Set(prev);
+        for (const p of filteredSelectable) next.delete(p.id);
+        return next;
+      });
+    } else {
+      setCsvSelectedUserIds((prev) => {
+        const next = new Set(prev);
+        for (const p of filteredSelectable) next.add(p.id);
+        return next;
+      });
+    }
+  };
+
+  const handleSendToCsv = async () => {
+    if (!selectedEmailId || csvSelectedUserIds.size === 0) return;
+    setCsvSending(true);
+    const toastId = toast.loading(
+      `Sending to ${csvSelectedUserIds.size} recipients...`,
+    );
+    try {
+      if (hasDraftChanges) {
+        await updateEmailSequence({
+          emailSequenceId: selectedEmailId as Id<"emailSequences">,
+          name: draft.name,
+          subject: draft.subject,
+          body: markdownToHtml(draft.body),
+          bodySource: draft.body,
+          trigger: draft.trigger,
+        });
+        clearDraft(challengeId, selectedEmailId);
+        setHasDraftChanges(false);
+      }
+
+      const result = await sendToUsers({
+        emailSequenceId: selectedEmailId as Id<"emailSequences">,
+        userIds: Array.from(csvSelectedUserIds) as Id<"users">[],
+      });
+
+      toast.success(
+        `Sent to ${result.sentCount} recipients` +
+          (result.skippedCount > 0 ? `, ${result.skippedCount} skipped` : "") +
+          (result.failedCount > 0 ? `, ${result.failedCount} failed` : ""),
+        { id: toastId },
+      );
+
+      // Merge CSV selected IDs into importSelectedUserIds (shared set)
+      setImportSelectedUserIds((prev) => {
+        const next = new Set(prev);
+        for (const id of csvSelectedUserIds) next.add(id);
+        return next;
+      });
+
+      setShowCsvModal(false);
+      setCsvEmails([]);
+      setCsvMatchedParticipants([]);
+      setCsvNotFound([]);
+      setCsvSelectedUserIds(new Set());
+    } catch (error) {
+      console.error("Failed to send:", error);
+      toast.error(
+        error instanceof Error ? error.message : "Failed to send emails",
+        { id: toastId },
+      );
+    } finally {
+      setCsvSending(false);
+    }
+  };
+
+  // Filtered CSV participants (for search)
+  const filteredCsvParticipants = csvMatchedParticipants.filter((p) => {
+    if (!csvSearch) return true;
+    const q = csvSearch.toLowerCase();
+    return (
+      p.username.toLowerCase().includes(q) ||
+      (p.name?.toLowerCase().includes(q) ?? false) ||
+      p.email.toLowerCase().includes(q)
+    );
+  });
 
   // Filtered import participants (for search)
   const filteredImportParticipants = importParticipants?.filter(
@@ -1131,6 +1324,31 @@ export default function EmailsAdminPage() {
 
                     {/* Right: send buttons */}
                     <div className="flex items-center gap-2">
+                      {/* Hidden CSV file input */}
+                      <input
+                        ref={csvFileInputRef}
+                        type="file"
+                        accept=".csv"
+                        className="hidden"
+                        onChange={handleCsvFileChange}
+                      />
+
+                      {/* Upload CSV */}
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => csvFileInputRef.current?.click()}
+                        disabled={csvParsing}
+                        className="h-7 border-zinc-700 px-2.5 text-xs text-zinc-300 hover:bg-zinc-800 hover:text-zinc-100"
+                      >
+                        {csvParsing ? (
+                          <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
+                        ) : (
+                          <Upload className="mr-1.5 h-3 w-3" />
+                        )}
+                        Upload CSV
+                      </Button>
+
                       {/* Invite from Challenge */}
                       <Button
                         size="sm"
@@ -1349,6 +1567,262 @@ export default function EmailsAdminPage() {
                 )}
               </div>
             ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ================================================================= */}
+      {/* CSV UPLOAD DIALOG                                                 */}
+      {/* ================================================================= */}
+      <Dialog
+        open={showCsvModal}
+        onOpenChange={(open) => {
+          if (!open) {
+            setShowCsvModal(false);
+            setCsvSearch("");
+            setCsvNotFoundExpanded(false);
+          }
+        }}
+      >
+        <DialogContent className="flex max-h-[80vh] max-w-lg flex-col border-zinc-800 bg-zinc-900">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-zinc-100">
+              <FileText className="h-4 w-4 text-amber-400" />
+              <span>Upload CSV Recipients</span>
+            </DialogTitle>
+          </DialogHeader>
+
+          <div className="flex min-h-0 flex-1 flex-col gap-2">
+            {/* Summary */}
+            <div className="flex items-center gap-3 text-[10px] text-zinc-500">
+              <span className="flex items-center gap-1 text-emerald-400">
+                <CheckCircle className="h-3 w-3" />
+                {csvMatchedParticipants.length} matched
+              </span>
+              {csvNotFound.length > 0 && (
+                <span className="text-zinc-500">
+                  {csvNotFound.length} not found
+                </span>
+              )}
+            </div>
+
+            {/* Search + select all bar */}
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-zinc-500" />
+                <Input
+                  value={csvSearch}
+                  onChange={(e) => setCsvSearch(e.target.value)}
+                  placeholder="Search by name, username, or email..."
+                  className="h-8 border-zinc-700 bg-zinc-800 pl-8 text-xs text-zinc-200 placeholder:text-zinc-600"
+                />
+              </div>
+            </div>
+
+            {/* Select all + count bar */}
+            <div className="flex items-center justify-between">
+              <button
+                onClick={handleCsvSelectAll}
+                className="flex items-center gap-2 text-[10px] text-zinc-400 transition-colors hover:text-zinc-200"
+              >
+                <div
+                  className={cn(
+                    "flex h-4 w-4 items-center justify-center rounded border transition-colors",
+                    (() => {
+                      const selectable = filteredCsvParticipants.filter(
+                        (p) => !p.alreadySent,
+                      );
+                      const allSelected =
+                        selectable.length > 0 &&
+                        selectable.every((p) => csvSelectedUserIds.has(p.id));
+                      return allSelected
+                        ? "border-amber-500 bg-amber-500"
+                        : "border-zinc-600 bg-zinc-800";
+                    })(),
+                  )}
+                >
+                  {(() => {
+                    const selectable = filteredCsvParticipants.filter(
+                      (p) => !p.alreadySent,
+                    );
+                    const allSelected =
+                      selectable.length > 0 &&
+                      selectable.every((p) => csvSelectedUserIds.has(p.id));
+                    return allSelected ? (
+                      <Check className="h-2.5 w-2.5 text-black" />
+                    ) : null;
+                  })()}
+                </div>
+                Select all
+              </button>
+              <span className="text-[10px] text-zinc-500">
+                {csvSelectedUserIds.size > 0 && (
+                  <span className="mr-1 font-medium text-amber-400">
+                    {csvSelectedUserIds.size} selected
+                  </span>
+                )}
+                {filteredCsvParticipants.length} matched
+                {filteredCsvParticipants.filter((p) => p.alreadySent).length >
+                  0 && (
+                  <span className="ml-1 text-zinc-600">
+                    (
+                    {filteredCsvParticipants.filter((p) => p.alreadySent).length}{" "}
+                    already sent)
+                  </span>
+                )}
+              </span>
+            </div>
+
+            {/* Participant list */}
+            <div className="flex-1 space-y-0.5 overflow-y-auto rounded border border-zinc-800 bg-zinc-950 p-1">
+              {filteredCsvParticipants.length === 0 && csvNotFound.length === 0 ? (
+                <div className="py-8 text-center text-xs text-zinc-500">
+                  {csvSearch
+                    ? "No participants match your search"
+                    : "No matched participants"}
+                </div>
+              ) : filteredCsvParticipants.length === 0 ? (
+                <div className="py-4 text-center text-xs text-zinc-500">
+                  No matches for &quot;{csvSearch}&quot;
+                </div>
+              ) : (
+                filteredCsvParticipants.map((participant) => {
+                  const isSelected = csvSelectedUserIds.has(participant.id);
+                  const isSent = participant.alreadySent;
+
+                  return (
+                    <button
+                      key={participant.id}
+                      onClick={() => {
+                        if (!isSent) handleToggleCsvUser(participant.id);
+                      }}
+                      disabled={isSent}
+                      className={cn(
+                        "flex w-full items-center gap-2.5 rounded px-2.5 py-2 text-left transition-colors",
+                        isSent
+                          ? "cursor-not-allowed opacity-50"
+                          : isSelected
+                            ? "bg-amber-500/10"
+                            : "hover:bg-zinc-800/50",
+                      )}
+                    >
+                      {/* Checkbox */}
+                      <div
+                        className={cn(
+                          "flex h-4 w-4 flex-shrink-0 items-center justify-center rounded border transition-colors",
+                          isSent
+                            ? "border-zinc-700 bg-zinc-800"
+                            : isSelected
+                              ? "border-amber-500 bg-amber-500"
+                              : "border-zinc-600 bg-zinc-800",
+                        )}
+                      >
+                        {isSent ? (
+                          <CheckCircle className="h-2.5 w-2.5 text-zinc-500" />
+                        ) : isSelected ? (
+                          <Check className="h-2.5 w-2.5 text-black" />
+                        ) : null}
+                      </div>
+
+                      {/* Avatar */}
+                      <div className="flex h-6 w-6 flex-shrink-0 items-center justify-center rounded-full bg-zinc-800">
+                        {participant.avatarUrl ? (
+                          <img
+                            src={participant.avatarUrl}
+                            alt=""
+                            className="h-6 w-6 rounded-full object-cover"
+                          />
+                        ) : (
+                          <User className="h-3 w-3 text-zinc-500" />
+                        )}
+                      </div>
+
+                      {/* User info */}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1.5">
+                          <span className="truncate text-xs font-medium text-zinc-200">
+                            {participant.name || participant.username}
+                          </span>
+                          {participant.name && (
+                            <span className="truncate text-[10px] text-zinc-500">
+                              @{participant.username}
+                            </span>
+                          )}
+                        </div>
+                        <div className="truncate text-[10px] text-zinc-500">
+                          {participant.email}
+                        </div>
+                      </div>
+
+                      {/* Already sent badge */}
+                      {isSent && (
+                        <span className="flex-shrink-0 rounded bg-zinc-800 px-1.5 py-0.5 text-[9px] font-medium text-zinc-500">
+                          Already sent
+                        </span>
+                      )}
+                    </button>
+                  );
+                })
+              )}
+            </div>
+
+            {/* Not found section */}
+            {csvNotFound.length > 0 && (
+              <div className="rounded border border-zinc-800 bg-zinc-950">
+                <button
+                  onClick={() => setCsvNotFoundExpanded((v) => !v)}
+                  className="flex w-full items-center justify-between px-3 py-2 text-left"
+                >
+                  <span className="text-[10px] font-medium text-zinc-500">
+                    {csvNotFound.length} email{csvNotFound.length !== 1 ? "s" : ""} not found
+                  </span>
+                  {csvNotFoundExpanded ? (
+                    <ChevronDown className="h-3 w-3 text-zinc-600" />
+                  ) : (
+                    <ChevronRight className="h-3 w-3 text-zinc-600" />
+                  )}
+                </button>
+                {csvNotFoundExpanded && (
+                  <div className="max-h-32 overflow-y-auto border-t border-zinc-800 px-3 py-2">
+                    {csvNotFound.map((email) => (
+                      <div
+                        key={email}
+                        className="py-0.5 text-[10px] text-zinc-600"
+                      >
+                        {email}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Send button */}
+            <div className="flex items-center justify-between border-t border-zinc-800 pt-3">
+              <div className="text-[10px] text-zinc-500">
+                {csvSelectedUserIds.size > 0
+                  ? `${csvSelectedUserIds.size} recipient${csvSelectedUserIds.size !== 1 ? "s" : ""} selected`
+                  : "Select participants to send to"}
+              </div>
+              <Button
+                size="sm"
+                onClick={handleSendToCsv}
+                disabled={csvSelectedUserIds.size === 0 || csvSending}
+                className="h-8 bg-amber-500 px-4 text-xs text-black hover:bg-amber-400 disabled:opacity-40"
+              >
+                {csvSending ? (
+                  <>
+                    <Loader2 className="mr-1.5 h-3 w-3 animate-spin" />
+                    Sending...
+                  </>
+                ) : (
+                  <>
+                    <Send className="mr-1.5 h-3 w-3" />
+                    Send to {csvSelectedUserIds.size || "..."}
+                  </>
+                )}
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
