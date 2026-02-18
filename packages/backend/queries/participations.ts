@@ -498,8 +498,8 @@ export const getCumulativeCategoryLeaderboard = query({
 
         // Fetch user data with caching and split by gender
         const womenEntries: Array<{ rank: number; user: NonNullable<typeof userCache extends Map<string, infer V> ? V : never>; totalPoints: number }> = [];
+        // Men's/Open bucket: includes users with gender==="male" and users with no gender set
         const menEntries: Array<{ rank: number; user: NonNullable<typeof userCache extends Map<string, infer V> ? V : never>; totalPoints: number }> = [];
-        const noGenderEntries: Array<{ rank: number; user: NonNullable<typeof userCache extends Map<string, infer V> ? V : never>; totalPoints: number }> = [];
 
         for (const [userId, points] of sorted) {
           if (!userCache.has(userId)) {
@@ -522,10 +522,9 @@ export const getCumulativeCategoryLeaderboard = query({
 
           if (user.gender === "female") {
             womenEntries.push({ rank: 0, user, totalPoints: points });
-          } else if (user.gender === "male") {
-            menEntries.push({ rank: 0, user, totalPoints: points });
           } else {
-            noGenderEntries.push({ rank: 0, user, totalPoints: points });
+            // gender === "male" or gender === null/undefined → Men's/Open
+            menEntries.push({ rank: 0, user, totalPoints: points });
           }
         }
 
@@ -544,14 +543,14 @@ export const getCumulativeCategoryLeaderboard = query({
           category,
           women: assignRanks(womenEntries),
           men: assignRanks(menEntries),
-          noGender: assignRanks(noGenderEntries),
+          noGender: [] as Array<{ rank: number; user: NonNullable<typeof userCache extends Map<string, infer V> ? V : never>; totalPoints: number }>,
         };
       })
     );
 
     // Filter out categories where all gender groups are empty
     const nonEmpty = categories.filter(
-      (c) => c.women.length > 0 || c.men.length > 0 || c.noGender.length > 0
+      (c) => c.women.length > 0 || c.men.length > 0
     );
 
     // Sort alphabetically, "Other" last

@@ -106,6 +106,7 @@ function GenderColumn({
   entries,
   challengeId,
   currentUserId,
+  emptyLabel = "No entries",
 }: {
   label: string;
   symbol: string;
@@ -113,6 +114,7 @@ function GenderColumn({
   entries: CumulativeEntry[];
   challengeId: string;
   currentUserId: string;
+  emptyLabel?: string;
 }) {
   return (
     <div className="flex-1 min-w-0">
@@ -126,7 +128,7 @@ function GenderColumn({
 
       {entries.length === 0 ? (
         <div className="flex items-center justify-center rounded-xl bg-zinc-900/30 py-6 text-xs text-zinc-600">
-          No entries
+          {emptyLabel}
         </div>
       ) : (
         <div className="space-y-2">
@@ -180,44 +182,27 @@ export function CumulativeCategoryLeaderboard({
             {category.category.name}
           </h3>
 
-          {/* Two-column layout: Women | Men */}
+          {/* Two-column layout: Women's | Men's / Open */}
           <div className="flex gap-4">
             <GenderColumn
-              label="Women"
+              label="Women's"
               symbol="♀"
               symbolClass="text-pink-400"
               entries={category.women}
               challengeId={challengeId}
               currentUserId={currentUserId}
+              emptyLabel="No entries in Women's"
             />
             <GenderColumn
-              label="Men"
+              label="Men's / Open"
               symbol="♂"
               symbolClass="text-blue-400"
               entries={category.men}
               challengeId={challengeId}
               currentUserId={currentUserId}
+              emptyLabel="No entries in Men's/Open"
             />
           </div>
-
-          {/* Optional "Other" gender section */}
-          {category.noGender.length > 0 && (
-            <div className="mt-4">
-              <p className="mb-2 text-xs font-medium uppercase tracking-wider text-zinc-600">
-                Other
-              </p>
-              <div className="space-y-2">
-                {category.noGender.map((entry) => (
-                  <EntryRow
-                    key={entry.user.id}
-                    entry={entry}
-                    challengeId={challengeId}
-                    currentUserId={currentUserId}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       ))}
     </div>

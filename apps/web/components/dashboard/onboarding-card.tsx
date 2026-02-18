@@ -56,6 +56,9 @@ export function OnboardingCard({ challengeId, userId, challengeStartDate }: Onbo
 
   // Data fetching
   const currentUser = useQuery(api.queries.users.current);
+  const challenge = useQuery(api.queries.challenges.getById, {
+    challengeId: challengeId as Id<"challenges">,
+  });
   const participation = useQuery(
     api.queries.participations.getCurrentUserParticipation,
     { challengeId: challengeId as Id<"challenges"> }
@@ -95,12 +98,16 @@ export function OnboardingCard({ challengeId, userId, challengeStartDate }: Onbo
   // Still loading data
   if (
     currentUser === undefined ||
+    challenge === undefined ||
     participation === undefined ||
     paymentInfo === undefined ||
     integrations === undefined
   ) {
     return null;
   }
+
+  const allowGenderEdit = challenge?.allowGenderEdit ?? false;
+  const genderPrizesStepNeeded = allowGenderEdit && !currentUser?.gender;
 
   const steps = [
     {
@@ -110,6 +117,17 @@ export function OnboardingCard({ challengeId, userId, challengeStartDate }: Onbo
       complete: bioComplete,
       icon: User,
     },
+    ...(genderPrizesStepNeeded
+      ? [
+          {
+            key: "gender_prizes",
+            label: "Set your gender for prize tracking",
+            description: "This challenge awards prizes by gender category",
+            complete: false,
+            icon: CheckCircle2,
+          },
+        ]
+      : []),
     ...(requiresPayment
       ? [
           {
@@ -200,6 +218,12 @@ export function OnboardingCard({ challengeId, userId, challengeStartDate }: Onbo
                     currentAge={currentUser?.age}
                   />
                 )}
+                {step.key === "gender_prizes" && (
+                  <GenderPrizesStep
+                    userId={userId}
+                    challengeId={challengeId}
+                  />
+                )}
                 {step.key === "payment" && (
                   <PaymentStep challengeId={challengeId} />
                 )}
@@ -221,6 +245,87 @@ export function OnboardingCard({ challengeId, userId, challengeStartDate }: Onbo
         ))}
       </CardContent>
     </Card>
+  );
+}
+
+// --- Gender Prizes Step ---
+function GenderPrizesStep({
+  userId,
+  challengeId,
+}: {
+  userId: string;
+  challengeId: string;
+}) {
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const updateUser = useMutation(api.mutations.users.updateUser);
+
+  const handleSave = async (selectedGender: "male" | "female" | "skip") => {
+    setSaving(true);
+    try {
+      if (selectedGender !== "skip") {
+        await updateUser({
+          userId: userId as Id<"users">,
+          gender: selectedGender,
+        });
+      }
+      setSaved(true);
+    } catch (error) {
+      console.error("Failed to save gender", error);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (saved) {
+    return (
+      <div className="text-sm text-green-400 flex items-center gap-2">
+        <Check className="h-4 w-4" />
+        Saved!
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">
+        <p className="font-medium mb-1">🏆 Prize categories</p>
+        <p className="text-xs">
+          This challenge awards prizes by gender. If you&apos;d like to compete in the Women&apos;s
+          category, please set your gender below. If you choose not to set a gender, you&apos;ll be
+          placed in the <strong>Men&apos;s/Open</strong> category.
+        </p>
+      </div>
+      <div className="flex gap-2">
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => handleSave("female")}
+          disabled={saving}
+          className="border-pink-500/50 text-pink-400 hover:bg-pink-500/10"
+        >
+          Female
+        </Button>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => handleSave("male")}
+          disabled={saving}
+          className="border-blue-500/50 text-blue-400 hover:bg-blue-500/10"
+        >
+          Male
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() => handleSave("skip")}
+          disabled={saving}
+          className="text-zinc-500"
+        >
+          Skip (Men&apos;s/Open)
+        </Button>
+      </div>
+    </div>
   );
 }
 

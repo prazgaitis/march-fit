@@ -170,12 +170,12 @@ describe('getCumulativeCategoryLeaderboard', () => {
     expect(cardio.noGender).toHaveLength(0);
   });
 
-  it('should place users with no gender into noGender', async () => {
+  it('should place users with no gender into the men (Men\'s/Open) bucket', async () => {
     const { challengeId } = await setupChallenge();
     const category = await createCategory('Cardio');
     const actType = await createActivityType(challengeId, 'Running', category);
 
-    // No gender passed → noGender
+    // No gender passed → men's/open bucket
     const charlie = await createParticipant(challengeId, 'charlie@test.com', 'Charlie');
     await insertActivity(charlie, challengeId, actType, Date.UTC(2024, 0, 2), 30);
 
@@ -185,10 +185,41 @@ describe('getCumulativeCategoryLeaderboard', () => {
 
     const cardio = result!.categories[0];
     expect(cardio.women).toHaveLength(0);
-    expect(cardio.men).toHaveLength(0);
-    expect(cardio.noGender).toHaveLength(1);
-    expect(cardio.noGender[0].user.name).toBe('Charlie');
-    expect(cardio.noGender[0].rank).toBe(1);
+    // No-gender users go to men's/open
+    expect(cardio.men).toHaveLength(1);
+    expect(cardio.men[0].user.name).toBe('Charlie');
+    expect(cardio.men[0].rank).toBe(1);
+    // noGender bucket is always empty now
+    expect(cardio.noGender).toHaveLength(0);
+  });
+
+  it('should merge no-gender and male users together in men\'s/open bucket, sorted by points', async () => {
+    const { challengeId } = await setupChallenge();
+    const category = await createCategory('Cardio');
+    const actType = await createActivityType(challengeId, 'Running', category);
+
+    const charlie = await createParticipant(challengeId, 'charlie@test.com', 'Charlie'); // no gender
+    const bob = await createParticipant(challengeId, 'bob@test.com', 'Bob', 'male');
+
+    // Charlie has more points
+    await insertActivity(charlie, challengeId, actType, Date.UTC(2024, 0, 2), 80);
+    await insertActivity(bob, challengeId, actType, Date.UTC(2024, 0, 2), 50);
+
+    const result = await t.query(api.queries.participations.getCumulativeCategoryLeaderboard, {
+      challengeId,
+    });
+
+    const cardio = result!.categories[0];
+    expect(cardio.women).toHaveLength(0);
+    expect(cardio.men).toHaveLength(2);
+    // Sorted by points descending
+    expect(cardio.men[0].user.name).toBe('Charlie');
+    expect(cardio.men[0].totalPoints).toBe(80);
+    expect(cardio.men[0].rank).toBe(1);
+    expect(cardio.men[1].user.name).toBe('Bob');
+    expect(cardio.men[1].totalPoints).toBe(50);
+    expect(cardio.men[1].rank).toBe(2);
+    expect(cardio.noGender).toHaveLength(0);
   });
 
   it('should aggregate points cumulatively across ALL activities (not weekly)', async () => {
