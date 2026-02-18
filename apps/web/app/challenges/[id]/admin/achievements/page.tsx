@@ -535,7 +535,6 @@ export default function AchievementsAdminPage() {
             </div>
           ) : (
             achievements.map((achievement: any) => (
-            achievements.map((achievement: any) => (
               <div
                 key={achievement._id}
                 className="flex items-center justify-between px-4 py-3"
@@ -557,7 +556,6 @@ export default function AchievementsAdminPage() {
                     {achievement.description}
                   </p>
                   <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px] text-zinc-600">
-                    <span>{describeCriteria(achievement)}</span>
                     <span>{describeCriteria(achievement)}</span>
                     <span>•</span>
                     <span className="capitalize">

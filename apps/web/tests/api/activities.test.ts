@@ -678,7 +678,7 @@ describe('Activities Logic', () => {
         description: "Complete marathon-equivalent run/cycle/swim distances",
         bonusPoints: 250,
         criteria: {
-          type: "all_activity_type_thresholds",
+          criteriaType: "all_activity_type_thresholds",
           requirements: [
             { activityTypeId: runTypeId, metric: "distance_miles", threshold: 26.2 },
             { activityTypeId: cycleTypeId, metric: "distance_miles", threshold: 112 },

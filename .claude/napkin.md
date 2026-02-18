@@ -3,6 +3,7 @@
 ## Corrections
 | Date | Source | What Went Wrong | What To Do Instead |
 |------|--------|----------------|-------------------|
+| 2026-02-18 | self | During rebase conflict cleanup, I left duplicated JSX (`achievements.map`) which caused TS parse errors | After conflict resolution in TSX files, scan nearby rendered blocks for duplicate lines before running typecheck |
 | 2026-02-18 | self | In an activities test, I initially queried `activities` by `activityTypeId` using a `bonusActivityId`, which are different IDs | For bonus-activity assertions, fetch directly via `ctx.db.get(bonusActivityId)` instead of forcing an index on a different field |
 | 2026-02-18 | self | Ran `ls` before reading `.claude/napkin.md` at session start | Make the first command `cat .claude/napkin.md`, then run any repo exploration commands |
 | 2026-02-18 | self | Used `pnpm -F web test --run apps/web/tests/...` and Vitest found no files because filtered commands run from `apps/web` | Use package-relative test paths (e.g., `tests/api/forumPosts.test.ts`) with `pnpm -F web` commands |

@@ -2,6 +2,7 @@
  * Shared helpers for achievement criteria evaluation.
  * Used by both queries (for progress display) and mutations (for awarding).
  */
+import type { Id } from "../_generated/dataModel";
 import { notDeleted } from "./activityFilters";
 
 // Map achievement metric names to possible keys in activity.metrics
@@ -160,14 +161,14 @@ export function computeCriteriaProgress(
 }
 
 /** Get criteria activity type IDs regardless of criteria variant. */
-export function getCriteriaActivityTypeIds(criteria: any): string[] {
+export function getCriteriaActivityTypeIds(criteria: any): Id<"activityTypes">[] {
   const criteriaType: string = criteria.criteriaType ?? "count";
   if (criteriaType === "all_activity_type_thresholds") {
     return Array.from(
       new Set((criteria.requirements ?? []).map((r: any) => r.activityTypeId))
-    );
+    ) as Id<"activityTypes">[];
   }
-  return criteria.activityTypeIds ?? [];
+  return (criteria.activityTypeIds ?? []) as Id<"activityTypes">[];
 }
 
 /**
