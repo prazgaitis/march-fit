@@ -66,6 +66,7 @@ export default async function ChallengeAdminLayout({
     {
       label: "Engage",
       items: [
+        { href: `${base}/forum`, label: "Forum", segment: "forum" },
         { href: `${base}/mini-games`, label: "Mini Games", segment: "mini-games" },
         { href: `${base}/emails`, label: "Emails", segment: "emails" },
         { href: `${base}/email-sends`, label: "Send Log", segment: "email-sends" },
