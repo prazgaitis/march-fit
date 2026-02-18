@@ -383,6 +383,17 @@ export default defineSchema({
         criteriaType: v.literal("one_of_each"),
         activityTypeIds: v.array(v.id("activityTypes")),
       }),
+      // All activity-type thresholds: each specific activity type must satisfy its own threshold
+      v.object({
+        criteriaType: v.literal("all_activity_type_thresholds"),
+        requirements: v.array(
+          v.object({
+            activityTypeId: v.id("activityTypes"),
+            metric: v.string(),
+            threshold: v.number(),
+          })
+        ),
+      }),
     ),
     frequency: v.union(
       v.literal("once_per_challenge"),

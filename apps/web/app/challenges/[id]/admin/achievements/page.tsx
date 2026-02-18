@@ -26,7 +26,7 @@ type Frequency = "once_per_challenge" | "once_per_week" | "unlimited";
 /** Build a human-readable summary of an achievement's criteria. */
 function describeCriteria(achievement: any): string {
   const c = achievement.criteria;
-  const type: string = c.criteriaType ?? "count";
+  const type: string = c.criteriaType ?? c.type ?? "count";
   const typeNames: string = achievement.activityTypeNames?.join(", ") || "No types";
 
   switch (type) {
@@ -38,6 +38,10 @@ function describeCriteria(achievement: any): string {
       return `Any ${c.requiredCount} of ${c.activityTypeIds?.length ?? 0} types | Types: ${typeNames}`;
     case "one_of_each":
       return `One of each: ${typeNames}`;
+    case "all_activity_type_thresholds":
+      return (c.requirements ?? [])
+        .map((r: any) => `${r.metric} ≥ ${r.threshold}`)
+        .join(" + ");
     default:
       return typeNames;
   }
@@ -531,6 +535,7 @@ export default function AchievementsAdminPage() {
             </div>
           ) : (
             achievements.map((achievement: any) => (
+            achievements.map((achievement: any) => (
               <div
                 key={achievement._id}
                 className="flex items-center justify-between px-4 py-3"
@@ -552,6 +557,7 @@ export default function AchievementsAdminPage() {
                     {achievement.description}
                   </p>
                   <div className="mt-1 flex flex-wrap items-center gap-2 text-[10px] text-zinc-600">
+                    <span>{describeCriteria(achievement)}</span>
                     <span>{describeCriteria(achievement)}</span>
                     <span>•</span>
                     <span className="capitalize">

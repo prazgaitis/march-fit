@@ -463,9 +463,8 @@ export const getWeeklyCategoryLeaderboard = query({
         .map((c) => [c._id, c])
     );
 
-    // Query activities for this challenge in the week date range
-    // Uses challengeLoggedDate index: ["challengeId", "loggedDate"]
-    const activities = await ctx.db
+    // Query weekly activities for this challenge in the selected week date range.
+    const weeklyActivities = await ctx.db
       .query("activities")
       .withIndex("challengeLoggedDate", (q) =>
         q
@@ -476,53 +475,95 @@ export const getWeeklyCategoryLeaderboard = query({
       .filter(notDeleted)
       .collect();
 
-    // Group points: categoryId -> userId -> totalPoints
-    const categoryUserPoints = new Map<string, Map<string, number>>();
+    // Query all activities for cumulative leaders (entire challenge).
+    const cumulativeActivities = await ctx.db
+      .query("activities")
+      .withIndex("challengeId", (q) => q.eq("challengeId", args.challengeId))
+      .filter(notDeleted)
+      .collect();
 
-    for (const activity of activities) {
-      const at = activityTypeMap.get(activity.activityTypeId);
-      if (!at) continue;
+    // Group points: categoryId -> userId -> totalPoints.
+    const weeklyCategoryUserPoints = new Map<string, Map<string, number>>();
+    const cumulativeCategoryUserPoints = new Map<string, Map<string, number>>();
 
-      const catId = at.categoryId ?? "uncategorized";
-      const catKey = catId as string;
-
-      if (!categoryUserPoints.has(catKey)) {
-        categoryUserPoints.set(catKey, new Map());
+    const addPoints = (
+      map: Map<string, Map<string, number>>,
+      categoryKey: string,
+      userId: string,
+      points: number,
+    ) => {
+      if (!map.has(categoryKey)) {
+        map.set(categoryKey, new Map());
       }
-      const userPoints = categoryUserPoints.get(catKey)!;
-      const current = userPoints.get(activity.userId) ?? 0;
-      userPoints.set(activity.userId, current + activity.pointsEarned);
+      const userPoints = map.get(categoryKey)!;
+      const current = userPoints.get(userId) ?? 0;
+      userPoints.set(userId, current + points);
+    };
+
+    for (const activity of weeklyActivities) {
+      const at = activityTypeMap.get(activity.activityTypeId);
+      if (!at) {
+        continue;
+      }
+
+      const categoryKey = (at.categoryId ?? "uncategorized") as string;
+      addPoints(
+        weeklyCategoryUserPoints,
+        categoryKey,
+        activity.userId as string,
+        activity.pointsEarned,
+      );
     }
 
-    // Build leaderboard per category: sort users, take top 10, fetch user data
+    for (const activity of cumulativeActivities) {
+      const at = activityTypeMap.get(activity.activityTypeId);
+      if (!at) {
+        continue;
+      }
+
+      const categoryKey = (at.categoryId ?? "uncategorized") as string;
+      addPoints(
+        cumulativeCategoryUserPoints,
+        categoryKey,
+        activity.userId as string,
+        activity.pointsEarned,
+      );
+    }
+
+    // Build leaderboard per category: sort weekly users, take top 10, fetch user data.
     const userCache = new Map<string, { id: string; name: string | null; username: string; avatarUrl: string | null } | null>();
+    const getUser = async (userId: string) => {
+      if (!userCache.has(userId)) {
+        const user = await ctx.db.get(userId as Id<"users">);
+        userCache.set(
+          userId,
+          user
+            ? {
+                id: user._id,
+                name: user.name ?? null,
+                username: user.username,
+                avatarUrl: user.avatarUrl ?? null,
+              }
+            : null
+        );
+      }
+      return userCache.get(userId);
+    };
 
     const categories = await Promise.all(
-      Array.from(categoryUserPoints.entries()).map(async ([catKey, userPointsMap]) => {
-        // Sort users by points descending
+      Array.from(weeklyCategoryUserPoints.entries()).map(async ([catKey, userPointsMap]) => {
+        // Sort users by weekly points descending.
         const sorted = Array.from(userPointsMap.entries())
           .sort((a, b) => b[1] - a[1])
           .slice(0, 10);
 
-        // Fetch user data (with caching)
+        // Fetch weekly leaderboard user data (with caching).
         const entries = await Promise.all(
           sorted.map(async ([userId, points], index) => {
-            if (!userCache.has(userId)) {
-              const user = await ctx.db.get(userId as Id<"users">);
-              userCache.set(
-                userId,
-                user
-                  ? {
-                      id: user._id,
-                      name: user.name ?? null,
-                      username: user.username,
-                      avatarUrl: user.avatarUrl ?? null,
-                    }
-                  : null
-              );
+            const user = await getUser(userId);
+            if (!user) {
+              return null;
             }
-            const user = userCache.get(userId);
-            if (!user) return null;
 
             return {
               rank: index + 1,
@@ -531,6 +572,24 @@ export const getWeeklyCategoryLeaderboard = query({
             };
           })
         );
+
+        // Find cumulative leader for this category.
+        const cumulativeUserPoints = cumulativeCategoryUserPoints.get(catKey);
+        const cumulativeWinner = cumulativeUserPoints
+          ? Array.from(cumulativeUserPoints.entries()).sort((a, b) => b[1] - a[1])[0]
+          : null;
+        const cumulativeLeader = cumulativeWinner
+          ? await (async () => {
+              const user = await getUser(cumulativeWinner[0]);
+              if (!user) {
+                return null;
+              }
+              return {
+                user,
+                cumulativePoints: cumulativeWinner[1],
+              };
+            })()
+          : null;
 
         const category =
           catKey === "uncategorized"
@@ -544,6 +603,7 @@ export const getWeeklyCategoryLeaderboard = query({
           entries: entries.filter(
             (e): e is NonNullable<typeof e> => e !== null
           ),
+          cumulativeLeader,
         };
       })
     );

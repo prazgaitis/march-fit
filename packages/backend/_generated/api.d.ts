@@ -23,6 +23,8 @@ import type * as auth from "../auth.js";
 import type * as http from "../http.js";
 import type * as httpApi from "../httpApi.js";
 import type * as index from "../index.js";
+import type * as lib_achievementCriteria from "../lib/achievementCriteria.js";
+import type * as lib_achievements from "../lib/achievements.js";
 import type * as lib_activityFilters from "../lib/activityFilters.js";
 import type * as lib_apiKey from "../lib/apiKey.js";
 import type * as lib_dateOnly from "../lib/dateOnly.js";
@@ -119,6 +121,8 @@ declare const fullApi: ApiFromModules<{
   http: typeof http;
   httpApi: typeof httpApi;
   index: typeof index;
+  "lib/achievementCriteria": typeof lib_achievementCriteria;
+  "lib/achievements": typeof lib_achievements;
   "lib/activityFilters": typeof lib_activityFilters;
   "lib/apiKey": typeof lib_apiKey;
   "lib/dateOnly": typeof lib_dateOnly;

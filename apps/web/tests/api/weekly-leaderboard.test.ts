@@ -272,6 +272,8 @@ describe('getWeeklyCategoryLeaderboard', () => {
     });
     expect(week1!.categories).toHaveLength(1);
     expect(week1!.categories[0].entries[0].weeklyPoints).toBe(100);
+    expect(week1!.categories[0].cumulativeLeader).toBeTruthy();
+    expect(week1!.categories[0].cumulativeLeader!.cumulativePoints).toBe(300);
 
     // Query week 2: should only see 200 pts
     const week2 = await t.query(api.queries.participations.getWeeklyCategoryLeaderboard, {
@@ -280,6 +282,8 @@ describe('getWeeklyCategoryLeaderboard', () => {
     });
     expect(week2!.categories).toHaveLength(1);
     expect(week2!.categories[0].entries[0].weeklyPoints).toBe(200);
+    expect(week2!.categories[0].cumulativeLeader).toBeTruthy();
+    expect(week2!.categories[0].cumulativeLeader!.cumulativePoints).toBe(300);
 
     // Query week 3: no activities
     const week3 = await t.query(api.queries.participations.getWeeklyCategoryLeaderboard, {

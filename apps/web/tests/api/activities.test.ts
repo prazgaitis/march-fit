@@ -620,6 +620,145 @@ describe('Activities Logic', () => {
     });
   });
 
+  describe('achievement criteria', () => {
+    it('should award triathlon achievement only after all activity-type thresholds are met', async () => {
+      const testEmail = "triathlete@example.com";
+      const userId = await createTestUser(t, { email: testEmail });
+      const tWithAuth = t.withIdentity({ subject: "triathlete", email: testEmail });
+      const challengeId = await createTestChallenge(t, userId);
+
+      await t.run(async (ctx) => {
+        await ctx.db.insert("userChallenges", {
+          userId,
+          challengeId,
+          joinedAt: Date.now(),
+          totalPoints: 0,
+          currentStreak: 0,
+          modifierFactor: 1,
+          paymentStatus: "paid",
+          updatedAt: Date.now(),
+        });
+      });
+
+      const [runTypeId, cycleTypeId, swimTypeId] = await t.run(async (ctx) => {
+        const now = Date.now();
+        const runId = await ctx.db.insert("activityTypes", {
+          challengeId,
+          name: "Run",
+          scoringConfig: { unit: "miles", pointsPerUnit: 1, basePoints: 0 },
+          contributesToStreak: true,
+          isNegative: false,
+          createdAt: now,
+          updatedAt: now,
+        });
+        const cycleId = await ctx.db.insert("activityTypes", {
+          challengeId,
+          name: "Cycle",
+          scoringConfig: { unit: "miles", pointsPerUnit: 1, basePoints: 0 },
+          contributesToStreak: true,
+          isNegative: false,
+          createdAt: now,
+          updatedAt: now,
+        });
+        const swimId = await ctx.db.insert("activityTypes", {
+          challengeId,
+          name: "Swim",
+          scoringConfig: { unit: "miles", pointsPerUnit: 1, basePoints: 0 },
+          contributesToStreak: true,
+          isNegative: false,
+          createdAt: now,
+          updatedAt: now,
+        });
+        return [runId, cycleId, swimId];
+      });
+
+      await tWithAuth.mutation(api.mutations.achievements.createAchievement, {
+        challengeId,
+        name: "March Fitness Triathlon",
+        description: "Complete marathon-equivalent run/cycle/swim distances",
+        bonusPoints: 250,
+        criteria: {
+          type: "all_activity_type_thresholds",
+          requirements: [
+            { activityTypeId: runTypeId, metric: "distance_miles", threshold: 26.2 },
+            { activityTypeId: cycleTypeId, metric: "distance_miles", threshold: 112 },
+            { activityTypeId: swimTypeId, metric: "distance_miles", threshold: 2.4 },
+          ],
+        },
+        frequency: "once_per_challenge",
+      });
+
+      const runResult = await tWithAuth.mutation(api.mutations.activities.log, {
+        challengeId,
+        activityTypeId: runTypeId,
+        loggedDate: '2024-01-15T10:00:00Z',
+        metrics: { miles: 26.2 },
+        source: 'manual',
+      });
+      expect(runResult.pointsEarned).toBeCloseTo(26.2, 5);
+
+      let userAchievements = await t.run(async (ctx) => {
+        return await ctx.db
+          .query("userAchievements")
+          .withIndex("userId", (q) => q.eq("userId", userId))
+          .collect();
+      });
+      expect(userAchievements).toHaveLength(0);
+
+      await tWithAuth.mutation(api.mutations.activities.log, {
+        challengeId,
+        activityTypeId: cycleTypeId,
+        loggedDate: '2024-01-16T10:00:00Z',
+        metrics: { miles: 112 },
+        source: 'manual',
+      });
+
+      userAchievements = await t.run(async (ctx) => {
+        return await ctx.db
+          .query("userAchievements")
+          .withIndex("userId", (q) => q.eq("userId", userId))
+          .collect();
+      });
+      expect(userAchievements).toHaveLength(0);
+
+      const swimResult = await tWithAuth.mutation(api.mutations.activities.log, {
+        challengeId,
+        activityTypeId: swimTypeId,
+        loggedDate: '2024-01-17T10:00:00Z',
+        metrics: { miles: 2.4 },
+        source: 'manual',
+      });
+      expect(swimResult.pointsEarned).toBeCloseTo(2.4, 5);
+
+      userAchievements = await t.run(async (ctx) => {
+        return await ctx.db
+          .query("userAchievements")
+          .withIndex("userId", (q) => q.eq("userId", userId))
+          .collect();
+      });
+      expect(userAchievements).toHaveLength(1);
+      expect(userAchievements[0].qualifyingActivityIds).toHaveLength(3);
+
+      const participation = await t.run(async (ctx) => {
+        return await ctx.db
+          .query("userChallenges")
+          .withIndex("userChallengeUnique", (q) =>
+            q.eq("userId", userId).eq("challengeId", challengeId)
+          )
+          .first();
+      });
+      expect(participation).not.toBeNull();
+      expect(participation!.totalPoints).toBeCloseTo(390.6, 5);
+
+      expect(userAchievements[0].bonusActivityId).toBeDefined();
+      const bonusActivity = await t.run(async (ctx) => {
+        return await ctx.db.get(userAchievements[0].bonusActivityId!);
+      });
+      expect(bonusActivity).not.toBeNull();
+      expect(bonusActivity!.pointsEarned).toBe(250);
+    });
+  });
+
   describe('maxPerChallenge enforcement', () => {
     it('should allow logging up to maxPerChallenge limit', async () => {
       const testEmail = "test@example.com";

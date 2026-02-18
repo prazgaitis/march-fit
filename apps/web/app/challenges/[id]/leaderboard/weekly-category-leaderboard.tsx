@@ -27,6 +27,15 @@ interface CategoryLeaderboard {
     name: string;
   };
   entries: WeeklyLeaderboardEntry[];
+  cumulativeLeader: {
+    user: {
+      id: string;
+      name: string | null;
+      username: string;
+      avatarUrl: string | null;
+    };
+    cumulativePoints: number;
+  } | null;
 }
 
 interface WeeklyCategoryLeaderboardProps {
@@ -111,9 +120,20 @@ export function WeeklyCategoryLeaderboard({
       ) : (
         (data.categories as CategoryLeaderboard[]).map((category) => (
           <div key={category.category.id}>
-            <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-zinc-400">
-              {category.category.name}
-            </h3>
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <h3 className="text-sm font-semibold uppercase tracking-wider text-zinc-400">
+                {category.category.name}
+              </h3>
+              {category.cumulativeLeader && (
+                <p className="truncate text-xs text-zinc-500">
+                  Cumulative:{" "}
+                  <span className="font-medium text-zinc-300">
+                    {category.cumulativeLeader.user.name || category.cumulativeLeader.user.username}
+                  </span>{" "}
+                  ({category.cumulativeLeader.cumulativePoints.toFixed(0)} pts)
+                </p>
+              )}
+            </div>
             <div className="space-y-2">
               {category.entries.map((entry: WeeklyLeaderboardEntry) => {
                 const isCurrentUser = entry.user.id === currentUserId;
