@@ -539,6 +539,8 @@ export default defineSchema({
     // Webhook secret for verifying Stripe webhooks
     stripeWebhookSecret: v.optional(v.string()), // Encrypted
     stripeTestWebhookSecret: v.optional(v.string()), // Encrypted
+    // Donation mode: user can pay more than the minimum
+    allowCustomAmount: v.optional(v.boolean()),
     createdAt: v.number(),
     updatedAt: v.number(),
   }).index("challengeId", ["challengeId"]),

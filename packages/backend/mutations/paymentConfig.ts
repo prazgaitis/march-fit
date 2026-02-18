@@ -54,6 +54,7 @@ export const savePaymentConfig = mutation({
     testMode: v.boolean(),
     priceInCents: v.number(),
     currency: v.optional(v.string()),
+    allowCustomAmount: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     await requireChallengeAdmin(ctx, args.challengeId);
@@ -72,6 +73,7 @@ export const savePaymentConfig = mutation({
       testMode: args.testMode,
       priceInCents: args.priceInCents,
       currency: args.currency || "usd",
+      allowCustomAmount: args.allowCustomAmount,
       updatedAt: now,
       stripeSecretKey: args.stripeSecretKey ? encryptKey(args.stripeSecretKey) : undefined,
       stripePublishableKey: args.stripePublishableKey,
@@ -87,6 +89,7 @@ export const savePaymentConfig = mutation({
         testMode: configData.testMode,
         priceInCents: configData.priceInCents,
         currency: configData.currency,
+        allowCustomAmount: configData.allowCustomAmount,
         updatedAt: configData.updatedAt,
       };
       if (configData.stripeSecretKey) patchData.stripeSecretKey = configData.stripeSecretKey;
