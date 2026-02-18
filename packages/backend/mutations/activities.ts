@@ -232,8 +232,30 @@ export const log = mutation({
     );
 
     // Calculate media bonus (+1 point for posting at least one photo/media)
+    // Only award once per day per challenge (daily cap)
     const hasMedia = (args.mediaIds && args.mediaIds.length > 0) || !!args.imageUrl;
-    const { totalBonusPoints: mediaBonusPoints, triggeredBonus: mediaTriggered } = calculateMediaBonus(hasMedia);
+    let alreadyEarnedPhotoBonus = false;
+    if (hasMedia) {
+      const loggedDateStr = formatDateOnlyFromUtcMs(loggedDateTs);
+      const existingActivitiesToday = await ctx.db
+        .query("activities")
+        .withIndex("userId", (q) => q.eq("userId", user._id))
+        .filter((q) =>
+          q.and(
+            q.eq(q.field("challengeId"), args.challengeId),
+            notDeleted(q)
+          )
+        )
+        .collect();
+
+      alreadyEarnedPhotoBonus = existingActivitiesToday.some((a) => {
+        const aDateStr = formatDateOnlyFromUtcMs(a.loggedDate);
+        const aHasMedia = !!(a.mediaIds && a.mediaIds.length > 0) || !!a.imageUrl;
+        const aHasPhotoBonus = !!(a.triggeredBonuses?.some((b) => b.metric === "media"));
+        return aDateStr === loggedDateStr && aHasMedia && aHasPhotoBonus;
+      });
+    }
+    const { totalBonusPoints: mediaBonusPoints, triggeredBonus: mediaTriggered } = calculateMediaBonus(hasMedia && !alreadyEarnedPhotoBonus);
 
     const totalBonusPoints = thresholdBonusPoints + optionalBonusPoints + mediaBonusPoints;
     // Combine bonuses into a unified format for storage
@@ -700,10 +722,33 @@ export const editActivity = mutation({
     const { totalBonusPoints: optionalBonusPoints, triggeredBonuses: optionalTriggered } =
       calculateOptionalBonuses(activityType, selectedOptionalBonuses);
 
-    // Keep media bonus if activity already has media
+    // Keep media bonus if activity already has media, but respect the 1-per-day cap.
+    // Exclude this activity itself from the "already earned today" check since we're editing it.
     const hasMedia = !!(activity.mediaIds && activity.mediaIds.length > 0) || !!activity.imageUrl;
+    let alreadyEarnedPhotoBonusEdit = false;
+    if (hasMedia) {
+      const loggedDateStrEdit = formatDateOnlyFromUtcMs(newLoggedDateTs);
+      const existingActivitiesForEdit = await ctx.db
+        .query("activities")
+        .withIndex("userId", (q) => q.eq("userId", user._id))
+        .filter((q) =>
+          q.and(
+            q.eq(q.field("challengeId"), activity.challengeId),
+            notDeleted(q)
+          )
+        )
+        .collect();
+
+      alreadyEarnedPhotoBonusEdit = existingActivitiesForEdit.some((a) => {
+        if (a._id === args.activityId) return false; // exclude self
+        const aDateStr = formatDateOnlyFromUtcMs(a.loggedDate);
+        const aHasMedia = !!(a.mediaIds && a.mediaIds.length > 0) || !!a.imageUrl;
+        const aHasPhotoBonus = !!(a.triggeredBonuses?.some((b) => b.metric === "media"));
+        return aDateStr === loggedDateStrEdit && aHasMedia && aHasPhotoBonus;
+      });
+    }
     const { totalBonusPoints: mediaBonusPoints, triggeredBonus: mediaTriggered } =
-      calculateMediaBonus(hasMedia);
+      calculateMediaBonus(hasMedia && !alreadyEarnedPhotoBonusEdit);
 
     const totalBonusPoints = thresholdBonusPoints + optionalBonusPoints + mediaBonusPoints;
     const triggeredBonuses = [
