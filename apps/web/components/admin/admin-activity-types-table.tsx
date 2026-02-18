@@ -20,6 +20,7 @@ import {
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 
 interface BonusThreshold {
   metric: string;
@@ -50,12 +51,14 @@ export function AdminActivityTypesTable({
 
   const [showCreate, setShowCreate] = useState(false);
   const [createName, setCreateName] = useState("");
+  const [createDescription, setCreateDescription] = useState("");
   const [createPoints, setCreatePoints] = useState("1");
   const [createContributes, setCreateContributes] = useState(true);
   const [createNegative, setCreateNegative] = useState(false);
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
+  const [editDescription, setEditDescription] = useState("");
   const [editPoints, setEditPoints] = useState("");
   const [editContributes, setEditContributes] = useState(true);
   const [editNegative, setEditNegative] = useState(false);
@@ -74,11 +77,13 @@ export function AdminActivityTypesTable({
       await createActivityType({
         challengeId: challengeId as Id<"challenges">,
         name: createName,
+        description: createDescription || undefined,
         scoringConfig: { basePoints: Number(createPoints) || 1 },
         contributesToStreak: createContributes,
         isNegative: createNegative,
       });
       setCreateName("");
+      setCreateDescription("");
       setCreatePoints("1");
       setCreateContributes(true);
       setCreateNegative(false);
@@ -97,6 +102,7 @@ export function AdminActivityTypesTable({
     const basePoints = getBasePoints(item);
     setEditingId(item._id);
     setEditName(item.name);
+    setEditDescription(item.description ?? "");
     setEditPoints(String(basePoints));
     setEditContributes(item.contributesToStreak);
     setEditNegative(item.isNegative);
@@ -106,6 +112,7 @@ export function AdminActivityTypesTable({
 
   const cancelEditing = () => {
     setEditingId(null);
+    setEditDescription("");
     setEditThresholds([]);
     setEditScoringConfig(null);
   };
@@ -153,12 +160,14 @@ export function AdminActivityTypesTable({
       await updateActivityType({
         activityTypeId: editingId as Id<"activityTypes">,
         name: editName,
+        description: editDescription || undefined,
         scoringConfig: nextScoringConfig,
         contributesToStreak: editContributes,
         isNegative: editNegative,
         bonusThresholds: editThresholds,
       });
       setEditingId(null);
+      setEditDescription("");
       setEditThresholds([]);
       setEditScoringConfig(null);
       setStatusMessage({ type: "success", text: "Saved" });
@@ -235,17 +244,32 @@ export function AdminActivityTypesTable({
           onSubmit={handleCreate}
           className="rounded border border-zinc-800 bg-zinc-900 p-3"
         >
+          <div className="mb-2">
+            <label className="mb-1 block text-[10px] text-zinc-500">
+              Name
+            </label>
+            <Input
+              value={createName}
+              onChange={(e) => setCreateName(e.target.value)}
+              placeholder="Activity name"
+              required
+              className="h-8 border-zinc-700 bg-zinc-800 text-sm"
+            />
+          </div>
+          <div className="mb-2">
+            <label className="mb-1 block text-[10px] text-zinc-500">
+              Description{" "}
+              <span className="text-zinc-600">(supports markdown)</span>
+            </label>
+            <Textarea
+              value={createDescription}
+              onChange={(e) => setCreateDescription(e.target.value)}
+              placeholder="Describe how this activity scores points..."
+              rows={3}
+              className="resize-y border-zinc-700 bg-zinc-800 text-zinc-200 text-sm"
+            />
+          </div>
           <div className="flex items-end gap-2">
-            <div className="flex-1">
-              <label className="mb-1 block text-[10px] text-zinc-500">Name</label>
-              <Input
-                value={createName}
-                onChange={(e) => setCreateName(e.target.value)}
-                placeholder="Activity name"
-                required
-                className="h-8 border-zinc-700 bg-zinc-800 text-sm"
-              />
-            </div>
             <div className="w-20">
               <label className="mb-1 block text-[10px] text-zinc-500">Points</label>
               <Input
@@ -425,6 +449,21 @@ export function AdminActivityTypesTable({
                                 />
                                 Negative
                               </label>
+                            </div>
+
+                            {/* Description Field */}
+                            <div className="mt-3">
+                              <label className="mb-1 block text-[10px] text-zinc-500">
+                                Description{" "}
+                                <span className="text-zinc-600">(supports markdown)</span>
+                              </label>
+                              <Textarea
+                                value={editDescription}
+                                onChange={(e) => setEditDescription(e.target.value)}
+                                placeholder="Describe how this activity scores points..."
+                                rows={3}
+                                className="resize-y border-zinc-700 bg-zinc-800 text-zinc-200 text-sm"
+                              />
                             </div>
 
                             {/* Bonus Thresholds Section */}
