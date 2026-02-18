@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Calendar, Check, CheckCircle, ChevronsUpDown, CreditCard, ImagePlus, Loader2, Lock, PlusCircle, X, Zap } from "lucide-react";
+import { AlertTriangle, Calendar, Check, CheckCircle, ChevronsUpDown, CreditCard, ImagePlus, Loader2, Lock, PlusCircle, X, Zap } from "lucide-react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@repo/backend";
 import type { Id, Doc } from "@repo/backend/_generated/dataModel";
@@ -39,6 +39,7 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { useMentionableUsers } from "@/hooks/use-mentionable-users";
 import { isEditorContentEmpty } from "@/lib/rich-text-utils";
 import { cn } from "@/lib/utils";
+import { isToday } from "date-fns";
 import { localDateToIsoNoon, formatDateOnlyFromLocalDate, formatDateShortFromDateOnly } from "@/lib/date-only";
 
 interface ActivityLogDialogProps {
@@ -981,6 +982,12 @@ export function ActivityLogDialog({ challengeId, challengeStartDate, trigger }: 
                   }))
                 }
               />
+              {form.loggedDate && !isToday(form.loggedDate) && (
+                <p className="mt-1.5 flex items-center gap-1.5 text-xs text-amber-400">
+                  <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
+                  Please try to log activities on the day you complete them.
+                </p>
+              )}
             </div>
 
             {metricKey ? (

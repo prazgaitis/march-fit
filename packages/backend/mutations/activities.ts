@@ -631,6 +631,129 @@ export const flagActivity = mutation({
   },
 });
 
+// Edit an activity (user-facing)
+export const editActivity = mutation({
+  args: {
+    activityId: v.id("activities"),
+    notes: v.optional(v.string()),
+    metrics: v.optional(v.any()),
+    loggedDate: v.optional(v.string()), // ISO date string "YYYY-MM-DD"
+    activityTypeId: v.optional(v.id("activityTypes")),
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) {
+      throw new Error("Not authenticated");
+    }
+
+    const activity = await ctx.db.get(args.activityId);
+    if (!activity) {
+      throw new Error("Activity not found");
+    }
+
+    if (activity.deletedAt) {
+      throw new Error("Cannot edit a deleted activity");
+    }
+
+    if (activity.userId !== user._id) {
+      throw new Error("Not authorized to edit this activity");
+    }
+
+    // Determine which activity type to use
+    const newActivityTypeId = args.activityTypeId ?? activity.activityTypeId;
+    let activityType;
+    if (args.activityTypeId && args.activityTypeId !== activity.activityTypeId) {
+      activityType = await ctx.db.get(args.activityTypeId);
+      if (!activityType || activityType.challengeId !== activity.challengeId) {
+        throw new Error("Activity type not found or does not belong to the same challenge");
+      }
+    } else {
+      activityType = await ctx.db.get(activity.activityTypeId);
+      if (!activityType) {
+        throw new Error("Activity type not found");
+      }
+    }
+
+    // Determine new loggedDate
+    const newLoggedDateTs = args.loggedDate
+      ? dateOnlyToUtcMs(args.loggedDate)
+      : activity.loggedDate;
+
+    // Determine new metrics
+    const newMetrics = args.metrics !== undefined ? args.metrics : (activity.metrics ?? {});
+
+    // Recalculate points using the same scoring logic as `log`
+    const metricsObj = newMetrics ?? {};
+
+    const basePoints = await calculateActivityPoints(activityType, {
+      ctx,
+      metrics: metricsObj,
+      userId: user._id,
+      challengeId: activity.challengeId,
+      loggedDate: new Date(newLoggedDateTs),
+    });
+
+    const { totalBonusPoints: thresholdBonusPoints, triggeredBonuses: thresholdTriggered } =
+      calculateThresholdBonuses(activityType, metricsObj);
+
+    const selectedOptionalBonuses = (metricsObj as Record<string, unknown>)["selectedBonuses"] as string[] | undefined;
+    const { totalBonusPoints: optionalBonusPoints, triggeredBonuses: optionalTriggered } =
+      calculateOptionalBonuses(activityType, selectedOptionalBonuses);
+
+    // Keep media bonus if activity already has media
+    const hasMedia = !!(activity.mediaIds && activity.mediaIds.length > 0) || !!activity.imageUrl;
+    const { totalBonusPoints: mediaBonusPoints, triggeredBonus: mediaTriggered } =
+      calculateMediaBonus(hasMedia);
+
+    const totalBonusPoints = thresholdBonusPoints + optionalBonusPoints + mediaBonusPoints;
+    const triggeredBonuses = [
+      ...thresholdTriggered,
+      ...optionalTriggered.map((b) => ({
+        metric: "optional",
+        threshold: 0,
+        bonusPoints: b.bonusPoints,
+        description: b.description || b.name,
+      })),
+      ...(mediaTriggered ? [mediaTriggered] : []),
+    ];
+
+    const newPoints = basePoints + totalBonusPoints;
+    const oldPoints = activity.pointsEarned;
+
+    // Update participation totalPoints
+    const participation = await ctx.db
+      .query("userChallenges")
+      .withIndex("userChallengeUnique", (q) =>
+        q.eq("userId", user._id).eq("challengeId", activity.challengeId)
+      )
+      .first();
+
+    if (participation) {
+      await ctx.db.patch(participation._id, {
+        totalPoints: Math.max(0, participation.totalPoints - oldPoints + newPoints),
+        updatedAt: Date.now(),
+      });
+    }
+
+    // Patch the activity
+    const now = Date.now();
+    await ctx.db.patch(args.activityId, {
+      activityTypeId: newActivityTypeId,
+      metrics: newMetrics,
+      notes: args.notes !== undefined ? args.notes : activity.notes,
+      loggedDate: newLoggedDateTs,
+      pointsEarned: newPoints,
+      triggeredBonuses: triggeredBonuses.length > 0 ? triggeredBonuses : undefined,
+      updatedAt: now,
+    });
+
+    // Re-run achievement check
+    await checkAndAwardAchievements(ctx, user._id, activity.challengeId, args.activityId);
+
+    return { success: true, pointsEarned: newPoints };
+  },
+});
+
 // Soft delete an activity (for cleanup/admin purposes)
 export const remove = mutation({
   args: {
