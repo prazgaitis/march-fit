@@ -224,15 +224,30 @@ export const toggleUpvote = mutation({
       )
       .first();
 
+    // Explicitly allow self-upvotes; some communities treat this differently.
+    // We allow it here and only toggle this user's own vote state.
     if (existing) {
       await ctx.db.delete(existing._id);
       return { upvoted: false };
     } else {
-      await ctx.db.insert("forumPostUpvotes", {
-        postId: args.postId,
-        userId: user._id,
-        createdAt: Date.now(),
-      });
+      try {
+        await ctx.db.insert("forumPostUpvotes", {
+          postId: args.postId,
+          userId: user._id,
+          createdAt: Date.now(),
+        });
+      } catch (error) {
+        // Handle duplicate-key races from rapid repeat clicks as already-upvoted.
+        const duplicate = await ctx.db
+          .query("forumPostUpvotes")
+          .withIndex("postUserUnique", (q) =>
+            q.eq("postId", args.postId).eq("userId", user._id)
+          )
+          .first();
+        if (!duplicate) {
+          throw error;
+        }
+      }
       return { upvoted: true };
     }
   },

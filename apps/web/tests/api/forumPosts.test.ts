@@ -349,7 +349,7 @@ describe("Forum Posts", () => {
   });
 
   describe("toggleUpvote mutation", () => {
-    it("should upvote a post", async () => {
+    it("should allow the author to upvote their own post", async () => {
       const { challengeId, tWithAuth } =
         await setupChallengeWithParticipant();
 

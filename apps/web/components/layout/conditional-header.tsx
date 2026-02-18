@@ -5,19 +5,19 @@ import { Preloaded } from "convex/react";
 import { api } from "@repo/backend";
 import { Header } from "./header";
 
-// Pages that use the full-height dashboard layout (no top header)
-const DASHBOARD_LAYOUT_PATTERNS = [
-  /^\/challenges\/[^/]+\/dashboard$/,
-  /^\/challenges\/[^/]+\/dashboard-ssr-debug$/,
-  /^\/challenges\/[^/]+\/notifications$/,
-  /^\/challenges\/[^/]+\/leaderboard$/,
-  /^\/challenges\/[^/]+\/activity-types$/,
-  /^\/challenges\/[^/]+\/users\/[^/]+$/,
-  /^\/challenges\/[^/]+\/activities\/[^/]+$/,
-  /^\/challenges\/[^/]+\/forum(\/.*)?$/,
-  /^\/challenges\/[^/]+\/admin(\/.*)?$/,
-  /^\/challenges\/[^/]+\/invite\/[^/]+$/,
-];
+// Challenge sub-routes that use dashboard/fullscreen layouts and should hide top header.
+const HIDDEN_CHALLENGE_SECTIONS = new Set([
+  "dashboard",
+  "dashboard-ssr-debug",
+  "notifications",
+  "leaderboard",
+  "activity-types",
+  "users",
+  "activities",
+  "forum",
+  "admin",
+  "invite",
+]);
 
 export function ConditionalHeader({
   preloadedUser,
@@ -31,8 +31,12 @@ export function ConditionalHeader({
     return null;
   }
 
-  // Check if current path matches any dashboard layout pattern
-  if (DASHBOARD_LAYOUT_PATTERNS.some((pattern) => pattern.test(pathname))) {
+  const segments = pathname.split("/").filter(Boolean);
+  const challengeSection =
+    segments[0] === "challenges" && segments.length >= 3 ? segments[2] : null;
+
+  // Hide header for configured challenge sections and all of their child routes.
+  if (challengeSection && HIDDEN_CHALLENGE_SECTIONS.has(challengeSection)) {
     return null;
   }
 
