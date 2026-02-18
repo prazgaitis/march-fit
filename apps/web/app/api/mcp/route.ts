@@ -589,6 +589,153 @@ const mcpHandler = createMcpHandler(
       }
     );
 
+    // ─── Forum Tools ──────────────────────────────────────────────────
+
+    server.registerTool(
+      "list_forum_posts",
+      {
+        title: "List Forum Posts",
+        description:
+          "List top-level forum posts for a challenge (paginated). Returns pinned posts first.",
+        inputSchema: {
+          challengeId: z.string().min(1),
+          limit: z.number().int().min(1).max(200).optional(),
+          cursor: z.string().optional(),
+        },
+      },
+      async ({ challengeId, limit, cursor }) => {
+        const token = requireApiToken();
+        const data = await apiRequest(
+          token,
+          `/challenges/${challengeId}/forum`,
+          { query: { limit: limit ?? 20, cursor } }
+        );
+        return asTextResult(data);
+      }
+    );
+
+    server.registerTool(
+      "get_forum_post",
+      {
+        title: "Get Forum Post",
+        description:
+          "Get a single forum post with its replies, upvote counts, and author info.",
+        inputSchema: {
+          postId: z.string().min(1),
+        },
+      },
+      async ({ postId }) => {
+        const token = requireApiToken();
+        const data = await apiRequest(token, `/forum-posts/${postId}`);
+        return asTextResult(data);
+      }
+    );
+
+    server.registerTool(
+      "create_forum_post",
+      {
+        title: "Create Forum Post",
+        description:
+          "Create a top-level forum post or reply in a challenge. Top-level posts require a title.",
+        inputSchema: {
+          challengeId: z.string().min(1),
+          title: z.string().optional().describe("Required for top-level posts, omit for replies."),
+          content: z.string().min(1),
+          parentPostId: z
+            .string()
+            .optional()
+            .describe("Set to a post ID to create a reply."),
+        },
+      },
+      async ({ challengeId, title, content, parentPostId }) => {
+        const token = requireApiToken();
+        const data = await apiRequest(
+          token,
+          `/challenges/${challengeId}/forum`,
+          { method: "POST", body: { title, content, parentPostId } }
+        );
+        return asTextResult(data);
+      }
+    );
+
+    server.registerTool(
+      "update_forum_post",
+      {
+        title: "Update Forum Post",
+        description:
+          "Edit a forum post. Only the author or admins can edit.",
+        inputSchema: {
+          postId: z.string().min(1),
+          title: z.string().optional(),
+          content: z.string().optional(),
+        },
+      },
+      async ({ postId, title, content }) => {
+        const token = requireApiToken();
+        const data = await apiRequest(token, `/forum-posts/${postId}`, {
+          method: "PATCH",
+          body: { title, content },
+        });
+        return asTextResult(data);
+      }
+    );
+
+    server.registerTool(
+      "delete_forum_post",
+      {
+        title: "Delete Forum Post",
+        description:
+          "Soft-delete a forum post. Only the author or admins can delete.",
+        inputSchema: {
+          postId: z.string().min(1),
+        },
+      },
+      async ({ postId }) => {
+        const token = requireApiToken();
+        const data = await apiRequest(token, `/forum-posts/${postId}`, {
+          method: "DELETE",
+        });
+        return asTextResult(data);
+      }
+    );
+
+    server.registerTool(
+      "toggle_forum_upvote",
+      {
+        title: "Toggle Forum Upvote",
+        description: "Upvote or un-upvote a forum post.",
+        inputSchema: {
+          postId: z.string().min(1),
+        },
+      },
+      async ({ postId }) => {
+        const token = requireApiToken();
+        const data = await apiRequest(token, `/forum-posts/${postId}/upvote`, {
+          method: "POST",
+        });
+        return asTextResult(data);
+      }
+    );
+
+    server.registerTool(
+      "toggle_forum_pin",
+      {
+        title: "Toggle Forum Pin",
+        description:
+          "Pin or unpin a top-level forum post. Requires challenge admin role.",
+        inputSchema: {
+          postId: z.string().min(1),
+        },
+      },
+      async ({ postId }) => {
+        const token = requireApiToken();
+        const data = await apiRequest(token, `/forum-posts/${postId}/pin`, {
+          method: "POST",
+        });
+        return asTextResult(data);
+      }
+    );
+
     server.registerTool(
       "admin_edit_activity",
       {

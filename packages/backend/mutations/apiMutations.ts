@@ -8,6 +8,8 @@
 import { internalMutation } from "../_generated/server";
 import { v } from "convex/values";
 import type { Id } from "../_generated/dataModel";
+import { extractMentionedUserIds } from "../lib/mentions";
+import { internal as internalApi } from "../_generated/api";
 import {
   calculateActivityPoints,
   calculateThresholdBonuses,
@@ -814,5 +816,263 @@ export const adminEditActivityForUser = internalMutation({
     });
 
     return { success: true };
+  },
+});
+
+// ─── Forum Post Mutations (API key authenticated) ───────────────────────────
+
+/**
+ * Create a forum post on behalf of a user (API key authenticated).
+ */
+export const createForumPostForUser = internalMutation({
+  args: {
+    userId: v.id("users"),
+    challengeId: v.id("challenges"),
+    title: v.optional(v.string()),
+    content: v.string(),
+    parentPostId: v.optional(v.id("forumPosts")),
+  },
+  handler: async (ctx, args) => {
+    const user = await ctx.db.get(args.userId);
+    if (!user) throw new Error("User not found");
+
+    if (!args.content.trim()) {
+      throw new Error("Post content cannot be empty");
+    }
+
+    const challenge = await ctx.db.get(args.challengeId);
+    if (!challenge) throw new Error("Challenge not found");
+
+    const participation = await ctx.db
+      .query("userChallenges")
+      .withIndex("userChallengeUnique", (q) =>
+        q.eq("userId", user._id).eq("challengeId", args.challengeId)
+      )
+      .first();
+
+    if (!participation && user.role !== "admin" && challenge.creatorId !== user._id) {
+      throw new Error("Must be a challenge participant to post");
+    }
+
+    if (args.parentPostId) {
+      const parentPost = await ctx.db.get(args.parentPostId);
+      if (!parentPost || parentPost.deletedAt) {
+        throw new Error("Parent post not found");
+      }
+      if (parentPost.challengeId !== args.challengeId) {
+        throw new Error("Parent post belongs to a different challenge");
+      }
+    }
+
+    if (!args.parentPostId && !args.title?.trim()) {
+      throw new Error("Top-level posts require a title");
+    }
+
+    const now = Date.now();
+    const postId = await ctx.db.insert("forumPosts", {
+      challengeId: args.challengeId,
+      userId: user._id,
+      title: args.parentPostId ? undefined : args.title,
+      content: args.content.trim(),
+      parentPostId: args.parentPostId,
+      isPinned: false,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    const mentionedUserIds = extractMentionedUserIds(args.content);
+    if (mentionedUserIds.length > 0) {
+      await ctx.scheduler.runAfter(
+        0,
+        internalApi.mutations.forumPosts.sendMentionNotifications,
+        {
+          postId,
+          actorId: user._id,
+          challengeId: args.challengeId,
+          mentionedUserIds,
+        },
+      );
+    }
+
+    return postId;
+  },
+});
+
+/**
+ * Update a forum post on behalf of a user (API key authenticated).
+ */
+export const updateForumPostForUser = internalMutation({
+  args: {
+    userId: v.id("users"),
+    postId: v.id("forumPosts"),
+    title: v.optional(v.string()),
+    content: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const user = await ctx.db.get(args.userId);
+    if (!user) throw new Error("User not found");
+
+    const post = await ctx.db.get(args.postId);
+    if (!post || post.deletedAt) throw new Error("Post not found");
+
+    const isAuthor = post.userId === user._id;
+    let isAdmin = user.role === "admin";
+    if (!isAdmin) {
+      const challenge = await ctx.db.get(post.challengeId);
+      if (challenge && challenge.creatorId === user._id) {
+        isAdmin = true;
+      }
+    }
+    if (!isAdmin) {
+      const participation = await ctx.db
+        .query("userChallenges")
+        .withIndex("userChallengeUnique", (q) =>
+          q.eq("userId", user._id).eq("challengeId", post.challengeId)
+        )
+        .first();
+      if (participation?.role === "admin") {
+        isAdmin = true;
+      }
+    }
+
+    if (!isAuthor && !isAdmin) {
+      throw new Error("Not authorized to edit this post");
+    }
+
+    const updates: Record<string, unknown> = { updatedAt: Date.now() };
+    if (args.content !== undefined) {
+      if (!args.content.trim()) {
+        throw new Error("Post content cannot be empty");
+      }
+      updates.content = args.content.trim();
+    }
+    if (args.title !== undefined && !post.parentPostId) {
+      updates.title = args.title;
+    }
+
+    await ctx.db.patch(args.postId, updates);
+    return args.postId;
+  },
+});
+
+/**
+ * Soft-delete a forum post on behalf of a user (API key authenticated).
+ */
+export const removeForumPostForUser = internalMutation({
+  args: {
+    userId: v.id("users"),
+    postId: v.id("forumPosts"),
+  },
+  handler: async (ctx, args) => {
+    const user = await ctx.db.get(args.userId);
+    if (!user) throw new Error("User not found");
+
+    const post = await ctx.db.get(args.postId);
+    if (!post || post.deletedAt) throw new Error("Post not found");
+
+    const isAuthor = post.userId === user._id;
+    let isAdmin = user.role === "admin";
+    if (!isAdmin) {
+      const challenge = await ctx.db.get(post.challengeId);
+      if (challenge && challenge.creatorId === user._id) {
+        isAdmin = true;
+      }
+    }
+    if (!isAdmin) {
+      const participation = await ctx.db
+        .query("userChallenges")
+        .withIndex("userChallengeUnique", (q) =>
+          q.eq("userId", user._id).eq("challengeId", post.challengeId)
+        )
+        .first();
+      if (participation?.role === "admin") {
+        isAdmin = true;
+      }
+    }
+
+    if (!isAuthor && !isAdmin) {
+      throw new Error("Not authorized to delete this post");
+    }
+
+    await ctx.db.patch(args.postId, { deletedAt: Date.now() });
+    return { deleted: true };
+  },
+});
+
+/**
+ * Toggle upvote on a forum post on behalf of a user (API key authenticated).
+ */
+export const toggleForumUpvoteForUser = internalMutation({
+  args: {
+    userId: v.id("users"),
+    postId: v.id("forumPosts"),
+  },
+  handler: async (ctx, args) => {
+    const user = await ctx.db.get(args.userId);
+    if (!user) throw new Error("User not found");
+
+    const post = await ctx.db.get(args.postId);
+    if (!post || post.deletedAt) throw new Error("Post not found");
+
+    const existing = await ctx.db
+      .query("forumPostUpvotes")
+      .withIndex("postUserUnique", (q) =>
+        q.eq("postId", args.postId).eq("userId", user._id)
+      )
+      .first();
+
+    if (existing) {
+      await ctx.db.delete(existing._id);
+      return { upvoted: false };
+    } else {
+      await ctx.db.insert("forumPostUpvotes", {
+        postId: args.postId,
+        userId: user._id,
+        createdAt: Date.now(),
+      });
+      return { upvoted: true };
+    }
+  },
+});
+
+/**
+ * Toggle pin on a forum post on behalf of an admin (API key authenticated).
+ */
+export const toggleForumPinForUser = internalMutation({
+  args: {
+    userId: v.id("users"),
+    postId: v.id("forumPosts"),
+  },
+  handler: async (ctx, args) => {
+    const user = await ctx.db.get(args.userId);
+    if (!user) throw new Error("User not found");
+
+    const post = await ctx.db.get(args.postId);
+    if (!post || post.deletedAt) throw new Error("Post not found");
+
+    if (post.parentPostId) {
+      throw new Error("Only top-level posts can be pinned");
+    }
+
+    const challenge = await ctx.db.get(post.challengeId);
+    if (!challenge) throw new Error("Challenge not found");
+
+    let isAdmin = user.role === "admin" || challenge.creatorId === user._id;
+    if (!isAdmin) {
+      const participation = await ctx.db
+        .query("userChallenges")
+        .withIndex("userChallengeUnique", (q) =>
+          q.eq("userId", user._id).eq("challengeId", post.challengeId)
+        )
+        .first();
+      isAdmin = participation?.role === "admin";
+    }
+
+    if (!isAdmin) {
+      throw new Error("Only admins can pin posts");
+    }
+
+    await ctx.db.patch(args.postId, { isPinned: !post.isPinned });
+    return { isPinned: !post.isPinned };
   },
 });
