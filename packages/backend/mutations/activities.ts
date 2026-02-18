@@ -7,6 +7,7 @@ import type { Id } from "../_generated/dataModel";
 import { dateOnlyToUtcMs, coerceDateOnlyToString, formatDateOnlyFromUtcMs } from "../lib/dateOnly";
 import { getChallengeWeekNumber } from "../lib/weeks";
 import { notDeleted } from "../lib/activityFilters";
+import { computeCriteriaProgress } from "../lib/achievements";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -393,15 +394,15 @@ export const log = mutation({
 });
 
 /**
- * Check if user has earned any achievements and award them
+ * Check if user has earned any achievements and award them.
+ * Handles all four criteria types: count, cumulative, distinct_types, one_of_each.
  */
 async function checkAndAwardAchievements(
   ctx: any,
   userId: any,
   challengeId: any,
-  triggeringActivityId: any
+  _triggeringActivityId: any
 ) {
-  // Get all achievements for this challenge
   const achievements = await ctx.db
     .query("achievements")
     .withIndex("challengeId", (q: any) => q.eq("challengeId", challengeId))
@@ -409,8 +410,17 @@ async function checkAndAwardAchievements(
 
   if (achievements.length === 0) return;
 
+  // Fetch all non-deleted activities once to avoid N+1 per achievement
+  const allActivities = await ctx.db
+    .query("activities")
+    .withIndex("userId", (q: any) => q.eq("userId", userId))
+    .filter((q: any) =>
+      q.and(q.eq(q.field("challengeId"), challengeId), notDeleted(q))
+    )
+    .collect();
+
   for (const achievement of achievements) {
-    // Check if already earned (for once_per_challenge)
+    // Guard: skip if already earned (once_per_challenge)
     if (achievement.frequency === "once_per_challenge") {
       const existing = await ctx.db
         .query("userAchievements")
@@ -418,11 +428,10 @@ async function checkAndAwardAchievements(
           q.eq("userId", userId).eq("achievementId", achievement._id)
         )
         .first();
-
       if (existing) continue;
     }
 
-    // For once_per_week, check if earned this week
+    // Guard: skip if already earned this week (once_per_week)
     if (achievement.frequency === "once_per_week") {
       const weekStart = getWeekStart(Date.now());
       const existing = await ctx.db
@@ -432,132 +441,64 @@ async function checkAndAwardAchievements(
         )
         .filter((q: any) => q.gte(q.field("earnedAt"), weekStart))
         .first();
-
       if (existing) continue;
     }
 
-    // Get qualifying activities
-    const qualifyingActivities = await getQualifyingActivities(
+    // Evaluate criteria using the shared helper
+    const { currentCount, requiredCount, qualifyingActivityIds } =
+      computeCriteriaProgress(allActivities, achievement.criteria);
+
+    if (currentCount < requiredCount) continue;
+
+    // Award the achievement
+    const bonusActivityType = await getOrCreateAchievementBonusType(
       ctx,
-      userId,
-      challengeId,
-      achievement.criteria
+      challengeId
     );
 
-    // Check if threshold met
-    if (qualifyingActivities.length >= achievement.criteria.requiredCount) {
-      // Award the achievement
-      const qualifyingIds = qualifyingActivities
-        .slice(0, achievement.criteria.requiredCount)
-        .map((a: any) => a._id);
+    const bonusActivityId = await ctx.db.insert("activities", {
+      userId,
+      challengeId,
+      activityTypeId: bonusActivityType._id,
+      loggedDate: Date.now(),
+      metrics: {
+        achievementId: achievement._id,
+        achievementName: achievement.name,
+      },
+      notes: `Achievement earned: ${achievement.name}`,
+      source: "manual",
+      pointsEarned: achievement.bonusPoints,
+      flagged: false,
+      adminCommentVisibility: "internal",
+      resolutionStatus: "pending",
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
 
-      // Create a bonus activity for the achievement points
-      const bonusActivityType = await getOrCreateAchievementBonusType(ctx, challengeId);
+    await ctx.db.insert("userAchievements", {
+      challengeId,
+      userId,
+      achievementId: achievement._id,
+      earnedAt: Date.now(),
+      qualifyingActivityIds,
+      bonusActivityId,
+    });
 
-      const bonusActivityId = await ctx.db.insert("activities", {
-        userId,
-        challengeId,
-        activityTypeId: bonusActivityType._id,
-        loggedDate: Date.now(),
-        metrics: { achievementId: achievement._id, achievementName: achievement.name },
-        notes: `Achievement earned: ${achievement.name}`,
-        source: "manual",
-        pointsEarned: achievement.bonusPoints,
-        flagged: false,
-        adminCommentVisibility: "internal",
-        resolutionStatus: "pending",
-        createdAt: Date.now(),
+    // Credit bonus points to participation
+    const participation = await ctx.db
+      .query("userChallenges")
+      .withIndex("userChallengeUnique", (q: any) =>
+        q.eq("userId", userId).eq("challengeId", challengeId)
+      )
+      .first();
+
+    if (participation) {
+      await ctx.db.patch(participation._id, {
+        totalPoints: participation.totalPoints + achievement.bonusPoints,
         updatedAt: Date.now(),
       });
-
-      // Record the user achievement
-      await ctx.db.insert("userAchievements", {
-        challengeId,
-        userId,
-        achievementId: achievement._id,
-        earnedAt: Date.now(),
-        qualifyingActivityIds: qualifyingIds,
-        bonusActivityId,
-      });
-
-      // Update user's total points
-      const participation = await ctx.db
-        .query("userChallenges")
-        .withIndex("userChallengeUnique", (q: any) =>
-          q.eq("userId", userId).eq("challengeId", challengeId)
-        )
-        .first();
-
-      if (participation) {
-        await ctx.db.patch(participation._id, {
-          totalPoints: participation.totalPoints + achievement.bonusPoints,
-          updatedAt: Date.now(),
-        });
-      }
     }
   }
-}
-
-// Map achievement metric names to activity metric keys
-const ACHIEVEMENT_METRIC_KEYS: Record<string, string[]> = {
-  distance_miles: ["miles", "distance_miles", "distance"],
-  distance_km: ["kilometers", "km", "distance_km", "distance"],
-  duration_minutes: ["minutes", "duration_minutes", "duration"],
-};
-
-/**
- * Get the metric value from activity metrics using various possible keys
- */
-function getMetricValue(metrics: Record<string, unknown>, metricName: string): number {
-  const possibleKeys = ACHIEVEMENT_METRIC_KEYS[metricName] || [metricName];
-
-  for (const key of possibleKeys) {
-    const value = Number(metrics[key]);
-    if (value > 0) {
-      return value;
-    }
-  }
-
-  return 0;
-}
-
-/**
- * Get activities that qualify for an achievement
- */
-async function getQualifyingActivities(
-  ctx: any,
-  userId: any,
-  challengeId: any,
-  criteria: {
-    activityTypeIds: any[];
-    metric: string;
-    threshold: number;
-    requiredCount: number;
-  }
-) {
-  const allActivities = await ctx.db
-    .query("activities")
-    .withIndex("userId", (q: any) => q.eq("userId", userId))
-    .filter((q: any) =>
-      q.and(
-        q.eq(q.field("challengeId"), challengeId),
-        notDeleted(q)
-      )
-    )
-    .collect();
-
-  return allActivities.filter((activity: any) => {
-    // Check if activity type matches
-    if (!criteria.activityTypeIds.includes(activity.activityTypeId)) {
-      return false;
-    }
-
-    // Check if metric meets threshold
-    const metrics = activity.metrics ?? {};
-    const metricValue = getMetricValue(metrics, criteria.metric);
-
-    return metricValue >= criteria.threshold;
-  });
 }
 
 /**

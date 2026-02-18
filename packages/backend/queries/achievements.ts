@@ -1,10 +1,23 @@
-import { query } from "../_generated/server";
+import { internalQuery, query } from "../_generated/server";
 import { v } from "convex/values";
 import { getCurrentUser } from "../lib/ids";
 import { notDeleted } from "../lib/activityFilters";
+import { computeCriteriaProgress } from "../lib/achievements";
 
 /**
- * Get all achievements for a challenge
+ * Internal lookup by ID — used by HTTP API handlers (update/delete).
+ */
+export const getByIdInternal = internalQuery({
+  args: {
+    achievementId: v.id("achievements"),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.achievementId);
+  },
+});
+
+/**
+ * Get all achievements for a challenge (with resolved activity type names).
  */
 export const getByChallengeId = query({
   args: {
@@ -16,13 +29,11 @@ export const getByChallengeId = query({
       .withIndex("challengeId", (q) => q.eq("challengeId", args.challengeId))
       .collect();
 
-    // Get activity type names for each achievement
     const result = await Promise.all(
       achievements.map(async (achievement) => {
         const activityTypes = await Promise.all(
           achievement.criteria.activityTypeIds.map((id) => ctx.db.get(id))
         );
-
         return {
           ...achievement,
           activityTypeNames: activityTypes
@@ -37,7 +48,66 @@ export const getByChallengeId = query({
 });
 
 /**
- * Get user's progress on achievements for a challenge
+ * Internal helper: build per-achievement progress for a given user.
+ */
+async function buildUserProgress(
+  ctx: any,
+  userId: any,
+  challengeId: any
+) {
+  const achievements = await ctx.db
+    .query("achievements")
+    .withIndex("challengeId", (q: any) => q.eq("challengeId", challengeId))
+    .collect();
+
+  // All non-deleted activities for this user in the challenge
+  const activities = await ctx.db
+    .query("activities")
+    .withIndex("userId", (q: any) => q.eq("userId", userId))
+    .filter((q: any) =>
+      q.and(q.eq(q.field("challengeId"), challengeId), notDeleted(q))
+    )
+    .collect();
+
+  // Earned achievements
+  const userAchievements = await ctx.db
+    .query("userAchievements")
+    .withIndex("userId", (q: any) => q.eq("userId", userId))
+    .filter((q: any) => q.eq(q.field("challengeId"), challengeId))
+    .collect();
+
+  const earnedMap = new Map<string, any>(
+    userAchievements.map((ua: any) => [ua.achievementId as string, ua])
+  );
+
+  return achievements.map((achievement: any) => {
+    const { currentCount, requiredCount } = computeCriteriaProgress(
+      activities,
+      achievement.criteria
+    );
+
+    const earned = earnedMap.get(achievement._id);
+    const criteriaType: string = achievement.criteria.criteriaType ?? "count";
+
+    return {
+      achievementId: achievement._id,
+      name: achievement.name,
+      description: achievement.description,
+      bonusPoints: achievement.bonusPoints,
+      frequency: achievement.frequency,
+      criteriaType,
+      // Numeric progress (semantics depend on criteriaType)
+      currentCount,
+      requiredCount,
+      isEarned: !!earned,
+      earnedAt: earned?.earnedAt,
+    };
+  });
+}
+
+/**
+ * Get the logged-in user's progress on all achievements for a challenge.
+ * Uses Clerk/Better Auth identity.
  */
 export const getUserProgress = query({
   args: {
@@ -45,60 +115,54 @@ export const getUserProgress = query({
   },
   handler: async (ctx, args) => {
     const user = await getCurrentUser(ctx);
-    if (!user) {
-      return [];
-    }
+    if (!user) return [];
+    return buildUserProgress(ctx, user._id, args.challengeId);
+  },
+});
 
-    // Get all achievements for this challenge
-    const achievements = await ctx.db
-      .query("achievements")
-      .withIndex("challengeId", (q) => q.eq("challengeId", args.challengeId))
-      .collect();
+/**
+ * Internal variant — takes userId explicitly (used by HTTP API handlers).
+ */
+export const getUserProgressInternal = internalQuery({
+  args: {
+    challengeId: v.id("challenges"),
+    userId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    return buildUserProgress(ctx, args.userId, args.challengeId);
+  },
+});
 
-    // Get user's activities
-    const activities = await ctx.db
-      .query("activities")
-      .withIndex("userId", (q) => q.eq("userId", user._id))
-      .filter((q) =>
-        q.and(
-          q.eq(q.field("challengeId"), args.challengeId),
-          notDeleted(q)
-        )
-      )
-      .collect();
-
-    // Get user's earned achievements
+/**
+ * Get achievements earned by a specific user (for viewing other profiles).
+ * Returns only earned achievements — no in-progress data.
+ */
+export const getEarnedByUser = query({
+  args: {
+    challengeId: v.id("challenges"),
+    userId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
     const userAchievements = await ctx.db
       .query("userAchievements")
-      .withIndex("userId", (q) => q.eq("userId", user._id))
+      .withIndex("userId", (q) => q.eq("userId", args.userId))
       .filter((q) => q.eq(q.field("challengeId"), args.challengeId))
       .collect();
 
-    const earnedIds = new Set(userAchievements.map((ua) => ua.achievementId));
+    const results = await Promise.all(
+      userAchievements.map(async (ua) => {
+        const achievement = await ctx.db.get(ua.achievementId);
+        if (!achievement) return null;
+        return {
+          achievementId: achievement._id,
+          name: achievement.name,
+          description: achievement.description,
+          bonusPoints: achievement.bonusPoints,
+          earnedAt: ua.earnedAt,
+        };
+      })
+    );
 
-    // Calculate progress for each achievement
-    return achievements.map((achievement) => {
-      const qualifyingActivities = activities.filter((activity) => {
-        if (!achievement.criteria.activityTypeIds.includes(activity.activityTypeId)) {
-          return false;
-        }
-
-        const metrics = (activity.metrics ?? {}) as Record<string, unknown>;
-        const metricValue = Number(metrics[achievement.criteria.metric]) || 0;
-
-        return metricValue >= achievement.criteria.threshold;
-      });
-
-      return {
-        achievementId: achievement._id,
-        name: achievement.name,
-        description: achievement.description,
-        bonusPoints: achievement.bonusPoints,
-        requiredCount: achievement.criteria.requiredCount,
-        currentCount: qualifyingActivities.length,
-        isEarned: earnedIds.has(achievement._id),
-        earnedAt: userAchievements.find((ua) => ua.achievementId === achievement._id)?.earnedAt,
-      };
-    });
+    return results.filter(Boolean);
   },
 });

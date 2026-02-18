@@ -1,6 +1,37 @@
 import { mutation } from "../_generated/server";
 import { v } from "convex/values";
 
+// Shared criteria validator — mirrors the schema union
+export const criteriaValidator = v.union(
+  // Count-based (existing behavior). criteriaType is optional for backward compat.
+  v.object({
+    criteriaType: v.optional(v.literal("count")),
+    activityTypeIds: v.array(v.id("activityTypes")),
+    metric: v.string(),
+    threshold: v.number(),
+    requiredCount: v.number(),
+  }),
+  // Cumulative: sum of metric across matching types >= threshold
+  v.object({
+    criteriaType: v.literal("cumulative"),
+    activityTypeIds: v.array(v.id("activityTypes")),
+    metric: v.string(),
+    threshold: v.number(),
+    unitConversions: v.optional(v.record(v.string(), v.number())),
+  }),
+  // Distinct types: at least 1 activity from N different types in the list
+  v.object({
+    criteriaType: v.literal("distinct_types"),
+    activityTypeIds: v.array(v.id("activityTypes")),
+    requiredCount: v.number(),
+  }),
+  // One of each: at least 1 activity from every type in the list
+  v.object({
+    criteriaType: v.literal("one_of_each"),
+    activityTypeIds: v.array(v.id("activityTypes")),
+  }),
+);
+
 /**
  * Create a new achievement
  */
@@ -10,12 +41,7 @@ export const createAchievement = mutation({
     name: v.string(),
     description: v.string(),
     bonusPoints: v.number(),
-    criteria: v.object({
-      activityTypeIds: v.array(v.id("activityTypes")),
-      metric: v.string(),
-      threshold: v.number(),
-      requiredCount: v.number(),
-    }),
+    criteria: criteriaValidator,
     frequency: v.union(
       v.literal("once_per_challenge"),
       v.literal("once_per_week"),
@@ -49,14 +75,7 @@ export const updateAchievement = mutation({
     name: v.optional(v.string()),
     description: v.optional(v.string()),
     bonusPoints: v.optional(v.number()),
-    criteria: v.optional(
-      v.object({
-        activityTypeIds: v.array(v.id("activityTypes")),
-        metric: v.string(),
-        threshold: v.number(),
-        requiredCount: v.number(),
-      })
-    ),
+    criteria: v.optional(criteriaValidator),
     frequency: v.optional(
       v.union(
         v.literal("once_per_challenge"),
