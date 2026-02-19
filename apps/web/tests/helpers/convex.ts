@@ -76,6 +76,46 @@ export const createTestParticipation = async (
   });
 };
 
+export const createTestActivityType = async (
+  t: ReturnType<typeof createTestContext>,
+  challengeId: string,
+  overrides: Partial<DataModel["activityTypes"]["document"]> = {}
+) => {
+  return t.run(async (ctx: GenericMutationCtx<DataModel>) => {
+    return ctx.db.insert("activityTypes", {
+      challengeId: challengeId as Id<"challenges">,
+      name: "Test Activity",
+      scoringConfig: { type: "fixed", basePoints: 10 },
+      contributesToStreak: true,
+      isNegative: false,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      ...overrides,
+    });
+  });
+};
+
+export const createTestAchievement = async (
+  t: ReturnType<typeof createTestContext>,
+  challengeId: string,
+  criteria: DataModel["achievements"]["document"]["criteria"],
+  overrides: Partial<DataModel["achievements"]["document"]> = {}
+) => {
+  return t.run(async (ctx: GenericMutationCtx<DataModel>) => {
+    return ctx.db.insert("achievements", {
+      challengeId: challengeId as Id<"challenges">,
+      name: "Test Achievement",
+      description: "A test achievement",
+      bonusPoints: 100,
+      criteria,
+      frequency: "once_per_challenge",
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      ...overrides,
+    });
+  });
+};
+
 export const createTestPaymentConfig = async (
   t: ReturnType<typeof createTestContext>,
   challengeId: string,
