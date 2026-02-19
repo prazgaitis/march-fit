@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation } from "convex/react";
+import { useAction, useMutation } from "convex/react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
 import { useRouter } from "next/navigation";
@@ -38,7 +38,7 @@ export function InviteJoinCta({
 }: InviteJoinCtaProps) {
   const router = useRouter();
   const joinChallenge = useMutation(api.mutations.participations.join);
-  const createCheckoutSession = useMutation(api.mutations.payments.createCheckoutSession);
+  const createCheckoutSession = useAction(api.actions.payments.createCheckoutSession);
 
   const [isJoining, setIsJoining] = useState(false);
   const [error, setError] = useState<string | null>(null);

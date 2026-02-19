@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMutation, useQuery } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "@repo/backend";
 import type { Id, Doc } from "@repo/backend/_generated/dataModel";
 import { Button } from "@/components/ui/button";
@@ -73,7 +73,7 @@ export function ChallengePageContent({
   const [activeTab, setActiveTab] = useState<Tab>("details");
 
   const joinChallenge = useMutation(api.mutations.participations.join);
-  const createCheckoutSession = useMutation(api.mutations.payments.createCheckoutSession);
+  const createCheckoutSession = useAction(api.actions.payments.createCheckoutSession);
 
   const paymentInfo = useQuery(api.queries.paymentConfig.getPublicPaymentInfo, {
     challengeId: challenge.id as Id<"challenges">,

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
-import { useMutation } from "convex/react";
+import { useAction } from "convex/react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
 import { CheckCircle, Loader2, XCircle } from "lucide-react";
@@ -19,7 +19,7 @@ export default function PaymentSuccessPage() {
   const [status, setStatus] = useState<"verifying" | "success" | "error">("verifying");
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  const verifyCheckoutSession = useMutation(api.mutations.payments.verifyCheckoutSession);
+  const verifyCheckoutSession = useAction(api.actions.payments.verifyCheckoutSession);
 
   useEffect(() => {
     if (!sessionId) {

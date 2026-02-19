@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation, useQuery } from "convex/react";
+import { useAction, useQuery } from "convex/react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
 import { AlertTriangle, CreditCard, Loader2 } from "lucide-react";
@@ -28,7 +28,7 @@ export function PaymentRequiredBanner({ challengeId }: PaymentRequiredBannerProp
     }
   );
 
-  const createCheckoutSession = useMutation(api.mutations.payments.createCheckoutSession);
+  const createCheckoutSession = useAction(api.actions.payments.createCheckoutSession);
 
   const requiresPayment = Boolean(
     paymentInfo?.requiresPayment && paymentInfo.priceInCents > 0
