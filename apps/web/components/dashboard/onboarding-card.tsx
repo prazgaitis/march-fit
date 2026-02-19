@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation, useQuery } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
 import { Button } from "@/components/ui/button";
@@ -429,8 +429,8 @@ function BioForm({
 function PaymentStep({ challengeId }: { challengeId: string }) {
   const [isRedirecting, setIsRedirecting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const createCheckoutSession = useMutation(
-    api.mutations.payments.createCheckoutSession
+  const createCheckoutSession = useAction(
+    api.actions.payments.createCheckoutSession
   );
 
   const handlePay = async () => {

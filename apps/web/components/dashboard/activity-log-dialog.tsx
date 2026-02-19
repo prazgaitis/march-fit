@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, Calendar, Check, CheckCircle, ChevronsUpDown, CreditCard, ImagePlus, Loader2, Lock, PlusCircle, X, Zap } from "lucide-react";
-import { useMutation, useQuery } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "@repo/backend";
 import type { Id, Doc } from "@repo/backend/_generated/dataModel";
 
@@ -133,7 +133,7 @@ export function ActivityLogDialog({ challengeId, challengeStartDate, trigger }: 
   );
 
   const logActivity = useMutation(api.mutations.activities.log);
-  const createCheckoutSession = useMutation(api.mutations.payments.createCheckoutSession);
+  const createCheckoutSession = useAction(api.actions.payments.createCheckoutSession);
   const generateUploadUrl = useMutation(api.mutations.activities.generateUploadUrl);
 
   const paymentInfo = useQuery(api.queries.paymentConfig.getPublicPaymentInfo, {

@@ -3,13 +3,8 @@ import { schema } from "@repo/backend";
 import { GenericMutationCtx } from "convex/server";
 import { DataModel, Id } from "@repo/backend/_generated/dataModel";
 
-
-// Import all backend modules lazily from the packages/backend directory
-// This runs in Vite/Vitest context which supports import.meta.glob
 const modulesRaw = import.meta.glob("../../../../packages/backend/**/*.{ts,js}");
 
-// Normalize module keys to match what convex-test expects
-// e.g., "../../../../packages/backend/mutations/activities.ts" -> "mutations/activities.ts"
 const modules = Object.fromEntries(
   Object.entries(modulesRaw).map(([key, value]) => {
     const normalizedKey = key.replace(/^.*\/packages\/backend\//, "");
@@ -21,10 +16,12 @@ export const createTestContext = () => {
   return convexTest(schema, modules);
 };
 
-// Helper to create a user in the test database
-export const createTestUser = async (t: ReturnType<typeof createTestContext>, overrides: Partial<DataModel["users"]["document"]> = {}) => {
-  const userId = await t.run(async (ctx: GenericMutationCtx<DataModel>) => {
-    return await ctx.db.insert("users", {
+export const createTestUser = async (
+  t: ReturnType<typeof createTestContext>,
+  overrides: Partial<DataModel["users"]["document"]> = {}
+) => {
+  return t.run(async (ctx: GenericMutationCtx<DataModel>) => {
+    return ctx.db.insert("users", {
       email: "test@example.com",
       name: "Test User",
       username: "testuser",
@@ -34,13 +31,15 @@ export const createTestUser = async (t: ReturnType<typeof createTestContext>, ov
       ...overrides,
     });
   });
-  return userId;
 };
 
-// Helper to create a challenge
-export const createTestChallenge = async (t: ReturnType<typeof createTestContext>, creatorId: string, overrides: Partial<DataModel["challenges"]["document"]> = {}) => {
-  const challengeId = await t.run(async (ctx: GenericMutationCtx<DataModel>) => {
-    return await ctx.db.insert("challenges", {
+export const createTestChallenge = async (
+  t: ReturnType<typeof createTestContext>,
+  creatorId: string,
+  overrides: Partial<DataModel["challenges"]["document"]> = {}
+) => {
+  return t.run(async (ctx: GenericMutationCtx<DataModel>) => {
+    return ctx.db.insert("challenges", {
       name: "Test Challenge",
       description: "A test challenge",
       creatorId: creatorId as Id<"users">,
@@ -54,10 +53,29 @@ export const createTestChallenge = async (t: ReturnType<typeof createTestContext
       ...overrides,
     });
   });
-  return challengeId;
 };
 
-/** Create an activity type for a challenge. */
+export const createTestParticipation = async (
+  t: ReturnType<typeof createTestContext>,
+  userId: string,
+  challengeId: string,
+  overrides: Partial<DataModel["userChallenges"]["document"]> = {}
+) => {
+  return t.run(async (ctx: GenericMutationCtx<DataModel>) => {
+    return ctx.db.insert("userChallenges", {
+      userId: userId as Id<"users">,
+      challengeId: challengeId as Id<"challenges">,
+      joinedAt: Date.now(),
+      totalPoints: 0,
+      currentStreak: 0,
+      modifierFactor: 1,
+      paymentStatus: "paid",
+      updatedAt: Date.now(),
+      ...overrides,
+    });
+  });
+};
+
 export const createTestActivityType = async (
   t: ReturnType<typeof createTestContext>,
   challengeId: string,
@@ -77,7 +95,6 @@ export const createTestActivityType = async (
   });
 };
 
-/** Create an achievement for a challenge. */
 export const createTestAchievement = async (
   t: ReturnType<typeof createTestContext>,
   challengeId: string,
@@ -99,22 +116,39 @@ export const createTestAchievement = async (
   });
 };
 
-/** Create a userChallenges (participation) record. */
-export const createTestParticipation = async (
+export const createTestPaymentConfig = async (
+  t: ReturnType<typeof createTestContext>,
+  challengeId: string,
+  overrides: Partial<DataModel["challengePaymentConfig"]["document"]> = {}
+) => {
+  return t.run(async (ctx: GenericMutationCtx<DataModel>) => {
+    return ctx.db.insert("challengePaymentConfig", {
+      challengeId: challengeId as Id<"challenges">,
+      testMode: true,
+      priceInCents: 3000,
+      currency: "usd",
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      ...overrides,
+    });
+  });
+};
+
+export const createTestPaymentRecord = async (
   t: ReturnType<typeof createTestContext>,
   userId: string,
   challengeId: string,
-  overrides: Partial<DataModel["userChallenges"]["document"]> = {}
+  overrides: Partial<DataModel["paymentRecords"]["document"]> = {}
 ) => {
   return t.run(async (ctx: GenericMutationCtx<DataModel>) => {
-    return ctx.db.insert("userChallenges", {
-      userId: userId as Id<"users">,
+    return ctx.db.insert("paymentRecords", {
       challengeId: challengeId as Id<"challenges">,
-      joinedAt: Date.now(),
-      totalPoints: 0,
-      currentStreak: 0,
-      modifierFactor: 1,
-      paymentStatus: "paid",
+      userId: userId as Id<"users">,
+      stripeCheckoutSessionId: "cs_test_" + Math.random().toString(36).slice(2),
+      amountInCents: 3000,
+      currency: "usd",
+      status: "pending",
+      createdAt: Date.now(),
       updatedAt: Date.now(),
       ...overrides,
     });
