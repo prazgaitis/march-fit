@@ -1,4 +1,4 @@
-import { mutation } from "../_generated/server";
+import { mutation, internalMutation } from "../_generated/server";
 import { v } from "convex/values";
 import type { Id } from "../_generated/dataModel";
 import { encryptKey } from "../lib/stripe";
@@ -162,5 +162,74 @@ export const deletePaymentConfig = mutation({
     await ctx.db.delete(config._id);
 
     return { success: true };
+  },
+});
+
+/**
+ * Internal version of savePaymentConfig for the HTTP API.
+ * Auth is handled by the HTTP layer (API key + admin check); this skips
+ * Convex identity validation so it can be called from httpAction context.
+ */
+export const savePaymentConfigInternal = internalMutation({
+  args: {
+    challengeId: v.id("challenges"),
+    stripeSecretKey: v.optional(v.string()),
+    stripePublishableKey: v.optional(v.string()),
+    stripeTestSecretKey: v.optional(v.string()),
+    stripeTestPublishableKey: v.optional(v.string()),
+    stripeWebhookSecret: v.optional(v.string()),
+    stripeTestWebhookSecret: v.optional(v.string()),
+    testMode: v.boolean(),
+    priceInCents: v.number(),
+    currency: v.optional(v.string()),
+    allowCustomAmount: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+
+    const existingConfig = await ctx.db
+      .query("challengePaymentConfig")
+      .withIndex("challengeId", (q) => q.eq("challengeId", args.challengeId))
+      .first();
+
+    const configData = {
+      challengeId: args.challengeId,
+      testMode: args.testMode,
+      priceInCents: args.priceInCents,
+      currency: args.currency || "usd",
+      allowCustomAmount: args.allowCustomAmount,
+      updatedAt: now,
+      stripeSecretKey: args.stripeSecretKey ? encryptKey(args.stripeSecretKey) : undefined,
+      stripePublishableKey: args.stripePublishableKey,
+      stripeTestSecretKey: args.stripeTestSecretKey ? encryptKey(args.stripeTestSecretKey) : undefined,
+      stripeTestPublishableKey: args.stripeTestPublishableKey,
+      stripeWebhookSecret: args.stripeWebhookSecret ? encryptKey(args.stripeWebhookSecret) : undefined,
+      stripeTestWebhookSecret: args.stripeTestWebhookSecret ? encryptKey(args.stripeTestWebhookSecret) : undefined,
+    };
+
+    if (existingConfig) {
+      const patchData: Record<string, any> = {
+        testMode: configData.testMode,
+        priceInCents: configData.priceInCents,
+        currency: configData.currency,
+        allowCustomAmount: configData.allowCustomAmount,
+        updatedAt: configData.updatedAt,
+      };
+      if (configData.stripeSecretKey) patchData.stripeSecretKey = configData.stripeSecretKey;
+      if (configData.stripePublishableKey) patchData.stripePublishableKey = configData.stripePublishableKey;
+      if (configData.stripeTestSecretKey) patchData.stripeTestSecretKey = configData.stripeTestSecretKey;
+      if (configData.stripeTestPublishableKey) patchData.stripeTestPublishableKey = configData.stripeTestPublishableKey;
+      if (configData.stripeWebhookSecret) patchData.stripeWebhookSecret = configData.stripeWebhookSecret;
+      if (configData.stripeTestWebhookSecret) patchData.stripeTestWebhookSecret = configData.stripeTestWebhookSecret;
+
+      await ctx.db.patch(existingConfig._id, patchData);
+      return { configId: existingConfig._id, updated: true };
+    } else {
+      const configId = await ctx.db.insert("challengePaymentConfig", {
+        ...configData,
+        createdAt: now,
+      });
+      return { configId, updated: false };
+    }
   },
 });

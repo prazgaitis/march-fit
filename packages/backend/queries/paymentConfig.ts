@@ -1,4 +1,4 @@
-import { query } from "../_generated/server";
+import { query, internalQuery } from "../_generated/server";
 import { v } from "convex/values";
 import { maskKey } from "../lib/stripe";
 
@@ -159,6 +159,40 @@ export const getPaymentStats = query({
       failedCount: failed.length,
       totalRevenueInCents: totalRevenue,
       currency: payments[0]?.currency || "usd",
+    };
+  },
+});
+
+/**
+ * Internal query: fetch raw payment config for a challenge.
+ * Used by HTTP API handlers (which handle auth at the HTTP layer).
+ */
+export const getPaymentConfigInternal = internalQuery({
+  args: {
+    challengeId: v.id("challenges"),
+  },
+  handler: async (ctx, args) => {
+    const config = await ctx.db
+      .query("challengePaymentConfig")
+      .withIndex("challengeId", (q) => q.eq("challengeId", args.challengeId))
+      .first();
+
+    if (!config) {
+      return null;
+    }
+
+    return {
+      priceInCents: config.priceInCents,
+      currency: config.currency,
+      testMode: config.testMode,
+      allowCustomAmount: config.allowCustomAmount ?? false,
+      hasLiveKeys: !!(config.stripeSecretKey && config.stripePublishableKey),
+      hasTestKeys: !!(config.stripeTestSecretKey && config.stripeTestPublishableKey),
+      hasWebhookSecret: !!config.stripeWebhookSecret,
+      hasTestWebhookSecret: !!config.stripeTestWebhookSecret,
+      // Publishable keys are public — safe to return
+      stripePublishableKey: config.stripePublishableKey ?? null,
+      stripeTestPublishableKey: config.stripeTestPublishableKey ?? null,
     };
   },
 });

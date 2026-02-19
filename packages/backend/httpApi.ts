@@ -899,6 +899,104 @@ async function handleDeleteAchievement(
   }
 }
 
+// ─── Payment Config ─────────────────────────────────────────────────────────
+
+async function handleSavePaymentConfig(
+  ctx: HttpCtx,
+  request: Request,
+  params: Record<string, string>
+): Promise<Response> {
+  const auth = await authenticateApiKey(ctx, request);
+  if (auth instanceof Response) return auth;
+
+  const challengeId = params.id as Id<"challenges">;
+  const isAdmin = await checkChallengeAdmin(
+    ctx,
+    auth.user._id,
+    challengeId,
+    auth.user
+  );
+  if (!isAdmin) {
+    return errorResponse("Not authorized - challenge admin required", 403);
+  }
+
+  const body = await parseJsonBody(request);
+  if (body instanceof Response) return body;
+
+  const {
+    stripeSecretKey,
+    stripePublishableKey,
+    stripeTestSecretKey,
+    stripeTestPublishableKey,
+    stripeWebhookSecret,
+    stripeTestWebhookSecret,
+    priceInCents,
+    currency,
+    testMode,
+    allowCustomAmount,
+  } = body;
+
+  if (priceInCents === undefined || priceInCents === null) {
+    return errorResponse("Missing required field: priceInCents", 400);
+  }
+  if (testMode === undefined || testMode === null) {
+    return errorResponse("Missing required field: testMode", 400);
+  }
+
+  try {
+    await ctx.runMutation(
+      internal.mutations.paymentConfig.savePaymentConfigInternal,
+      {
+        challengeId,
+        stripeSecretKey,
+        stripePublishableKey,
+        stripeTestSecretKey,
+        stripeTestPublishableKey,
+        stripeWebhookSecret,
+        stripeTestWebhookSecret,
+        priceInCents,
+        currency,
+        testMode,
+        allowCustomAmount,
+      }
+    );
+    return jsonResponse({ success: true });
+  } catch (err: any) {
+    return errorResponse(err.message || "Failed to save payment config", 400);
+  }
+}
+
+async function handleGetPaymentConfig(
+  ctx: HttpCtx,
+  request: Request,
+  params: Record<string, string>
+): Promise<Response> {
+  const auth = await authenticateApiKey(ctx, request);
+  if (auth instanceof Response) return auth;
+
+  const challengeId = params.id as Id<"challenges">;
+  const isAdmin = await checkChallengeAdmin(
+    ctx,
+    auth.user._id,
+    challengeId,
+    auth.user
+  );
+  if (!isAdmin) {
+    return errorResponse("Not authorized - challenge admin required", 403);
+  }
+
+  const config = await ctx.runQuery(
+    internal.queries.paymentConfig.getPaymentConfigInternal,
+    { challengeId }
+  );
+
+  if (!config) {
+    return jsonResponse({ config: null });
+  }
+
+  return jsonResponse({ config });
+}
+
 // ─── Activity Type Management ───────────────────────────────────────────────
 
 async function handleCreateActivityType(
@@ -1270,6 +1368,18 @@ const routes: RouteEntry[] = [
     method: "GET",
     pattern: "/api/v1/challenges/:id/flagged",
     handler: handleListFlagged,
+  },
+
+  // Payment config (admin)
+  {
+    method: "POST",
+    pattern: "/api/v1/challenges/:id/payment-config",
+    handler: handleSavePaymentConfig,
+  },
+  {
+    method: "GET",
+    pattern: "/api/v1/challenges/:id/payment-config",
+    handler: handleGetPaymentConfig,
   },
 
   // Forum
