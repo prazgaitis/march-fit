@@ -57,8 +57,14 @@ export function getHandler() {
 }
 
 export const betterAuthHandler = {
-  GET: (req: Request) => getHandler().GET(req),
-  POST: (req: Request) => getHandler().POST(req),
+  GET: async (req: Request) => {
+    const response = await getHandler().GET(req);
+    return response ?? new Response(null, { status: 404 });
+  },
+  POST: async (req: Request) => {
+    const response = await getHandler().POST(req);
+    return response ?? new Response(null, { status: 404 });
+  },
 };
 
 export async function isAuthenticated() {
