@@ -139,7 +139,7 @@ export const log = mutation({
       .first();
 
     if (!participation) {
-      throw new Error("You are not part of this challenge");
+      throw new ConvexError("You are not part of this challenge.");
     }
 
     const paymentConfig = await ctx.db
@@ -148,7 +148,7 @@ export const log = mutation({
       .first();
 
     if (isPaymentRequired(paymentConfig) && participation.paymentStatus !== "paid") {
-      throw new Error("Payment required to log activities");
+      throw new ConvexError("Please complete payment before logging activities.");
     }
 
     const challenge = await ctx.db.get(args.challengeId);
@@ -159,7 +159,7 @@ export const log = mutation({
     // Validate activity type
     const activityType = await ctx.db.get(args.activityTypeId);
     if (!activityType || activityType.challengeId !== args.challengeId) {
-      throw new Error("Activity type not found or does not belong to this challenge");
+      throw new ConvexError("This activity type is not available for this challenge.");
     }
 
     // Parse logged date for validation
@@ -169,8 +169,8 @@ export const log = mutation({
     const challengeStartStr = coerceDateOnlyToString(challenge.startDate);
     const loggedDateStr = formatDateOnlyFromUtcMs(loggedDateTs);
     if (loggedDateStr < challengeStartStr) {
-      throw new Error(
-        `Cannot log activities before the challenge starts on ${challengeStartStr}`
+      throw new ConvexError(
+        `This date is before the challenge start date (${challengeStartStr}).`
       );
     }
 
@@ -178,9 +178,11 @@ export const log = mutation({
     if (activityType.validWeeks && activityType.validWeeks.length > 0) {
       const weekNumber = getChallengeWeekNumber(challenge.startDate, loggedDateTs);
       if (!activityType.validWeeks.includes(weekNumber)) {
-        throw new Error(
-          `This activity type is only available during week(s) ${activityType.validWeeks.join(", ")}. ` +
-          `Current week: ${weekNumber}`
+        const weekLabel = activityType.validWeeks.length === 1
+          ? `week ${activityType.validWeeks[0]}`
+          : `weeks ${activityType.validWeeks.join(", ")}`;
+        throw new ConvexError(
+          `"${activityType.name}" is only available during ${weekLabel}. You're currently in week ${weekNumber}.`
         );
       }
     }
@@ -200,9 +202,10 @@ export const log = mutation({
         .collect();
 
       if (existingCount.length >= activityType.maxPerChallenge) {
-        throw new Error(
-          `You have already logged this activity ${existingCount.length} time(s). ` +
-          `Maximum allowed: ${activityType.maxPerChallenge}`
+        throw new ConvexError(
+          activityType.maxPerChallenge === 1
+            ? `You've already logged "${activityType.name}". It can only be logged once.`
+            : `You've reached the limit of ${activityType.maxPerChallenge} for "${activityType.name}".`
         );
       }
     }
@@ -272,7 +275,8 @@ export const log = mutation({
       ...(mediaTriggered ? [mediaTriggered] : []),
     ];
 
-    const pointsEarned = basePoints + totalBonusPoints;
+    const rawPoints = basePoints + totalBonusPoints;
+    const pointsEarned = activityType.isNegative ? -rawPoints : rawPoints;
 
     // Create activity
     const activityId = await ctx.db.insert("activities", {
@@ -600,7 +604,7 @@ export const flagActivity = mutation({
       .first();
 
     if (!participation) {
-      throw new Error("You are not part of this challenge");
+      throw new ConvexError("You are not part of this challenge.");
     }
 
     // Allow flagging your own activity (useful for testing/self-reporting)
@@ -674,11 +678,11 @@ export const editActivity = mutation({
     }
 
     if (activity.deletedAt) {
-      throw new Error("Cannot edit a deleted activity");
+      throw new ConvexError("This activity has been deleted and can no longer be edited.");
     }
 
     if (activity.userId !== user._id) {
-      throw new Error("Not authorized to edit this activity");
+      throw new ConvexError("You can only edit your own activities.");
     }
 
     // Determine which activity type to use
@@ -687,7 +691,7 @@ export const editActivity = mutation({
     if (args.activityTypeId && args.activityTypeId !== activity.activityTypeId) {
       activityType = await ctx.db.get(args.activityTypeId);
       if (!activityType || activityType.challengeId !== activity.challengeId) {
-        throw new Error("Activity type not found or does not belong to the same challenge");
+        throw new ConvexError("This activity type is not available for this challenge.");
       }
     } else {
       activityType = await ctx.db.get(activity.activityTypeId);
@@ -762,7 +766,8 @@ export const editActivity = mutation({
       ...(mediaTriggered ? [mediaTriggered] : []),
     ];
 
-    const newPoints = basePoints + totalBonusPoints;
+    const rawNewPoints = basePoints + totalBonusPoints;
+    const newPoints = activityType.isNegative ? -rawNewPoints : rawNewPoints;
     const oldPoints = activity.pointsEarned;
 
     // Update participation totalPoints
@@ -827,7 +832,7 @@ export const remove = mutation({
       challenge.creatorId === actor._id ||
       activity.userId === actor._id;
     if (!canDelete) {
-      throw new Error("Not authorized to delete activity");
+      throw new ConvexError("You don't have permission to delete this activity.");
     }
 
     // Update participation points

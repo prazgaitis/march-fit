@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, Calendar, Check, CheckCircle, ChevronsUpDown, CreditCard, ImagePlus, Loader2, Lock, PlusCircle, X, Zap } from "lucide-react";
 import { useAction, useMutation, useQuery } from "convex/react";
+import { ConvexError } from "convex/values";
 import { api } from "@repo/backend";
 import type { Id, Doc } from "@repo/backend/_generated/dataModel";
 
@@ -576,7 +577,13 @@ export function ActivityLogDialog({ challengeId, challengeStartDate, trigger }: 
       });
     } catch (error) {
       console.error(error);
-      setFormError(error instanceof Error ? error.message : "Something went wrong");
+      const message =
+        error instanceof ConvexError
+          ? (error.data as string)
+          : error instanceof Error
+            ? error.message
+            : "Something went wrong";
+      setFormError(message);
       setUploadProgress(null);
     } finally {
       setSubmitting(false);
@@ -712,7 +719,7 @@ export function ActivityLogDialog({ challengeId, challengeStartDate, trigger }: 
               <ResponsiveDialogBody className="space-y-4">
                 {formError ? (
                   <Alert variant="destructive">
-                    <AlertTitle>Submission error</AlertTitle>
+                    <AlertTriangle className="h-4 w-4" />
                     <AlertDescription>{formError}</AlertDescription>
                   </Alert>
                 ) : null}
