@@ -211,7 +211,8 @@ export const logActivityForUser = internalMutation({
       ...(mediaTriggered ? [mediaTriggered] : []),
     ];
 
-    const pointsEarned = basePoints + totalBonusPoints;
+    const rawPoints = basePoints + totalBonusPoints;
+    const pointsEarned = activityType.isNegative ? -rawPoints : rawPoints;
 
     const activityId = await ctx.db.insert("activities", {
       userId: args.userId,

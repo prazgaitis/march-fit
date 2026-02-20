@@ -63,7 +63,8 @@ export const rescoreZeroPointActivities = internalMutation({
       const { totalBonusPoints: mediaBonusPoints, triggeredBonus: mediaTriggered } =
         calculateMediaBonus(hasMedia);
 
-      const newPoints = basePoints + thresholdBonusPoints + mediaBonusPoints;
+      const rawPoints = basePoints + thresholdBonusPoints + mediaBonusPoints;
+      const newPoints = activityType.isNegative ? -rawPoints : rawPoints;
 
       if (newPoints > 0) {
         const allBonuses = [

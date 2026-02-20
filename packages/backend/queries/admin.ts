@@ -368,6 +368,7 @@ export const getScoringPreviewData = internalQuery({
         name: at.name,
         scoringConfig: at.scoringConfig as Record<string, unknown>,
         bonusThresholds: at.bonusThresholds,
+        isNegative: at.isNegative,
       })),
       integrationMappings: integrationMappings.map((im) => ({
         externalType: im.externalType,

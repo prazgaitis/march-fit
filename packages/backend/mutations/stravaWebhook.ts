@@ -143,7 +143,8 @@ export const createFromStrava = internalMutation({
       ...(mediaTriggered ? [mediaTriggered] : []),
     ];
 
-    const pointsEarned = basePoints + totalBonusPoints;
+    const rawPoints = basePoints + totalBonusPoints;
+    const pointsEarned = activityType.isNegative ? -rawPoints : rawPoints;
 
     // Check for existing activity
     const existing = await ctx.db
