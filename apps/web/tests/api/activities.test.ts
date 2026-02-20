@@ -271,8 +271,61 @@ describe('Activities Logic', () => {
       expect(result.pointsEarned).toBe(40);
     });
 
+    it('should apply negative sign when isNegative is true (e.g. Drinks penalty)', async () => {
+      const testEmail = "negative@example.com";
+      const userId = await createTestUser(t, { email: testEmail });
+      const tWithAuth = t.withIdentity({ subject: "negative-user-id", email: testEmail });
+      const challengeId = await createTestChallenge(t, userId);
+
+      const participationId = await t.run(async (ctx) => {
+        return await ctx.db.insert("userChallenges", {
+          userId,
+          challengeId,
+          joinedAt: Date.now(),
+          totalPoints: 100, // start at 100 so we can see subtraction clearly
+          currentStreak: 0,
+          modifierFactor: 1,
+          paymentStatus: "paid",
+          updatedAt: Date.now(),
+        });
+      });
+
+      // Drinks: -5 pts per drink, first 1 free per day, isNegative: true
+      const drinksTypeId = await t.run(async (ctx) => {
+        return await ctx.db.insert("activityTypes", {
+          challengeId,
+          name: 'Drinks',
+          scoringConfig: {
+            type: 'unit_based',
+            unit: 'drinks',
+            pointsPerUnit: 5,
+            dailyFreeUnits: 1,
+          },
+          contributesToStreak: false,
+          isNegative: true,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+      });
+
+      // Log 3 drinks: 1 free + 2 penalised = -10 pts
+      const result = await tWithAuth.mutation(api.mutations.activities.log, {
+        challengeId,
+        activityTypeId: drinksTypeId,
+        loggedDate: new Date('2024-01-15').toISOString(),
+        metrics: { drinks: 3 },
+        source: 'manual',
+      });
+
+      // pointsEarned should be negative
+      expect(result.pointsEarned).toBe(-10);
+
+      // participation totalPoints should decrease
+      const participation = await t.run(async (ctx) => ctx.db.get(participationId));
+      expect(participation?.totalPoints).toBe(90); // 100 - 10
+    });
+
     // TODO: Enable these tests once complex scoring logic is ported to Convex
-    it.skip('should handle positive and penalty activity scoring rules');
     it.skip('should reset the drinks allowance on a new day');
     it.skip('should handle variant-based scoring');
   });
