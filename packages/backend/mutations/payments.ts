@@ -4,6 +4,89 @@ import type { Id } from "../_generated/dataModel";
 import { getCurrentUser } from "../lib/ids";
 
 /**
+ * Clear a user's test payment data so they can re-test the payment flow.
+ * Only works when the challenge payment config is in test mode.
+ * Requires challenge admin permissions.
+ */
+export const clearTestPayment = mutation({
+  args: {
+    challengeId: v.id("challenges"),
+    userId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    // Auth: require challenge admin
+    const currentUser = await getCurrentUser(ctx);
+    if (!currentUser) {
+      throw new Error("Not authenticated");
+    }
+
+    const challenge = await ctx.db.get(args.challengeId);
+    if (!challenge) {
+      throw new Error("Challenge not found");
+    }
+
+    const isGlobalAdmin = currentUser.role === "admin";
+    const isCreator = challenge.creatorId === currentUser._id;
+    const adminParticipation = await ctx.db
+      .query("userChallenges")
+      .withIndex("userChallengeUnique", (q) =>
+        q.eq("userId", currentUser._id).eq("challengeId", args.challengeId)
+      )
+      .first();
+    const isChallengeAdmin = adminParticipation?.role === "admin";
+
+    if (!isGlobalAdmin && !isCreator && !isChallengeAdmin) {
+      throw new Error("Not authorized - challenge admin required");
+    }
+
+    // Verify test mode is enabled
+    const paymentConfig = await ctx.db
+      .query("challengePaymentConfig")
+      .withIndex("challengeId", (q) => q.eq("challengeId", args.challengeId))
+      .first();
+
+    if (!paymentConfig || !paymentConfig.testMode) {
+      throw new Error("Can only clear payments when test mode is enabled");
+    }
+
+    const now = Date.now();
+
+    // Reset payment status on the user's participation
+    const participation = await ctx.db
+      .query("userChallenges")
+      .withIndex("userChallengeUnique", (q) =>
+        q.eq("userId", args.userId).eq("challengeId", args.challengeId)
+      )
+      .first();
+
+    if (participation) {
+      await ctx.db.patch(participation._id, {
+        paymentStatus: "unpaid",
+        paymentReceivedAt: undefined,
+        paymentReference: undefined,
+        updatedAt: now,
+      });
+    }
+
+    // Delete all payment records for this user + challenge
+    const paymentRecords = await ctx.db
+      .query("paymentRecords")
+      .withIndex("challengeId", (q) => q.eq("challengeId", args.challengeId))
+      .collect();
+
+    const userPaymentRecords = paymentRecords.filter(
+      (r) => r.userId === args.userId
+    );
+
+    for (const record of userPaymentRecords) {
+      await ctx.db.delete(record._id);
+    }
+
+    return { success: true, deletedRecords: userPaymentRecords.length };
+  },
+});
+
+/**
  * Internal mutation: prepare a checkout by validating state and creating DB records.
  * Called by the createCheckoutSession action after it creates the Stripe session.
  */
