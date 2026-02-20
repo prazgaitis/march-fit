@@ -1,6 +1,7 @@
 import { Migrations } from "@convex-dev/migrations";
 import { components, internal } from "./_generated/api";
 import type { DataModel, Id } from "./_generated/dataModel";
+import { action } from "./_generated/server";
 import { coerceDateOnlyToString } from "./lib/dateOnly";
 
 export const migrations = new Migrations<DataModel>(components.migrations);
@@ -90,7 +91,22 @@ export const fixActivityTypeCategoriesAndOrder = migrations.define({
 });
 
 export const run = migrations.runner();
-export const runAll = migrations.runner([
-  internal.migrations.setCategorySortOrder,
-  internal.migrations.fixActivityTypeCategoriesAndOrder,
-]);
+
+export const runAll = action({
+  args: {},
+  handler: async (ctx) => {
+    // Add new migrations to the END of this array.
+    // The migrations component tracks state and skips completed ones.
+    const migrationsList = [
+      // Challenge date format normalization (2025)
+      internal.migrations.challengeDatesToDateOnly,
+
+      // Category sort order + activity type category fixes (2026-02)
+      internal.migrations.setCategorySortOrder,
+      internal.migrations.fixActivityTypeCategoriesAndOrder,
+    ];
+
+    await migrations.runSerially(ctx, migrationsList);
+    return { success: true, count: migrationsList.length };
+  },
+});
