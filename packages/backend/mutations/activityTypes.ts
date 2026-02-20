@@ -12,6 +12,7 @@ export const create = internalMutation({
     contributesToStreak: v.boolean(),
     isNegative: v.boolean(),
     categoryId: v.optional(v.id("categories")),
+    sortOrder: v.optional(v.number()),
     bonusThresholds: v.optional(
       v.array(
         v.object({
@@ -43,6 +44,7 @@ export const createActivityType = mutation({
     contributesToStreak: v.boolean(),
     isNegative: v.boolean(),
     categoryId: v.optional(v.id("categories")),
+    sortOrder: v.optional(v.number()),
     bonusThresholds: v.optional(
       v.array(
         v.object({
@@ -67,6 +69,7 @@ export const createActivityType = mutation({
       contributesToStreak: args.contributesToStreak,
       isNegative: args.isNegative,
       categoryId: args.categoryId,
+      sortOrder: args.sortOrder,
       bonusThresholds: args.bonusThresholds,
       maxPerChallenge: args.maxPerChallenge,
       validWeeks: args.validWeeks,
@@ -87,6 +90,7 @@ export const updateInternal = internalMutation({
     contributesToStreak: v.optional(v.boolean()),
     isNegative: v.optional(v.boolean()),
     categoryId: v.optional(v.id("categories")),
+    sortOrder: v.optional(v.number()),
     bonusThresholds: v.optional(
       v.array(
         v.object({
@@ -118,6 +122,7 @@ export const updateInternal = internalMutation({
     if (updates.contributesToStreak !== undefined) updateData.contributesToStreak = updates.contributesToStreak;
     if (updates.isNegative !== undefined) updateData.isNegative = updates.isNegative;
     if (updates.categoryId !== undefined) updateData.categoryId = updates.categoryId;
+    if (updates.sortOrder !== undefined) updateData.sortOrder = updates.sortOrder;
     if (updates.bonusThresholds !== undefined) updateData.bonusThresholds = updates.bonusThresholds;
     if (updates.maxPerChallenge !== undefined) updateData.maxPerChallenge = updates.maxPerChallenge;
     if (updates.validWeeks !== undefined) updateData.validWeeks = updates.validWeeks;
@@ -138,6 +143,7 @@ export const updateActivityType = mutation({
     contributesToStreak: v.optional(v.boolean()),
     isNegative: v.optional(v.boolean()),
     categoryId: v.optional(v.id("categories")),
+    sortOrder: v.optional(v.number()),
     bonusThresholds: v.optional(
       v.array(
         v.object({
@@ -170,6 +176,7 @@ export const updateActivityType = mutation({
     if (updates.contributesToStreak !== undefined) updateData.contributesToStreak = updates.contributesToStreak;
     if (updates.isNegative !== undefined) updateData.isNegative = updates.isNegative;
     if (updates.categoryId !== undefined) updateData.categoryId = updates.categoryId;
+    if (updates.sortOrder !== undefined) updateData.sortOrder = updates.sortOrder;
     if (updates.bonusThresholds !== undefined) updateData.bonusThresholds = updates.bonusThresholds;
     if (updates.maxPerChallenge !== undefined) updateData.maxPerChallenge = updates.maxPerChallenge;
     if (updates.validWeeks !== undefined) updateData.validWeeks = updates.validWeeks;

@@ -707,6 +707,8 @@ export const updateActivityTypeForUser = internalMutation({
     ),
     maxPerChallenge: v.optional(v.number()),
     validWeeks: v.optional(v.array(v.number())),
+    sortOrder: v.optional(v.number()),
+    categoryId: v.optional(v.id("categories")),
   },
   handler: async (ctx, args) => {
     const { userId, activityTypeId, ...updates } = args;
@@ -724,6 +726,8 @@ export const updateActivityTypeForUser = internalMutation({
     if (updates.bonusThresholds !== undefined) updateData.bonusThresholds = updates.bonusThresholds;
     if (updates.maxPerChallenge !== undefined) updateData.maxPerChallenge = updates.maxPerChallenge;
     if (updates.validWeeks !== undefined) updateData.validWeeks = updates.validWeeks;
+    if (updates.sortOrder !== undefined) updateData.sortOrder = updates.sortOrder;
+    if (updates.categoryId !== undefined) updateData.categoryId = updates.categoryId;
 
     await ctx.db.patch(activityTypeId, updateData);
     return { success: true };

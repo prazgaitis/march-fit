@@ -50,7 +50,7 @@ export default async function ActivityTypesPage({ params }: ActivityTypesPagePro
   }
 
   // Group activity types by category
-  const categoryMap = new Map<string, { _id: string; name: string }>(categories.map((c: { _id: string; name: string }) => [c._id, c]));
+  const categoryMap = new Map<string, { _id: string; name: string; sortOrder?: number }>(categories.map((c: { _id: string; name: string; sortOrder?: number }) => [c._id, c]));
 
   return (
     <DashboardLayoutWrapper
