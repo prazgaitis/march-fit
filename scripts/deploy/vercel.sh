@@ -1,6 +1,11 @@
 #!/bin/bash
 set -e
 
+# Vercel runs this from apps/web — navigate to monorepo root
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ROOT_DIR="${SCRIPT_DIR}/../.."
+cd "$ROOT_DIR"
+
 echo "📦 Deploying Convex and building web app..."
 cd packages/backend
 
