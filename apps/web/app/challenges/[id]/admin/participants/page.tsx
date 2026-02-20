@@ -9,9 +9,11 @@ import {
   ChevronDown,
   ChevronUp,
   Flame,
+  Loader2,
   Search,
   Trophy,
   User,
+  XCircle,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -38,7 +40,14 @@ export default function AdminParticipantsPage() {
   const [sortField, setSortField] = useState<SortField>("points");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
 
+  const [clearingUserId, setClearingUserId] = useState<string | null>(null);
+
   const updateRole = useMutation(api.mutations.participations.updateRole);
+  const clearTestPayment = useMutation(api.mutations.payments.clearTestPayment);
+
+  const paymentConfig = useQuery(api.queries.paymentConfig.getPaymentConfig, {
+    challengeId: challengeId as Id<"challenges">,
+  });
 
   const participants = useQuery(api.queries.challenges.getParticipants, {
     challengeId: challengeId as Id<"challenges">,
@@ -58,6 +67,25 @@ export default function AdminParticipantsPage() {
   }
 
   const requiresPayment = paymentInfo.requiresPayment;
+  const isTestMode = paymentConfig?.testMode ?? false;
+
+  const handleClearPayment = async (userId: string) => {
+    if (!confirm("Clear this user's payment data? They will need to pay again to rejoin.")) {
+      return;
+    }
+    setClearingUserId(userId);
+    try {
+      await clearTestPayment({
+        challengeId: challengeId as Id<"challenges">,
+        userId: userId as Id<"users">,
+      });
+    } catch (error) {
+      console.error("Failed to clear payment:", error);
+      alert(error instanceof Error ? error.message : "Failed to clear payment");
+    } finally {
+      setClearingUserId(null);
+    }
+  };
 
   // Filter by search
   const filtered = participants.filter((p: (typeof participants)[number]) => {
@@ -261,7 +289,21 @@ export default function AdminParticipantsPage() {
                     </span>
                   </div>
                 </div>
-                <div className="col-span-2 text-right">
+                <div className="col-span-2 flex items-center justify-end gap-2">
+                  {isTestMode && requiresPayment && participant.paymentStatus !== "unpaid" && (
+                    <button
+                      onClick={() => handleClearPayment(participant.user.id)}
+                      disabled={clearingUserId === participant.user.id}
+                      className="flex items-center gap-1 text-xs text-amber-400 hover:text-amber-300 hover:underline disabled:opacity-50"
+                    >
+                      {clearingUserId === participant.user.id ? (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      ) : (
+                        <XCircle className="h-3 w-3" />
+                      )}
+                      Clear Payment
+                    </button>
+                  )}
                   <button
                     onClick={() =>
                       updateRole({

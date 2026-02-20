@@ -13,6 +13,7 @@ import {
   DollarSign,
   Eye,
   EyeOff,
+  Info,
   Key,
   Loader2,
   Settings,
@@ -27,6 +28,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 type Tab = "config" | "history";
 
@@ -256,7 +263,30 @@ export default function PaymentsAdminPage() {
                 <TestTube className="h-5 w-5 text-amber-400" />
               </div>
               <div>
-                <div className="text-sm font-medium text-zinc-100">Test Mode</div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-sm font-medium text-zinc-100">Test Mode</span>
+                  {paymentConfig?.testMode && (
+                    <TooltipProvider delayDuration={0}>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Info className="h-3.5 w-3.5 cursor-help text-zinc-400 hover:text-zinc-200" />
+                        </TooltipTrigger>
+                        <TooltipContent
+                          side="right"
+                          className="max-w-xs bg-zinc-800 px-3 py-2 text-xs text-zinc-200 border border-zinc-700"
+                        >
+                          <p className="mb-1.5 font-medium">Stripe Test Card</p>
+                          <div className="space-y-0.5 font-mono text-[11px] text-zinc-300">
+                            <p>Card: 4242 4242 4242 4242</p>
+                            <p>Exp: any future date (e.g. 12/34)</p>
+                            <p>CVC: any 3 digits (e.g. 123)</p>
+                            <p>ZIP: any 5 digits (e.g. 12345)</p>
+                          </div>
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
+                </div>
                 <div className="text-xs text-zinc-500">
                   {paymentConfig?.testMode
                     ? "Using test keys - no real charges"
