@@ -68,6 +68,7 @@ export default defineSchema({
     contributesToStreak: v.boolean(),
     isNegative: v.boolean(),
     categoryId: v.optional(v.id("categories")),
+    sortOrder: v.optional(v.number()),
     // Threshold bonuses - auto-apply bonus points when metrics exceed thresholds
     bonusThresholds: v.optional(
       v.array(
@@ -253,6 +254,7 @@ export default defineSchema({
   categories: defineTable({
     name: v.string(),
     description: v.optional(v.string()),
+    sortOrder: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
   }).index("name", ["name"]),

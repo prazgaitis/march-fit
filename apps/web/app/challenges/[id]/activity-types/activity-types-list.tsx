@@ -38,6 +38,7 @@ interface BonusThreshold {
 
 interface ActivityType {
   _id: string;
+  _creationTime?: number;
   challengeId: string;
   name: string;
   description?: string;
@@ -45,6 +46,7 @@ interface ActivityType {
   contributesToStreak: boolean;
   isNegative: boolean;
   categoryId: string;
+  sortOrder?: number;
   bonusThresholds?: BonusThreshold[];
   maxPerChallenge?: number;
   validWeeks?: number[];
@@ -54,6 +56,7 @@ interface Category {
   _id: string;
   name: string;
   icon?: string;
+  sortOrder?: number;
 }
 
 interface ActivityTypesListProps {
@@ -135,20 +138,40 @@ export function ActivityTypesList({
   categoryMap,
   streakMinPoints,
 }: ActivityTypesListProps) {
-  // Group activity types by category
+  // Group activity types by category (skip uncategorized)
   const grouped = activityTypes.reduce(
     (acc, type) => {
-      const categoryId = type.categoryId || "uncategorized";
-      if (!acc[categoryId]) {
-        acc[categoryId] = [];
+      if (!type.categoryId) return acc;
+      if (!acc[type.categoryId]) {
+        acc[type.categoryId] = [];
       }
-      acc[categoryId].push(type);
+      acc[type.categoryId].push(type);
       return acc;
     },
     {} as Record<string, ActivityType[]>
   );
 
-  const categoryIds = Object.keys(grouped);
+  // Sort activity types within each category by sortOrder (nulls last), then _creationTime
+  for (const types of Object.values(grouped)) {
+    types.sort((a, b) => {
+      if (a.sortOrder != null && b.sortOrder != null) return a.sortOrder - b.sortOrder;
+      if (a.sortOrder != null) return -1;
+      if (b.sortOrder != null) return 1;
+      return (a._creationTime ?? 0) - (b._creationTime ?? 0);
+    });
+  }
+
+  // Sort category IDs by category sortOrder (nulls last)
+  const categoryIds = Object.keys(grouped).sort((a, b) => {
+    const catA = categoryMap.get(a);
+    const catB = categoryMap.get(b);
+    const orderA = catA?.sortOrder;
+    const orderB = catB?.sortOrder;
+    if (orderA != null && orderB != null) return orderA - orderB;
+    if (orderA != null) return -1;
+    if (orderB != null) return 1;
+    return 0;
+  });
 
   if (activityTypes.length === 0) {
     return (

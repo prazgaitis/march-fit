@@ -30,6 +30,8 @@
     "fix:workspaces": "manypkg fix",
     "syncpack:list": "pnpm dlx syncpack list-mismatches",
     "syncpack:fix": "pnpm dlx syncpack fix-mismatches",
+    "db:migrate": "pnpm -F backend exec npx convex run migrations:runAll",
+    "db:migrate:run": "pnpm -F backend exec npx convex run migrations:run",
     "db:seed": "pnpm -F backend reset",
     "db:seed:if-missing": "pnpm -F backend seed:if-missing",
     "db:export": "pnpm -F backend exec npx convex export --path ${CONVEX_EXPORT_PATH:-./scripts/seed-data/export.zip}",
