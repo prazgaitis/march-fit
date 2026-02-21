@@ -8,6 +8,7 @@ import {
 import { calculateActivityPoints, calculateThresholdBonuses, calculateMediaBonus } from "../lib/scoring";
 import { isPaymentRequired } from "../lib/payments";
 import { notDeleted } from "../lib/activityFilters";
+import { reportLatencyIfExceeded } from "../lib/latencyMonitoring";
 
 /**
  * Get user's active challenge participations
@@ -70,7 +71,9 @@ export const createFromStrava = internalMutation({
     stravaActivity: v.any(),
   },
   handler: async (ctx, args) => {
-    const stravaActivity = args.stravaActivity as StravaActivity;
+    const startedAt = Date.now();
+    try {
+      const stravaActivity = args.stravaActivity as StravaActivity;
 
     const userChallenge = await ctx.db
       .query("userChallenges")
@@ -257,7 +260,15 @@ export const createFromStrava = internalMutation({
       });
     }
 
-    return activityId;
+      return activityId;
+    } finally {
+      reportLatencyIfExceeded({
+        operation: "mutations.stravaWebhook.createFromStrava",
+        startedAt,
+        challengeId: String(args.challengeId),
+        userId: String(args.userId),
+      });
+    }
   },
 });
 
@@ -269,16 +280,18 @@ export const deleteFromStrava = internalMutation({
     externalId: v.string(),
   },
   handler: async (ctx, args) => {
-    // Find all activities with this external ID
-    const activities = await ctx.db
-      .query("activities")
-      .filter((q) =>
-        q.and(
-          q.eq(q.field("source"), "strava"),
-          q.eq(q.field("externalId"), args.externalId)
+    const startedAt = Date.now();
+    try {
+      // Find all activities with this external ID
+      const activities = await ctx.db
+        .query("activities")
+        .filter((q) =>
+          q.and(
+            q.eq(q.field("source"), "strava"),
+            q.eq(q.field("externalId"), args.externalId)
+          )
         )
-      )
-      .collect();
+        .collect();
 
     const now = Date.now();
     let deletedCount = 0;
@@ -309,6 +322,12 @@ export const deleteFromStrava = internalMutation({
       deletedCount += 1;
     }
 
-    return { deleted: deletedCount };
+      return { deleted: deletedCount };
+    } finally {
+      reportLatencyIfExceeded({
+        operation: "mutations.stravaWebhook.deleteFromStrava",
+        startedAt,
+      });
+    }
   },
 });
