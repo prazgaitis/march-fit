@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ActiveMiniGames } from '@/components/mini-games';
 import { OnboardingCard } from './onboarding-card';
 import { dateOnlyToUtcMs } from '@/lib/date-only';
+import { formatPoints } from '@/lib/points';
 import { cn } from '@/lib/utils';
 
 interface ChallengeSidebarProps {
@@ -28,7 +29,7 @@ export function ChallengeSidebar({ challengeId, currentUserId, challengeStartDat
             Status
           </div>
           <CardTitle className="text-2xl font-bold text-white">
-            {stats.totalPoints.toFixed(0)} total points
+            {formatPoints(stats.totalPoints)} total points
           </CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-2 gap-3 text-sm">
@@ -101,7 +102,7 @@ export function ChallengeSidebar({ challengeId, currentUserId, challengeStartDat
                     showName
                   >
                     <p className="text-xs text-zinc-500">
-                      {entry.totalPoints.toFixed(0)} pts · streak {entry.currentStreak}
+                      {formatPoints(entry.totalPoints)} pts · streak {entry.currentStreak}
                     </p>
                   </UserAvatar>
                 </div>

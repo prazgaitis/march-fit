@@ -1,8 +1,9 @@
 import { internalMutation } from "../_generated/server";
 import { v } from "convex/values";
-import { calculateActivityPoints, calculateThresholdBonuses, calculateMediaBonus } from "../lib/scoring";
+import { calculateFinalActivityScore } from "../lib/scoring";
 import { notDeleted } from "../lib/activityFilters";
 import { reportLatencyIfExceeded } from "../lib/latencyMonitoring";
+import { applyParticipationScoreDeltaAndRecomputeStreak } from "../lib/participationScoring";
 
 /**
  * Re-score Strava activities with 0 points that have valid metrics.
@@ -51,30 +52,23 @@ export const rescoreZeroPointActivities = internalMutation({
       const metrics = (activity.metrics ?? {}) as Record<string, unknown>;
       const loggedDate = new Date(activity.loggedDate);
 
-      const basePoints = await calculateActivityPoints(activityType, {
-        ctx,
-        metrics,
-        userId: activity.userId,
-        challengeId: args.challengeId,
-        loggedDate,
-      });
-
-      const { totalBonusPoints: thresholdBonusPoints, triggeredBonuses } =
-        calculateThresholdBonuses(activityType, metrics);
-
       const hasMedia = !!(activity.mediaIds?.length || activity.imageUrl);
-      const { totalBonusPoints: mediaBonusPoints, triggeredBonus: mediaTriggered } =
-        calculateMediaBonus(hasMedia);
+      const score = await calculateFinalActivityScore(
+        activityType,
+        {
+          ctx,
+          metrics,
+          userId: activity.userId,
+          challengeId: args.challengeId,
+          loggedDate,
+        },
+        {
+          includeMediaBonus: hasMedia,
+        }
+      );
+      const newPoints = score.pointsEarned;
 
-      const rawPoints = basePoints + thresholdBonusPoints + mediaBonusPoints;
-      const newPoints = activityType.isNegative ? -rawPoints : rawPoints;
-
-      if (newPoints > 0) {
-        const allBonuses = [
-          ...triggeredBonuses,
-          ...(mediaTriggered ? [mediaTriggered] : []),
-        ];
-
+      if (newPoints !== 0) {
         results.push({
           activityId: activity._id,
           userId: activity.userId,
@@ -87,7 +81,10 @@ export const rescoreZeroPointActivities = internalMutation({
         if (!args.dryRun) {
           await ctx.db.patch(activity._id, {
             pointsEarned: newPoints,
-            triggeredBonuses: allBonuses.length > 0 ? allBonuses : undefined,
+            triggeredBonuses:
+              score.triggeredBonuses.length > 0
+                ? score.triggeredBonuses
+                : undefined,
             updatedAt: Date.now(),
           });
 
@@ -97,22 +94,15 @@ export const rescoreZeroPointActivities = internalMutation({
       }
     }
 
-    // Update participation totals
+    // Update participation totals + streaks
     if (!args.dryRun) {
       for (const [userId, pointsToAdd] of userPointAdjustments) {
-        const participation = await ctx.db
-          .query("userChallenges")
-          .withIndex("userChallengeUnique", (q) =>
-            q.eq("userId", userId as any).eq("challengeId", args.challengeId)
-          )
-          .first();
-
-        if (participation) {
-          await ctx.db.patch(participation._id, {
-            totalPoints: participation.totalPoints + pointsToAdd,
-            updatedAt: Date.now(),
-          });
-        }
+        await applyParticipationScoreDeltaAndRecomputeStreak(ctx, {
+          userId: userId as any,
+          challengeId: args.challengeId,
+          pointsDelta: pointsToAdd,
+          streakMinPoints: challenge.streakMinPoints,
+        });
       }
     }
 

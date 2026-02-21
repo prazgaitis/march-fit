@@ -9,6 +9,13 @@ interface BonusThreshold {
   description: string;
 }
 
+export interface TriggeredBonus {
+  metric: string;
+  threshold: number;
+  bonusPoints: number;
+  description: string;
+}
+
 export interface ScoringContext {
   ctx: QueryCtx | MutationCtx;
   metrics: Record<string, unknown>;
@@ -423,6 +430,67 @@ export async function calculateActivityPoints(
 
   // Default scorer
   return calculateDefaultPoints(activityType, context);
+}
+
+/**
+ * Apply activity sign rules in one place.
+ * `isNegative` controls whether the final score is a penalty.
+ * For penalties, force a negative result even if raw points are already negative.
+ */
+export function applyActivityPointSign(rawPoints: number, isNegative: boolean): number {
+  if (!Number.isFinite(rawPoints)) {
+    return 0;
+  }
+
+  return isNegative ? -Math.abs(rawPoints) : rawPoints;
+}
+
+export interface FinalActivityScore {
+  basePoints: number;
+  bonusPoints: number;
+  pointsEarned: number;
+  triggeredBonuses: TriggeredBonus[];
+}
+
+interface FinalActivityScoreOptions {
+  selectedOptionalBonuses?: string[];
+  includeMediaBonus?: boolean;
+}
+
+export async function calculateFinalActivityScore(
+  activityType: Doc<"activityTypes">,
+  context: ScoringContext,
+  options: FinalActivityScoreOptions = {}
+): Promise<FinalActivityScore> {
+  const basePoints = await calculateActivityPoints(activityType, context);
+
+  const { totalBonusPoints: thresholdBonusPoints, triggeredBonuses: thresholdTriggered } =
+    calculateThresholdBonuses(activityType, context.metrics);
+
+  const { totalBonusPoints: optionalBonusPoints, triggeredBonuses: optionalTriggered } =
+    calculateOptionalBonuses(activityType, options.selectedOptionalBonuses);
+
+  const { totalBonusPoints: mediaBonusPoints, triggeredBonus: mediaTriggered } =
+    calculateMediaBonus(options.includeMediaBonus ?? false);
+
+  const bonusPoints = thresholdBonusPoints + optionalBonusPoints + mediaBonusPoints;
+  const triggeredBonuses: TriggeredBonus[] = [
+    ...thresholdTriggered,
+    ...optionalTriggered.map((bonus) => ({
+      metric: "optional",
+      threshold: 0,
+      bonusPoints: bonus.bonusPoints,
+      description: bonus.description || bonus.name,
+    })),
+    ...(mediaTriggered ? [mediaTriggered] : []),
+  ];
+
+  return {
+    basePoints,
+    bonusPoints,
+    pointsEarned: applyActivityPointSign(basePoints + bonusPoints, activityType.isNegative),
+    triggeredBonuses,
+  };
 }
 
 interface OptionalBonus {

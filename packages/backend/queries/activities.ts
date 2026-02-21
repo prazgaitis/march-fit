@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import { paginationOptsValidator } from "convex/server";
 import { getCurrentUser } from "../lib/ids";
 import { notDeleted } from "../lib/activityFilters";
+import { calculateFinalActivityScore } from "../lib/scoring";
 
 /**
  * Get a single activity by ID with all related data
@@ -247,6 +248,7 @@ export const getChallengeFeed = query({
                 name: activityType.name,
                 categoryId: activityType.categoryId,
                 scoringConfig: activityType.scoringConfig,
+                isNegative: activityType.isNegative,
               }
             : null,
           likes: likeCount,
@@ -268,6 +270,97 @@ export const getChallengeFeed = query({
     return {
       ...activities,
       page: filteredPage,
+    };
+  },
+});
+
+/**
+ * Preview activity points for the current user using backend scoring rules.
+ * Keeps frontend estimates in sync with actual persisted scoring.
+ */
+export const previewScore = query({
+  args: {
+    challengeId: v.id("challenges"),
+    activityTypeId: v.id("activityTypes"),
+    loggedDate: v.string(),
+    metrics: v.optional(v.any()),
+    hasMedia: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const user = await getCurrentUser(ctx);
+    if (!user) {
+      return null;
+    }
+
+    const activityType = await ctx.db.get(args.activityTypeId);
+    if (!activityType || activityType.challengeId !== args.challengeId) {
+      return null;
+    }
+
+    const loggedDateMs = Date.parse(args.loggedDate);
+    if (!Number.isFinite(loggedDateMs)) {
+      return null;
+    }
+
+    const metricsObj = (args.metrics ?? {}) as Record<string, unknown>;
+    const selectedOptionalBonusesRaw = metricsObj["selectedBonuses"];
+    const selectedOptionalBonuses = Array.isArray(selectedOptionalBonusesRaw)
+      ? selectedOptionalBonusesRaw.filter(
+          (item): item is string => typeof item === "string"
+        )
+      : undefined;
+
+    let includeMediaBonus = !!args.hasMedia;
+    if (includeMediaBonus) {
+      const loggedDate = new Date(loggedDateMs);
+      const startOfDayUtc = Date.UTC(
+        loggedDate.getUTCFullYear(),
+        loggedDate.getUTCMonth(),
+        loggedDate.getUTCDate()
+      );
+      const endOfDayUtc = startOfDayUtc + 24 * 60 * 60 * 1000;
+
+      const existingActivitiesToday = await ctx.db
+        .query("activities")
+        .withIndex("by_user_challenge_date", (q) =>
+          q
+            .eq("userId", user._id)
+            .eq("challengeId", args.challengeId)
+            .gte("loggedDate", startOfDayUtc)
+            .lt("loggedDate", endOfDayUtc)
+        )
+        .filter(notDeleted)
+        .collect();
+
+      const alreadyEarnedPhotoBonus = existingActivitiesToday.some((activity) => {
+        const activityHasMedia = !!(activity.mediaIds && activity.mediaIds.length > 0) || !!activity.imageUrl;
+        const activityHasPhotoBonus = !!activity.triggeredBonuses?.some(
+          (bonus) => bonus.metric === "media"
+        );
+        return activityHasMedia && activityHasPhotoBonus;
+      });
+
+      includeMediaBonus = !alreadyEarnedPhotoBonus;
+    }
+
+    const score = await calculateFinalActivityScore(
+      activityType,
+      {
+        ctx,
+        metrics: metricsObj,
+        userId: user._id,
+        challengeId: args.challengeId,
+        loggedDate: new Date(loggedDateMs),
+      },
+      {
+        selectedOptionalBonuses,
+        includeMediaBonus,
+      }
+    );
+
+    return {
+      ...score,
+      isNegative: activityType.isNegative,
     };
   },
 });

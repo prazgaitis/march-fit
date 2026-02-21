@@ -210,6 +210,78 @@ describe("Strava Webhook: createFromStrava", () => {
     expect(afterUpdate!.totalPoints).toBe(pointsAfterCreate + 20);
   });
 
+  it("should recompute streak on create and delete for past Strava days", async () => {
+    const { userId, challengeId } = await setupChallengeWithRunning(t);
+
+    await t.mutation(internal.mutations.stravaWebhook.createFromStrava, {
+      userId,
+      challengeId,
+      stravaActivity: makeStravaActivity({
+        id: 9001,
+        start_date: "2024-01-15T07:30:00Z",
+        start_date_local: "2024-01-15T07:30:00",
+        elapsed_time: 2400,
+      }),
+    });
+    await t.mutation(internal.mutations.stravaWebhook.createFromStrava, {
+      userId,
+      challengeId,
+      stravaActivity: makeStravaActivity({
+        id: 9002,
+        start_date: "2024-01-16T07:30:00Z",
+        start_date_local: "2024-01-16T07:30:00",
+        elapsed_time: 2400,
+      }),
+    });
+    await t.mutation(internal.mutations.stravaWebhook.createFromStrava, {
+      userId,
+      challengeId,
+      stravaActivity: makeStravaActivity({
+        id: 9003,
+        start_date: "2024-01-17T07:30:00Z",
+        start_date_local: "2024-01-17T07:30:00",
+        elapsed_time: 2400,
+      }),
+    });
+
+    let participation = await getParticipation(t, userId, challengeId);
+    expect(participation!.currentStreak).toBe(3);
+
+    await t.mutation(internal.mutations.stravaWebhook.deleteFromStrava, {
+      externalId: "9002",
+    });
+
+    participation = await getParticipation(t, userId, challengeId);
+    expect(participation!.currentStreak).toBe(1);
+  });
+
+  it("should keep Strava penalties negative even when pointsPerUnit is negative", async () => {
+    const { userId, challengeId, activityTypeId } = await setupChallengeWithRunning(t);
+
+    await t.run(async (ctx) => {
+      await ctx.db.patch(activityTypeId, {
+        isNegative: true,
+        scoringConfig: {
+          unit: "minutes",
+          pointsPerUnit: -1,
+          basePoints: 0,
+        },
+        updatedAt: Date.now(),
+      });
+    });
+
+    const activityId = await t.mutation(
+      internal.mutations.stravaWebhook.createFromStrava,
+      { userId, challengeId, stravaActivity: makeStravaActivity({ elapsed_time: 1200 }) } // 20 min
+    );
+
+    const activity = await getActivity(t, activityId!);
+    expect(activity!.pointsEarned).toBe(-20);
+
+    const participation = await getParticipation(t, userId, challengeId);
+    expect(participation!.totalPoints).toBe(-20);
+  });
+
   it("should restore a soft-deleted activity when same externalId reappears", async () => {
     const { userId, challengeId } = await setupChallengeWithRunning(t);
 
@@ -531,7 +603,7 @@ describe("Strava Webhook: deleteFromStrava", () => {
     expect(p2!.totalPoints).toBe(0);
   });
 
-  it("should not go below zero points on participation", async () => {
+  it("should allow participation totals to go negative after delete", async () => {
     const { userId, challengeId } = await setupChallengeWithRunning(t);
 
     await t.mutation(internal.mutations.stravaWebhook.createFromStrava, {
@@ -558,7 +630,7 @@ describe("Strava Webhook: deleteFromStrava", () => {
     });
 
     const after = await getParticipation(t, userId, challengeId);
-    expect(after!.totalPoints).toBe(0); // Math.max(0, ...) should prevent negative
+    expect(after!.totalPoints).toBeLessThan(0);
   });
 });
 

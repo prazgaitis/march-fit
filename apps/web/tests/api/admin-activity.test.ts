@@ -361,5 +361,66 @@ describe('Admin Activity Features', () => {
       expect(notifications.length).toBe(1);
       expect(notifications[0].type).toBe("admin_edit");
     });
+
+    it('should recompute streak when admin changes points on a past day', async () => {
+      const { ownerAuth, ownerId, challengeId, activityTypeId, activityId, adminAuth } = await setupAdminTest();
+
+      // Remove setup's default "today" activity so it doesn't break the 3-day streak window.
+      await t.run(async (ctx) => {
+        await ctx.db.patch(activityId, {
+          deletedAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+      });
+
+      // Build a 3-day streak.
+      await ownerAuth.mutation(api.mutations.activities.log, {
+        challengeId,
+        activityTypeId,
+        loggedDate: '2024-01-15T10:00:00Z',
+        metrics: { minutes: 15 },
+        source: 'manual',
+      });
+      const day2 = await ownerAuth.mutation(api.mutations.activities.log, {
+        challengeId,
+        activityTypeId,
+        loggedDate: '2024-01-16T10:00:00Z',
+        metrics: { minutes: 15 },
+        source: 'manual',
+      });
+      await ownerAuth.mutation(api.mutations.activities.log, {
+        challengeId,
+        activityTypeId,
+        loggedDate: '2024-01-17T10:00:00Z',
+        metrics: { minutes: 15 },
+        source: 'manual',
+      });
+
+      let participation = await t.run(async (ctx) => {
+        return await ctx.db
+          .query("userChallenges")
+          .withIndex("userChallengeUnique", (q) =>
+            q.eq("userId", ownerId).eq("challengeId", challengeId)
+          )
+          .first();
+      });
+      expect(participation!.currentStreak).toBe(3);
+
+      // Break day 2 threshold and ensure streak is recomputed.
+      await adminAuth.mutation(api.mutations.admin.adminEditActivity, {
+        activityId: day2.id as Id<"activities">,
+        pointsEarned: 0,
+      });
+
+      participation = await t.run(async (ctx) => {
+        return await ctx.db
+          .query("userChallenges")
+          .withIndex("userChallengeUnique", (q) =>
+            q.eq("userId", ownerId).eq("challengeId", challengeId)
+          )
+          .first();
+      });
+      expect(participation!.currentStreak).toBe(1);
+    });
   });
 });

@@ -31,7 +31,14 @@ export const clear = action({
 
     for (const table of tables) {
       console.log(`  Clearing ${table}...`);
-      await ctx.runMutation(internal.mutations.clear.clearTable, { table });
+      let hasMore = true;
+      while (hasMore) {
+        const result = await ctx.runMutation(internal.mutations.clear.clearTable, { table });
+        hasMore = result.hasMore;
+        if (hasMore) {
+          console.log(`    ...deleted ${result.deleted}, continuing...`);
+        }
+      }
     }
 
     console.log("✅ Database cleared!");

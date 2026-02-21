@@ -8,6 +8,8 @@ import Link from "next/link";
 import { ChevronLeft, ChevronRight, Trophy, Loader2 } from "lucide-react";
 
 import { UserAvatar } from "@/components/user-avatar";
+import { PointsDisplay } from "@/components/ui/points-display";
+import { formatPoints } from "@/lib/points";
 import { cn } from "@/lib/utils";
 
 interface WeeklyLeaderboardEntry {
@@ -130,7 +132,7 @@ export function WeeklyCategoryLeaderboard({
                   <span className="font-medium text-zinc-300">
                     {category.cumulativeLeader.user.name || category.cumulativeLeader.user.username}
                   </span>{" "}
-                  ({category.cumulativeLeader.cumulativePoints.toFixed(0)} pts)
+                  ({formatPoints(category.cumulativeLeader.cumulativePoints)} pts)
                 </p>
               )}
             </div>
@@ -187,9 +189,13 @@ export function WeeklyCategoryLeaderboard({
                     </div>
 
                     <div className="text-right">
-                      <p className="text-sm font-bold text-white">
-                        {entry.weeklyPoints.toFixed(0)}
-                      </p>
+                      <PointsDisplay
+                        points={entry.weeklyPoints}
+                        size="sm"
+                        showSign={false}
+                        showLabel={false}
+                        className={cn("font-bold", entry.weeklyPoints >= 0 && "text-white")}
+                      />
                       <p className="text-xs text-zinc-500">pts</p>
                     </div>
                   </Link>

@@ -105,6 +105,63 @@ describe('editActivity mutation', () => {
     expect(after!.totalPoints).toBe(65);
   });
 
+  it('allows totalPoints to go negative after editing to a negative activity type', async () => {
+    const { tAuth, activityId, userId, challengeId } = await setupBasic();
+
+    const penaltyTypeId = await createTestActivityType(t, challengeId, {
+      name: 'Penalty',
+      scoringConfig: { unit: 'count', pointsPerUnit: 10, basePoints: 0 },
+      contributesToStreak: false,
+      isNegative: true,
+    });
+
+    await tAuth.mutation(api.mutations.activities.editActivity, {
+      activityId: activityId as Id<'activities'>,
+      activityTypeId: penaltyTypeId as Id<'activityTypes'>,
+      metrics: { count: 1 },
+    });
+
+    const participation = await t.run(async (ctx) =>
+      ctx.db
+        .query('userChallenges')
+        .withIndex('userChallengeUnique', (q) =>
+          q.eq('userId', userId as Id<'users'>).eq('challengeId', challengeId as Id<'challenges'>)
+        )
+        .first()
+    );
+
+    expect(participation!.totalPoints).toBe(-10);
+
+    const otherUserId = await createTestUser(t, { email: 'other-leaderboard@example.com' });
+    await createTestParticipation(t, otherUserId, challengeId, { totalPoints: 500 });
+
+    await t.run(async (ctx) => {
+      await ctx.db.insert('activities', {
+        userId: otherUserId as Id<'users'>,
+        challengeId: challengeId as Id<'challenges'>,
+        activityTypeId: penaltyTypeId as Id<'activityTypes'>,
+        loggedDate: new Date('2024-01-15').getTime(),
+        metrics: { count: 1 },
+        source: 'manual',
+        pointsEarned: -5,
+        flagged: false,
+        adminCommentVisibility: 'internal',
+        resolutionStatus: 'pending',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+    });
+
+    const leaderboard = await t.query(api.queries.participations.getFullLeaderboard, {
+      challengeId: challengeId as Id<'challenges'>,
+    });
+
+    expect(leaderboard[0].user.id).toBe(otherUserId);
+    expect(leaderboard[0].totalPoints).toBe(-5);
+    expect(leaderboard[1].user.id).toBe(userId);
+    expect(leaderboard[1].totalPoints).toBe(-10);
+  });
+
   it('user CANNOT edit another user\'s activity', async () => {
     const { activityId } = await setupBasic();
 

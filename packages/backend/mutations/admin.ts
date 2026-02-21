@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import { getCurrentUser } from "../lib/ids";
 import type { Id } from "../_generated/dataModel";
 import { reportLatencyIfExceeded } from "../lib/latencyMonitoring";
+import { applyParticipationScoreDeltaAndRecomputeStreak } from "../lib/participationScoring";
 
 async function requireChallengeAdminForActivity(
   ctx: { db: any; auth: any },
@@ -225,6 +226,10 @@ export const adminEditActivity = mutation({
       );
       resolvedChallengeId = String(activity.challengeId);
       resolvedUserId = String(activity.userId);
+      const challenge = await ctx.db.get(activity.challengeId);
+      if (!challenge) {
+        throw new Error("Challenge not found");
+      }
 
     const now = Date.now();
     const updates: Record<string, unknown> = {
@@ -233,6 +238,9 @@ export const adminEditActivity = mutation({
 
     // Track changes for history
     const changes: Record<string, unknown> = {};
+
+    let pointsDiff = 0;
+    let shouldRecomputeStreak = false;
 
     if (args.activityTypeId !== undefined) {
       const newType = await ctx.db.get(args.activityTypeId);
@@ -247,34 +255,19 @@ export const adminEditActivity = mutation({
         from: activity.activityTypeId,
         to: args.activityTypeId,
       };
+      shouldRecomputeStreak = true;
     }
 
     if (args.pointsEarned !== undefined) {
       // Calculate points difference for participation update
-      const pointsDiff = args.pointsEarned - activity.pointsEarned;
+      pointsDiff = args.pointsEarned - activity.pointsEarned;
 
       updates.pointsEarned = args.pointsEarned;
       changes.pointsEarned = {
         from: activity.pointsEarned,
         to: args.pointsEarned,
       };
-
-      // Update participant total points
-      if (pointsDiff !== 0) {
-        const participation = await ctx.db
-          .query("userChallenges")
-          .withIndex("userChallengeUnique", (q) =>
-            q.eq("userId", activity.userId).eq("challengeId", activity.challengeId)
-          )
-          .first();
-
-        if (participation) {
-          await ctx.db.patch(participation._id, {
-            totalPoints: participation.totalPoints + pointsDiff,
-            updatedAt: now,
-          });
-        }
-      }
+      shouldRecomputeStreak = true;
     }
 
     if (args.notes !== undefined) {
@@ -288,15 +281,27 @@ export const adminEditActivity = mutation({
         from: activity.loggedDate,
         to: updates.loggedDate,
       };
+      shouldRecomputeStreak = true;
     }
 
     if (args.metrics !== undefined) {
       updates.metrics = args.metrics;
       changes.metrics = { from: activity.metrics, to: args.metrics };
+      shouldRecomputeStreak = true;
     }
 
     // Update activity
     await ctx.db.patch(args.activityId, updates);
+
+    if (shouldRecomputeStreak || pointsDiff !== 0) {
+      await applyParticipationScoreDeltaAndRecomputeStreak(ctx, {
+        userId: activity.userId,
+        challengeId: activity.challengeId,
+        pointsDelta: pointsDiff,
+        streakMinPoints: (challenge as any).streakMinPoints,
+        now,
+      });
+    }
 
     // Add history entry
     await ctx.db.insert("activityFlagHistory", {

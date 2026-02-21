@@ -58,6 +58,7 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
+import { PointsDisplay } from '@/components/ui/points-display';
 
 interface BonusThreshold {
   metric: string;
@@ -88,6 +89,7 @@ interface ActivityFeedItem {
     name: string | null;
     categoryId: string | null;
     scoringConfig?: Record<string, unknown>;
+    isNegative?: boolean;
   } | null;
   likes: number;
   comments: number;
@@ -475,7 +477,6 @@ function ActivityStats({ item }: { item: ActivityFeedItem }) {
   const bonusTotal = hasBonuses
     ? item.activity.triggeredBonuses!.reduce((sum, b) => sum + b.bonusPoints, 0)
     : 0;
-
   return (
     <div className="rounded-lg bg-muted px-4 py-3 text-sm">
       <div className="flex items-center justify-between">
@@ -483,14 +484,20 @@ function ActivityStats({ item }: { item: ActivityFeedItem }) {
           {metricDisplay && (
             <span className="font-semibold text-foreground">{metricDisplay}</span>
           )}
-          <span className={cn("font-medium", hasBonuses ? "text-amber-500" : "text-primary")}>
-            {item.activity.pointsEarned.toFixed(1)} pts
-            {hasBonuses && (
-              <span className="ml-1 text-xs text-muted-foreground">
-                (incl. +{bonusTotal} bonus)
-              </span>
-            )}
-          </span>
+          <PointsDisplay
+            points={item.activity.pointsEarned}
+            isNegative={item.activityType?.isNegative}
+            decimals={1}
+            size="sm"
+            showSign={false}
+            hasBonuses={!!hasBonuses}
+            className="font-medium"
+          />
+          {hasBonuses && (
+            <span className="text-xs text-muted-foreground">
+              (incl. +{bonusTotal} bonus)
+            </span>
+          )}
         </div>
         <div className="text-xs text-muted-foreground">
           {formatDistanceToNow(new Date(item.activity.createdAt), {

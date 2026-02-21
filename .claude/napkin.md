@@ -3,6 +3,17 @@
 ## Corrections
 | Date | Source | What Went Wrong | What To Do Instead |
 |------|--------|----------------|-------------------|
+| 2026-02-21 | self | New `scorePreview` map callback in `activity-log-dialog.tsx` failed TS strict mode due implicit `any` params | Add explicit callback parameter types when rendering arrays from loosely-typed query payloads |
+| 2026-02-21 | self | A Strava webhook test still expected clamped-to-zero totals after delete and failed once negative totals were enabled | Update legacy tests that assert `Math.max(0, ...)` behavior to align with current negative-total rules |
+| 2026-02-21 | self | Ran `rg`/`sed` on Next route paths with `[id]` unquoted and zsh globbing failed again | Always single-quote paths containing `[]` before shell commands |
+| 2026-02-21 | self | Ran eslint with unquoted app router paths (`[id]`) and zsh globbing failed | Quote all bracketed route paths in CLI invocations, including multi-file lint/diff commands |
+| 2026-02-21 | self | Tried invoking raw `eslint` in backend workspace and hit ESLint v9 flat-config lookup errors | Use repo-defined lint scripts (or skip backend lint where no script/config exists) instead of ad-hoc `eslint` calls |
+| 2026-02-21 | self | Used `apply_patch` through `exec_command` and got a tooling warning | Use the dedicated `apply_patch` tool directly for file patches |
+| 2026-02-21 | self | Removed `Id`/`notDeleted` imports from `queries/participations.ts` while cleaning top-level helpers; file still used both in later queries | After import cleanup, run full repo typecheck before concluding and scan entire file for downstream symbol usage |
+| 2026-02-21 | self | Streak logic in `activities.log` only recomputed on one backfill branch (`daysDiff < 0 && meetsThreshold`), so backfilled negatives could silently leave stale streaks | Recompute streak from all non-deleted challenge activities after any activity create/edit/delete that can affect streak days |
+| 2026-02-21 | self | In `editActivity`, I first recomputed streak before patching the edited activity, producing stale streak values | For edit flows, persist the activity change first, then recompute streaks against final stored state |
+| 2026-02-21 | self | New streak tests initially failed due fixture artifacts (admin setup had an extra current-day streak activity; Strava fixture kept old `start_date_local`) | Normalize fixtures to only include intended days and keep paired timestamp fields (`start_date` + `start_date_local`) consistent |
+| 2026-02-21 | self | Tried `pnpm -F web test:run ...` but `apps/web` only defines `test` | Use `pnpm -F web test --run <paths>` for targeted Vitest runs in this repo |
 | 2026-02-18 | self | During rebase conflict cleanup, I left duplicated JSX (`achievements.map`) which caused TS parse errors | After conflict resolution in TSX files, scan nearby rendered blocks for duplicate lines before running typecheck |
 | 2026-02-18 | self | In an activities test, I initially queried `activities` by `activityTypeId` using a `bonusActivityId`, which are different IDs | For bonus-activity assertions, fetch directly via `ctx.db.get(bonusActivityId)` instead of forcing an index on a different field |
 | 2026-02-18 | self | Ran `ls` before reading `.claude/napkin.md` at session start | Make the first command `cat .claude/napkin.md`, then run any repo exploration commands |
@@ -50,6 +61,10 @@
 - `page-with-header` CSS class = `pt-16` to offset fixed navbar
 - Dashboard layout uses `h-dvh` + `overflow-hidden` shell with an internal `main` scroller (`overflow-y-auto`); mobile browser chrome hide behavior is tied to this choice.
 - Seed data lives in `packages/backend/actions/seed.ts`
+- `userChallenges.totalPoints` must not be clamped to zero when applying activity diffs; negative totals are valid and affect leaderboard ordering.
+- Leaderboard query display should derive totals from non-deleted `activities.pointsEarned` to avoid stale denormalized `userChallenges.totalPoints` values.
+- Backend score sign should be applied by a shared helper (`applyActivityPointSign`) so manual/API/Strava flows cannot diverge on negative handling.
+- Keep frontend activity scoring preview on backend query (`queries.activities.previewScore`) to prevent client-side scoring drift.
 - Schema changes auto-deploy locally via `pnpm dev`
 - Local Convex HTTP routes (`httpAction`, `/api/v1/*`) are served from site origin (`127.0.0.1:3211`), not cloud origin (`127.0.0.1:3210`)
 - Dev-only third-party scripts should be opt-in; avoid `beforeInteractive` for non-critical tooling (e.g., `react-grab`)

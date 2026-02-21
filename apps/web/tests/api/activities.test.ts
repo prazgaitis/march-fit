@@ -271,6 +271,119 @@ describe('Activities Logic', () => {
       expect(result.pointsEarned).toBe(40);
     });
 
+    it('should treat negative activity types as penalties even when config points are negative', async () => {
+      const testEmail = "negative-sign@example.com";
+      const userId = await createTestUser(t, { email: testEmail });
+      const tWithAuth = t.withIdentity({ subject: "negative-sign-user", email: testEmail });
+      const challengeId = await createTestChallenge(t, userId);
+
+      await t.run(async (ctx) => {
+        await ctx.db.insert("userChallenges", {
+          userId,
+          challengeId,
+          joinedAt: Date.now(),
+          totalPoints: 0,
+          currentStreak: 0,
+          modifierFactor: 1,
+          paymentStatus: "paid",
+          updatedAt: Date.now(),
+        });
+      });
+
+      const activityTypeId = await t.run(async (ctx) => {
+        return await ctx.db.insert("activityTypes", {
+          challengeId,
+          name: "Penalty Count",
+          scoringConfig: {
+            unit: "count",
+            pointsPerUnit: -5,
+            basePoints: 0,
+          },
+          contributesToStreak: false,
+          isNegative: true,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+      });
+
+      const result = await tWithAuth.mutation(api.mutations.activities.log, {
+        challengeId,
+        activityTypeId,
+        loggedDate: new Date("2024-01-15").toISOString(),
+        metrics: { count: 2 },
+        source: "manual",
+      });
+
+      expect(result.pointsEarned).toBe(-10);
+
+      const participation = await t.run(async (ctx) => {
+        return await ctx.db
+          .query("userChallenges")
+          .withIndex("userChallengeUnique", (q) =>
+            q.eq("userId", userId).eq("challengeId", challengeId)
+          )
+          .first();
+      });
+      expect(participation!.totalPoints).toBe(-10);
+    });
+
+    it('previewScore query should match persisted score calculation', async () => {
+      const testEmail = "preview-score@example.com";
+      const userId = await createTestUser(t, { email: testEmail });
+      const tWithAuth = t.withIdentity({ subject: "preview-score-user", email: testEmail });
+      const challengeId = await createTestChallenge(t, userId);
+
+      await t.run(async (ctx) => {
+        await ctx.db.insert("userChallenges", {
+          userId,
+          challengeId,
+          joinedAt: Date.now(),
+          totalPoints: 0,
+          currentStreak: 0,
+          modifierFactor: 1,
+          paymentStatus: "paid",
+          updatedAt: Date.now(),
+        });
+      });
+
+      const activityTypeId = await t.run(async (ctx) => {
+        return await ctx.db.insert("activityTypes", {
+          challengeId,
+          name: "Penalty Count",
+          scoringConfig: {
+            unit: "count",
+            pointsPerUnit: -5,
+            basePoints: 0,
+          },
+          contributesToStreak: false,
+          isNegative: true,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+      });
+
+      const preview = await tWithAuth.query(api.queries.activities.previewScore, {
+        challengeId,
+        activityTypeId,
+        loggedDate: new Date("2024-01-15").toISOString(),
+        metrics: { count: 2 },
+        hasMedia: false,
+      });
+
+      expect(preview).not.toBeNull();
+      expect(preview!.pointsEarned).toBe(-10);
+
+      const result = await tWithAuth.mutation(api.mutations.activities.log, {
+        challengeId,
+        activityTypeId,
+        loggedDate: new Date("2024-01-15").toISOString(),
+        metrics: { count: 2 },
+        source: "manual",
+      });
+
+      expect(result.pointsEarned).toBe(preview!.pointsEarned);
+    });
+
     // TODO: Enable these tests once complex scoring logic is ported to Convex
     it.skip('should handle positive and penalty activity scoring rules');
     it.skip('should reset the drinks allowance on a new day');
@@ -513,6 +626,162 @@ describe('Activities Logic', () => {
 
       participation = await getParticipation();
       expect(participation.currentStreak).toBe(3);
+      expect(participation.lastStreakDay).toBe(Date.UTC(2024, 0, 17));
+    });
+
+    it('recomputes streak when backfilled negative activity drops a past day below threshold', async () => {
+      const { tWithAuth, challengeId, activityTypeId, getParticipation } = await setupStreakTest(10);
+
+      // Build a 3-day streak.
+      await tWithAuth.mutation(api.mutations.activities.log, {
+        challengeId,
+        activityTypeId,
+        loggedDate: '2024-01-15T10:00:00Z',
+        metrics: { minutes: 15 },
+        source: 'manual',
+      });
+      await tWithAuth.mutation(api.mutations.activities.log, {
+        challengeId,
+        activityTypeId,
+        loggedDate: '2024-01-16T10:00:00Z',
+        metrics: { minutes: 15 },
+        source: 'manual',
+      });
+      await tWithAuth.mutation(api.mutations.activities.log, {
+        challengeId,
+        activityTypeId,
+        loggedDate: '2024-01-17T10:00:00Z',
+        metrics: { minutes: 15 },
+        source: 'manual',
+      });
+
+      let participation = await getParticipation();
+      expect(participation.currentStreak).toBe(3);
+
+      const negativeTypeId = await t.run(async (ctx) => {
+        return await ctx.db.insert("activityTypes", {
+          challengeId,
+          name: "Penalty",
+          scoringConfig: {
+            unit: "count",
+            pointsPerUnit: 10,
+            basePoints: 0,
+          },
+          contributesToStreak: true,
+          isNegative: true,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+      });
+
+      // Backfill a negative activity on day 2: 15 + (-10) = 5 < threshold.
+      await tWithAuth.mutation(api.mutations.activities.log, {
+        challengeId,
+        activityTypeId: negativeTypeId,
+        loggedDate: '2024-01-16T18:00:00Z',
+        metrics: { count: 1 },
+        source: 'manual',
+      });
+
+      participation = await getParticipation();
+      expect(participation.currentStreak).toBe(1);
+      expect(participation.lastStreakDay).toBe(Date.UTC(2024, 0, 17));
+    });
+
+    it('recomputes streak after editing a past day to a negative streak-contributing activity', async () => {
+      const { tWithAuth, challengeId, activityTypeId, getParticipation } = await setupStreakTest(10);
+
+      const day1 = await tWithAuth.mutation(api.mutations.activities.log, {
+        challengeId,
+        activityTypeId,
+        loggedDate: '2024-01-15T10:00:00Z',
+        metrics: { minutes: 15 },
+        source: 'manual',
+      });
+      const day2 = await tWithAuth.mutation(api.mutations.activities.log, {
+        challengeId,
+        activityTypeId,
+        loggedDate: '2024-01-16T10:00:00Z',
+        metrics: { minutes: 15 },
+        source: 'manual',
+      });
+      await tWithAuth.mutation(api.mutations.activities.log, {
+        challengeId,
+        activityTypeId,
+        loggedDate: '2024-01-17T10:00:00Z',
+        metrics: { minutes: 15 },
+        source: 'manual',
+      });
+
+      let participation = await getParticipation();
+      expect(participation.currentStreak).toBe(3);
+
+      const negativeTypeId = await t.run(async (ctx) => {
+        return await ctx.db.insert("activityTypes", {
+          challengeId,
+          name: "Penalty Edit",
+          scoringConfig: {
+            unit: "count",
+            pointsPerUnit: 10,
+            basePoints: 0,
+          },
+          contributesToStreak: true,
+          isNegative: true,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+      });
+
+      // Change day 2 activity from +15 to -10.
+      await tWithAuth.mutation(api.mutations.activities.editActivity, {
+        activityId: day2.id,
+        activityTypeId: negativeTypeId,
+        metrics: { count: 1 },
+        loggedDate: '2024-01-16',
+      });
+
+      participation = await getParticipation();
+      expect(participation.currentStreak).toBe(1);
+      expect(participation.lastStreakDay).toBe(Date.UTC(2024, 0, 17));
+
+      // Keep variables used and explicit.
+      expect(day1.id).toBeDefined();
+    });
+
+    it('recomputes streak after deleting a past day activity', async () => {
+      const { tWithAuth, challengeId, activityTypeId, getParticipation } = await setupStreakTest(10);
+
+      await tWithAuth.mutation(api.mutations.activities.log, {
+        challengeId,
+        activityTypeId,
+        loggedDate: '2024-01-15T10:00:00Z',
+        metrics: { minutes: 15 },
+        source: 'manual',
+      });
+      const day2 = await tWithAuth.mutation(api.mutations.activities.log, {
+        challengeId,
+        activityTypeId,
+        loggedDate: '2024-01-16T10:00:00Z',
+        metrics: { minutes: 15 },
+        source: 'manual',
+      });
+      await tWithAuth.mutation(api.mutations.activities.log, {
+        challengeId,
+        activityTypeId,
+        loggedDate: '2024-01-17T10:00:00Z',
+        metrics: { minutes: 15 },
+        source: 'manual',
+      });
+
+      let participation = await getParticipation();
+      expect(participation.currentStreak).toBe(3);
+
+      await tWithAuth.mutation(api.mutations.activities.remove, {
+        activityId: day2.id,
+      });
+
+      participation = await getParticipation();
+      expect(participation.currentStreak).toBe(1);
       expect(participation.lastStreakDay).toBe(Date.UTC(2024, 0, 17));
     });
 
@@ -856,6 +1125,23 @@ describe('Activities Logic', () => {
         loggedDate: '2024-01-16T10:00:00Z',
         metrics: { miles: 112 },
         source: 'manual',
+      });
+
+      await t.run(async (ctx) => {
+        await ctx.db.insert("activities", {
+          userId: rivalId,
+          challengeId,
+          activityTypeId: runTypeId,
+          loggedDate: Date.parse("2024-01-16T12:00:00Z"),
+          metrics: { miles: 200 },
+          source: "manual",
+          pointsEarned: 200,
+          flagged: false,
+          adminCommentVisibility: "internal",
+          resolutionStatus: "pending",
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        });
       });
 
       const beforeBonusLeaderboard = await t.query(
@@ -1509,6 +1795,118 @@ describe('Activities Logic', () => {
       });
 
       expect(result.pointsEarned).toBe(-1);
+    });
+
+    it('should preserve negative totals when deleting a positive activity', async () => {
+      const testEmail = "negative-total@example.com";
+      const userId = await createTestUser(t, { email: testEmail });
+      const tWithAuth = t.withIdentity({ subject: "negative-total-user", email: testEmail });
+      const challengeId = await createTestChallenge(t, userId);
+
+      await t.run(async (ctx) => {
+        await ctx.db.insert("userChallenges", {
+          userId,
+          challengeId,
+          joinedAt: Date.now(),
+          totalPoints: 0,
+          currentStreak: 0,
+          modifierFactor: 1,
+          paymentStatus: "paid",
+          updatedAt: Date.now(),
+        });
+      });
+
+      const [runTypeId, drinksTypeId] = await t.run(async (ctx) => {
+        const runId = await ctx.db.insert("activityTypes", {
+          challengeId,
+          name: "Running",
+          scoringConfig: { unit: "minutes", pointsPerUnit: 1, basePoints: 0 },
+          contributesToStreak: true,
+          isNegative: false,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+
+        const drinksId = await ctx.db.insert("activityTypes", {
+          challengeId,
+          name: "Drinks",
+          scoringConfig: { unit: "count", pointsPerUnit: 10, basePoints: 0 },
+          contributesToStreak: false,
+          isNegative: true,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+
+        return [runId, drinksId];
+      });
+
+      const run = await tWithAuth.mutation(api.mutations.activities.log, {
+        challengeId,
+        activityTypeId: runTypeId,
+        loggedDate: "2024-01-15T10:00:00Z",
+        metrics: { minutes: 5 },
+        source: "manual",
+      });
+
+      await tWithAuth.mutation(api.mutations.activities.log, {
+        challengeId,
+        activityTypeId: drinksTypeId,
+        loggedDate: "2024-01-15T18:00:00Z",
+        metrics: { count: 1 },
+        source: "manual",
+      });
+
+      await tWithAuth.mutation(api.mutations.activities.remove, {
+        activityId: run.id,
+      });
+
+      const participation = await t.run(async (ctx) =>
+        ctx.db
+          .query("userChallenges")
+          .withIndex("userChallengeUnique", (q) =>
+            q.eq("userId", userId).eq("challengeId", challengeId)
+          )
+          .first()
+      );
+      expect(participation!.totalPoints).toBe(-10);
+
+      const otherUserId = await createTestUser(t, { email: "other-negative-total@example.com" });
+      await t.run(async (ctx) => {
+        await ctx.db.insert("userChallenges", {
+          userId: otherUserId,
+          challengeId,
+          joinedAt: Date.now(),
+          totalPoints: 999,
+          currentStreak: 0,
+          modifierFactor: 1,
+          paymentStatus: "paid",
+          updatedAt: Date.now(),
+        });
+
+        await ctx.db.insert("activities", {
+          userId: otherUserId,
+          challengeId,
+          activityTypeId: drinksTypeId,
+          loggedDate: Date.parse("2024-01-15T18:00:00Z"),
+          metrics: { count: 1 },
+          source: "manual",
+          pointsEarned: -6,
+          flagged: false,
+          adminCommentVisibility: "internal",
+          resolutionStatus: "pending",
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+      });
+
+      const leaderboard = await t.query(api.queries.participations.getFullLeaderboard, {
+        challengeId,
+      });
+
+      expect(leaderboard[0].user.id).toBe(otherUserId);
+      expect(leaderboard[0].totalPoints).toBe(-6);
+      expect(leaderboard[1].user.id).toBe(userId);
+      expect(leaderboard[1].totalPoints).toBe(-10);
     });
   });
 });
