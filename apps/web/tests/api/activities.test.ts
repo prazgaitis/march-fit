@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { api } from '@repo/backend';
+import { dateOnlyToUtcMs, formatDateOnlyFromUtcMs } from '@/lib/date-only';
 import { createTestContext, createTestUser, createTestChallenge } from '../helpers/convex';
 
 describe('Activities Logic', () => {
@@ -51,7 +52,7 @@ describe('Activities Logic', () => {
       const activityData = {
         challengeId,
         activityTypeId,
-        loggedDate: new Date('2024-01-15').toISOString(),
+        loggedDate: '2024-01-15',
         metrics: { minutes: 30 }, // 30 minutes
         notes: 'Morning run',
         source: 'manual',
@@ -121,7 +122,7 @@ describe('Activities Logic', () => {
       const activityData = {
         challengeId,
         activityTypeId,
-        loggedDate: new Date('2024-01-15').toISOString(),
+        loggedDate: '2024-01-15',
         metrics: { minutes: 30 },
         notes: 'Morning run',
         source: 'manual',
@@ -158,7 +159,7 @@ describe('Activities Logic', () => {
       const activityData = {
         challengeId,
         activityTypeId,
-        loggedDate: new Date('2024-01-15').toISOString(),
+        loggedDate: '2024-01-15',
         metrics: { minutes: 30 },
         source: 'manual',
       };
@@ -208,7 +209,7 @@ describe('Activities Logic', () => {
       const activityData = {
         challengeId: challenge1Id, // Trying to log for challenge1
         activityTypeId, // But activity type is for challenge2
-        loggedDate: new Date('2024-01-15').toISOString(),
+        loggedDate: '2024-01-15',
         metrics: { minutes: 30 },
         source: 'manual',
       };
@@ -258,7 +259,7 @@ describe('Activities Logic', () => {
       const activityData = {
         challengeId,
         activityTypeId,
-        loggedDate: new Date('2024-01-15').toISOString(),
+        loggedDate: '2024-01-15',
         metrics: { minutes: 15 }, // 15 minutes
         source: 'manual',
       };
@@ -309,7 +310,7 @@ describe('Activities Logic', () => {
       const result = await tWithAuth.mutation(api.mutations.activities.log, {
         challengeId,
         activityTypeId,
-        loggedDate: new Date("2024-01-15").toISOString(),
+        loggedDate: "2024-01-15",
         metrics: { count: 2 },
         source: "manual",
       });
@@ -365,7 +366,7 @@ describe('Activities Logic', () => {
       const preview = await tWithAuth.query(api.queries.activities.previewScore, {
         challengeId,
         activityTypeId,
-        loggedDate: new Date("2024-01-15").toISOString(),
+        loggedDate: "2024-01-15",
         metrics: { count: 2 },
         hasMedia: false,
       });
@@ -376,7 +377,7 @@ describe('Activities Logic', () => {
       const result = await tWithAuth.mutation(api.mutations.activities.log, {
         challengeId,
         activityTypeId,
-        loggedDate: new Date("2024-01-15").toISOString(),
+        loggedDate: "2024-01-15",
         metrics: { count: 2 },
         source: "manual",
       });
@@ -461,7 +462,7 @@ describe('Activities Logic', () => {
       const result = await tWithAuth.mutation(api.mutations.activities.log, {
         challengeId,
         activityTypeId,
-        loggedDate: '2024-01-15T10:00:00Z',
+        loggedDate: '2024-01-15',
         metrics: { minutes: 15 },
         source: 'manual',
       });
@@ -480,7 +481,7 @@ describe('Activities Logic', () => {
       const result = await tWithAuth.mutation(api.mutations.activities.log, {
         challengeId,
         activityTypeId,
-        loggedDate: '2024-01-15T10:00:00Z',
+        loggedDate: '2024-01-15',
         metrics: { minutes: 5 },
         source: 'manual',
       });
@@ -499,7 +500,7 @@ describe('Activities Logic', () => {
       await tWithAuth.mutation(api.mutations.activities.log, {
         challengeId,
         activityTypeId,
-        loggedDate: '2024-01-15T10:00:00Z',
+        loggedDate: '2024-01-15',
         metrics: { minutes: 15 },
         source: 'manual',
       });
@@ -511,7 +512,7 @@ describe('Activities Logic', () => {
       const result = await tWithAuth.mutation(api.mutations.activities.log, {
         challengeId,
         activityTypeId,
-        loggedDate: '2024-01-16T10:00:00Z',
+        loggedDate: '2024-01-16',
         metrics: { minutes: 15 },
         source: 'manual',
       });
@@ -529,7 +530,7 @@ describe('Activities Logic', () => {
       await tWithAuth.mutation(api.mutations.activities.log, {
         challengeId,
         activityTypeId,
-        loggedDate: '2024-01-15T08:00:00Z',
+        loggedDate: '2024-01-15',
         metrics: { minutes: 15 },
         source: 'manual',
       });
@@ -541,7 +542,7 @@ describe('Activities Logic', () => {
       const result = await tWithAuth.mutation(api.mutations.activities.log, {
         challengeId,
         activityTypeId,
-        loggedDate: '2024-01-15T18:00:00Z',
+        loggedDate: '2024-01-15',
         metrics: { minutes: 20 },
         source: 'manual',
       });
@@ -559,7 +560,7 @@ describe('Activities Logic', () => {
       await tWithAuth.mutation(api.mutations.activities.log, {
         challengeId,
         activityTypeId,
-        loggedDate: '2024-01-15T10:00:00Z',
+        loggedDate: '2024-01-15',
         metrics: { minutes: 15 },
         source: 'manual',
       });
@@ -568,7 +569,7 @@ describe('Activities Logic', () => {
       await tWithAuth.mutation(api.mutations.activities.log, {
         challengeId,
         activityTypeId,
-        loggedDate: '2024-01-16T10:00:00Z',
+        loggedDate: '2024-01-16',
         metrics: { minutes: 15 },
         source: 'manual',
       });
@@ -580,7 +581,7 @@ describe('Activities Logic', () => {
       const result = await tWithAuth.mutation(api.mutations.activities.log, {
         challengeId,
         activityTypeId,
-        loggedDate: '2024-01-18T10:00:00Z',
+        loggedDate: '2024-01-18',
         metrics: { minutes: 15 },
         source: 'manual',
       });
@@ -598,7 +599,7 @@ describe('Activities Logic', () => {
       await tWithAuth.mutation(api.mutations.activities.log, {
         challengeId,
         activityTypeId,
-        loggedDate: '2024-01-15T10:00:00Z',
+        loggedDate: '2024-01-15',
         metrics: { minutes: 15 },
         source: 'manual',
       });
@@ -607,7 +608,7 @@ describe('Activities Logic', () => {
       await tWithAuth.mutation(api.mutations.activities.log, {
         challengeId,
         activityTypeId,
-        loggedDate: '2024-01-17T10:00:00Z',
+        loggedDate: '2024-01-17',
         metrics: { minutes: 15 },
         source: 'manual',
       });
@@ -619,7 +620,7 @@ describe('Activities Logic', () => {
       await tWithAuth.mutation(api.mutations.activities.log, {
         challengeId,
         activityTypeId,
-        loggedDate: '2024-01-16T10:00:00Z',
+        loggedDate: '2024-01-16',
         metrics: { minutes: 15 },
         source: 'manual',
       });
@@ -636,21 +637,21 @@ describe('Activities Logic', () => {
       await tWithAuth.mutation(api.mutations.activities.log, {
         challengeId,
         activityTypeId,
-        loggedDate: '2024-01-15T10:00:00Z',
+        loggedDate: '2024-01-15',
         metrics: { minutes: 15 },
         source: 'manual',
       });
       await tWithAuth.mutation(api.mutations.activities.log, {
         challengeId,
         activityTypeId,
-        loggedDate: '2024-01-16T10:00:00Z',
+        loggedDate: '2024-01-16',
         metrics: { minutes: 15 },
         source: 'manual',
       });
       await tWithAuth.mutation(api.mutations.activities.log, {
         challengeId,
         activityTypeId,
-        loggedDate: '2024-01-17T10:00:00Z',
+        loggedDate: '2024-01-17',
         metrics: { minutes: 15 },
         source: 'manual',
       });
@@ -678,7 +679,7 @@ describe('Activities Logic', () => {
       await tWithAuth.mutation(api.mutations.activities.log, {
         challengeId,
         activityTypeId: negativeTypeId,
-        loggedDate: '2024-01-16T18:00:00Z',
+        loggedDate: '2024-01-16',
         metrics: { count: 1 },
         source: 'manual',
       });
@@ -694,21 +695,21 @@ describe('Activities Logic', () => {
       const day1 = await tWithAuth.mutation(api.mutations.activities.log, {
         challengeId,
         activityTypeId,
-        loggedDate: '2024-01-15T10:00:00Z',
+        loggedDate: '2024-01-15',
         metrics: { minutes: 15 },
         source: 'manual',
       });
       const day2 = await tWithAuth.mutation(api.mutations.activities.log, {
         challengeId,
         activityTypeId,
-        loggedDate: '2024-01-16T10:00:00Z',
+        loggedDate: '2024-01-16',
         metrics: { minutes: 15 },
         source: 'manual',
       });
       await tWithAuth.mutation(api.mutations.activities.log, {
         challengeId,
         activityTypeId,
-        loggedDate: '2024-01-17T10:00:00Z',
+        loggedDate: '2024-01-17',
         metrics: { minutes: 15 },
         source: 'manual',
       });
@@ -754,21 +755,21 @@ describe('Activities Logic', () => {
       await tWithAuth.mutation(api.mutations.activities.log, {
         challengeId,
         activityTypeId,
-        loggedDate: '2024-01-15T10:00:00Z',
+        loggedDate: '2024-01-15',
         metrics: { minutes: 15 },
         source: 'manual',
       });
       const day2 = await tWithAuth.mutation(api.mutations.activities.log, {
         challengeId,
         activityTypeId,
-        loggedDate: '2024-01-16T10:00:00Z',
+        loggedDate: '2024-01-16',
         metrics: { minutes: 15 },
         source: 'manual',
       });
       await tWithAuth.mutation(api.mutations.activities.log, {
         challengeId,
         activityTypeId,
-        loggedDate: '2024-01-17T10:00:00Z',
+        loggedDate: '2024-01-17',
         metrics: { minutes: 15 },
         source: 'manual',
       });
@@ -792,7 +793,7 @@ describe('Activities Logic', () => {
       await tWithAuth.mutation(api.mutations.activities.log, {
         challengeId,
         activityTypeId,
-        loggedDate: '2024-01-15T08:00:00Z',
+        loggedDate: '2024-01-15',
         metrics: { minutes: 5 },
         source: 'manual',
       });
@@ -804,7 +805,7 @@ describe('Activities Logic', () => {
       const result = await tWithAuth.mutation(api.mutations.activities.log, {
         challengeId,
         activityTypeId,
-        loggedDate: '2024-01-15T18:00:00Z',
+        loggedDate: '2024-01-15',
         metrics: { minutes: 6 },
         source: 'manual',
       });
@@ -822,7 +823,7 @@ describe('Activities Logic', () => {
       await tWithAuth.mutation(api.mutations.activities.log, {
         challengeId,
         activityTypeId: nonStreakActivityTypeId,
-        loggedDate: '2024-01-15T08:00:00Z',
+        loggedDate: '2024-01-15',
         metrics: { count: 4 }, // 4 * 5 = 20 points
         source: 'manual',
       });
@@ -834,7 +835,7 @@ describe('Activities Logic', () => {
       await tWithAuth.mutation(api.mutations.activities.log, {
         challengeId,
         activityTypeId,
-        loggedDate: '2024-01-15T10:00:00Z',
+        loggedDate: '2024-01-15',
         metrics: { minutes: 5 }, // Only 5 points from streak-contributing
         source: 'manual',
       });
@@ -851,7 +852,7 @@ describe('Activities Logic', () => {
         await tWithAuth.mutation(api.mutations.activities.log, {
           challengeId,
           activityTypeId,
-          loggedDate: `2024-01-${day}T10:00:00Z`,
+          loggedDate: `2024-01-${day}`,
           metrics: { minutes: 15 },
           source: 'manual',
         });
@@ -869,7 +870,7 @@ describe('Activities Logic', () => {
       await tWithAuth.mutation(api.mutations.activities.log, {
         challengeId,
         activityTypeId,
-        loggedDate: '2024-01-15T10:00:00Z',
+        loggedDate: '2024-01-15',
         metrics: { minutes: 15 },
         source: 'manual',
       });
@@ -878,7 +879,7 @@ describe('Activities Logic', () => {
       await tWithAuth.mutation(api.mutations.activities.log, {
         challengeId,
         activityTypeId: nonStreakActivityTypeId,
-        loggedDate: '2024-01-15T12:00:00Z',
+        loggedDate: '2024-01-15',
         metrics: { count: 4 },
         source: 'manual',
       });
@@ -960,7 +961,7 @@ describe('Activities Logic', () => {
       const runResult = await tWithAuth.mutation(api.mutations.activities.log, {
         challengeId,
         activityTypeId: runTypeId,
-        loggedDate: '2024-01-15T10:00:00Z',
+        loggedDate: '2024-01-15',
         metrics: { miles: 26.2 },
         source: 'manual',
       });
@@ -977,7 +978,7 @@ describe('Activities Logic', () => {
       await tWithAuth.mutation(api.mutations.activities.log, {
         challengeId,
         activityTypeId: cycleTypeId,
-        loggedDate: '2024-01-16T10:00:00Z',
+        loggedDate: '2024-01-16',
         metrics: { miles: 112 },
         source: 'manual',
       });
@@ -993,7 +994,7 @@ describe('Activities Logic', () => {
       const swimResult = await tWithAuth.mutation(api.mutations.activities.log, {
         challengeId,
         activityTypeId: swimTypeId,
-        loggedDate: '2024-01-17T10:00:00Z',
+        loggedDate: '2024-01-17',
         metrics: { miles: 2.4 },
         source: 'manual',
       });
@@ -1114,7 +1115,7 @@ describe('Activities Logic', () => {
       await tWithAuth.mutation(api.mutations.activities.log, {
         challengeId,
         activityTypeId: runTypeId,
-        loggedDate: '2024-01-15T10:00:00Z',
+        loggedDate: '2024-01-15',
         metrics: { miles: 26.2 },
         source: 'manual',
       });
@@ -1122,7 +1123,7 @@ describe('Activities Logic', () => {
       await tWithAuth.mutation(api.mutations.activities.log, {
         challengeId,
         activityTypeId: cycleTypeId,
-        loggedDate: '2024-01-16T10:00:00Z',
+        loggedDate: '2024-01-16',
         metrics: { miles: 112 },
         source: 'manual',
       });
@@ -1132,7 +1133,7 @@ describe('Activities Logic', () => {
           userId: rivalId,
           challengeId,
           activityTypeId: runTypeId,
-          loggedDate: Date.parse("2024-01-16T12:00:00Z"),
+          loggedDate: dateOnlyToUtcMs("2024-01-16"),
           metrics: { miles: 200 },
           source: "manual",
           pointsEarned: 200,
@@ -1156,7 +1157,7 @@ describe('Activities Logic', () => {
       await tWithAuth.mutation(api.mutations.activities.log, {
         challengeId,
         activityTypeId: swimTypeId,
-        loggedDate: '2024-01-17T10:00:00Z',
+        loggedDate: '2024-01-17',
         metrics: { miles: 2.4 },
         source: 'manual',
       });
@@ -1210,7 +1211,7 @@ describe('Activities Logic', () => {
       const result1 = await tWithAuth.mutation(api.mutations.activities.log, {
         challengeId,
         activityTypeId,
-        loggedDate: '2024-01-15T10:00:00Z',
+        loggedDate: '2024-01-15',
         source: 'manual',
       });
       expect(result1.pointsEarned).toBe(25);
@@ -1219,7 +1220,7 @@ describe('Activities Logic', () => {
       const result2 = await tWithAuth.mutation(api.mutations.activities.log, {
         challengeId,
         activityTypeId,
-        loggedDate: '2024-01-16T10:00:00Z',
+        loggedDate: '2024-01-16',
         source: 'manual',
       });
       expect(result2.pointsEarned).toBe(25);
@@ -1228,7 +1229,7 @@ describe('Activities Logic', () => {
       await expect(tWithAuth.mutation(api.mutations.activities.log, {
         challengeId,
         activityTypeId,
-        loggedDate: '2024-01-17T10:00:00Z',
+        loggedDate: '2024-01-17',
         source: 'manual',
       })).rejects.toThrow('You\'ve reached the limit of 2');
     });
@@ -1270,7 +1271,7 @@ describe('Activities Logic', () => {
       await tWithAuth.mutation(api.mutations.activities.log, {
         challengeId,
         activityTypeId,
-        loggedDate: '2024-01-15T10:00:00Z',
+        loggedDate: '2024-01-15',
         source: 'manual',
       });
 
@@ -1278,7 +1279,7 @@ describe('Activities Logic', () => {
       await expect(tWithAuth.mutation(api.mutations.activities.log, {
         challengeId,
         activityTypeId,
-        loggedDate: '2024-01-16T10:00:00Z',
+        loggedDate: '2024-01-16',
         source: 'manual',
       })).rejects.toThrow('You\'ve already logged "Sally-up Challenge"');
     });
@@ -1336,7 +1337,7 @@ describe('Activities Logic', () => {
       const result = await tWithAuth.mutation(api.mutations.activities.log, {
         challengeId,
         activityTypeId,
-        loggedDate: '2024-01-10T10:00:00Z', // Day 10, Week 2
+        loggedDate: '2024-01-10', // Day 10, Week 2
         source: 'manual',
       });
       expect(result.pointsEarned).toBe(25);
@@ -1393,7 +1394,7 @@ describe('Activities Logic', () => {
       await expect(tWithAuth.mutation(api.mutations.activities.log, {
         challengeId,
         activityTypeId,
-        loggedDate: '2024-01-03T10:00:00Z', // Day 3, Week 1
+        loggedDate: '2024-01-03', // Day 3, Week 1
         source: 'manual',
       })).rejects.toThrow('is only available during week 3');
 
@@ -1401,7 +1402,7 @@ describe('Activities Logic', () => {
       await expect(tWithAuth.mutation(api.mutations.activities.log, {
         challengeId,
         activityTypeId,
-        loggedDate: '2024-01-10T10:00:00Z', // Day 10, Week 2
+        loggedDate: '2024-01-10', // Day 10, Week 2
         source: 'manual',
       })).rejects.toThrow('is only available during week 3');
     });
@@ -1452,7 +1453,7 @@ describe('Activities Logic', () => {
       const result1 = await tWithAuth.mutation(api.mutations.activities.log, {
         challengeId,
         activityTypeId,
-        loggedDate: '2024-01-15T10:00:00Z',
+        loggedDate: '2024-01-15',
         metrics: { duration_minutes: 8 },
         source: 'manual',
       });
@@ -1502,7 +1503,7 @@ describe('Activities Logic', () => {
       const result = await tWithAuth.mutation(api.mutations.activities.log, {
         challengeId,
         activityTypeId,
-        loggedDate: '2024-01-15T10:00:00Z',
+        loggedDate: '2024-01-15',
         metrics: { duration_minutes: 11 },
         source: 'manual',
       });
@@ -1552,7 +1553,7 @@ describe('Activities Logic', () => {
       const result = await tWithAuth.mutation(api.mutations.activities.log, {
         challengeId,
         activityTypeId,
-        loggedDate: '2024-01-15T10:00:00Z',
+        loggedDate: '2024-01-15',
         metrics: { circuits: 5 },
         source: 'manual',
       });
@@ -1599,7 +1600,7 @@ describe('Activities Logic', () => {
       const result = await tWithAuth.mutation(api.mutations.activities.log, {
         challengeId,
         activityTypeId,
-        loggedDate: '2024-01-15T10:00:00Z',
+        loggedDate: '2024-01-15',
         metrics: { circuits: 2 },
         source: 'manual',
       });
@@ -1650,7 +1651,7 @@ describe('Activities Logic', () => {
       const result1 = await tWithAuth.mutation(api.mutations.activities.log, {
         challengeId,
         activityTypeId,
-        loggedDate: '2024-01-15T10:00:00Z',
+        loggedDate: '2024-01-15',
         source: 'manual',
       });
       expect(result1.pointsEarned).toBe(65);
@@ -1659,7 +1660,7 @@ describe('Activities Logic', () => {
       const result2 = await tWithAuth.mutation(api.mutations.activities.log, {
         challengeId,
         activityTypeId,
-        loggedDate: '2024-01-16T10:00:00Z',
+        loggedDate: '2024-01-16',
         metrics: { selectedBonuses: ['Weighted Vest'] },
         source: 'manual',
       });
@@ -1712,7 +1713,7 @@ describe('Activities Logic', () => {
       const result1 = await tWithAuth.mutation(api.mutations.activities.log, {
         challengeId,
         activityTypeId,
-        loggedDate: '2024-01-15T10:00:00Z',
+        loggedDate: '2024-01-15',
         metrics: { miles: 5 },
         source: 'manual',
       });
@@ -1723,7 +1724,7 @@ describe('Activities Logic', () => {
       const result2 = await tWithAuth.mutation(api.mutations.activities.log, {
         challengeId,
         activityTypeId,
-        loggedDate: '2024-01-16T10:00:00Z',
+        loggedDate: '2024-01-16',
         metrics: { miles: 13.1 },
         source: 'manual',
       });
@@ -1767,7 +1768,7 @@ describe('Activities Logic', () => {
         });
       });
 
-      const day = new Date('2024-01-15T12:00:00Z');
+      const day = new Date('2024-01-15');
       await t.run(async (ctx) => {
         await ctx.db.insert("activities", {
           userId,
@@ -1789,7 +1790,7 @@ describe('Activities Logic', () => {
       const result = await tWithAuth.mutation(api.mutations.activities.log, {
         challengeId,
         activityTypeId,
-        loggedDate: day.toISOString(),
+        loggedDate: formatDateOnlyFromUtcMs(day.getTime()),
         metrics: { drinks: 2 },
         source: "manual",
       });
@@ -1843,7 +1844,7 @@ describe('Activities Logic', () => {
       const run = await tWithAuth.mutation(api.mutations.activities.log, {
         challengeId,
         activityTypeId: runTypeId,
-        loggedDate: "2024-01-15T10:00:00Z",
+        loggedDate: "2024-01-15",
         metrics: { minutes: 5 },
         source: "manual",
       });
@@ -1851,7 +1852,7 @@ describe('Activities Logic', () => {
       await tWithAuth.mutation(api.mutations.activities.log, {
         challengeId,
         activityTypeId: drinksTypeId,
-        loggedDate: "2024-01-15T18:00:00Z",
+        loggedDate: "2024-01-15",
         metrics: { count: 1 },
         source: "manual",
       });
@@ -1887,7 +1888,7 @@ describe('Activities Logic', () => {
           userId: otherUserId,
           challengeId,
           activityTypeId: drinksTypeId,
-          loggedDate: Date.parse("2024-01-15T18:00:00Z"),
+          loggedDate: dateOnlyToUtcMs("2024-01-15"),
           metrics: { count: 1 },
           source: "manual",
           pointsEarned: -6,

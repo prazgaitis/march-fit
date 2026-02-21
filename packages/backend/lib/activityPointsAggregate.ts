@@ -17,6 +17,15 @@ export const activityPointsAggregate = new TableAggregate<{
 type QueryAggregateCtx = Pick<QueryCtx, "runQuery">;
 type MutationAggregateCtx = Pick<MutationCtx, "runMutation">;
 
+export async function getChallengePointTotalForUser(
+  ctx: QueryAggregateCtx,
+  challengeId: Id<"challenges">,
+  userId: Id<"users">,
+) {
+  const totals = await getChallengePointTotalsForUsers(ctx, challengeId, [userId]);
+  return totals.get(userId) ?? 0;
+}
+
 export async function getChallengePointTotalsForUsers(
   ctx: QueryAggregateCtx,
   challengeId: Id<"challenges">,

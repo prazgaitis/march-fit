@@ -9,6 +9,7 @@ import {
 } from "../helpers/convex";
 import type { Id } from "@repo/backend/_generated/dataModel";
 import { dateOnlyToUtcMs } from "@/lib/date-only";
+import { getChallengePointTotalForUser } from "@repo/backend/lib/activityPointsAggregate";
 
 describe("Points negative + local date grouping", () => {
   let t: Awaited<ReturnType<typeof createTestContext>>;
@@ -76,6 +77,11 @@ describe("Points negative + local date grouping", () => {
 
     expect(leaderboard).toHaveLength(1);
     expect(leaderboard[0].totalPoints).toBe(5);
+
+    const aggregateTotal = await t.run(async (ctx) =>
+      getChallengePointTotalForUser(ctx, challengeId, userId)
+    );
+    expect(aggregateTotal).toBe(5);
   });
 
   it("groups daily totals by local date (ignores time-of-day)", async () => {

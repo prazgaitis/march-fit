@@ -377,21 +377,21 @@ describe('Admin Activity Features', () => {
       await ownerAuth.mutation(api.mutations.activities.log, {
         challengeId,
         activityTypeId,
-        loggedDate: '2024-01-15T10:00:00Z',
+        loggedDate: '2024-01-15',
         metrics: { minutes: 15 },
         source: 'manual',
       });
       const day2 = await ownerAuth.mutation(api.mutations.activities.log, {
         challengeId,
         activityTypeId,
-        loggedDate: '2024-01-16T10:00:00Z',
+        loggedDate: '2024-01-16',
         metrics: { minutes: 15 },
         source: 'manual',
       });
       await ownerAuth.mutation(api.mutations.activities.log, {
         challengeId,
         activityTypeId,
-        loggedDate: '2024-01-17T10:00:00Z',
+        loggedDate: '2024-01-17',
         metrics: { minutes: 15 },
         source: 'manual',
       });

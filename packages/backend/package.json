@@ -28,6 +28,10 @@
     "./lib/emailTemplate": {
       "types": "./lib/emailTemplate.ts",
       "default": "./lib/emailTemplate.ts"
+    },
+    "./lib/activityPointsAggregate": {
+      "types": "./lib/activityPointsAggregate.ts",
+      "default": "./lib/activityPointsAggregate.ts"
     }
   },
   "scripts": {
