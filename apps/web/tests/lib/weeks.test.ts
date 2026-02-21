@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getChallengeWeekNumber, getWeekDateRange, getTotalWeeks } from '../../../../packages/backend/lib/weeks';
+import { getChallengeWeekNumber, getWeekDateRange, getTotalWeeks, isInFinalDays } from '../../../../packages/backend/lib/weeks';
 
 describe('weeks utilities', () => {
   // Challenge starts Jan 1, 2024
@@ -111,6 +111,39 @@ describe('weeks utilities', () => {
 
     it('should return 1 for 1 day', () => {
       expect(getTotalWeeks(1)).toBe(1);
+    });
+  });
+
+  describe('isInFinalDays', () => {
+    // Challenge: starts 2024-03-01, 31 days → ends 2024-03-31
+    const challenge = { startDate: '2024-03-01', durationDays: 31 };
+    const DAY_MS = 1000 * 60 * 60 * 24;
+    // Day 1 = Mar 1 = UTC midnight
+    const day1 = Date.UTC(2024, 2, 1);
+
+    it('returns false before final days start (default = day 30)', () => {
+      // Default final days = day durationDays - 1 = 30
+      expect(isInFinalDays(challenge, day1 + 28 * DAY_MS)).toBe(false); // day 29
+    });
+
+    it('returns true on the first final day (default = day 30)', () => {
+      expect(isInFinalDays(challenge, day1 + 29 * DAY_MS)).toBe(true); // day 30
+    });
+
+    it('returns true on the last day', () => {
+      expect(isInFinalDays(challenge, day1 + 30 * DAY_MS)).toBe(true); // day 31
+    });
+
+    it('uses explicit finalDaysStart when provided', () => {
+      const c = { ...challenge, finalDaysStart: 29 };
+      expect(isInFinalDays(c, day1 + 27 * DAY_MS)).toBe(false); // day 28
+      expect(isInFinalDays(c, day1 + 28 * DAY_MS)).toBe(true);  // day 29
+    });
+
+    it('returns false when well before challenge end', () => {
+      const c = { ...challenge, finalDaysStart: 29 };
+      expect(isInFinalDays(c, day1)).toBe(false); // day 1
+      expect(isInFinalDays(c, day1 + 13 * DAY_MS)).toBe(false); // day 14
     });
   });
 

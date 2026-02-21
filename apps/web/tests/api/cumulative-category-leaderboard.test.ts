@@ -34,6 +34,7 @@ describe('getCumulativeCategoryLeaderboard', () => {
     return await t.run(async (ctx) => {
       return await ctx.db.insert('categories', {
         name,
+        showInCategoryLeaderboard: true,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       });
@@ -333,13 +334,14 @@ describe('getCumulativeCategoryLeaderboard', () => {
     expect(strength.men[0].rank).toBe(1);
   });
 
-  it('should sort categories alphabetically with "Other" last', async () => {
+  it('should sort categories alphabetically (uncategorized activities excluded)', async () => {
     const { challengeId } = await setupChallenge();
     const zCategory = await createCategory('Zzz Sleep');
     const aCategory = await createCategory('Abs');
 
     const zType = await createActivityType(challengeId, 'Sleep Tracking', zCategory);
     const aType = await createActivityType(challengeId, 'Crunches', aCategory);
+    // Activity type with no category — should NOT appear in leaderboard
     const uncatType = await createActivityType(challengeId, 'Misc');
 
     const alice = await createParticipant(challengeId, 'alice@test.com', 'Alice', 'female');
@@ -352,11 +354,10 @@ describe('getCumulativeCategoryLeaderboard', () => {
       challengeId,
     });
 
-    expect(result!.categories).toHaveLength(3);
+    // Only the two flagged categories appear; uncategorized activity is excluded
+    expect(result!.categories).toHaveLength(2);
     expect(result!.categories[0].category.name).toBe('Abs');
     expect(result!.categories[1].category.name).toBe('Zzz Sleep');
-    expect(result!.categories[2].category.name).toBe('Other');
-    expect(result!.categories[2].category.id).toBe('uncategorized');
   });
 
   it('should aggregate activities across different types in the same category', async () => {

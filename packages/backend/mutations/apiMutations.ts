@@ -15,7 +15,7 @@ import {
 } from "../lib/scoring";
 import { isPaymentRequired } from "../lib/payments";
 import { dateOnlyToUtcMs, coerceDateOnlyToString, formatDateOnlyFromUtcMs } from "../lib/dateOnly";
-import { getChallengeWeekNumber } from "../lib/weeks";
+import { getChallengeWeekNumber, isInFinalDays } from "../lib/weeks";
 import { notDeleted } from "../lib/activityFilters";
 import { reportLatencyIfExceeded } from "../lib/latencyMonitoring";
 import { applyParticipationScoreDeltaAndRecomputeStreak } from "../lib/participationScoring";
@@ -87,7 +87,9 @@ export const logActivityForUser = internalMutation({
     // Enforce validWeeks
     if (activityType.validWeeks && activityType.validWeeks.length > 0) {
       const weekNumber = getChallengeWeekNumber(challenge.startDate, loggedDateTs);
-      if (!activityType.validWeeks.includes(weekNumber)) {
+      const inValidWeek = activityType.validWeeks.includes(weekNumber);
+      const inFinalDays = activityType.availableInFinalDays && isInFinalDays(challenge, loggedDateTs);
+      if (!inValidWeek && !inFinalDays) {
         throw new Error(
           `This activity type is only available during week(s) ${activityType.validWeeks.join(", ")}. Current week: ${weekNumber}`
         );

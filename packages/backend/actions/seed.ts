@@ -95,15 +95,17 @@ async function seedCategories(ctx: any) {
   const now = Date.now();
 
   const categoryData = [
-    { name: "Outdoor Running", description: "Running, jogging, hiking, walking for fitness" },
-    { name: "Cycling", description: "Outdoor cycling activities" },
-    { name: "Low Intensity Cardio", description: "<75% max HR - lifting, pilates, bouldering, elliptical" },
-    { name: "High Intensity Cardio", description: ">75% max HR - HIIT, interval training, boxing, cardio sports" },
-    { name: "Rowing", description: "Indoor rowers and ski ergs" },
-    { name: "Special", description: "Special challenge workouts and events" },
-    { name: "Bonus", description: "Bonus activities and achievements" },
-    { name: "Penalty", description: "Activities that result in point deductions" },
-    { name: "Horses", description: "Horse-related activities" },
+    { name: "Outdoor Running", description: "Running, jogging, hiking, walking for fitness", showInCategoryLeaderboard: true },
+    { name: "Cycling", description: "Outdoor cycling activities", showInCategoryLeaderboard: true },
+    { name: "Low Intensity Cardio", description: "<75% max HR - lifting, pilates, bouldering, elliptical", showInCategoryLeaderboard: true },
+    { name: "High Intensity Cardio", description: ">75% max HR - HIIT, interval training, boxing, cardio sports", showInCategoryLeaderboard: true },
+    { name: "Rowing", description: "Indoor rowers and ski ergs", showInCategoryLeaderboard: true },
+    { name: "Special", description: "Special challenge workouts and events", showInCategoryLeaderboard: false },
+    { name: "Bonus", description: "Bonus activities and achievements", showInCategoryLeaderboard: false },
+    { name: "Penalty", description: "Activities that result in point deductions", showInCategoryLeaderboard: false },
+    { name: "Horses", description: "Horse-related activities", showInCategoryLeaderboard: false },
+    { name: "Yoga", description: "Yoga, stretching, and mobility work", showInCategoryLeaderboard: true },
+    { name: "Swimming", description: "Pool or open water swimming", showInCategoryLeaderboard: false },
   ];
 
   const categories: Record<string, any> = {};
@@ -120,6 +122,7 @@ async function seedCategories(ctx: any) {
       const id = await ctx.runMutation(internal.mutations.categories.create, {
         name: cat.name,
         description: cat.description,
+        showInCategoryLeaderboard: cat.showInCategoryLeaderboard,
         createdAt: now,
         updatedAt: now,
       });

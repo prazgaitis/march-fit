@@ -472,6 +472,13 @@ export const getCumulativeCategoryLeaderboard = query({
         .map((c) => [c._id, c])
     );
 
+    // Only show categories flagged for the leaderboard
+    const leaderboardCategoryIds = new Set<string>(
+      Array.from(categoryMap.entries())
+        .filter(([, cat]) => cat.showInCategoryLeaderboard === true)
+        .map(([id]) => id as string)
+    );
+
     // Query ALL non-deleted activities for this challenge
     const activities = await ctx.db
       .query("activities")
@@ -484,10 +491,11 @@ export const getCumulativeCategoryLeaderboard = query({
 
     for (const activity of activities) {
       const at = activityTypeMap.get(activity.activityTypeId);
-      if (!at) continue;
+      if (!at || !at.categoryId) continue;
 
-      const catId = at.categoryId ?? "uncategorized";
-      const catKey = catId as string;
+      const catKey = at.categoryId as string;
+      // Skip categories not flagged for the leaderboard
+      if (!leaderboardCategoryIds.has(catKey)) continue;
 
       if (!categoryUserPoints.has(catKey)) {
         categoryUserPoints.set(catKey, new Map());
@@ -550,12 +558,10 @@ export const getCumulativeCategoryLeaderboard = query({
         const assignRanks = <T extends { rank: number }>(arr: T[]): T[] =>
           arr.slice(0, 5).map((e, i) => ({ ...e, rank: i + 1 }));
 
-        const category =
-          catKey === "uncategorized"
-            ? { id: "uncategorized" as string, name: "Other" }
-            : categoryMap.has(catKey as Id<"categories">)
-              ? { id: catKey, name: categoryMap.get(catKey as Id<"categories">)!.name }
-              : { id: catKey, name: "Unknown" };
+        const catDoc = categoryMap.get(catKey as Id<"categories">);
+        const category = catDoc
+          ? { id: catKey, name: catDoc.name }
+          : { id: catKey, name: "Unknown" };
 
         return {
           category,
@@ -571,10 +577,8 @@ export const getCumulativeCategoryLeaderboard = query({
       (c) => c.women.length > 0 || c.men.length > 0
     );
 
-    // Sort alphabetically, "Other" last
+    // Sort alphabetically
     nonEmpty.sort((a, b) => {
-      if (a.category.id === "uncategorized") return 1;
-      if (b.category.id === "uncategorized") return -1;
       return a.category.name.localeCompare(b.category.name);
     });
 
@@ -629,6 +633,13 @@ export const getWeeklyCategoryLeaderboard = query({
         .map((c) => [c._id, c])
     );
 
+    // Only show categories flagged for the leaderboard
+    const leaderboardCategoryIds = new Set<string>(
+      Array.from(categoryMap.entries())
+        .filter(([, cat]) => cat.showInCategoryLeaderboard === true)
+        .map(([id]) => id as string)
+    );
+
     // Query weekly activities for this challenge in the selected week date range.
     const weeklyActivities = await ctx.db
       .query("activities")
@@ -668,11 +679,12 @@ export const getWeeklyCategoryLeaderboard = query({
 
     for (const activity of weeklyActivities) {
       const at = activityTypeMap.get(activity.activityTypeId);
-      if (!at) {
-        continue;
-      }
+      if (!at || !at.categoryId) continue;
 
-      const categoryKey = (at.categoryId ?? "uncategorized") as string;
+      const categoryKey = at.categoryId as string;
+      // Skip categories not flagged for the leaderboard
+      if (!leaderboardCategoryIds.has(categoryKey)) continue;
+
       addPoints(
         weeklyCategoryUserPoints,
         categoryKey,
@@ -683,11 +695,12 @@ export const getWeeklyCategoryLeaderboard = query({
 
     for (const activity of cumulativeActivities) {
       const at = activityTypeMap.get(activity.activityTypeId);
-      if (!at) {
-        continue;
-      }
+      if (!at || !at.categoryId) continue;
 
-      const categoryKey = (at.categoryId ?? "uncategorized") as string;
+      const categoryKey = at.categoryId as string;
+      // Skip categories not flagged for the leaderboard
+      if (!leaderboardCategoryIds.has(categoryKey)) continue;
+
       addPoints(
         cumulativeCategoryUserPoints,
         categoryKey,
@@ -757,12 +770,10 @@ export const getWeeklyCategoryLeaderboard = query({
             })()
           : null;
 
-        const category =
-          catKey === "uncategorized"
-            ? { id: "uncategorized" as string, name: "Other" }
-            : categoryMap.has(catKey as Id<"categories">)
-              ? { id: catKey, name: categoryMap.get(catKey as Id<"categories">)!.name }
-              : { id: catKey, name: "Unknown" };
+        const catDoc = categoryMap.get(catKey as Id<"categories">);
+        const category = catDoc
+          ? { id: catKey, name: catDoc.name }
+          : { id: catKey, name: "Unknown" };
 
         return {
           category,
@@ -774,10 +785,8 @@ export const getWeeklyCategoryLeaderboard = query({
       })
     );
 
-    // Sort categories alphabetically, but put "Other" last
+    // Sort categories alphabetically
     categories.sort((a, b) => {
-      if (a.category.id === "uncategorized") return 1;
-      if (b.category.id === "uncategorized") return -1;
       return a.category.name.localeCompare(b.category.name);
     });
 

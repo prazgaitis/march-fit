@@ -59,6 +59,7 @@ export default async function ChallengeAdminLayout({
       label: "Scoring",
       items: [
         { href: `${base}/activity-types`, label: "Activity Types", segment: "activity-types" },
+        { href: `${base}/categories`, label: "Categories", segment: "categories" },
         { href: `${base}/integrations`, label: "Integrations", segment: "integrations" },
         { href: `${base}/achievements`, label: "Achievements", segment: "achievements" },
       ],

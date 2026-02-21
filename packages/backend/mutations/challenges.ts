@@ -139,6 +139,7 @@ export const updateChallenge = mutation({
     announcement: v.optional(v.string()),
     visibility: v.optional(v.union(v.literal("public"), v.literal("private"))),
     allowGenderEdit: v.optional(v.boolean()),
+    finalDaysStart: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     await requireChallengeAdmin(ctx, args.challengeId);
@@ -210,6 +211,8 @@ export const updateChallenge = mutation({
     if (updates.welcomeVideoUrl !== undefined) updateData.welcomeVideoUrl = updates.welcomeVideoUrl;
     if (updates.welcomeMessage !== undefined) updateData.welcomeMessage = updates.welcomeMessage;
     if (updates.visibility !== undefined) updateData.visibility = updates.visibility;
+    if (updates.allowGenderEdit !== undefined) updateData.allowGenderEdit = updates.allowGenderEdit;
+    if (updates.finalDaysStart !== undefined) updateData.finalDaysStart = updates.finalDaysStart;
 
     // Handle announcement - update timestamp when announcement changes
     if (updates.announcement !== undefined) {

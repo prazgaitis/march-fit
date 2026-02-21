@@ -1,6 +1,17 @@
 import { internalMutation, mutation } from "../_generated/server";
 import { v } from "convex/values";
 
+const bonusThresholdsArg = v.optional(
+  v.array(
+    v.object({
+      metric: v.string(),
+      threshold: v.number(),
+      bonusPoints: v.number(),
+      description: v.string(),
+    })
+  )
+);
+
 // Internal mutation for seeding
 export const create = internalMutation({
   args: {
@@ -13,16 +24,9 @@ export const create = internalMutation({
     isNegative: v.boolean(),
     categoryId: v.optional(v.id("categories")),
     sortOrder: v.optional(v.number()),
-    bonusThresholds: v.optional(
-      v.array(
-        v.object({
-          metric: v.string(),
-          threshold: v.number(),
-          bonusPoints: v.number(),
-          description: v.string(),
-        })
-      )
-    ),
+    displayOrder: v.optional(v.number()),
+    availableInFinalDays: v.optional(v.boolean()),
+    bonusThresholds: bonusThresholdsArg,
     maxPerChallenge: v.optional(v.number()),
     validWeeks: v.optional(v.array(v.number())),
     createdAt: v.number(),
@@ -33,7 +37,7 @@ export const create = internalMutation({
   },
 });
 
-// Public mutation for creating activity types
+// Public mutation for creating activity types (admin UI)
 export const createActivityType = mutation({
   args: {
     challengeId: v.id("challenges"),
@@ -45,22 +49,15 @@ export const createActivityType = mutation({
     isNegative: v.boolean(),
     categoryId: v.optional(v.id("categories")),
     sortOrder: v.optional(v.number()),
-    bonusThresholds: v.optional(
-      v.array(
-        v.object({
-          metric: v.string(),
-          threshold: v.number(),
-          bonusPoints: v.number(),
-          description: v.string(),
-        })
-      )
-    ),
+    displayOrder: v.optional(v.number()),
+    availableInFinalDays: v.optional(v.boolean()),
+    bonusThresholds: bonusThresholdsArg,
     maxPerChallenge: v.optional(v.number()),
     validWeeks: v.optional(v.array(v.number())),
   },
   handler: async (ctx, args) => {
     const now = Date.now();
-    const activityTypeId = await ctx.db.insert("activityTypes", {
+    return await ctx.db.insert("activityTypes", {
       challengeId: args.challengeId,
       templateId: args.templateId,
       name: args.name,
@@ -70,17 +67,18 @@ export const createActivityType = mutation({
       isNegative: args.isNegative,
       categoryId: args.categoryId,
       sortOrder: args.sortOrder,
+      displayOrder: args.displayOrder,
+      availableInFinalDays: args.availableInFinalDays,
       bonusThresholds: args.bonusThresholds,
       maxPerChallenge: args.maxPerChallenge,
       validWeeks: args.validWeeks,
       createdAt: now,
       updatedAt: now,
     });
-    return activityTypeId;
   },
 });
 
-// Internal mutation for updating activity types (no auth check)
+// Internal mutation for updating activity types (used by migrations/actions)
 export const updateInternal = internalMutation({
   args: {
     activityTypeId: v.id("activityTypes"),
@@ -91,16 +89,9 @@ export const updateInternal = internalMutation({
     isNegative: v.optional(v.boolean()),
     categoryId: v.optional(v.id("categories")),
     sortOrder: v.optional(v.number()),
-    bonusThresholds: v.optional(
-      v.array(
-        v.object({
-          metric: v.string(),
-          threshold: v.number(),
-          bonusPoints: v.number(),
-          description: v.string(),
-        })
-      )
-    ),
+    displayOrder: v.optional(v.number()),
+    availableInFinalDays: v.optional(v.boolean()),
+    bonusThresholds: bonusThresholdsArg,
     maxPerChallenge: v.optional(v.number()),
     validWeeks: v.optional(v.array(v.number())),
   },
@@ -108,13 +99,9 @@ export const updateInternal = internalMutation({
     const { activityTypeId, ...updates } = args;
 
     const activityType = await ctx.db.get(activityTypeId);
-    if (!activityType) {
-      throw new Error("Activity type not found");
-    }
+    if (!activityType) throw new Error("Activity type not found");
 
-    const updateData: Record<string, any> = {
-      updatedAt: Date.now(),
-    };
+    const updateData: Record<string, any> = { updatedAt: Date.now() };
 
     if (updates.name !== undefined) updateData.name = updates.name;
     if (updates.description !== undefined) updateData.description = updates.description;
@@ -123,17 +110,18 @@ export const updateInternal = internalMutation({
     if (updates.isNegative !== undefined) updateData.isNegative = updates.isNegative;
     if (updates.categoryId !== undefined) updateData.categoryId = updates.categoryId;
     if (updates.sortOrder !== undefined) updateData.sortOrder = updates.sortOrder;
+    if (updates.displayOrder !== undefined) updateData.displayOrder = updates.displayOrder;
+    if (updates.availableInFinalDays !== undefined) updateData.availableInFinalDays = updates.availableInFinalDays;
     if (updates.bonusThresholds !== undefined) updateData.bonusThresholds = updates.bonusThresholds;
     if (updates.maxPerChallenge !== undefined) updateData.maxPerChallenge = updates.maxPerChallenge;
     if (updates.validWeeks !== undefined) updateData.validWeeks = updates.validWeeks;
 
     await ctx.db.patch(activityTypeId, updateData);
-
     return { success: true };
   },
 });
 
-// Update activity type
+// Public mutation for updating activity types (admin UI)
 export const updateActivityType = mutation({
   args: {
     activityTypeId: v.id("activityTypes"),
@@ -144,16 +132,9 @@ export const updateActivityType = mutation({
     isNegative: v.optional(v.boolean()),
     categoryId: v.optional(v.id("categories")),
     sortOrder: v.optional(v.number()),
-    bonusThresholds: v.optional(
-      v.array(
-        v.object({
-          metric: v.string(),
-          threshold: v.number(),
-          bonusPoints: v.number(),
-          description: v.string(),
-        })
-      )
-    ),
+    displayOrder: v.optional(v.number()),
+    availableInFinalDays: v.optional(v.boolean()),
+    bonusThresholds: bonusThresholdsArg,
     maxPerChallenge: v.optional(v.number()),
     validWeeks: v.optional(v.array(v.number())),
   },
@@ -161,14 +142,9 @@ export const updateActivityType = mutation({
     const { activityTypeId, ...updates } = args;
 
     const activityType = await ctx.db.get(activityTypeId);
-    if (!activityType) {
-      throw new Error("Activity type not found");
-    }
+    if (!activityType) throw new Error("Activity type not found");
 
-    // Build update object with only defined values
-    const updateData: Record<string, any> = {
-      updatedAt: Date.now(),
-    };
+    const updateData: Record<string, any> = { updatedAt: Date.now() };
 
     if (updates.name !== undefined) updateData.name = updates.name;
     if (updates.description !== undefined) updateData.description = updates.description;
@@ -177,12 +153,13 @@ export const updateActivityType = mutation({
     if (updates.isNegative !== undefined) updateData.isNegative = updates.isNegative;
     if (updates.categoryId !== undefined) updateData.categoryId = updates.categoryId;
     if (updates.sortOrder !== undefined) updateData.sortOrder = updates.sortOrder;
+    if (updates.displayOrder !== undefined) updateData.displayOrder = updates.displayOrder;
+    if (updates.availableInFinalDays !== undefined) updateData.availableInFinalDays = updates.availableInFinalDays;
     if (updates.bonusThresholds !== undefined) updateData.bonusThresholds = updates.bonusThresholds;
     if (updates.maxPerChallenge !== undefined) updateData.maxPerChallenge = updates.maxPerChallenge;
     if (updates.validWeeks !== undefined) updateData.validWeeks = updates.validWeeks;
 
     await ctx.db.patch(activityTypeId, updateData);
-
     return { success: true };
   },
 });
