@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint",
     "test": "dotenv -e ../../.env.local -e ../../.env -- vitest",
+    "test:e2e:mobile-selector": "node tests/e2e/mobile-activity-selector-scroll.mjs",
     "storybook": "storybook dev -p 6006",
     "build-storybook": "storybook build"
   },
