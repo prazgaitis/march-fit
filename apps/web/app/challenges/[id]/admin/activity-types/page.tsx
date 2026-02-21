@@ -26,9 +26,12 @@ export default async function ActivityTypesAdminPage({
     return null;
   }
 
-  const items = await convex.query(api.queries.activityTypes.getByChallengeId, {
-    challengeId: challenge.id as Id<"challenges">,
-  });
+  const [items, categories] = await Promise.all([
+    convex.query(api.queries.activityTypes.getByChallengeId, {
+      challengeId: challenge.id as Id<"challenges">,
+    }),
+    convex.query(api.queries.categories.getAll, {}),
+  ]);
 
   return (
     <Card>
@@ -36,7 +39,7 @@ export default async function ActivityTypesAdminPage({
         <CardTitle>Activity Types</CardTitle>
       </CardHeader>
       <CardContent>
-        <AdminActivityTypesTable challengeId={challenge.id} items={items} />
+        <AdminActivityTypesTable challengeId={challenge.id} items={items} categories={categories} />
       </CardContent>
     </Card>
   );
