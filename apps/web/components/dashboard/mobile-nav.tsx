@@ -3,10 +3,17 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Plus } from "lucide-react";
+import { Menu, Plus } from "lucide-react";
 
 import { ActivityLogDialogLazy as ActivityLogDialog } from "./activity-log-dialog-lazy";
 import { navItems } from "./dashboard-nav";
+import { buildMobileNavLayout } from "./mobile-nav-layout";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 
 interface MobileNavProps {
@@ -65,14 +72,8 @@ export function MobileNav({ challengeId, currentUserId, challengeStartDate }: Mo
     lastScrollY.current = window.scrollY;
   }, [pathname]);
 
-  // Take first 4 items for mobile (Home, Notifications, Leaderboard, Profile)
-  // Skip Activity Types to make room for the + button
-  const mobileItems = [
-    navItems[0], // Home
-    navItems[1], // Notifications
-    navItems[2], // Leaderboard
-    navItems[4], // Profile
-  ];
+  const { leftItems, rightItems, overflowItems } = buildMobileNavLayout(navItems);
+  const menuActive = overflowItems.some((item) => pathname === item.href(challengeId, currentUserId));
 
   return (
     <nav
@@ -85,7 +86,7 @@ export function MobileNav({ challengeId, currentUserId, challengeStartDate }: Mo
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
       <div className="flex items-center justify-around px-2 py-2">
-        {mobileItems.slice(0, 2).map((item) => {
+        {leftItems.map((item) => {
           const href = item.href(challengeId, currentUserId);
           const isActive = pathname === href ||
             (item.label === "Home" && pathname.endsWith("/dashboard"));
@@ -118,7 +119,7 @@ export function MobileNav({ challengeId, currentUserId, challengeStartDate }: Mo
           }
         />
 
-        {mobileItems.slice(2).map((item) => {
+        {rightItems.map((item) => {
           const href = item.href(challengeId, currentUserId);
           const isActive = pathname === href;
 
@@ -138,6 +139,46 @@ export function MobileNav({ challengeId, currentUserId, challengeStartDate }: Mo
             </Link>
           );
         })}
+
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              className={cn(
+                "flex flex-col items-center gap-1 rounded-lg px-4 py-2 transition-colors",
+                menuActive ? "text-white" : "text-zinc-500 hover:text-zinc-300"
+              )}
+              aria-label="More navigation"
+            >
+              <Menu className="h-6 w-6" />
+              <span className="text-[10px] font-medium">More</span>
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            align="end"
+            side="top"
+            className="mb-2 w-56 border-zinc-800 bg-zinc-950 text-zinc-100"
+          >
+            {overflowItems.map((item) => {
+              const href = item.href(challengeId, currentUserId);
+              const isActive = pathname === href;
+
+              return (
+                <DropdownMenuItem key={item.label} asChild>
+                  <Link
+                    href={href}
+                    className={cn(
+                      "flex w-full items-center gap-2",
+                      isActive && "text-white"
+                    )}
+                  >
+                    <item.icon className="h-4 w-4" />
+                    <span>{item.label}</span>
+                  </Link>
+                </DropdownMenuItem>
+              );
+            })}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
     </nav>
   );

@@ -20,6 +20,7 @@ import { isPaymentRequired } from "../lib/payments";
 import { dateOnlyToUtcMs, coerceDateOnlyToString, formatDateOnlyFromUtcMs } from "../lib/dateOnly";
 import { getChallengeWeekNumber } from "../lib/weeks";
 import { notDeleted } from "../lib/activityFilters";
+import { reportLatencyIfExceeded } from "../lib/latencyMonitoring";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -107,8 +108,10 @@ export const logActivityForUser = internalMutation({
     ),
   },
   handler: async (ctx, args) => {
-    const user = await ctx.db.get(args.userId);
-    if (!user) throw new Error("User not found");
+    const startedAt = Date.now();
+    try {
+      const user = await ctx.db.get(args.userId);
+      if (!user) throw new Error("User not found");
 
     // Validate participation
     const participation = await ctx.db
@@ -314,17 +317,25 @@ export const logActivityForUser = internalMutation({
       updatedAt: Date.now(),
     });
 
-    return {
-      id: activityId,
-      pointsEarned,
-      basePoints,
-      bonusPoints: totalBonusPoints,
-      triggeredBonuses: triggeredBonuses.map((b) => b.description),
-      streakUpdate: {
-        currentStreak,
-        days: participation.currentStreak !== currentStreak ? 1 : 0,
-      },
-    };
+      return {
+        id: activityId,
+        pointsEarned,
+        basePoints,
+        bonusPoints: totalBonusPoints,
+        triggeredBonuses: triggeredBonuses.map((b) => b.description),
+        streakUpdate: {
+          currentStreak,
+          days: participation.currentStreak !== currentStreak ? 1 : 0,
+        },
+      };
+    } finally {
+      reportLatencyIfExceeded({
+        operation: "mutations.apiMutations.logActivityForUser",
+        startedAt,
+        challengeId: String(args.challengeId),
+        userId: String(args.userId),
+      });
+    }
   },
 });
 
@@ -337,15 +348,21 @@ export const removeActivityForUser = internalMutation({
     activityId: v.id("activities"),
   },
   handler: async (ctx, args) => {
-    const actor = await ctx.db.get(args.userId);
-    if (!actor) throw new Error("User not found");
+    const startedAt = Date.now();
+    let resolvedChallengeId: string | undefined;
+    let resolvedTargetUserId: string | undefined;
+    try {
+      const actor = await ctx.db.get(args.userId);
+      if (!actor) throw new Error("User not found");
 
     const activity = await ctx.db.get(args.activityId);
     if (!activity) throw new Error("Activity not found");
     if (activity.deletedAt) return { deleted: true };
 
-    const challenge = await ctx.db.get(activity.challengeId);
-    if (!challenge) throw new Error("Challenge not found");
+      const challenge = await ctx.db.get(activity.challengeId);
+      if (!challenge) throw new Error("Challenge not found");
+      resolvedChallengeId = String(activity.challengeId);
+      resolvedTargetUserId = String(activity.userId);
 
     const canDelete =
       actor.role === "admin" ||
@@ -378,7 +395,15 @@ export const removeActivityForUser = internalMutation({
       updatedAt: now,
     });
 
-    return { deleted: true };
+      return { deleted: true };
+    } finally {
+      reportLatencyIfExceeded({
+        operation: "mutations.apiMutations.removeActivityForUser",
+        startedAt,
+        challengeId: resolvedChallengeId,
+        userId: resolvedTargetUserId,
+      });
+    }
   },
 });
 
@@ -749,8 +774,14 @@ export const adminEditActivityForUser = internalMutation({
     metrics: v.optional(v.any()),
   },
   handler: async (ctx, args) => {
-    const activity = await ctx.db.get(args.activityId);
-    if (!activity || activity.deletedAt) throw new Error("Activity not found");
+    const startedAt = Date.now();
+    let resolvedChallengeId: string | undefined;
+    let resolvedTargetUserId: string | undefined;
+    try {
+      const activity = await ctx.db.get(args.activityId);
+      if (!activity || activity.deletedAt) throw new Error("Activity not found");
+      resolvedChallengeId = String(activity.challengeId);
+      resolvedTargetUserId = String(activity.userId);
 
     const now = Date.now();
     const updates: Record<string, unknown> = { updatedAt: now };
@@ -820,7 +851,15 @@ export const adminEditActivityForUser = internalMutation({
       createdAt: now,
     });
 
-    return { success: true };
+      return { success: true };
+    } finally {
+      reportLatencyIfExceeded({
+        operation: "mutations.apiMutations.adminEditActivityForUser",
+        startedAt,
+        challengeId: resolvedChallengeId,
+        userId: resolvedTargetUserId,
+      });
+    }
   },
 });
 

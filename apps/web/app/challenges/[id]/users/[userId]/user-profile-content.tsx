@@ -13,6 +13,7 @@ import {
   Flame,
   Loader2,
   Medal,
+  Mountain,
   Settings,
   Trophy,
   UserMinus,
@@ -31,6 +32,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { StravaConnectButton } from "@/components/integrations/strava-connect-button";
 import { ApiKeySection } from "@/components/api-key-section";
 import { cn } from "@/lib/utils";
@@ -45,6 +53,7 @@ export function UserProfileContent({
   profileUserId,
 }: UserProfileContentProps) {
   const [isTogglingFollow, setIsTogglingFollow] = useState(false);
+  const [showPrDayModal, setShowPrDayModal] = useState(false);
 
   const profileData = useQuery(api.queries.users.getProfile, {
     userId: profileUserId as Id<"users">,
@@ -122,6 +131,7 @@ export function UserProfileContent({
   }
 
   const { user, challenge, participation, stats } = profileData;
+  const prDay = stats.prDay;
   const hasStrava = integrations?.some(
     (integration: { service: string; revoked: boolean; accessToken?: string }) =>
       integration.service === "strava" &&
@@ -312,6 +322,86 @@ export function UserProfileContent({
             </CardContent>
           </Card>
         </div>
+      )}
+
+      {participation && (
+        <>
+          <button
+            type="button"
+            onClick={() => {
+              if (prDay) {
+                setShowPrDayModal(true);
+              }
+            }}
+            className={cn(
+              "w-full text-left",
+              prDay ? "cursor-pointer" : "cursor-default"
+            )}
+            disabled={!prDay}
+          >
+            <Card className={cn(prDay && "transition-colors hover:bg-muted/40")}>
+              <CardContent className="flex items-center justify-between gap-3 pt-6">
+                <div className="flex items-center gap-3">
+                  <div className="rounded-full bg-violet-500/10 p-3">
+                    <Mountain className="h-5 w-5 text-violet-500" />
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">PR Day</p>
+                    {prDay ? (
+                      <p className="font-semibold">
+                        {format(new Date(`${prDay.date}T00:00:00Z`), "MMMM d, yyyy")}
+                      </p>
+                    ) : (
+                      <p className="font-semibold text-muted-foreground">Not set yet</p>
+                    )}
+                  </div>
+                </div>
+                <p className="text-right font-semibold text-primary">
+                  {prDay ? `+${prDay.totalPoints.toFixed(0)} pts` : "-"}
+                </p>
+              </CardContent>
+            </Card>
+          </button>
+
+          <Dialog open={showPrDayModal} onOpenChange={setShowPrDayModal}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>PR Day Breakdown</DialogTitle>
+                <DialogDescription>
+                  {prDay
+                    ? `${format(new Date(`${prDay.date}T00:00:00Z`), "MMMM d, yyyy")} • ${prDay.totalPoints.toFixed(0)} points`
+                    : "No PR day available."}
+                </DialogDescription>
+              </DialogHeader>
+
+              {prDay && (
+                <div className="space-y-2">
+                  {prDay.activities.map((activity: { id: string; activityTypeName: string; pointsEarned: number; createdAt: number }) => (
+                    <Link
+                      key={activity.id}
+                      href={`/challenges/${challengeId}/activities/${activity.id}`}
+                      className="flex items-center justify-between rounded-lg border p-3 transition-colors hover:bg-muted/40"
+                      onClick={() => setShowPrDayModal(false)}
+                    >
+                      <div>
+                        <p className="font-medium">{activity.activityTypeName}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {formatDistanceToNow(new Date(activity.createdAt), {
+                            addSuffix: true,
+                          })}
+                        </p>
+                      </div>
+                      <p className="font-semibold text-primary">
+                        {activity.pointsEarned >= 0 ? "+" : ""}
+                        {activity.pointsEarned.toFixed(0)} pts
+                      </p>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </DialogContent>
+          </Dialog>
+        </>
       )}
 
       {/* Mini-Games */}

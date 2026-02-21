@@ -2,6 +2,7 @@ import { internalMutation, mutation } from "../_generated/server";
 import { v } from "convex/values";
 import { getCurrentUser } from "../lib/ids";
 import type { Id } from "../_generated/dataModel";
+import { reportLatencyIfExceeded } from "../lib/latencyMonitoring";
 
 async function requireChallengeAdminForActivity(
   ctx: { db: any; auth: any },
@@ -214,10 +215,16 @@ export const adminEditActivity = mutation({
     metrics: v.optional(v.any()),
   },
   handler: async (ctx, args) => {
-    const { user, activity } = await requireChallengeAdminForActivity(
-      ctx,
-      args.activityId,
-    );
+    const startedAt = Date.now();
+    let resolvedChallengeId: string | undefined;
+    let resolvedUserId: string | undefined;
+    try {
+      const { user, activity } = await requireChallengeAdminForActivity(
+        ctx,
+        args.activityId,
+      );
+      resolvedChallengeId = String(activity.challengeId);
+      resolvedUserId = String(activity.userId);
 
     const now = Date.now();
     const updates: Record<string, unknown> = {
@@ -312,6 +319,14 @@ export const adminEditActivity = mutation({
       createdAt: now,
     });
 
-    return { success: true };
+      return { success: true };
+    } finally {
+      reportLatencyIfExceeded({
+        operation: "mutations.admin.adminEditActivity",
+        startedAt,
+        challengeId: resolvedChallengeId,
+        userId: resolvedUserId,
+      });
+    }
   },
 });

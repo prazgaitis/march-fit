@@ -137,21 +137,64 @@ export const getProfile = query({
       (a) => a.challengeId === args.challengeId
     );
 
+    const activityTypeIds = Array.from(
+      new Set(challengeActivities.map((activity) => activity.activityTypeId))
+    );
+    const activityTypeEntries = await Promise.all(
+      activityTypeIds.map(async (activityTypeId) => [
+        activityTypeId,
+        await ctx.db.get(activityTypeId),
+      ] as const)
+    );
+    const activityTypeMap = new Map(activityTypeEntries);
+
     // Get recent activities (last 5)
     const recentActivities = challengeActivities
       .sort((a, b) => b.createdAt - a.createdAt)
       .slice(0, 5);
 
     // Enrich recent activities with activity type names
-    const enrichedActivities = await Promise.all(
-      recentActivities.map(async (activity) => {
-        const activityType = await ctx.db.get(activity.activityTypeId);
-        return {
-          ...activity,
-          activityTypeName: activityType?.name ?? "Unknown",
-        };
-      })
-    );
+    const enrichedActivities = recentActivities.map((activity) => ({
+      ...activity,
+      activityTypeName:
+        activityTypeMap.get(activity.activityTypeId)?.name ?? "Unknown",
+    }));
+
+    // Compute PR day (the day with the highest total points).
+    const totalsByDay = new Map<string, number>();
+    for (const activity of challengeActivities) {
+      const dayKey = new Date(activity.loggedDate).toISOString().slice(0, 10);
+      totalsByDay.set(dayKey, (totalsByDay.get(dayKey) ?? 0) + activity.pointsEarned);
+    }
+
+    let prDayKey: string | null = null;
+    let prDayPoints = Number.NEGATIVE_INFINITY;
+    for (const [dayKey, dayPoints] of totalsByDay.entries()) {
+      if (
+        dayPoints > prDayPoints ||
+        (dayPoints === prDayPoints && prDayKey !== null && dayKey > prDayKey)
+      ) {
+        prDayKey = dayKey;
+        prDayPoints = dayPoints;
+      }
+    }
+
+    const prDayActivities = prDayKey
+      ? challengeActivities
+          .filter(
+            (activity) =>
+              new Date(activity.loggedDate).toISOString().slice(0, 10) === prDayKey
+          )
+          .sort((a, b) => b.createdAt - a.createdAt)
+          .map((activity) => ({
+            id: activity._id,
+            activityTypeName:
+              activityTypeMap.get(activity.activityTypeId)?.name ?? "Unknown",
+            loggedDate: activity.loggedDate,
+            pointsEarned: activity.pointsEarned,
+            createdAt: activity.createdAt,
+          }))
+      : [];
 
     return {
       user: {
@@ -177,6 +220,13 @@ export const getProfile = query({
       stats: {
         totalActivities: challengeActivities.length,
         recentActivities: enrichedActivities,
+        prDay: prDayKey
+          ? {
+              date: prDayKey,
+              totalPoints: prDayPoints,
+              activities: prDayActivities,
+            }
+          : null,
       },
     };
   },

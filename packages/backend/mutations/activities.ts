@@ -8,6 +8,7 @@ import { dateOnlyToUtcMs, coerceDateOnlyToString, formatDateOnlyFromUtcMs } from
 import { getChallengeWeekNumber } from "../lib/weeks";
 import { notDeleted } from "../lib/activityFilters";
 import { computeCriteriaProgress } from "../lib/achievements";
+import { reportLatencyIfExceeded } from "../lib/latencyMonitoring";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -125,18 +126,22 @@ export const log = mutation({
     externalData: v.optional(v.any()),
   },
   handler: async (ctx, args) => {
-    const user = await getCurrentUser(ctx);
-    if (!user) {
-      throw new Error("Not authenticated");
-    }
+    const startedAt = Date.now();
+    let resolvedUserId: string | undefined;
+    try {
+      const user = await getCurrentUser(ctx);
+      if (!user) {
+        throw new Error("Not authenticated");
+      }
+      resolvedUserId = String(user._id);
 
-    // Validate participation
-    const participation = await ctx.db
-      .query("userChallenges")
-      .withIndex("userChallengeUnique", (q) =>
-        q.eq("userId", user._id).eq("challengeId", args.challengeId)
-      )
-      .first();
+      // Validate participation
+      const participation = await ctx.db
+        .query("userChallenges")
+        .withIndex("userChallengeUnique", (q) =>
+          q.eq("userId", user._id).eq("challengeId", args.challengeId)
+        )
+        .first();
 
     if (!participation) {
       throw new ConvexError("You are not part of this challenge.");
@@ -405,17 +410,25 @@ export const log = mutation({
     // Check for achievement progress
     await checkAndAwardAchievements(ctx, user._id, args.challengeId, activityId);
 
-    return {
-        id: activityId,
-        pointsEarned,
-        basePoints,
-        bonusPoints: totalBonusPoints,
-        triggeredBonuses: triggeredBonuses.map(b => b.description),
-        streakUpdate: {
-            currentStreak,
-            days: participation.currentStreak !== currentStreak ? 1 : 0 // Just informative
-        }
-    };
+      return {
+          id: activityId,
+          pointsEarned,
+          basePoints,
+          bonusPoints: totalBonusPoints,
+          triggeredBonuses: triggeredBonuses.map(b => b.description),
+          streakUpdate: {
+              currentStreak,
+              days: participation.currentStreak !== currentStreak ? 1 : 0 // Just informative
+          }
+      };
+    } finally {
+      reportLatencyIfExceeded({
+        operation: "mutations.activities.log",
+        startedAt,
+        challengeId: String(args.challengeId),
+        userId: resolvedUserId,
+      });
+    }
   },
 });
 
@@ -667,15 +680,21 @@ export const editActivity = mutation({
     activityTypeId: v.optional(v.id("activityTypes")),
   },
   handler: async (ctx, args) => {
-    const user = await getCurrentUser(ctx);
-    if (!user) {
-      throw new Error("Not authenticated");
-    }
+    const startedAt = Date.now();
+    let resolvedChallengeId: string | undefined;
+    let resolvedUserId: string | undefined;
+    try {
+      const user = await getCurrentUser(ctx);
+      if (!user) {
+        throw new Error("Not authenticated");
+      }
+      resolvedUserId = String(user._id);
 
-    const activity = await ctx.db.get(args.activityId);
-    if (!activity) {
-      throw new Error("Activity not found");
-    }
+      const activity = await ctx.db.get(args.activityId);
+      if (!activity) {
+        throw new Error("Activity not found");
+      }
+      resolvedChallengeId = String(activity.challengeId);
 
     if (activity.deletedAt) {
       throw new ConvexError("This activity has been deleted and can no longer be edited.");
@@ -800,7 +819,15 @@ export const editActivity = mutation({
     // Re-run achievement check
     await checkAndAwardAchievements(ctx, user._id, activity.challengeId, args.activityId);
 
-    return { success: true, pointsEarned: newPoints };
+      return { success: true, pointsEarned: newPoints };
+    } finally {
+      reportLatencyIfExceeded({
+        operation: "mutations.activities.editActivity",
+        startedAt,
+        challengeId: resolvedChallengeId,
+        userId: resolvedUserId,
+      });
+    }
   },
 });
 
@@ -810,17 +837,23 @@ export const remove = mutation({
     activityId: v.id("activities"),
   },
   handler: async (ctx, args) => {
-    const actor = await getCurrentUser(ctx);
-    if (!actor) {
-      throw new Error("Not authenticated");
-    }
-    const activity = await ctx.db.get(args.activityId);
-    if (!activity) {
-      throw new Error("Activity not found");
-    }
-    if (activity.deletedAt) {
-      return { deleted: true };
-    }
+    const startedAt = Date.now();
+    let resolvedChallengeId: string | undefined;
+    let resolvedUserId: string | undefined;
+    try {
+      const actor = await getCurrentUser(ctx);
+      if (!actor) {
+        throw new Error("Not authenticated");
+      }
+      const activity = await ctx.db.get(args.activityId);
+      if (!activity) {
+        throw new Error("Activity not found");
+      }
+      resolvedChallengeId = String(activity.challengeId);
+      resolvedUserId = String(activity.userId);
+      if (activity.deletedAt) {
+        return { deleted: true };
+      }
 
     const challenge = await ctx.db.get(activity.challengeId);
     if (!challenge) {
@@ -858,6 +891,14 @@ export const remove = mutation({
       updatedAt: now,
     });
 
-    return { deleted: true };
+      return { deleted: true };
+    } finally {
+      reportLatencyIfExceeded({
+        operation: "mutations.activities.remove",
+        startedAt,
+        challengeId: resolvedChallengeId,
+        userId: resolvedUserId,
+      });
+    }
   },
 });

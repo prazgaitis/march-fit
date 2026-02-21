@@ -2,6 +2,7 @@ import { internalMutation } from "../_generated/server";
 import { v } from "convex/values";
 import { calculateActivityPoints, calculateThresholdBonuses, calculateMediaBonus } from "../lib/scoring";
 import { notDeleted } from "../lib/activityFilters";
+import { reportLatencyIfExceeded } from "../lib/latencyMonitoring";
 
 /**
  * Re-score Strava activities with 0 points that have valid metrics.
@@ -13,8 +14,10 @@ export const rescoreZeroPointActivities = internalMutation({
     dryRun: v.boolean(),
   },
   handler: async (ctx, args) => {
-    const challenge = await ctx.db.get(args.challengeId);
-    if (!challenge) throw new Error("Challenge not found");
+    const startedAt = Date.now();
+    try {
+      const challenge = await ctx.db.get(args.challengeId);
+      if (!challenge) throw new Error("Challenge not found");
 
     // Get all Strava activities with 0 points
     const activities = await ctx.db
@@ -113,11 +116,18 @@ export const rescoreZeroPointActivities = internalMutation({
       }
     }
 
-    return {
-      totalScanned: activities.length,
-      totalFixed: results.length,
-      dryRun: args.dryRun,
-      fixes: results,
-    };
+      return {
+        totalScanned: activities.length,
+        totalFixed: results.length,
+        dryRun: args.dryRun,
+        fixes: results,
+      };
+    } finally {
+      reportLatencyIfExceeded({
+        operation: "mutations.rescoreStrava.rescoreZeroPointActivities",
+        startedAt,
+        challengeId: String(args.challengeId),
+      });
+    }
   },
 });
