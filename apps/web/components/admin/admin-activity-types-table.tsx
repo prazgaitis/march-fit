@@ -31,9 +31,16 @@ interface BonusThreshold {
 
 type ActivityType = Doc<"activityTypes">;
 
+interface Category {
+  _id: string;
+  name: string;
+  sortOrder: number;
+}
+
 interface AdminActivityTypesTableProps {
   challengeId: string;
   items: ActivityType[];
+  categories: Category[];
 }
 
 const METRIC_OPTIONS = [
@@ -45,7 +52,10 @@ const METRIC_OPTIONS = [
 export function AdminActivityTypesTable({
   challengeId,
   items,
+  categories,
 }: AdminActivityTypesTableProps) {
+  const sortedCategories = [...categories].sort((a, b) => a.sortOrder - b.sortOrder);
+  const categoryMap = new Map(categories.map((c) => [c._id, c.name]));
   const createActivityType = useMutation(api.mutations.activityTypes.createActivityType);
   const updateActivityType = useMutation(api.mutations.activityTypes.updateActivityType);
 
@@ -55,6 +65,7 @@ export function AdminActivityTypesTable({
   const [createPoints, setCreatePoints] = useState("1");
   const [createContributes, setCreateContributes] = useState(true);
   const [createNegative, setCreateNegative] = useState(false);
+  const [createCategoryId, setCreateCategoryId] = useState("");
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
@@ -62,6 +73,7 @@ export function AdminActivityTypesTable({
   const [editPoints, setEditPoints] = useState("");
   const [editContributes, setEditContributes] = useState(true);
   const [editNegative, setEditNegative] = useState(false);
+  const [editCategoryId, setEditCategoryId] = useState("");
   const [editThresholds, setEditThresholds] = useState<BonusThreshold[]>([]);
   const [editScoringConfig, setEditScoringConfig] = useState<Record<string, unknown> | null>(null);
 
@@ -81,12 +93,14 @@ export function AdminActivityTypesTable({
         scoringConfig: { basePoints: Number(createPoints) || 1 },
         contributesToStreak: createContributes,
         isNegative: createNegative,
+        categoryId: createCategoryId ? (createCategoryId as Id<"categories">) : undefined,
       });
       setCreateName("");
       setCreateDescription("");
       setCreatePoints("1");
       setCreateContributes(true);
       setCreateNegative(false);
+      setCreateCategoryId("");
       setShowCreate(false);
       setStatusMessage({ type: "success", text: "Created" });
       clearStatus();
@@ -106,6 +120,7 @@ export function AdminActivityTypesTable({
     setEditPoints(String(basePoints));
     setEditContributes(item.contributesToStreak);
     setEditNegative(item.isNegative);
+    setEditCategoryId((item.categoryId as string) ?? "");
     setEditThresholds((item.bonusThresholds as BonusThreshold[]) || []);
     setEditScoringConfig(scoringConfig);
   };
@@ -165,6 +180,7 @@ export function AdminActivityTypesTable({
         contributesToStreak: editContributes,
         isNegative: editNegative,
         bonusThresholds: editThresholds,
+        categoryId: editCategoryId ? (editCategoryId as Id<"categories">) : undefined,
       });
       setEditingId(null);
       setEditDescription("");
@@ -296,6 +312,21 @@ export function AdminActivityTypesTable({
               />
               Negative
             </label>
+            <div className="w-32">
+              <label className="mb-1 block text-[10px] text-zinc-500">Category</label>
+              <select
+                value={createCategoryId}
+                onChange={(e) => setCreateCategoryId(e.target.value)}
+                className="h-8 w-full rounded border border-zinc-700 bg-zinc-800 px-2 text-sm text-zinc-300"
+              >
+                <option value="">None</option>
+                {sortedCategories.map((c) => (
+                  <option key={c._id} value={c._id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
             <Button
               type="submit"
               size="sm"
@@ -323,6 +354,7 @@ export function AdminActivityTypesTable({
           <thead>
             <tr className="border-b border-zinc-800 text-[10px] uppercase tracking-wider text-zinc-500">
               <th className="px-3 py-2 text-left font-medium">Name</th>
+              <th className="px-3 py-2 text-left font-medium">Category</th>
               <th className="px-3 py-2 text-right font-medium">Points</th>
               <th className="px-3 py-2 text-center font-medium">Streak</th>
               <th className="px-3 py-2 text-center font-medium">Neg</th>
@@ -333,7 +365,7 @@ export function AdminActivityTypesTable({
           <tbody className="divide-y divide-zinc-800/50">
             {items.length === 0 ? (
               <tr>
-                <td colSpan={6} className="px-3 py-8 text-center text-zinc-500">
+                <td colSpan={7} className="px-3 py-8 text-center text-zinc-500">
                   No activity types configured
                 </td>
               </tr>
@@ -360,6 +392,9 @@ export function AdminActivityTypesTable({
                           )}
                           <span className="font-medium text-zinc-200">{item.name}</span>
                         </div>
+                      </td>
+                      <td className="px-3 py-2 text-zinc-400">
+                        {item.categoryId ? categoryMap.get(item.categoryId as string) ?? "—" : "—"}
                       </td>
                       <td className="px-3 py-2 text-right font-mono text-zinc-300">
                         {basePoints}
@@ -407,7 +442,7 @@ export function AdminActivityTypesTable({
                     {/* Edit Panel */}
                     {isEditing && (
                       <tr>
-                        <td colSpan={6} className="border-t border-zinc-800 bg-zinc-900 p-0">
+                        <td colSpan={7} className="border-t border-zinc-800 bg-zinc-900 p-0">
                           <form onSubmit={handleUpdate} className="p-3">
                             {/* Basic Fields Row */}
                             <div className="flex items-end gap-3">
@@ -449,6 +484,23 @@ export function AdminActivityTypesTable({
                                 />
                                 Negative
                               </label>
+                              <div className="w-36">
+                                <label className="mb-1 block text-[10px] text-zinc-500">
+                                  Category
+                                </label>
+                                <select
+                                  value={editCategoryId}
+                                  onChange={(e) => setEditCategoryId(e.target.value)}
+                                  className="h-8 w-full rounded border border-zinc-700 bg-zinc-800 px-2 text-sm text-zinc-300"
+                                >
+                                  <option value="">None</option>
+                                  {sortedCategories.map((c) => (
+                                    <option key={c._id} value={c._id}>
+                                      {c.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
                             </div>
 
                             {/* Description Field */}

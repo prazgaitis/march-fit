@@ -304,6 +304,7 @@ interface ScoringData {
       bonusPoints: number;
       description: string;
     }>;
+    isNegative: boolean;
   }>;
   integrationMappings: Array<{
     externalType: string;
@@ -476,12 +477,14 @@ function calculateScoringPreview(
     }
   }
 
+  const sign = matchedActivityType.isNegative ? -1 : 1;
+
   return {
     activityTypeId: matchedActivityType._id,
     activityTypeName: matchedActivityType.name,
-    basePoints: Math.round(basePoints * 100) / 100,
-    bonusPoints,
-    totalPoints: Math.round((basePoints + bonusPoints) * 100) / 100,
+    basePoints: Math.round(basePoints * sign * 100) / 100,
+    bonusPoints: bonusPoints * sign,
+    totalPoints: Math.round((basePoints + bonusPoints) * sign * 100) / 100,
     triggeredBonuses,
     metrics,
     mappingSource,

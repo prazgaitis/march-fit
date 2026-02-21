@@ -128,7 +128,7 @@ describe('Activities Logic', () => {
       };
 
       await expect(tWithAuth.mutation(api.mutations.activities.log, activityData))
-        .rejects.toThrow('Payment required to log activities');
+        .rejects.toThrow('Please complete payment before logging activities');
     });
 
     it('should require challenge participation', async () => {
@@ -215,7 +215,7 @@ describe('Activities Logic', () => {
 
       // Execute & Assert
       await expect(tWithAuth.mutation(api.mutations.activities.log, activityData))
-        .rejects.toThrow('Activity type not found or does not belong to this challenge');
+        .rejects.toThrow('This activity type is not available for this challenge');
     });
 
     it('should calculate points correctly', async () => {
@@ -944,7 +944,7 @@ describe('Activities Logic', () => {
         activityTypeId,
         loggedDate: '2024-01-17T10:00:00Z',
         source: 'manual',
-      })).rejects.toThrow('Maximum allowed: 2');
+      })).rejects.toThrow('You\'ve reached the limit of 2');
     });
 
     it('should enforce one-time bonus (maxPerChallenge = 1)', async () => {
@@ -994,7 +994,7 @@ describe('Activities Logic', () => {
         activityTypeId,
         loggedDate: '2024-01-16T10:00:00Z',
         source: 'manual',
-      })).rejects.toThrow('Maximum allowed: 1');
+      })).rejects.toThrow('You\'ve already logged "Sally-up Challenge"');
     });
   });
 
@@ -1109,7 +1109,7 @@ describe('Activities Logic', () => {
         activityTypeId,
         loggedDate: '2024-01-03T10:00:00Z', // Day 3, Week 1
         source: 'manual',
-      })).rejects.toThrow('only available during week(s) 3');
+      })).rejects.toThrow('is only available during week 3');
 
       // Week 2 (Jan 8-14) should fail
       await expect(tWithAuth.mutation(api.mutations.activities.log, {
@@ -1117,7 +1117,7 @@ describe('Activities Logic', () => {
         activityTypeId,
         loggedDate: '2024-01-10T10:00:00Z', // Day 10, Week 2
         source: 'manual',
-      })).rejects.toThrow('only available during week(s) 3');
+      })).rejects.toThrow('is only available during week 3');
     });
   });
 
@@ -1471,7 +1471,7 @@ describe('Activities Logic', () => {
           name: 'Drinks',
           scoringConfig: {
             unit: 'drinks',
-            pointsPerUnit: -1,
+            pointsPerUnit: 1,
             freebiesPerDay: 1,
           },
           contributesToStreak: false,
