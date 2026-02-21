@@ -117,6 +117,7 @@ interface SuccessState {
 export function ActivityLogDialog({ challengeId, challengeStartDate, trigger }: ActivityLogDialogProps) {
   const [open, setOpen] = useState(false);
   const [comboboxOpen, setComboboxOpen] = useState(false);
+  const [popoverContainer, setPopoverContainer] = useState<HTMLElement | null>(null);
   const [form, setForm] = useState<FormState>(() => createInitialFormState());
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -602,6 +603,7 @@ export function ActivityLogDialog({ challengeId, challengeStartDate, trigger }: 
         )}
       </ResponsiveDialogTrigger>
       <ResponsiveDialogContent>
+        <div ref={setPopoverContainer} className="flex min-h-0 flex-1 flex-col">
         {needsPayment ? (
           <div className="space-y-4">
             <ResponsiveDialogHeader>
@@ -751,7 +753,11 @@ export function ActivityLogDialog({ challengeId, challengeStartDate, trigger }: 
                     <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                   </Button>
                 </PopoverTrigger>
-                <PopoverContent className="w-[--radix-popover-trigger-width] p-0 z-[60]" align="start">
+                <PopoverContent
+                  container={popoverContainer}
+                  className="z-[60] max-h-[60vh] w-[--radix-popover-trigger-width] overflow-hidden p-0"
+                  align="start"
+                >
                   <Command className="h-auto">
                     <CommandInput placeholder="Search activity type..." />
                     <CommandList>
@@ -1167,6 +1173,7 @@ export function ActivityLogDialog({ challengeId, challengeStartDate, trigger }: 
         </form>
           </>
         )}
+        </div>
       </ResponsiveDialogContent>
     </ResponsiveDialog>
   );
