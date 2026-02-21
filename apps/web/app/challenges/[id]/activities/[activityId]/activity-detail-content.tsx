@@ -74,6 +74,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { useMentionableUsers } from '@/hooks/use-mentionable-users';
 import { isEditorContentEmpty, type MentionableUser } from '@/lib/rich-text-utils';
 import { cn } from '@/lib/utils';
+import { formatPoints } from '@/lib/points';
+import { PointsDisplay } from '@/components/ui/points-display';
 
 interface ActivityDetailContentProps {
   challengeId: string;
@@ -237,7 +239,7 @@ export function ActivityDetailContent({
       };
 
       const result = await editActivityMutation(payload);
-      toast.success(`Activity updated! ${result.pointsEarned.toFixed(1)} pts earned.`);
+      toast.success(`Activity updated! ${formatPoints(result.pointsEarned, 1)} pts.`);
       setShowEditDialog(false);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to update activity');
@@ -398,12 +400,18 @@ export function ActivityDetailContent({
             )}
 
             <div className="grid gap-4 sm:grid-cols-2">
-              <div className="flex items-center gap-3 rounded-lg border bg-muted/30 p-4">
-                <Trophy className="h-5 w-5 text-yellow-500" />
+              <div className={cn("flex items-center gap-3 rounded-lg border bg-muted/30 p-4", (activityType.isNegative || activity.pointsEarned < 0) && "border-red-500/30")}>
+                <Trophy className={cn("h-5 w-5", (activityType.isNegative || activity.pointsEarned < 0) ? "text-red-500" : "text-yellow-500")} />
                 <div>
-                  <p className="text-2xl font-bold">
-                    {activity.pointsEarned.toFixed(1)}
-                  </p>
+                  <PointsDisplay
+                    points={activity.pointsEarned}
+                    isNegative={activityType.isNegative}
+                    decimals={1}
+                    size="xl"
+                    showSign={true}
+                    showLabel={false}
+                    className="font-bold"
+                  />
                   <p className="text-sm text-muted-foreground">
                     Points earned
                   </p>

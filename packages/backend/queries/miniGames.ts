@@ -1,6 +1,7 @@
 import { query } from "../_generated/server";
 import { v } from "convex/values";
 import { notDeleted } from "../lib/activityFilters";
+import { getChallengePointsByUser } from "../lib/challengePoints";
 
 /**
  * List all mini-games for a challenge
@@ -162,6 +163,8 @@ export const getUserStatus = query({
     userId: v.id("users"),
   },
   handler: async (ctx, args) => {
+    const pointsByUser = await getChallengePointsByUser(ctx, args.challengeId);
+
     // Get active mini-games
     const activeMiniGames = await ctx.db
       .query("miniGames")
@@ -198,54 +201,24 @@ export const getUserStatus = query({
         let userCurrentPoints = null;
 
         // Get current leaderboard positions for live updates
-        const challenge = await ctx.db.get(args.challengeId);
-        if (challenge) {
-          const userChallenge = await ctx.db
-            .query("userChallenges")
-            .withIndex("userChallengeUnique", (q) =>
-              q.eq("userId", args.userId).eq("challengeId", args.challengeId),
-            )
-            .first();
-          userCurrentPoints = userChallenge?.totalPoints ?? 0;
-        }
+        userCurrentPoints = pointsByUser.get(args.userId as string) ?? 0;
 
         if (participation.partnerUserId) {
           partnerUser = await ctx.db.get(participation.partnerUserId);
-          const partnerChallenge = await ctx.db
-            .query("userChallenges")
-            .withIndex("userChallengeUnique", (q) =>
-              q
-                .eq("userId", participation.partnerUserId!)
-                .eq("challengeId", args.challengeId),
-            )
-            .first();
-          partnerCurrentPoints = partnerChallenge?.totalPoints ?? 0;
+          partnerCurrentPoints =
+            pointsByUser.get(participation.partnerUserId as string) ?? 0;
         }
 
         if (participation.preyUserId) {
           preyUser = await ctx.db.get(participation.preyUserId);
-          const preyChallenge = await ctx.db
-            .query("userChallenges")
-            .withIndex("userChallengeUnique", (q) =>
-              q
-                .eq("userId", participation.preyUserId!)
-                .eq("challengeId", args.challengeId),
-            )
-            .first();
-          preyCurrentPoints = preyChallenge?.totalPoints ?? 0;
+          preyCurrentPoints =
+            pointsByUser.get(participation.preyUserId as string) ?? 0;
         }
 
         if (participation.hunterUserId) {
           hunterUser = await ctx.db.get(participation.hunterUserId);
-          const hunterChallenge = await ctx.db
-            .query("userChallenges")
-            .withIndex("userChallengeUnique", (q) =>
-              q
-                .eq("userId", participation.hunterUserId!)
-                .eq("challengeId", args.challengeId),
-            )
-            .first();
-          hunterCurrentPoints = hunterChallenge?.totalPoints ?? 0;
+          hunterCurrentPoints =
+            pointsByUser.get(participation.hunterUserId as string) ?? 0;
         }
 
         // Calculate current week max for PR week

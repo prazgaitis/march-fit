@@ -758,5 +758,66 @@ describe('Mini-Games Scoring', () => {
       // User 1 should have gained 10 bonus points
       expect(afterEnd - beforeEnd).toBe(10);
     });
+
+    it('getUserStatus liveData uses activity-derived totals', async () => {
+      const adminUser = await createTestUser(t, { email: "admin@example.com", role: "admin" });
+      const tWithAuth = t.withIdentity({ subject: "admin-user-id", email: "admin@example.com" });
+      const challengeId = await createTestChallenge(t, adminUser);
+      const activityTypeId = await createActivityType(challengeId);
+
+      const user1 = await createUserWithParticipation(challengeId, 1000, { username: 'user1' });
+      const user2 = await createUserWithParticipation(challengeId, -1000, { username: 'user2' });
+
+      const now = TEST_NOW;
+      const { miniGameId } = await tWithAuth.mutation(api.mutations.miniGames.create, {
+        challengeId,
+        type: "partner_week",
+        name: "Partner Week Live Data",
+        startsAt: now,
+        endsAt: now + 7 * 24 * 60 * 60 * 1000,
+      });
+
+      await tWithAuth.mutation(api.mutations.miniGames.start, { miniGameId });
+
+      await t.run(async (ctx) => {
+        await ctx.db.insert("activities", {
+          userId: user1,
+          challengeId,
+          activityTypeId,
+          loggedDate: now + 1000,
+          metrics: { minutes: 5 },
+          pointsEarned: -5,
+          flagged: false,
+          adminCommentVisibility: "internal",
+          resolutionStatus: "resolved",
+          source: "manual",
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+        await ctx.db.insert("activities", {
+          userId: user2,
+          challengeId,
+          activityTypeId,
+          loggedDate: now + 2000,
+          metrics: { minutes: 12 },
+          pointsEarned: 12,
+          flagged: false,
+          adminCommentVisibility: "internal",
+          resolutionStatus: "resolved",
+          source: "manual",
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+      });
+
+      const status = await t.query(api.queries.miniGames.getUserStatus, {
+        challengeId,
+        userId: user1,
+      });
+
+      expect(status.length).toBe(1);
+      expect(status[0].liveData.userCurrentPoints).toBe(-5);
+      expect(status[0].liveData.partnerCurrentPoints).toBe(12);
+    });
   });
 });

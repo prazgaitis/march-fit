@@ -364,14 +364,14 @@ async function seedTemplateActivityTypes(ctx: any, categories: Record<string, an
     {
       name: "Drinks",
       categoryId: categories["Penalty"]._id,
-      scoringConfig: { type: "count", unit: "drinks", pointsPerUnit: -5 },
+      scoringConfig: { type: "count", unit: "drinks", pointsPerUnit: 5 },
       contributesToStreak: false,
       isNegative: true,
     },
     {
       name: "Overindulge",
       categoryId: categories["Penalty"]._id,
-      scoringConfig: { type: "count", unit: "instances", pointsPerUnit: -10 },
+      scoringConfig: { type: "count", unit: "instances", pointsPerUnit: 10 },
       contributesToStreak: false,
       isNegative: true,
     },

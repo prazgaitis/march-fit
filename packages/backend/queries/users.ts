@@ -4,6 +4,7 @@ import { paginationOptsValidator } from "convex/server";
 import { coerceDateOnlyToString } from "../lib/dateOnly";
 import { internalQuery } from "../_generated/server";
 import { notDeleted } from "../lib/activityFilters";
+import { getChallengePointsByUser, getPointsForUser } from "../lib/challengePoints";
 
 /**
  * Get current authenticated user
@@ -117,14 +118,19 @@ export const getProfile = query({
       .query("userChallenges")
       .withIndex("challengeId", (q) => q.eq("challengeId", args.challengeId))
       .collect();
-
-    // Sort by total points descending to get rank
-    const sortedParticipations = allParticipations.sort(
-      (a, b) => b.totalPoints - a.totalPoints
-    );
+    const pointsByUser = await getChallengePointsByUser(ctx, args.challengeId);
+    const scoredParticipations = allParticipations
+      .map((p) => ({
+        ...p,
+        computedTotalPoints: getPointsForUser(pointsByUser, p.userId),
+      }))
+      .sort((a, b) => b.computedTotalPoints - a.computedTotalPoints);
     const rank = participation
-      ? sortedParticipations.findIndex((p) => p.userId === args.userId) + 1
+      ? scoredParticipations.findIndex((p) => p.userId === args.userId) + 1
       : null;
+    const participationPoints = participation
+      ? getPointsForUser(pointsByUser, args.userId)
+      : 0;
 
     // Get activity count for this user in this challenge
     const activities = await ctx.db
@@ -158,6 +164,8 @@ export const getProfile = query({
       ...activity,
       activityTypeName:
         activityTypeMap.get(activity.activityTypeId)?.name ?? "Unknown",
+      isNegative:
+        activityTypeMap.get(activity.activityTypeId)?.isNegative ?? false,
     }));
 
     // Compute PR day (the day with the highest total points).
@@ -210,7 +218,7 @@ export const getProfile = query({
       },
       participation: participation
         ? {
-            totalPoints: participation.totalPoints,
+            totalPoints: participationPoints,
             currentStreak: participation.currentStreak,
             joinedAt: participation.joinedAt,
             rank,
@@ -257,10 +265,18 @@ export const getGlobalProfile = query({
       .withIndex("userId", (q) => q.eq("userId", args.userId))
       .filter(notDeleted)
       .collect();
+    const pointsByChallenge = new Map<string, number>();
+    for (const activity of activities) {
+      const key = activity.challengeId as string;
+      pointsByChallenge.set(
+        key,
+        (pointsByChallenge.get(key) ?? 0) + activity.pointsEarned
+      );
+    }
 
     // Calculate totals
     const totalActivities = activities.length;
-    const totalPoints = participations.reduce((sum, p) => sum + p.totalPoints, 0);
+    const totalPoints = activities.reduce((sum, activity) => sum + activity.pointsEarned, 0);
 
     // Get challenge details for participations
     const participationsWithChallenges = await Promise.all(
@@ -275,7 +291,7 @@ export const getGlobalProfile = query({
                 endDate: coerceDateOnlyToString(challenge.endDate),
               }
             : null,
-          totalPoints: p.totalPoints,
+          totalPoints: pointsByChallenge.get(p.challengeId as string) ?? 0,
           currentStreak: p.currentStreak,
           joinedAt: p.joinedAt,
         };
