@@ -118,7 +118,7 @@ describe('editActivity mutation', () => {
         activityId: activityId as Id<'activities'>,
         notes: 'Hacked!',
       })
-    ).rejects.toThrow('Not authorized to edit this activity');
+    ).rejects.toThrow('You can only edit your own activities');
   });
 
   it('user CANNOT edit a deleted activity', async () => {
@@ -134,7 +134,7 @@ describe('editActivity mutation', () => {
         activityId: activityId as Id<'activities'>,
         notes: 'Should fail',
       })
-    ).rejects.toThrow('Cannot edit a deleted activity');
+    ).rejects.toThrow('This activity has been deleted');
   });
 
   it('changing activityTypeId to one from a different challenge should throw', async () => {
@@ -153,7 +153,7 @@ describe('editActivity mutation', () => {
         activityId: activityId as Id<'activities'>,
         activityTypeId: otherTypeId as Id<'activityTypes'>,
       })
-    ).rejects.toThrow('does not belong to the same challenge');
+    ).rejects.toThrow('This activity type is not available for this challenge');
   });
 
   it('editing with no changes (same values) still returns success', async () => {
