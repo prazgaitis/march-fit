@@ -1,6 +1,7 @@
 import { MutationCtx, QueryCtx } from "../_generated/server";
 import { Id, Doc } from "../_generated/dataModel";
 import { notDeleted } from "./activityFilters";
+import { formatDateOnlyFromUtcMs } from "./dateOnly";
 
 interface BonusThreshold {
   metric: string;
@@ -175,7 +176,7 @@ interface VariantConfig {
 }
 
 function isVariantValidOnDate(variant: VariantConfig, loggedDate: Date): boolean {
-  const loggedDateString = loggedDate.toISOString().split("T")[0];
+  const loggedDateString = formatDateOnlyFromUtcMs(loggedDate.getTime());
 
   if (!variant.validFrom && !variant.validTo) {
     return true;

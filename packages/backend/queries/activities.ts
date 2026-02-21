@@ -4,6 +4,7 @@ import { paginationOptsValidator } from "convex/server";
 import { getCurrentUser } from "../lib/ids";
 import { notDeleted } from "../lib/activityFilters";
 import { calculateFinalActivityScore } from "../lib/scoring";
+import { dateOnlyToUtcMs, normalizeDateOnlyInput } from "../lib/dateOnly";
 
 /**
  * Get a single activity by ID with all related data
@@ -297,7 +298,7 @@ export const previewScore = query({
       return null;
     }
 
-    const loggedDateMs = Date.parse(args.loggedDate);
+    const loggedDateMs = dateOnlyToUtcMs(normalizeDateOnlyInput(args.loggedDate));
     if (!Number.isFinite(loggedDateMs)) {
       return null;
     }

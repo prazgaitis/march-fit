@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { api } from "@repo/backend";
+import { dateOnlyToUtcMs } from "@/lib/date-only";
 import type { Id } from "@repo/backend/_generated/dataModel";
 import {
   createTestActivityType,
@@ -8,6 +9,7 @@ import {
   createTestParticipation,
   createTestUser,
 } from "../helpers/convex";
+import { insertTestActivity } from "../helpers/activities";
 
 describe("Users Queries", () => {
   let t: Awaited<ReturnType<typeof createTestContext>>;
@@ -25,11 +27,11 @@ describe("Users Queries", () => {
       const activityTypeB = await createTestActivityType(t, otherChallengeId, { name: "Bike" });
 
       await t.run(async (ctx) => {
-        await ctx.db.insert("activities", {
+        await insertTestActivity(ctx, {
           userId: userId as Id<"users">,
           challengeId: challengeId as Id<"challenges">,
           activityTypeId: activityTypeA as Id<"activityTypes">,
-          loggedDate: new Date("2025-01-03T00:00:00.000Z").getTime(),
+          loggedDate: dateOnlyToUtcMs("2025-01-03"),
           pointsEarned: 15,
           flagged: false,
           adminCommentVisibility: "internal",
@@ -38,11 +40,11 @@ describe("Users Queries", () => {
           createdAt: 1000,
           updatedAt: 1000,
         });
-        await ctx.db.insert("activities", {
+        await insertTestActivity(ctx, {
           userId: userId as Id<"users">,
           challengeId: challengeId as Id<"challenges">,
           activityTypeId: activityTypeA as Id<"activityTypes">,
-          loggedDate: new Date("2025-01-04T00:00:00.000Z").getTime(),
+          loggedDate: dateOnlyToUtcMs("2025-01-04"),
           pointsEarned: 20,
           flagged: false,
           adminCommentVisibility: "internal",
@@ -51,11 +53,11 @@ describe("Users Queries", () => {
           createdAt: 2000,
           updatedAt: 2000,
         });
-        await ctx.db.insert("activities", {
+        await insertTestActivity(ctx, {
           userId: userId as Id<"users">,
           challengeId: otherChallengeId as Id<"challenges">,
           activityTypeId: activityTypeB as Id<"activityTypes">,
-          loggedDate: new Date("2025-01-05T00:00:00.000Z").getTime(),
+          loggedDate: dateOnlyToUtcMs("2025-01-05"),
           pointsEarned: 30,
           flagged: false,
           adminCommentVisibility: "internal",
@@ -100,11 +102,11 @@ describe("Users Queries", () => {
       const bikeTypeId = await createTestActivityType(t, challengeId, { name: "Bike" });
 
       await t.run(async (ctx) => {
-        await ctx.db.insert("activities", {
+        await insertTestActivity(ctx, {
           userId: userId as Id<"users">,
           challengeId: challengeId as Id<"challenges">,
           activityTypeId: runTypeId as Id<"activityTypes">,
-          loggedDate: new Date("2025-02-10T00:00:00.000Z").getTime(),
+          loggedDate: dateOnlyToUtcMs("2025-02-10"),
           pointsEarned: 12,
           flagged: false,
           adminCommentVisibility: "internal",
@@ -113,11 +115,11 @@ describe("Users Queries", () => {
           createdAt: 1000,
           updatedAt: 1000,
         });
-        await ctx.db.insert("activities", {
+        await insertTestActivity(ctx, {
           userId: userId as Id<"users">,
           challengeId: challengeId as Id<"challenges">,
           activityTypeId: bikeTypeId as Id<"activityTypes">,
-          loggedDate: new Date("2025-02-10T00:00:00.000Z").getTime(),
+          loggedDate: dateOnlyToUtcMs("2025-02-10"),
           pointsEarned: 18,
           flagged: false,
           adminCommentVisibility: "internal",
@@ -126,11 +128,11 @@ describe("Users Queries", () => {
           createdAt: 1100,
           updatedAt: 1100,
         });
-        await ctx.db.insert("activities", {
+        await insertTestActivity(ctx, {
           userId: userId as Id<"users">,
           challengeId: challengeId as Id<"challenges">,
           activityTypeId: bikeTypeId as Id<"activityTypes">,
-          loggedDate: new Date("2025-02-11T00:00:00.000Z").getTime(),
+          loggedDate: dateOnlyToUtcMs("2025-02-11"),
           pointsEarned: 20,
           flagged: false,
           adminCommentVisibility: "internal",
@@ -194,11 +196,11 @@ describe("Users Queries", () => {
         updatedAt: Date.now(),
       });
 
-      await ctx.db.insert("activities", {
+      await insertTestActivity(ctx, {
         userId: userId as Id<"users">,
         challengeId: challengeId as Id<"challenges">,
         activityTypeId: penaltyTypeId,
-        loggedDate: Date.parse("2024-01-10T12:00:00Z"),
+        loggedDate: dateOnlyToUtcMs("2024-01-10"),
         metrics: { count: 1 },
         pointsEarned: -7,
         source: "manual",
@@ -209,11 +211,11 @@ describe("Users Queries", () => {
         updatedAt: Date.now(),
       });
 
-      await ctx.db.insert("activities", {
+      await insertTestActivity(ctx, {
         userId: otherId as Id<"users">,
         challengeId: challengeId as Id<"challenges">,
         activityTypeId: runTypeId,
-        loggedDate: Date.parse("2024-01-10T13:00:00Z"),
+        loggedDate: dateOnlyToUtcMs("2024-01-10"),
         metrics: { minutes: 3 },
         pointsEarned: 3,
         source: "manual",
@@ -272,11 +274,11 @@ describe("Users Queries", () => {
         updatedAt: Date.now(),
       });
 
-      await ctx.db.insert("activities", {
+      await insertTestActivity(ctx, {
         userId: userId as Id<"users">,
         challengeId: challengeA as Id<"challenges">,
         activityTypeId: typeA,
-        loggedDate: Date.parse("2024-01-11T10:00:00Z"),
+        loggedDate: dateOnlyToUtcMs("2024-01-11"),
         metrics: { minutes: 10 },
         pointsEarned: 10,
         source: "manual",
@@ -286,11 +288,11 @@ describe("Users Queries", () => {
         createdAt: Date.now(),
         updatedAt: Date.now(),
       });
-      await ctx.db.insert("activities", {
+      await insertTestActivity(ctx, {
         userId: userId as Id<"users">,
         challengeId: challengeA as Id<"challenges">,
         activityTypeId: typeA,
-        loggedDate: Date.parse("2024-01-11T11:00:00Z"),
+        loggedDate: dateOnlyToUtcMs("2024-01-11"),
         metrics: { minutes: 4 },
         pointsEarned: -4,
         source: "manual",
@@ -300,11 +302,11 @@ describe("Users Queries", () => {
         createdAt: Date.now(),
         updatedAt: Date.now(),
       });
-      await ctx.db.insert("activities", {
+      await insertTestActivity(ctx, {
         userId: userId as Id<"users">,
         challengeId: challengeB as Id<"challenges">,
         activityTypeId: typeB,
-        loggedDate: Date.parse("2024-01-12T10:00:00Z"),
+        loggedDate: dateOnlyToUtcMs("2024-01-12"),
         metrics: { count: 1 },
         pointsEarned: -8,
         source: "manual",

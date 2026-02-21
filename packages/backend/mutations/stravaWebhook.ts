@@ -10,6 +10,8 @@ import { isPaymentRequired } from "../lib/payments";
 import { notDeleted } from "../lib/activityFilters";
 import { reportLatencyIfExceeded } from "../lib/latencyMonitoring";
 import { applyParticipationScoreDeltaAndRecomputeStreak } from "../lib/participationScoring";
+import { dateOnlyToUtcMs } from "../lib/dateOnly";
+import { insertActivity, patchActivity } from "../lib/activityWrites";
 
 /**
  * Get user's active challenge participations
@@ -129,7 +131,7 @@ export const createFromStrava = internalMutation({
     const mappedActivity = mapStravaActivity(stravaActivity, activityTypeId, metricMapping);
 
     // Calculate points
-    const loggedDateTs = Date.parse(mappedActivity.loggedDate);
+    const loggedDateTs = dateOnlyToUtcMs(mappedActivity.loggedDate);
     // Calculate media bonus (+1 point for Strava activities with photos)
     const hasMedia = mappedActivity.stravaPhotoUrls.length > 0 || !!mappedActivity.imageUrl;
     const score = await calculateFinalActivityScore(
@@ -161,7 +163,7 @@ export const createFromStrava = internalMutation({
 
     if (existing) {
       if (existing.deletedAt) {
-        await ctx.db.patch(existing._id, {
+        await patchActivity(ctx, existing._id, {
           activityTypeId,
           loggedDate: loggedDateTs,
           metrics: mappedActivity.metrics,
@@ -186,7 +188,7 @@ export const createFromStrava = internalMutation({
       }
 
       // Update existing activity
-      await ctx.db.patch(existing._id, {
+      await patchActivity(ctx, existing._id, {
         activityTypeId,
         loggedDate: loggedDateTs,
         metrics: mappedActivity.metrics,
@@ -208,7 +210,7 @@ export const createFromStrava = internalMutation({
     }
 
     // Create new activity (include Strava photo URL if available)
-    const activityId = await ctx.db.insert("activities", {
+    const activityId = await insertActivity(ctx, {
       userId: args.userId,
       challengeId: args.challengeId,
       activityTypeId,
@@ -279,7 +281,7 @@ export const deleteFromStrava = internalMutation({
         continue;
       }
 
-      await ctx.db.patch(activity._id, {
+      await patchActivity(ctx, activity._id, {
         deletedAt: now,
         deletedReason: "strava_delete",
         updatedAt: now,
