@@ -1,7 +1,34 @@
 import { mutation, internalMutation } from "../_generated/server";
+import { internal } from "../_generated/api";
 import { v } from "convex/values";
 import type { Id } from "../_generated/dataModel";
 import { getCurrentUser } from "../lib/ids";
+
+/**
+ * Schedule on_signup emails if any enabled sequences exist for the challenge.
+ * Used after payment is confirmed to send welcome emails.
+ */
+async function scheduleSignupEmails(
+  ctx: { db: any; scheduler: any },
+  challengeId: Id<"challenges">,
+  userId: Id<"users">,
+) {
+  const signupSequences = await ctx.db
+    .query("emailSequences")
+    .withIndex("challengeTrigger", (q: any) =>
+      q.eq("challengeId", challengeId).eq("trigger", "on_signup")
+    )
+    .collect();
+
+  const hasEnabled = signupSequences.some((seq: any) => seq.enabled);
+  if (hasEnabled) {
+    await ctx.scheduler.runAfter(
+      0,
+      internal.mutations.emailSequences.triggerOnSignup,
+      { challengeId, userId },
+    );
+  }
+}
 
 /**
  * Clear a user's test payment data so they can re-test the payment flow.
@@ -206,6 +233,9 @@ export const handlePaymentSuccess = internalMutation({
           userChallengeId: participation._id,
         });
       }
+
+      // Trigger on_signup emails now that payment is confirmed
+      await scheduleSignupEmails(ctx, paymentRecord.challengeId, paymentRecord.userId);
     }
 
     return { success: true };
@@ -319,6 +349,9 @@ export const completeVerification = internalMutation({
         paymentReference: args.stripePaymentIntentId || args.sessionId,
         updatedAt: now,
       });
+
+      // Trigger on_signup emails now that payment is confirmed
+      await scheduleSignupEmails(ctx, args.challengeId, args.userId);
     }
 
     return { success: true };
