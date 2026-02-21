@@ -17,6 +17,8 @@ async function getCategoryIds(ctx: any): Promise<Record<string, Id<"categories">
     "Bonus",
     "Penalty",
     "Horses",
+    "Yoga",
+    "Swimming",
   ];
 
   for (const name of categoryNames) {
@@ -37,6 +39,7 @@ function getActivityTypeDefinitions(categories: Record<string, Id<"categories">>
     core: [
       {
         name: "Outdoor Run",
+        displayOrder: 10,
         description: "Running, jogging, hiking, walking for fitness. 7.5 points per mile.",
         scoringConfig: { type: "unit_based", unit: "miles", pointsPerUnit: 7.5 },
         contributesToStreak: true,
@@ -51,6 +54,7 @@ function getActivityTypeDefinitions(categories: Record<string, Id<"categories">>
       },
       {
         name: "Outdoor Cycling",
+        displayOrder: 60,
         description: "Outdoor cycling activities. 2.4 points per mile.",
         scoringConfig: { type: "unit_based", unit: "miles", pointsPerUnit: 2.4 },
         contributesToStreak: true,
@@ -65,6 +69,7 @@ function getActivityTypeDefinitions(categories: Record<string, Id<"categories">>
       },
       {
         name: "Rowing",
+        displayOrder: 20,
         description: "Indoor rowers and ski ergs. 5.5 points per kilometer.",
         scoringConfig: { type: "unit_based", unit: "kilometers", pointsPerUnit: 5.5 },
         contributesToStreak: true,
@@ -78,11 +83,12 @@ function getActivityTypeDefinitions(categories: Record<string, Id<"categories">>
       },
       {
         name: "Swimming",
+        displayOrder: 30,
         description: "Pool or open water swimming. 15 points per mile.",
         scoringConfig: { type: "unit_based", unit: "miles", pointsPerUnit: 15 },
         contributesToStreak: true,
         isNegative: false,
-        categoryId: categories["High Intensity Cardio"],
+        categoryId: categories["Swimming"],
         bonusThresholds: [
           { metric: "distance_miles", threshold: 2.4, bonusPoints: 50, description: "Ironman swim bonus" },
         ],
@@ -91,6 +97,7 @@ function getActivityTypeDefinitions(categories: Record<string, Id<"categories">>
       },
       {
         name: "Hi-Intensity Cardio",
+        displayOrder: 40,
         description: ">75% max HR - HIIT, interval training, boxing, cardio sports. 0.9 points per minute.",
         scoringConfig: { type: "unit_based", unit: "minutes", pointsPerUnit: 0.9 },
         contributesToStreak: true,
@@ -101,6 +108,7 @@ function getActivityTypeDefinitions(categories: Record<string, Id<"categories">>
       },
       {
         name: "Lo-Intensity Cardio",
+        displayOrder: 50,
         description: "<75% max HR - lifting, pilates, bouldering, elliptical. 0.6 points per minute.",
         scoringConfig: { type: "unit_based", unit: "minutes", pointsPerUnit: 0.6 },
         contributesToStreak: true,
@@ -111,11 +119,12 @@ function getActivityTypeDefinitions(categories: Record<string, Id<"categories">>
       },
       {
         name: "Yoga / Stretching",
+        displayOrder: 70,
         description: "Yoga, stretching, mobility work. 0.4 points per minute.",
         scoringConfig: { type: "unit_based", unit: "minutes", pointsPerUnit: 0.4 },
         contributesToStreak: true,
         isNegative: false,
-        categoryId: categories["Low Intensity Cardio"],
+        categoryId: categories["Yoga"],
         createdAt: now,
         updatedAt: now,
       },
@@ -125,6 +134,7 @@ function getActivityTypeDefinitions(categories: Record<string, Id<"categories">>
     other: [
       {
         name: "Horses",
+        displayOrder: 80,
         description: "Horse-related fitness activities. 16.75 points per horse.",
         scoringConfig: { type: "unit_based", unit: "horses", pointsPerUnit: 16.75 },
         contributesToStreak: true,
@@ -135,6 +145,7 @@ function getActivityTypeDefinitions(categories: Record<string, Id<"categories">>
       },
       {
         name: "Skiing Full Day",
+        displayOrder: 90,
         description: "Full day of skiing. 35 points. Note: Does not extend streak.",
         scoringConfig: { type: "unit_based", unit: "full days", pointsPerUnit: 35 },
         contributesToStreak: false,
@@ -145,6 +156,7 @@ function getActivityTypeDefinitions(categories: Record<string, Id<"categories">>
       },
       {
         name: "Skiing Half Day",
+        displayOrder: 100,
         description: "Half day of skiing. 15 points. Note: Does not extend streak.",
         scoringConfig: { type: "unit_based", unit: "half days", pointsPerUnit: 15 },
         contributesToStreak: false,
@@ -155,6 +167,8 @@ function getActivityTypeDefinitions(categories: Record<string, Id<"categories">>
       },
       {
         name: "Hotel Room Workout",
+        availableInFinalDays: true,
+        displayOrder: 110,
         description: "Workout while traveling. 50 points.",
         scoringConfig: { type: "completion", fixedPoints: 50 },
         contributesToStreak: true,
@@ -169,6 +183,8 @@ function getActivityTypeDefinitions(categories: Record<string, Id<"categories">>
     challenges: [
       {
         name: "Burpee Challenge Week 1",
+        availableInFinalDays: true,
+        displayOrder: 200,
         description: "100 burpees. Chest and thighs must touch ground. <10min=50pts, <12min=30pts, >12min=10pts.",
         scoringConfig: {
           type: "tiered",
@@ -188,6 +204,8 @@ function getActivityTypeDefinitions(categories: Record<string, Id<"categories">>
       },
       {
         name: "Burpee Challenge Week 2",
+        availableInFinalDays: true,
+        displayOrder: 210,
         description: "110 burpees. Chest and thighs must touch ground. <10min=50pts, <12min=30pts, >12min=10pts.",
         scoringConfig: {
           type: "tiered",
@@ -207,6 +225,8 @@ function getActivityTypeDefinitions(categories: Record<string, Id<"categories">>
       },
       {
         name: "Burpee Challenge Week 3",
+        availableInFinalDays: true,
+        displayOrder: 220,
         description: "120 burpees. Chest and thighs must touch ground. <10min=50pts, <12min=30pts, >12min=10pts.",
         scoringConfig: {
           type: "tiered",
@@ -226,6 +246,8 @@ function getActivityTypeDefinitions(categories: Record<string, Id<"categories">>
       },
       {
         name: "Burpee Challenge Week 4",
+        availableInFinalDays: true,
+        displayOrder: 230,
         description: "130 burpees. Chest and thighs must touch ground. <10min=50pts, <12min=30pts, >12min=10pts.",
         scoringConfig: {
           type: "tiered",
@@ -245,6 +267,8 @@ function getActivityTypeDefinitions(categories: Record<string, Id<"categories">>
       },
       {
         name: "The Max",
+        availableInFinalDays: true,
+        displayOrder: 240,
         description: "Circuit: 25 Squats + 20 Curls | 25 Squats + 20 Lunges | 25 Squats + 20 Overhead Press | 25 Squats + 20 Bent Over Rows. Never put the bar down! 20 points per circuit, max 3 circuits.",
         scoringConfig: {
           type: "unit_based",
@@ -260,6 +284,8 @@ function getActivityTypeDefinitions(categories: Record<string, Id<"categories">>
       },
       {
         name: "Sally-up Challenge",
+        availableInFinalDays: true,
+        displayOrder: 250,
         description: "How long can you hold? <60s=0pts, 60-90s=5pts, 90-120s=15pts, 120-180s=25pts, Full Video=40pts. One-time opportunity.",
         scoringConfig: {
           type: "tiered",
@@ -281,6 +307,8 @@ function getActivityTypeDefinitions(categories: Record<string, Id<"categories">>
       },
       {
         name: "Tracy Anderson Arms",
+        availableInFinalDays: true,
+        displayOrder: 260,
         description: "See how long you can go without resting arms. 4+ min=20pts, Full Video=40pts. One-time opportunity.",
         scoringConfig: {
           type: "tiered",
@@ -300,6 +328,8 @@ function getActivityTypeDefinitions(categories: Record<string, Id<"categories">>
       },
       {
         name: "The Murph",
+        availableInFinalDays: true,
+        displayOrder: 270,
         description: "1 Mile Run, 100 Pull ups, 200 Push ups, 300 Air squats, 1 Mile Run. 65pts base, +40pts with 20lb weighted vest.",
         scoringConfig: {
           type: "completion",
@@ -316,6 +346,7 @@ function getActivityTypeDefinitions(categories: Record<string, Id<"categories">>
       },
       {
         name: "10 Days of Mindfulness",
+        displayOrder: 280,
         description: "Meditate, journal, reflect, pray for 10+ uninterrupted minutes for 10 straight days. 100 points. Limit 1 per challenge.",
         scoringConfig: { type: "completion", fixedPoints: 100 },
         contributesToStreak: true,
@@ -331,6 +362,7 @@ function getActivityTypeDefinitions(categories: Record<string, Id<"categories">>
     selfBonuses: [
       {
         name: "Workout with a Friend",
+        displayOrder: 300,
         description: "Log when you work out with a friend. 25 points. One-time, Week 3 only.",
         scoringConfig: { type: "completion", fixedPoints: 25 },
         contributesToStreak: false,
@@ -343,6 +375,8 @@ function getActivityTypeDefinitions(categories: Record<string, Id<"categories">>
       },
       {
         name: "Retro Abs Bonus",
+        availableInFinalDays: true,
+        displayOrder: 310,
         description: "Complete the retro abs workout. 15 points.",
         scoringConfig: { type: "completion", fixedPoints: 15 },
         contributesToStreak: true,
@@ -357,6 +391,7 @@ function getActivityTypeDefinitions(categories: Record<string, Id<"categories">>
     miniGameBonuses: [
       {
         name: "Partner Week Bonus",
+        displayOrder: 400,
         description: "Awarded at the end of Partner Week based on your partnership performance.",
         scoringConfig: { type: "variable" },
         contributesToStreak: false,
@@ -367,6 +402,7 @@ function getActivityTypeDefinitions(categories: Record<string, Id<"categories">>
       },
       {
         name: "PR Week Bonus",
+        displayOrder: 410,
         description: "Awarded if you hit a PR during PR Week.",
         scoringConfig: { type: "variable" },
         contributesToStreak: false,
@@ -377,6 +413,7 @@ function getActivityTypeDefinitions(categories: Record<string, Id<"categories">>
       },
       {
         name: "The Hunt Bonus",
+        displayOrder: 420,
         description: "Awarded based on Hunt Week results.",
         scoringConfig: { type: "variable" },
         contributesToStreak: false,
@@ -387,6 +424,7 @@ function getActivityTypeDefinitions(categories: Record<string, Id<"categories">>
       },
       {
         name: "Category Leader Bonus",
+        displayOrder: 430,
         description: "Awarded to category leaders at end of challenge.",
         scoringConfig: { type: "variable" },
         contributesToStreak: false,
@@ -401,6 +439,7 @@ function getActivityTypeDefinitions(categories: Record<string, Id<"categories">>
     penalties: [
       {
         name: "Drinks",
+        displayOrder: 500,
         description: "Log your drinks. First one is free each day, then -5 points per drink.",
         scoringConfig: {
           type: "unit_based",
@@ -416,6 +455,7 @@ function getActivityTypeDefinitions(categories: Record<string, Id<"categories">>
       },
       {
         name: "Overindulge",
+        displayOrder: 510,
         description: "Self-logged penalty for overindulgence. -10 points per occurrence.",
         scoringConfig: { type: "unit_based", unit: "count", pointsPerUnit: 10 },
         contributesToStreak: false,

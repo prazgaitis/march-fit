@@ -55,6 +55,7 @@ export default function SettingsAdminPage() {
     welcomeMessage: "",
     announcement: "",
     allowGenderEdit: false,
+    finalDaysStart: "",
   });
 
   const challenge = useQuery(api.queries.challenges.getById, {
@@ -78,6 +79,7 @@ export default function SettingsAdminPage() {
         welcomeMessage: challenge.welcomeMessage || "",
         announcement: challenge.announcement || "",
         allowGenderEdit: challenge.allowGenderEdit ?? false,
+        finalDaysStart: challenge.finalDaysStart != null ? String(challenge.finalDaysStart) : "",
       });
     }
   }, [challenge]);
@@ -99,6 +101,7 @@ export default function SettingsAdminPage() {
         welcomeMessage: formData.welcomeMessage || undefined,
         announcement: formData.announcement || undefined,
         allowGenderEdit: formData.allowGenderEdit,
+        finalDaysStart: formData.finalDaysStart !== "" ? parseInt(formData.finalDaysStart) || undefined : undefined,
       });
 
       setSaveResult({ success: true, message: "Settings saved successfully" });
@@ -371,6 +374,27 @@ export default function SettingsAdminPage() {
                 />
                 <p className="text-[10px] text-zinc-500">
                   Points required per day to maintain a streak
+                </p>
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs text-zinc-400">
+                  Final Days Start (day #)
+                </Label>
+                <Input
+                  type="number"
+                  min="1"
+                  value={formData.finalDaysStart}
+                  onChange={(e) =>
+                    setFormData((prev) => ({
+                      ...prev,
+                      finalDaysStart: e.target.value,
+                    }))
+                  }
+                  placeholder="29"
+                  className="border-zinc-700 bg-zinc-800 text-zinc-200"
+                />
+                <p className="text-[10px] text-zinc-500">
+                  Day number when the Final Days window begins (re-shows weekly-special activities). Leave blank to use last 2 days.
                 </p>
               </div>
               <div className="space-y-2">

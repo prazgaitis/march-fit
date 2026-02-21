@@ -130,7 +130,7 @@ export function ActivityLogDialog({ challengeId, challengeStartDate, trigger }: 
   const dismissTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const activityTypes = useQuery(
-    api.queries.activityTypes.getByChallengeId,
+    api.queries.activityTypes.getVisibleByChallengeId,
     open ? { challengeId: challengeId as Id<"challenges"> } : "skip"
   );
 

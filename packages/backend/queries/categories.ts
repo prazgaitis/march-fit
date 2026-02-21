@@ -1,5 +1,6 @@
 import { internalQuery, query } from "../_generated/server";
 import { v } from "convex/values";
+import type { Id } from "../_generated/dataModel";
 
 /**
  * Get category by name (internal - for seeding)
@@ -27,8 +28,7 @@ export const getAll = query({
 });
 
 /**
- * Get categories for a challenge via activity types
- * Note: This mimics the behavior of getChallengeCategories which finds categories used in a challenge
+ * Get categories for a challenge via activity types, sorted by sortOrder
  */
 export const getChallengeCategories = query({
   args: {
@@ -46,9 +46,19 @@ export const getChallengeCategories = query({
     });
 
     const categories = await Promise.all(
-        Array.from(categoryIds).map(id => ctx.db.get(id as any))
+        Array.from(categoryIds).map(id => ctx.db.get(id as Id<"categories">))
     );
 
-    return categories.filter((c): c is NonNullable<typeof c> => c !== null);
+    const valid = categories.filter((c): c is NonNullable<typeof c> => c !== null);
+
+    // Sort by sortOrder (nulls last), then by name as fallback
+    valid.sort((a, b) => {
+      const aOrder = a.sortOrder ?? 9999;
+      const bOrder = b.sortOrder ?? 9999;
+      if (aOrder !== bOrder) return aOrder - bOrder;
+      return a.name.localeCompare(b.name);
+    });
+
+    return valid;
   },
 });

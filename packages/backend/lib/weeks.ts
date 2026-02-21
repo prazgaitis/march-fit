@@ -64,3 +64,28 @@ export function getWeekDateRange(
 export function getTotalWeeks(durationDays: number): number {
   return Math.ceil(durationDays / 7);
 }
+
+const DAY_MS = 1000 * 60 * 60 * 24;
+
+/**
+ * Returns true if `now` is within the Final Days window of a challenge.
+ *
+ * The window starts on day `finalDaysStart` (1-indexed).
+ * If `finalDaysStart` is not set, it defaults to the last 2 days
+ * (i.e. durationDays - 1, so days (durationDays-1) and durationDays).
+ *
+ * Example: durationDays=31, finalDaysStart=29 → final days are days 29, 30, 31.
+ */
+export function isInFinalDays(
+  challenge: {
+    startDate: string | number;
+    durationDays: number;
+    finalDaysStart?: number;
+  },
+  now: number
+): boolean {
+  const startMs = dateOnlyToUtcMs(challenge.startDate);
+  const threshold = challenge.finalDaysStart ?? challenge.durationDays - 1;
+  const finalDaysStartMs = startMs + (threshold - 1) * DAY_MS;
+  return now >= finalDaysStartMs;
+}

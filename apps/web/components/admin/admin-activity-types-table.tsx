@@ -65,7 +65,9 @@ export function AdminActivityTypesTable({
   const [createPoints, setCreatePoints] = useState("1");
   const [createContributes, setCreateContributes] = useState(true);
   const [createNegative, setCreateNegative] = useState(false);
+  const [createAvailableInFinalDays, setCreateAvailableInFinalDays] = useState(false);
   const [createCategoryId, setCreateCategoryId] = useState("");
+  const [createDisplayOrder, setCreateDisplayOrder] = useState("");
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
@@ -73,7 +75,9 @@ export function AdminActivityTypesTable({
   const [editPoints, setEditPoints] = useState("");
   const [editContributes, setEditContributes] = useState(true);
   const [editNegative, setEditNegative] = useState(false);
+  const [editAvailableInFinalDays, setEditAvailableInFinalDays] = useState(false);
   const [editCategoryId, setEditCategoryId] = useState("");
+  const [editDisplayOrder, setEditDisplayOrder] = useState("");
   const [editThresholds, setEditThresholds] = useState<BonusThreshold[]>([]);
   const [editScoringConfig, setEditScoringConfig] = useState<Record<string, unknown> | null>(null);
 
@@ -86,6 +90,7 @@ export function AdminActivityTypesTable({
     e.preventDefault();
     setIsPending(true);
     try {
+      const parsedDisplayOrder = Number(createDisplayOrder);
       await createActivityType({
         challengeId: challengeId as Id<"challenges">,
         name: createName,
@@ -93,14 +98,18 @@ export function AdminActivityTypesTable({
         scoringConfig: { basePoints: Number(createPoints) || 1 },
         contributesToStreak: createContributes,
         isNegative: createNegative,
+        availableInFinalDays: createAvailableInFinalDays || undefined,
         categoryId: createCategoryId ? (createCategoryId as Id<"categories">) : undefined,
+        displayOrder: Number.isFinite(parsedDisplayOrder) && createDisplayOrder !== "" ? parsedDisplayOrder : undefined,
       });
       setCreateName("");
       setCreateDescription("");
       setCreatePoints("1");
       setCreateContributes(true);
       setCreateNegative(false);
+      setCreateAvailableInFinalDays(false);
       setCreateCategoryId("");
+      setCreateDisplayOrder("");
       setShowCreate(false);
       setStatusMessage({ type: "success", text: "Created" });
       clearStatus();
@@ -120,7 +129,9 @@ export function AdminActivityTypesTable({
     setEditPoints(String(basePoints));
     setEditContributes(item.contributesToStreak);
     setEditNegative(item.isNegative);
+    setEditAvailableInFinalDays(item.availableInFinalDays ?? false);
     setEditCategoryId((item.categoryId as string) ?? "");
+    setEditDisplayOrder(item.displayOrder != null ? String(item.displayOrder) : "");
     setEditThresholds((item.bonusThresholds as BonusThreshold[]) || []);
     setEditScoringConfig(scoringConfig);
   };
@@ -172,6 +183,7 @@ export function AdminActivityTypesTable({
       const safePoints = Number.isFinite(parsedPoints) ? parsedPoints : 1;
       const nextScoringConfig = withUpdatedPoints(editScoringConfig ?? {}, safePoints);
 
+      const parsedDisplayOrder = Number(editDisplayOrder);
       await updateActivityType({
         activityTypeId: editingId as Id<"activityTypes">,
         name: editName,
@@ -179,8 +191,10 @@ export function AdminActivityTypesTable({
         scoringConfig: nextScoringConfig,
         contributesToStreak: editContributes,
         isNegative: editNegative,
+        availableInFinalDays: editAvailableInFinalDays || undefined,
         bonusThresholds: editThresholds,
         categoryId: editCategoryId ? (editCategoryId as Id<"categories">) : undefined,
+        displayOrder: Number.isFinite(parsedDisplayOrder) && editDisplayOrder !== "" ? parsedDisplayOrder : undefined,
       });
       setEditingId(null);
       setEditDescription("");
@@ -312,6 +326,15 @@ export function AdminActivityTypesTable({
               />
               Negative
             </label>
+            <label className="flex items-center gap-1.5 text-[10px] text-zinc-400" title="Show again during Final Days even if outside validWeeks">
+              <input
+                type="checkbox"
+                checked={createAvailableInFinalDays}
+                onChange={(e) => setCreateAvailableInFinalDays(e.target.checked)}
+                className="h-3 w-3 rounded"
+              />
+              Final Days
+            </label>
             <div className="w-32">
               <label className="mb-1 block text-[10px] text-zinc-500">Category</label>
               <select
@@ -326,6 +349,16 @@ export function AdminActivityTypesTable({
                   </option>
                 ))}
               </select>
+            </div>
+            <div className="w-20">
+              <label className="mb-1 block text-[10px] text-zinc-500" title="Display order in logging menu (lower = first)">Order #</label>
+              <Input
+                type="number"
+                value={createDisplayOrder}
+                onChange={(e) => setCreateDisplayOrder(e.target.value)}
+                placeholder="—"
+                className="h-8 border-zinc-700 bg-zinc-800 text-sm"
+              />
             </div>
             <Button
               type="submit"
@@ -359,13 +392,14 @@ export function AdminActivityTypesTable({
               <th className="px-3 py-2 text-center font-medium">Streak</th>
               <th className="px-3 py-2 text-center font-medium">Neg</th>
               <th className="px-3 py-2 text-center font-medium">Bonuses</th>
+              <th className="px-3 py-2 text-center font-medium" title="Display order in logging menu">Order</th>
               <th className="px-3 py-2 text-right font-medium"></th>
             </tr>
           </thead>
           <tbody className="divide-y divide-zinc-800/50">
             {items.length === 0 ? (
               <tr>
-                <td colSpan={7} className="px-3 py-8 text-center text-zinc-500">
+                <td colSpan={8} className="px-3 py-8 text-center text-zinc-500">
                   No activity types configured
                 </td>
               </tr>
@@ -423,6 +457,9 @@ export function AdminActivityTypesTable({
                           <span className="text-zinc-600">—</span>
                         )}
                       </td>
+                      <td className="px-3 py-2 text-center font-mono text-zinc-400">
+                        {item.displayOrder != null ? item.displayOrder : <span className="text-zinc-600">—</span>}
+                      </td>
                       <td className="px-3 py-2 text-right">
                         <button
                           type="button"
@@ -442,7 +479,7 @@ export function AdminActivityTypesTable({
                     {/* Edit Panel */}
                     {isEditing && (
                       <tr>
-                        <td colSpan={7} className="border-t border-zinc-800 bg-zinc-900 p-0">
+                        <td colSpan={8} className="border-t border-zinc-800 bg-zinc-900 p-0">
                           <form onSubmit={handleUpdate} className="p-3">
                             {/* Basic Fields Row */}
                             <div className="flex items-end gap-3">
@@ -484,6 +521,15 @@ export function AdminActivityTypesTable({
                                 />
                                 Negative
                               </label>
+                              <label className="flex items-center gap-1.5 pb-2 text-[10px] text-zinc-400" title="Show again during Final Days even if outside validWeeks">
+                                <input
+                                  type="checkbox"
+                                  checked={editAvailableInFinalDays}
+                                  onChange={(e) => setEditAvailableInFinalDays(e.target.checked)}
+                                  className="h-3 w-3 rounded"
+                                />
+                                Final Days
+                              </label>
                               <div className="w-36">
                                 <label className="mb-1 block text-[10px] text-zinc-500">
                                   Category
@@ -500,6 +546,18 @@ export function AdminActivityTypesTable({
                                     </option>
                                   ))}
                                 </select>
+                              </div>
+                              <div className="w-20">
+                                <label className="mb-1 block text-[10px] text-zinc-500" title="Controls order in the logging menu (lower = first)">
+                                  Order #
+                                </label>
+                                <Input
+                                  type="number"
+                                  value={editDisplayOrder}
+                                  onChange={(e) => setEditDisplayOrder(e.target.value)}
+                                  placeholder="—"
+                                  className="h-8 border-zinc-700 bg-zinc-800 text-sm"
+                                />
                               </div>
                             </div>
 

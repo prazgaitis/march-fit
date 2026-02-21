@@ -5,7 +5,7 @@ import { getCurrentUser } from "../lib/ids";
 import { isPaymentRequired } from "../lib/payments";
 import type { Id } from "../_generated/dataModel";
 import { dateOnlyToUtcMs, coerceDateOnlyToString, formatDateOnlyFromUtcMs } from "../lib/dateOnly";
-import { getChallengeWeekNumber } from "../lib/weeks";
+import { getChallengeWeekNumber, isInFinalDays } from "../lib/weeks";
 import { notDeleted } from "../lib/activityFilters";
 import { computeCriteriaProgress } from "../lib/achievements";
 import { reportLatencyIfExceeded } from "../lib/latencyMonitoring";
@@ -182,7 +182,9 @@ export const log = mutation({
     // Enforce validWeeks restriction
     if (activityType.validWeeks && activityType.validWeeks.length > 0) {
       const weekNumber = getChallengeWeekNumber(challenge.startDate, loggedDateTs);
-      if (!activityType.validWeeks.includes(weekNumber)) {
+      const inValidWeek = activityType.validWeeks.includes(weekNumber);
+      const inFinalDays = activityType.availableInFinalDays && isInFinalDays(challenge, loggedDateTs);
+      if (!inValidWeek && !inFinalDays) {
         const weekLabel = activityType.validWeeks.length === 1
           ? `week ${activityType.validWeeks[0]}`
           : `weeks ${activityType.validWeeks.join(", ")}`;

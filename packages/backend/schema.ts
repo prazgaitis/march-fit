@@ -54,6 +54,9 @@ export default defineSchema({
     announcementUpdatedAt: v.optional(v.number()), // When announcement was last changed
     // Gender collection
     allowGenderEdit: v.optional(v.boolean()), // Admin can enable gender editing for participants
+    // Day number (1-indexed) when the Final Days window begins (e.g. 29 = days 29–end)
+    // Used to re-show availableInFinalDays activities. Defaults to durationDays - 1.
+    finalDaysStart: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
   }).index("creatorId", ["creatorId"]),
@@ -68,7 +71,6 @@ export default defineSchema({
     contributesToStreak: v.boolean(),
     isNegative: v.boolean(),
     categoryId: v.optional(v.id("categories")),
-    sortOrder: v.optional(v.number()),
     // Threshold bonuses - auto-apply bonus points when metrics exceed thresholds
     bonusThresholds: v.optional(
       v.array(
@@ -84,6 +86,13 @@ export default defineSchema({
     maxPerChallenge: v.optional(v.number()), // e.g., 1 for one-time bonuses
     // Time restrictions - which weeks this activity type is valid
     validWeeks: v.optional(v.array(v.number())), // e.g., [3] for week 3 only
+    // Display order within its category (lower = first)
+    sortOrder: v.optional(v.number()),
+    // Global display order in the activity logging menu (lower = first, default 0)
+    displayOrder: v.optional(v.number()),
+    // When true, this activity reappears in the logging menu during the Final Days
+    // even if its validWeeks window has passed
+    availableInFinalDays: v.optional(v.boolean()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
@@ -255,6 +264,8 @@ export default defineSchema({
     name: v.string(),
     description: v.optional(v.string()),
     sortOrder: v.optional(v.number()),
+    // Whether this category appears on the Category Leader leaderboard
+    showInCategoryLeaderboard: v.optional(v.boolean()),
     createdAt: v.number(),
     updatedAt: v.number(),
   }).index("name", ["name"]),
