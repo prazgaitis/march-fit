@@ -2,8 +2,12 @@ import { convexTest } from "convex-test";
 import { schema } from "@repo/backend";
 import { GenericMutationCtx } from "convex/server";
 import { DataModel, Id } from "@repo/backend/_generated/dataModel";
+import aggregateSchema from "./aggregate-schema";
 
 const modulesRaw = import.meta.glob("../../../../packages/backend/**/*.{ts,js}");
+const aggregateModulesRaw = import.meta.glob(
+  "../../../../node_modules/@convex-dev/aggregate/dist/component/**/*.{js,ts}"
+);
 
 const modules = Object.fromEntries(
   Object.entries(modulesRaw).map(([key, value]) => {
@@ -13,7 +17,9 @@ const modules = Object.fromEntries(
 );
 
 export const createTestContext = () => {
-  return convexTest(schema, modules);
+  const t = convexTest(schema, modules);
+  t.registerComponent("activityPointsAggregate", aggregateSchema, aggregateModulesRaw);
+  return t;
 };
 
 export const createTestUser = async (

@@ -9,6 +9,7 @@ import {
   createTestParticipation,
 } from '../helpers/convex';
 import type { Id } from '@repo/backend/_generated/dataModel';
+import { insertTestActivity } from "../helpers/activities";
 
 describe('editActivity mutation', () => {
   let t: Awaited<ReturnType<typeof createTestContext>>;
@@ -137,7 +138,7 @@ describe('editActivity mutation', () => {
     await createTestParticipation(t, otherUserId, challengeId, { totalPoints: 500 });
 
     await t.run(async (ctx) => {
-      await ctx.db.insert('activities', {
+      await insertTestActivity(ctx, {
         userId: otherUserId as Id<'users'>,
         challengeId: challengeId as Id<'challenges'>,
         activityTypeId: penaltyTypeId as Id<'activityTypes'>,

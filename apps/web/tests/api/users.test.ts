@@ -9,6 +9,7 @@ import {
   createTestParticipation,
   createTestUser,
 } from "../helpers/convex";
+import { insertTestActivity } from "../helpers/activities";
 
 describe("Users Queries", () => {
   let t: Awaited<ReturnType<typeof createTestContext>>;
@@ -26,7 +27,7 @@ describe("Users Queries", () => {
       const activityTypeB = await createTestActivityType(t, otherChallengeId, { name: "Bike" });
 
       await t.run(async (ctx) => {
-        await ctx.db.insert("activities", {
+        await insertTestActivity(ctx, {
           userId: userId as Id<"users">,
           challengeId: challengeId as Id<"challenges">,
           activityTypeId: activityTypeA as Id<"activityTypes">,
@@ -39,7 +40,7 @@ describe("Users Queries", () => {
           createdAt: 1000,
           updatedAt: 1000,
         });
-        await ctx.db.insert("activities", {
+        await insertTestActivity(ctx, {
           userId: userId as Id<"users">,
           challengeId: challengeId as Id<"challenges">,
           activityTypeId: activityTypeA as Id<"activityTypes">,
@@ -52,7 +53,7 @@ describe("Users Queries", () => {
           createdAt: 2000,
           updatedAt: 2000,
         });
-        await ctx.db.insert("activities", {
+        await insertTestActivity(ctx, {
           userId: userId as Id<"users">,
           challengeId: otherChallengeId as Id<"challenges">,
           activityTypeId: activityTypeB as Id<"activityTypes">,
@@ -101,7 +102,7 @@ describe("Users Queries", () => {
       const bikeTypeId = await createTestActivityType(t, challengeId, { name: "Bike" });
 
       await t.run(async (ctx) => {
-        await ctx.db.insert("activities", {
+        await insertTestActivity(ctx, {
           userId: userId as Id<"users">,
           challengeId: challengeId as Id<"challenges">,
           activityTypeId: runTypeId as Id<"activityTypes">,
@@ -114,7 +115,7 @@ describe("Users Queries", () => {
           createdAt: 1000,
           updatedAt: 1000,
         });
-        await ctx.db.insert("activities", {
+        await insertTestActivity(ctx, {
           userId: userId as Id<"users">,
           challengeId: challengeId as Id<"challenges">,
           activityTypeId: bikeTypeId as Id<"activityTypes">,
@@ -127,7 +128,7 @@ describe("Users Queries", () => {
           createdAt: 1100,
           updatedAt: 1100,
         });
-        await ctx.db.insert("activities", {
+        await insertTestActivity(ctx, {
           userId: userId as Id<"users">,
           challengeId: challengeId as Id<"challenges">,
           activityTypeId: bikeTypeId as Id<"activityTypes">,
@@ -195,7 +196,7 @@ describe("Users Queries", () => {
         updatedAt: Date.now(),
       });
 
-      await ctx.db.insert("activities", {
+      await insertTestActivity(ctx, {
         userId: userId as Id<"users">,
         challengeId: challengeId as Id<"challenges">,
         activityTypeId: penaltyTypeId,
@@ -210,7 +211,7 @@ describe("Users Queries", () => {
         updatedAt: Date.now(),
       });
 
-      await ctx.db.insert("activities", {
+      await insertTestActivity(ctx, {
         userId: otherId as Id<"users">,
         challengeId: challengeId as Id<"challenges">,
         activityTypeId: runTypeId,
@@ -273,7 +274,7 @@ describe("Users Queries", () => {
         updatedAt: Date.now(),
       });
 
-      await ctx.db.insert("activities", {
+      await insertTestActivity(ctx, {
         userId: userId as Id<"users">,
         challengeId: challengeA as Id<"challenges">,
         activityTypeId: typeA,
@@ -287,7 +288,7 @@ describe("Users Queries", () => {
         createdAt: Date.now(),
         updatedAt: Date.now(),
       });
-      await ctx.db.insert("activities", {
+      await insertTestActivity(ctx, {
         userId: userId as Id<"users">,
         challengeId: challengeA as Id<"challenges">,
         activityTypeId: typeA,
@@ -301,7 +302,7 @@ describe("Users Queries", () => {
         createdAt: Date.now(),
         updatedAt: Date.now(),
       });
-      await ctx.db.insert("activities", {
+      await insertTestActivity(ctx, {
         userId: userId as Id<"users">,
         challengeId: challengeB as Id<"challenges">,
         activityTypeId: typeB,

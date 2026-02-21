@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { api } from '@repo/backend';
 import { dateOnlyToUtcMs, formatDateOnlyFromUtcMs } from '@/lib/date-only';
 import { createTestContext, createTestUser, createTestChallenge } from '../helpers/convex';
+import { insertTestActivity } from "../helpers/activities";
 
 describe('Activities Logic', () => {
   let t: Awaited<ReturnType<typeof createTestContext>>;
@@ -1129,7 +1130,7 @@ describe('Activities Logic', () => {
       });
 
       await t.run(async (ctx) => {
-        await ctx.db.insert("activities", {
+        await insertTestActivity(ctx, {
           userId: rivalId,
           challengeId,
           activityTypeId: runTypeId,
@@ -1770,7 +1771,7 @@ describe('Activities Logic', () => {
 
       const day = new Date('2024-01-15');
       await t.run(async (ctx) => {
-        await ctx.db.insert("activities", {
+        await insertTestActivity(ctx, {
           userId,
           challengeId,
           activityTypeId,
@@ -1884,7 +1885,7 @@ describe('Activities Logic', () => {
           updatedAt: Date.now(),
         });
 
-        await ctx.db.insert("activities", {
+        await insertTestActivity(ctx, {
           userId: otherUserId,
           challengeId,
           activityTypeId: drinksTypeId,

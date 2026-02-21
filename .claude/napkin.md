@@ -4,6 +4,8 @@
 | Date | Source | What Went Wrong | What To Do Instead |
 |------|--------|----------------|-------------------|
 | 2026-02-21 | self | New `scorePreview` map callback in `activity-log-dialog.tsx` failed TS strict mode due implicit `any` params | Add explicit callback parameter types when rendering arrays from loosely-typed query payloads |
+| 2026-02-21 | self | Web tests used `activityPointsAggregate/public/insertIfDoesNotExist`, but the aggregate component exposes `public/insert` and `public/replaceOrInsert` only | Use `aggregateInsertActivity`/`insertTestActivity` or `public/replaceOrInsert` instead of calling a non-existent module |
+| 2026-02-21 | self | Component registration for convex-test pointed at `packages/backend/node_modules` and missed `_generated`, so component modules were unresolved | Register aggregate component from `node_modules/@convex-dev/aggregate/dist/component/**/*.{js,ts}` so `_generated` is included |
 | 2026-02-21 | self | Imported `@repo/backend/lib/dateOnly` in web tests, but it is not exported from the backend package | Use `apps/web/lib/date-only` in web tests or add explicit exports in backend `package.json` |
 | 2026-02-21 | self | A Strava webhook test still expected clamped-to-zero totals after delete and failed once negative totals were enabled | Update legacy tests that assert `Math.max(0, ...)` behavior to align with current negative-total rules |
 | 2026-02-21 | self | Ran `rg`/`sed` on Next route paths with `[id]` unquoted and zsh globbing failed again | Always single-quote paths containing `[]` before shell commands |

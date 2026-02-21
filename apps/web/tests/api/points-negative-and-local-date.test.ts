@@ -10,6 +10,7 @@ import {
 import type { Id } from "@repo/backend/_generated/dataModel";
 import { dateOnlyToUtcMs } from "@/lib/date-only";
 import { getChallengePointTotalForUser } from "@repo/backend/lib/activityPointsAggregate";
+import { insertTestActivity } from "../helpers/activities";
 
 describe("Points negative + local date grouping", () => {
   let t: Awaited<ReturnType<typeof createTestContext>>;
@@ -25,7 +26,7 @@ describe("Points negative + local date grouping", () => {
     const activityTypeId = await createTestActivityType(t, challengeId);
 
     await t.run(async (ctx) => {
-      await ctx.db.insert("activities", {
+      await insertTestActivity(ctx, {
         userId: userId as Id<"users">,
         challengeId: challengeId as Id<"challenges">,
         activityTypeId,
@@ -39,7 +40,7 @@ describe("Points negative + local date grouping", () => {
         createdAt: Date.now(),
         updatedAt: Date.now(),
       });
-      await ctx.db.insert("activities", {
+      await insertTestActivity(ctx, {
         userId: userId as Id<"users">,
         challengeId: challengeId as Id<"challenges">,
         activityTypeId,
@@ -53,7 +54,7 @@ describe("Points negative + local date grouping", () => {
         createdAt: Date.now(),
         updatedAt: Date.now(),
       });
-      await ctx.db.insert("activities", {
+      await insertTestActivity(ctx, {
         userId: userId as Id<"users">,
         challengeId: challengeId as Id<"challenges">,
         activityTypeId,
@@ -91,7 +92,7 @@ describe("Points negative + local date grouping", () => {
     const activityTypeId = await createTestActivityType(t, challengeId);
 
     await t.run(async (ctx) => {
-      await ctx.db.insert("activities", {
+      await insertTestActivity(ctx, {
         userId: userId as Id<"users">,
         challengeId: challengeId as Id<"challenges">,
         activityTypeId,
@@ -105,7 +106,7 @@ describe("Points negative + local date grouping", () => {
         createdAt: Date.now(),
         updatedAt: Date.now(),
       });
-      await ctx.db.insert("activities", {
+      await insertTestActivity(ctx, {
         userId: userId as Id<"users">,
         challengeId: challengeId as Id<"challenges">,
         activityTypeId,
@@ -119,7 +120,7 @@ describe("Points negative + local date grouping", () => {
         createdAt: Date.now(),
         updatedAt: Date.now(),
       });
-      await ctx.db.insert("activities", {
+      await insertTestActivity(ctx, {
         userId: userId as Id<"users">,
         challengeId: challengeId as Id<"challenges">,
         activityTypeId,
