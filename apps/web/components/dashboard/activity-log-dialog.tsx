@@ -43,7 +43,7 @@ import { cn } from "@/lib/utils";
 import { PointsDisplay } from "@/components/ui/points-display";
 import { formatPoints } from "@/lib/points";
 import { isToday } from "date-fns";
-import { localDateToIsoNoon, formatDateOnlyFromLocalDate, formatDateShortFromDateOnly } from "@/lib/date-only";
+import { formatDateOnlyFromLocalDate, formatDateShortFromDateOnly } from "@/lib/date-only";
 
 interface ActivityLogDialogProps {
   challengeId: string;
@@ -307,7 +307,7 @@ export function ActivityLogDialog({ challengeId, challengeStartDate, trigger }: 
       ? {
           challengeId: challengeId as Id<"challenges">,
           activityTypeId: selectedActivityType._id,
-          loggedDate: localDateToIsoNoon(form.loggedDate),
+          loggedDate: formatDateOnlyFromLocalDate(form.loggedDate),
           metrics: previewMetrics ?? {},
           hasMedia: mediaFiles.length > 0,
         }
@@ -471,7 +471,7 @@ export function ActivityLogDialog({ challengeId, challengeStartDate, trigger }: 
       const result = await logActivity({
         challengeId: challengeId as Id<"challenges">,
         activityTypeId: form.activityTypeId as Id<"activityTypes">,
-        loggedDate: localDateToIsoNoon(form.loggedDate),
+        loggedDate: formatDateOnlyFromLocalDate(form.loggedDate),
         metrics,
         notes: !notesIsEmpty && form.notes && !isEditorContentEmpty(form.notes) ? form.notes : undefined,
         mediaIds,

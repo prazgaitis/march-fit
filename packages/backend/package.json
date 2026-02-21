@@ -41,6 +41,7 @@
     "migrate": "bash ../../scripts/convex.sh run migrations:runAll"
   },
   "dependencies": {
+    "@convex-dev/aggregate": "^0.2.1",
     "@convex-dev/better-auth": "^0.10.6",
     "@convex-dev/migrations": "^0.3.1",
     "@convex-dev/resend": "^0.2.3",

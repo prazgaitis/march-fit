@@ -14,8 +14,13 @@ import {
   calculateFinalActivityScore,
 } from "../lib/scoring";
 import { isPaymentRequired } from "../lib/payments";
-import { dateOnlyToUtcMs, coerceDateOnlyToString, formatDateOnlyFromUtcMs } from "../lib/dateOnly";
-import { getChallengeWeekNumber, isInFinalDays } from "../lib/weeks";
+import {
+  dateOnlyToUtcMs,
+  coerceDateOnlyToString,
+  formatDateOnlyFromUtcMs,
+  normalizeDateOnlyInput,
+} from "../lib/dateOnly";
+import { getChallengeWeekNumber } from "../lib/weeks";
 import { notDeleted } from "../lib/activityFilters";
 import { reportLatencyIfExceeded } from "../lib/latencyMonitoring";
 import { applyParticipationScoreDeltaAndRecomputeStreak } from "../lib/participationScoring";
@@ -75,7 +80,7 @@ export const logActivityForUser = internalMutation({
       throw new Error("Activity type not found or does not belong to this challenge");
     }
 
-    const loggedDateTs = Date.parse(args.loggedDate);
+    const loggedDateTs = dateOnlyToUtcMs(normalizeDateOnlyInput(args.loggedDate));
 
     // Validate date
     const challengeStartStr = coerceDateOnlyToString(challenge.startDate);
@@ -87,9 +92,7 @@ export const logActivityForUser = internalMutation({
     // Enforce validWeeks
     if (activityType.validWeeks && activityType.validWeeks.length > 0) {
       const weekNumber = getChallengeWeekNumber(challenge.startDate, loggedDateTs);
-      const inValidWeek = activityType.validWeeks.includes(weekNumber);
-      const inFinalDays = activityType.availableInFinalDays && isInFinalDays(challenge, loggedDateTs);
-      if (!inValidWeek && !inFinalDays) {
+      if (!activityType.validWeeks.includes(weekNumber)) {
         throw new Error(
           `This activity type is only available during week(s) ${activityType.validWeeks.join(", ")}. Current week: ${weekNumber}`
         );
@@ -655,7 +658,7 @@ export const adminEditActivityForUser = internalMutation({
     }
 
     if (args.loggedDate !== undefined) {
-      updates.loggedDate = Date.parse(args.loggedDate);
+      updates.loggedDate = dateOnlyToUtcMs(normalizeDateOnlyInput(args.loggedDate));
       changes.loggedDate = { from: activity.loggedDate, to: updates.loggedDate };
       shouldRecomputeStreak = true;
     }

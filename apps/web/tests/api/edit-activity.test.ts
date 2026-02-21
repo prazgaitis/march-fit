@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { api } from '@repo/backend';
+import { dateOnlyToUtcMs } from '@/lib/date-only';
 import {
   createTestContext,
   createTestUser,
@@ -57,7 +58,7 @@ describe('editActivity mutation', () => {
     const activity = await t.run(async (ctx) => ctx.db.get(activityId as Id<'activities'>));
     expect(activity!.notes).toBe('Updated notes');
     expect((activity!.metrics as Record<string, unknown>)['minutes']).toBe(45);
-    expect(activity!.loggedDate).toBe(new Date('2024-01-16').getTime());
+    expect(activity!.loggedDate).toBe(dateOnlyToUtcMs('2024-01-16'));
   });
 
   it('points are recalculated correctly after metric change', async () => {

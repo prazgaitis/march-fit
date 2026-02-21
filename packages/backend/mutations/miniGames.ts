@@ -2,7 +2,7 @@ import { mutation } from "../_generated/server";
 import { v } from "convex/values";
 import type { Id } from "../_generated/dataModel";
 import { getCurrentUser } from "../lib/ids";
-import { dateOnlyToUtcMs } from "../lib/dateOnly";
+import { dateOnlyToUtcMs, formatDateOnlyFromUtcMs } from "../lib/dateOnly";
 import { notDeleted } from "../lib/activityFilters";
 
 // Helper to check if user is challenge admin
@@ -424,7 +424,7 @@ async function calculateMaxDailyPoints(
     if (activity.loggedDate >= beforeDate) continue;
 
     // Get date string (YYYY-MM-DD)
-    const dateStr = new Date(activity.loggedDate).toISOString().split("T")[0];
+    const dateStr = formatDateOnlyFromUtcMs(activity.loggedDate);
     dailyPoints[dateStr] = (dailyPoints[dateStr] || 0) + activity.pointsEarned;
   }
 
@@ -719,7 +719,7 @@ async function getMaxDailyPointsInPeriod(
     )
       continue;
 
-    const dateStr = new Date(activity.loggedDate).toISOString().split("T")[0];
+    const dateStr = formatDateOnlyFromUtcMs(activity.loggedDate);
     dailyPoints[dateStr] = (dailyPoints[dateStr] || 0) + activity.pointsEarned;
   }
 

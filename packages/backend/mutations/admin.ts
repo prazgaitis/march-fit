@@ -4,6 +4,7 @@ import { getCurrentUser } from "../lib/ids";
 import type { Id } from "../_generated/dataModel";
 import { reportLatencyIfExceeded } from "../lib/latencyMonitoring";
 import { applyParticipationScoreDeltaAndRecomputeStreak } from "../lib/participationScoring";
+import { dateOnlyToUtcMs, normalizeDateOnlyInput } from "../lib/dateOnly";
 
 async function requireChallengeAdminForActivity(
   ctx: { db: any; auth: any },
@@ -276,7 +277,7 @@ export const adminEditActivity = mutation({
     }
 
     if (args.loggedDate !== undefined) {
-      updates.loggedDate = Date.parse(args.loggedDate);
+      updates.loggedDate = dateOnlyToUtcMs(normalizeDateOnlyInput(args.loggedDate));
       changes.loggedDate = {
         from: activity.loggedDate,
         to: updates.loggedDate,

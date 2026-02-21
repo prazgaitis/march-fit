@@ -10,6 +10,7 @@ import { isPaymentRequired } from "../lib/payments";
 import { notDeleted } from "../lib/activityFilters";
 import { reportLatencyIfExceeded } from "../lib/latencyMonitoring";
 import { applyParticipationScoreDeltaAndRecomputeStreak } from "../lib/participationScoring";
+import { dateOnlyToUtcMs } from "../lib/dateOnly";
 
 /**
  * Get user's active challenge participations
@@ -129,7 +130,7 @@ export const createFromStrava = internalMutation({
     const mappedActivity = mapStravaActivity(stravaActivity, activityTypeId, metricMapping);
 
     // Calculate points
-    const loggedDateTs = Date.parse(mappedActivity.loggedDate);
+    const loggedDateTs = dateOnlyToUtcMs(mappedActivity.loggedDate);
     // Calculate media bonus (+1 point for Strava activities with photos)
     const hasMedia = mappedActivity.stravaPhotoUrls.length > 0 || !!mappedActivity.imageUrl;
     const score = await calculateFinalActivityScore(

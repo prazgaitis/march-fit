@@ -3,8 +3,13 @@ import { ConvexError, v } from "convex/values";
 import { calculateFinalActivityScore } from "../lib/scoring";
 import { getCurrentUser } from "../lib/ids";
 import { isPaymentRequired } from "../lib/payments";
-import { dateOnlyToUtcMs, coerceDateOnlyToString, formatDateOnlyFromUtcMs } from "../lib/dateOnly";
-import { getChallengeWeekNumber, isInFinalDays } from "../lib/weeks";
+import {
+  dateOnlyToUtcMs,
+  coerceDateOnlyToString,
+  formatDateOnlyFromUtcMs,
+  normalizeDateOnlyInput,
+} from "../lib/dateOnly";
+import { getChallengeWeekNumber } from "../lib/weeks";
 import { notDeleted } from "../lib/activityFilters";
 import { computeCriteriaProgress } from "../lib/achievements";
 import { reportLatencyIfExceeded } from "../lib/latencyMonitoring";
@@ -45,7 +50,7 @@ export const log = mutation({
   args: {
     challengeId: v.id("challenges"),
     activityTypeId: v.id("activityTypes"),
-    loggedDate: v.string(), // ISO string
+    loggedDate: v.string(), // date-only "YYYY-MM-DD" (or ISO timestamp with local date)
     metrics: v.optional(v.any()),
     notes: v.optional(v.string()),
     imageUrl: v.optional(v.string()),
@@ -101,7 +106,7 @@ export const log = mutation({
     }
 
     // Parse logged date for validation
-    const loggedDateTs = Date.parse(args.loggedDate);
+    const loggedDateTs = dateOnlyToUtcMs(normalizeDateOnlyInput(args.loggedDate));
 
     // Prevent logging activities before the challenge start date (date-only comparison)
     const challengeStartStr = coerceDateOnlyToString(challenge.startDate);
@@ -115,9 +120,7 @@ export const log = mutation({
     // Enforce validWeeks restriction
     if (activityType.validWeeks && activityType.validWeeks.length > 0) {
       const weekNumber = getChallengeWeekNumber(challenge.startDate, loggedDateTs);
-      const inValidWeek = activityType.validWeeks.includes(weekNumber);
-      const inFinalDays = activityType.availableInFinalDays && isInFinalDays(challenge, loggedDateTs);
-      if (!inValidWeek && !inFinalDays) {
+      if (!activityType.validWeeks.includes(weekNumber)) {
         const weekLabel = activityType.validWeeks.length === 1
           ? `week ${activityType.validWeeks[0]}`
           : `weeks ${activityType.validWeeks.join(", ")}`;
@@ -550,7 +553,7 @@ export const editActivity = mutation({
 
     // Determine new loggedDate
     const newLoggedDateTs = args.loggedDate
-      ? dateOnlyToUtcMs(args.loggedDate)
+      ? dateOnlyToUtcMs(normalizeDateOnlyInput(args.loggedDate))
       : activity.loggedDate;
 
     // Determine new metrics
