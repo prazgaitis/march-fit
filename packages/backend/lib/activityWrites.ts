@@ -8,7 +8,10 @@ import {
 
 type MutationDbCtx = Pick<MutationCtx, "db" | "runMutation">;
 type ActivityInsert = Omit<Doc<"activities">, "_id" | "_creationTime">;
-type ActivityPatch = Partial<ActivityInsert>;
+type ActivityPatch = Partial<ActivityInsert> & {
+  notes?: string | null;
+  adminComment?: string | null;
+};
 
 export async function insertActivity(
   ctx: MutationDbCtx,

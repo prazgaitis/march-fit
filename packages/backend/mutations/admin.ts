@@ -5,6 +5,7 @@ import type { Id } from "../_generated/dataModel";
 import { reportLatencyIfExceeded } from "../lib/latencyMonitoring";
 import { applyParticipationScoreDeltaAndRecomputeStreak } from "../lib/participationScoring";
 import { dateOnlyToUtcMs, normalizeDateOnlyInput } from "../lib/dateOnly";
+import { deleteActivity, patchActivity } from "../lib/activityWrites";
 
 async function requireChallengeAdminForActivity(
   ctx: { db: any; auth: any },
@@ -76,7 +77,7 @@ export const deleteChallenge = internalMutation({
       for (const comment of comments) {
         await ctx.db.delete(comment._id);
       }
-      await ctx.db.delete(activity._id);
+      await deleteActivity(ctx, activity._id);
     }
 
     // 2. Activity types
@@ -129,7 +130,7 @@ export const updateFlagResolution = mutation({
     const now = Date.now();
 
     // Update activity
-    await ctx.db.patch(args.activityId, {
+    await patchActivity(ctx, args.activityId, {
       resolutionStatus: args.status,
       resolutionNotes: args.notes,
       resolvedAt: args.status === "resolved" ? now : undefined,
@@ -170,7 +171,7 @@ export const addAdminComment = mutation({
     const now = Date.now();
 
     // Update activity with admin comment
-    await ctx.db.patch(args.activityId, {
+    await patchActivity(ctx, args.activityId, {
       adminComment: args.comment,
       adminCommentVisibility: args.visibility,
       updatedAt: now,
@@ -292,7 +293,7 @@ export const adminEditActivity = mutation({
     }
 
     // Update activity
-    await ctx.db.patch(args.activityId, updates);
+    await patchActivity(ctx, args.activityId, updates);
 
     if (shouldRecomputeStreak || pointsDiff !== 0) {
       await applyParticipationScoreDeltaAndRecomputeStreak(ctx, {

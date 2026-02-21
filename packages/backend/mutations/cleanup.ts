@@ -1,5 +1,6 @@
 import { internalMutation } from "../_generated/server";
 import { v } from "convex/values";
+import { deleteActivity } from "../lib/activityWrites";
 
 /**
  * List challenges that have a description (seed data)
@@ -53,7 +54,7 @@ export const deleteActivitiesBatch = internalMutation({
         await ctx.db.delete(comment._id);
       }
 
-      await ctx.db.delete(activity._id);
+      await deleteActivity(ctx, activity._id);
     }
 
     return {

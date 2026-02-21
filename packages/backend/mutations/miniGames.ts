@@ -1,8 +1,9 @@
-import { mutation } from "../_generated/server";
+import { mutation, type MutationCtx } from "../_generated/server";
 import { v } from "convex/values";
 import type { Id } from "../_generated/dataModel";
 import { getCurrentUser } from "../lib/ids";
 import { dateOnlyToUtcMs, formatDateOnlyFromUtcMs } from "../lib/dateOnly";
+import { insertActivity } from "../lib/activityWrites";
 import { notDeleted } from "../lib/activityFilters";
 
 // Helper to check if user is challenge admin
@@ -457,8 +458,11 @@ type MiniGame = {
   config: any;
 };
 
+type MutationDbCtx = Pick<MutationCtx, "db" | "runMutation">;
+type ReadDbCtx = Pick<MutationCtx, "db">;
+
 async function calculatePartnerWeekOutcomes(
-  ctx: { db: any },
+  ctx: MutationDbCtx,
   miniGame: MiniGame,
   participants: MiniGameParticipant[],
   now: number,
@@ -513,7 +517,7 @@ async function calculatePartnerWeekOutcomes(
 }
 
 async function calculateHuntWeekOutcomes(
-  ctx: { db: any },
+  ctx: MutationDbCtx,
   miniGame: MiniGame,
   participants: MiniGameParticipant[],
   now: number,
@@ -611,7 +615,7 @@ async function calculateHuntWeekOutcomes(
 }
 
 async function calculatePrWeekOutcomes(
-  ctx: { db: any },
+  ctx: MutationDbCtx,
   miniGame: MiniGame,
   participants: MiniGameParticipant[],
   now: number,
@@ -669,7 +673,7 @@ async function calculatePrWeekOutcomes(
 }
 
 async function getPointsInPeriod(
-  ctx: { db: any },
+  ctx: ReadDbCtx,
   userId: Id<"users">,
   challengeId: Id<"challenges">,
   startDate: number,
@@ -694,7 +698,7 @@ async function getPointsInPeriod(
 }
 
 async function getMaxDailyPointsInPeriod(
-  ctx: { db: any },
+  ctx: ReadDbCtx,
   userId: Id<"users">,
   challengeId: Id<"challenges">,
   startDate: number,
@@ -728,7 +732,7 @@ async function getMaxDailyPointsInPeriod(
 }
 
 async function awardBonusActivity(
-  ctx: { db: any },
+  ctx: MutationDbCtx,
   participant: MiniGameParticipant,
   miniGame: MiniGame,
   bonusPoints: number,
@@ -746,22 +750,25 @@ async function awardBonusActivity(
 
   if (!bonusActivityType) {
     // Create a mini-game bonus activity type
-    bonusActivityType = {
-      _id: await ctx.db.insert("activityTypes", {
-        challengeId: miniGame.challengeId,
-        name: "Mini-Game Bonus",
-        description: "Bonus points awarded from mini-games",
-        scoringConfig: { type: "fixed", basePoints: 0 },
-        contributesToStreak: false,
-        isNegative: false,
-        createdAt: now,
-        updatedAt: now,
-      }),
-    };
+    const bonusActivityTypeId = await ctx.db.insert("activityTypes", {
+      challengeId: miniGame.challengeId,
+      name: "Mini-Game Bonus",
+      description: "Bonus points awarded from mini-games",
+      scoringConfig: { type: "fixed", basePoints: 0 },
+      contributesToStreak: false,
+      isNegative: false,
+      createdAt: now,
+      updatedAt: now,
+    });
+    bonusActivityType = await ctx.db.get(bonusActivityTypeId);
+  }
+
+  if (!bonusActivityType) {
+    throw new Error("Failed to create Mini-Game Bonus activity type");
   }
 
   // Create the bonus activity
-  const activityId = await ctx.db.insert("activities", {
+  const activityId = await insertActivity(ctx, {
     userId: participant.userId,
     challengeId: miniGame.challengeId,
     activityTypeId: bonusActivityType._id,

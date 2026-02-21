@@ -24,6 +24,7 @@ import { getChallengeWeekNumber } from "../lib/weeks";
 import { notDeleted } from "../lib/activityFilters";
 import { reportLatencyIfExceeded } from "../lib/latencyMonitoring";
 import { applyParticipationScoreDeltaAndRecomputeStreak } from "../lib/participationScoring";
+import { insertActivity, patchActivity } from "../lib/activityWrites";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -142,7 +143,7 @@ export const logActivityForUser = internalMutation({
     const pointsEarned = score.pointsEarned;
     const triggeredBonuses = score.triggeredBonuses;
 
-    const activityId = await ctx.db.insert("activities", {
+    const activityId = await insertActivity(ctx, {
       userId: args.userId,
       challengeId: args.challengeId,
       activityTypeId: args.activityTypeId,
@@ -224,7 +225,7 @@ export const removeActivityForUser = internalMutation({
     }
 
     const now = Date.now();
-    await ctx.db.patch(args.activityId, {
+    await patchActivity(ctx, args.activityId, {
       deletedAt: now,
       deletedById: actor._id,
       deletedReason: "manual",
@@ -395,7 +396,7 @@ export const resolveFlagForUser = internalMutation({
     if (!activity || activity.deletedAt) throw new Error("Activity not found");
 
     const now = Date.now();
-    await ctx.db.patch(args.activityId, {
+    await patchActivity(ctx, args.activityId, {
       resolutionStatus: args.status,
       resolutionNotes: args.notes,
       resolvedAt: args.status === "resolved" ? now : undefined,
@@ -431,7 +432,7 @@ export const addAdminCommentForUser = internalMutation({
     if (!activity || activity.deletedAt) throw new Error("Activity not found");
 
     const now = Date.now();
-    await ctx.db.patch(args.activityId, {
+    await patchActivity(ctx, args.activityId, {
       adminComment: args.comment,
       adminCommentVisibility: args.visibility,
       updatedAt: now,
@@ -669,7 +670,7 @@ export const adminEditActivityForUser = internalMutation({
       shouldRecomputeStreak = true;
     }
 
-    await ctx.db.patch(args.activityId, updates);
+    await patchActivity(ctx, args.activityId, updates);
 
     if (shouldRecomputeStreak || pointsDiff !== 0) {
       await applyParticipationScoreDeltaAndRecomputeStreak(ctx, {

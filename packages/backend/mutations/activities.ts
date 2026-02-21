@@ -14,6 +14,7 @@ import { notDeleted } from "../lib/activityFilters";
 import { computeCriteriaProgress } from "../lib/achievements";
 import { reportLatencyIfExceeded } from "../lib/latencyMonitoring";
 import { applyParticipationScoreDeltaAndRecomputeStreak } from "../lib/participationScoring";
+import { insertActivity, patchActivity } from "../lib/activityWrites";
 
 // Internal mutation for seeding
 export const create = internalMutation({
@@ -38,7 +39,7 @@ export const create = internalMutation({
     updatedAt: v.number(),
   },
   handler: async (ctx, args) => {
-    return await ctx.db.insert("activities", {
+    return await insertActivity(ctx, {
       ...args,
       adminCommentVisibility: "internal",
       resolutionStatus: "pending",
@@ -203,7 +204,7 @@ export const log = mutation({
     const triggeredBonuses = score.triggeredBonuses;
 
     // Create activity
-    const activityId = await ctx.db.insert("activities", {
+    const activityId = await insertActivity(ctx, {
       userId: user._id,
       challengeId: args.challengeId,
       activityTypeId: args.activityTypeId,
@@ -322,7 +323,7 @@ async function checkAndAwardAchievements(
       challengeId
     );
 
-    const bonusActivityId = await ctx.db.insert("activities", {
+    const bonusActivityId = await insertActivity(ctx, {
       userId,
       challengeId,
       activityTypeId: bonusActivityType._id,
@@ -473,7 +474,7 @@ export const flagActivity = mutation({
 
     // Update the activity if not already flagged
     if (!activity.flagged) {
-      await ctx.db.patch(args.activityId, {
+      await patchActivity(ctx, args.activityId, {
         flagged: true,
         flaggedAt: now,
         flaggedReason: args.reason,
@@ -609,7 +610,7 @@ export const editActivity = mutation({
 
     // Patch the activity
     const now = Date.now();
-    await ctx.db.patch(args.activityId, {
+    await patchActivity(ctx, args.activityId, {
       activityTypeId: newActivityTypeId,
       metrics: newMetrics,
       notes: args.notes !== undefined ? args.notes : activity.notes,
@@ -681,7 +682,7 @@ export const remove = mutation({
     }
 
     const now = Date.now();
-    await ctx.db.patch(args.activityId, {
+    await patchActivity(ctx, args.activityId, {
       deletedAt: now,
       deletedById: actor?._id,
       deletedReason: "manual",
