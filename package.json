@@ -27,6 +27,7 @@
     "typecheck": "turbo typecheck --affected --cache-dir=.turbo",
     "precommit": "turbo lint typecheck --cache-dir=.turbo --affected --continue",
     "test": "turbo test --cache-dir=.turbo",
+    "test:e2e:mobile-selector": "pnpm -F web test:e2e:mobile-selector",
     "fix:workspaces": "manypkg fix",
     "syncpack:list": "pnpm dlx syncpack list-mismatches",
     "syncpack:fix": "pnpm dlx syncpack fix-mismatches",
