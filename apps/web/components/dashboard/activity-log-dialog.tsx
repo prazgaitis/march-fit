@@ -40,6 +40,8 @@ import { DatePicker } from "@/components/ui/date-picker";
 import { useMentionableUsers } from "@/hooks/use-mentionable-users";
 import { isEditorContentEmpty } from "@/lib/rich-text-utils";
 import { cn } from "@/lib/utils";
+import { PointsDisplay } from "@/components/ui/points-display";
+import { formatPoints } from "@/lib/points";
 import { isToday } from "date-fns";
 import { localDateToIsoNoon, formatDateOnlyFromLocalDate, formatDateShortFromDateOnly } from "@/lib/date-only";
 
@@ -90,11 +92,6 @@ function parseNumber(value: unknown): number | null {
   return Number.isFinite(numberValue) ? numberValue : null;
 }
 
-function formatPoints(value: number): string {
-  const normalized = Math.round((value + Number.EPSILON) * 100) / 100;
-  return normalized.toString();
-}
-
 interface MediaPreview {
   file: File;
   url: string;
@@ -112,6 +109,7 @@ interface SuccessState {
   basePoints: number;
   bonusPoints: number;
   triggeredBonuses: string[];
+  isNegative: boolean;
 }
 
 export function ActivityLogDialog({ challengeId, challengeStartDate, trigger }: ActivityLogDialogProps) {
@@ -272,133 +270,49 @@ export function ActivityLogDialog({ challengeId, challengeStartDate, trigger }: 
 
   const hasVariants = activityVariants.length > 0;
 
-  // Calculate which threshold bonuses would be triggered
-  const triggeredThresholds = useMemo(() => {
-    if (!selectedActivityType || !metricKey) return [];
+  const previewMetrics = useMemo(() => {
+    if (!selectedActivityType) return null;
 
-    const thresholds = (selectedActivityType as { bonusThresholds?: Array<{
-      metric: string;
-      threshold: number;
-      bonusPoints: number;
-      description: string;
-    }> }).bonusThresholds;
+    const metrics: Record<string, unknown> = {};
 
-    if (!thresholds || thresholds.length === 0) return [];
-
-    const value = parseNumber(form.metricValue);
-    if (value === null) return [];
-
-    // Map metric key to threshold metric format
-    const metricMapping: Record<string, string> = {
-      miles: "distance_miles",
-      kilometers: "distance_km",
-      km: "distance_km",
-      minutes: "duration_minutes",
-    };
-    const thresholdMetric = metricMapping[metricKey] || metricKey;
-
-    return thresholds.filter(
-      (t) => t.metric === thresholdMetric && value >= t.threshold
-    );
-  }, [selectedActivityType, metricKey, form.metricValue]);
-
-  // Calculate optional bonus points from selected bonuses
-  const optionalBonusPoints = useMemo(() => {
-    if (!selectedActivityType) return 0;
-    const config = (selectedActivityType.scoringConfig as Record<string, unknown>) ?? {};
-    const optionalBonuses = config["optionalBonuses"] as Array<{ name: string; bonusPoints: number }> | undefined;
-    if (!optionalBonuses) return 0;
-    return form.selectedBonuses.reduce((sum, bonusName) => {
-      const bonus = optionalBonuses.find((b) => b.name === bonusName);
-      return sum + (bonus?.bonusPoints ?? 0);
-    }, 0);
-  }, [selectedActivityType, form.selectedBonuses]);
-
-  const estimatedPoints = useMemo(() => {
-    if (!selectedActivityType) {
-      return null;
-    }
-
-    const config = (selectedActivityType.scoringConfig as Record<string, unknown>) ?? {};
-    const scoringType = config["type"] as string | undefined;
-
-    let basePoints: number | null = null;
-
-    // Handle tiered scoring
-    if (scoringType === "tiered") {
-      const tiers = config["tiers"] as Array<{ maxValue?: number; points: number }> | undefined;
+    if (metricKey && metricKey !== "completion") {
       const value = parseNumber(form.metricValue);
-      if (tiers && value !== null) {
-        // Find the appropriate tier
-        for (const tier of tiers) {
-          if (tier.maxValue === undefined || value <= tier.maxValue) {
-            basePoints = tier.points;
-            break;
-          }
-        }
-        if (basePoints === null && tiers.length > 0) {
-          basePoints = tiers[tiers.length - 1].points;
-        }
+      if (value !== null) {
+        metrics[metricKey] = value;
       }
-      if (basePoints === null) return null;
-      return basePoints + optionalBonusPoints;
+    } else if (metricKey === "completion") {
+      metrics["completion"] = 1;
     }
 
-    // Handle completion scoring
-    if (scoringType === "completion") {
-      const fixedPoints = parseNumber(config["fixedPoints"] ?? config["points"] ?? 0);
-      basePoints = fixedPoints ?? 0;
-      return basePoints + optionalBonusPoints;
+    if (form.selectedVariant) {
+      metrics["variant"] = form.selectedVariant;
     }
 
-    // Handle variable (admin-controlled) - no estimate possible
-    if (scoringType === "variable") {
-      return null;
+    if (form.selectedBonuses.length > 0) {
+      metrics["selectedBonuses"] = form.selectedBonuses;
     }
 
-    // If has variants, use the selected variant's points
-    if (hasVariants && form.selectedVariant) {
-      const selectedVariantOption = activityVariants.find(v => v.key === form.selectedVariant);
-      if (selectedVariantOption?.points !== undefined) {
-        basePoints = selectedVariantOption.points;
-      } else if (selectedVariantOption?.pointsPerUnit !== undefined) {
-        const value = parseNumber(form.metricValue);
-        if (value !== null) {
-          basePoints = selectedVariantOption.pointsPerUnit * value;
+    return metrics;
+  }, [
+    selectedActivityType,
+    metricKey,
+    form.metricValue,
+    form.selectedVariant,
+    form.selectedBonuses,
+  ]);
+
+  const scorePreview = useQuery(
+    api.queries.activities.previewScore,
+    open && selectedActivityType && form.loggedDate
+      ? {
+          challengeId: challengeId as Id<"challenges">,
+          activityTypeId: selectedActivityType._id,
+          loggedDate: localDateToIsoNoon(form.loggedDate),
+          metrics: previewMetrics ?? {},
+          hasMedia: mediaFiles.length > 0,
         }
-      }
-    }
-
-    if (basePoints === null) {
-      const base = parseNumber(config["basePoints"] ?? 0) ?? 0;
-      const perUnit = parseNumber(config["pointsPerUnit"]) ?? null;
-      const maxUnits = config["maxUnits"] as number | undefined;
-      let value = parseNumber(form.metricValue);
-
-      // Apply maxUnits cap
-      if (value !== null && maxUnits !== undefined && value > maxUnits) {
-        value = maxUnits;
-      }
-
-      if (!metricKey || metricKey === "completion") {
-        if (perUnit !== null) {
-          basePoints = perUnit + base;
-        } else {
-          basePoints = base || null;
-        }
-      } else if (value !== null && perUnit !== null) {
-        basePoints = base + perUnit * value;
-      }
-    }
-
-    if (basePoints === null) return null;
-
-    // Add threshold bonuses, optional bonuses, and media bonus
-    const bonusPoints = triggeredThresholds.reduce((sum, t) => sum + t.bonusPoints, 0);
-    const mediaBonusPoints = mediaFiles.length > 0 ? 1 : 0;
-
-    return basePoints + bonusPoints + optionalBonusPoints + mediaBonusPoints;
-  }, [selectedActivityType, metricKey, form.metricValue, hasVariants, form.selectedVariant, activityVariants, triggeredThresholds, optionalBonusPoints, mediaFiles.length]);
+      : "skip"
+  );
 
   // Set default value for completion activities
   useEffect(() => {
@@ -575,6 +489,7 @@ export function ActivityLogDialog({ challengeId, challengeStartDate, trigger }: 
         basePoints: result.basePoints,
         bonusPoints: result.bonusPoints,
         triggeredBonuses: result.triggeredBonuses ?? [],
+        isNegative: selectedActivityType?.isNegative ?? false,
       });
     } catch (error) {
       console.error(error);
@@ -684,20 +599,24 @@ export function ActivityLogDialog({ challengeId, challengeStartDate, trigger }: 
         ) : successState ? (
           // Success View
           <div className="flex flex-col items-center justify-center py-8 text-center">
-            <div className="mb-4 rounded-full bg-green-500/10 p-4">
-              <CheckCircle className="h-12 w-12 text-green-500" />
+            <div className={cn("mb-4 rounded-full p-4", successState.isNegative ? "bg-red-500/10" : "bg-green-500/10")}>
+              <CheckCircle className={cn("h-12 w-12", successState.isNegative ? "text-red-500" : "text-green-500")} />
             </div>
-            <h3 className="text-xl font-semibold">Activity Logged!</h3>
+            <h3 className="text-xl font-semibold">{successState.isNegative ? "Penalty Logged" : "Activity Logged!"}</h3>
             <p className="mt-2 text-muted-foreground">
               {successState.activityName}
             </p>
-            <p className="mt-1 text-2xl font-bold text-green-500">
-              +{formatPoints(successState.pointsEarned)} pts
-            </p>
+            <PointsDisplay
+              points={successState.pointsEarned}
+              isNegative={successState.isNegative}
+              size="xl"
+              showSign={false}
+              className="mt-1 font-bold"
+            />
             {successState.triggeredBonuses.length > 0 && (
               <div className="mt-3 space-y-1">
                 <p className="text-xs text-muted-foreground">
-                  {formatPoints(successState.basePoints)} base + {formatPoints(successState.bonusPoints)} bonus
+                  {formatPoints(successState.basePoints, 2)} base + {formatPoints(successState.bonusPoints, 2)} bonus
                 </p>
                 {successState.triggeredBonuses.map((bonus, i) => (
                   <Badge key={i} variant="secondary" className="bg-amber-500/10 text-amber-500">
@@ -1121,18 +1040,23 @@ export function ActivityLogDialog({ challengeId, challengeStartDate, trigger }: 
               </p>
             </div>
 
-            <div className="rounded-lg border bg-background p-4 text-sm">
-              <p className="font-medium text-foreground">Points preview</p>
+            <div className={cn("rounded-lg border bg-background p-4 text-sm", selectedActivityType?.isNegative && "border-red-500/30")}>
+              <p className={cn("font-medium", selectedActivityType?.isNegative ? "text-red-400" : "text-foreground")}>
+                {selectedActivityType?.isNegative ? "Penalty preview" : "Points preview"}
+              </p>
               {selectedActivityType ? (
                 <>
-                  <p className="mt-1 text-muted-foreground">
-                    {estimatedPoints !== null
-                      ? `${estimatedPoints.toFixed(2)} points (estimated)`
+                  <p className={cn("mt-1", selectedActivityType?.isNegative ? "text-red-400/70" : "text-muted-foreground")}>
+                    {scorePreview
+                      ? `${formatPoints(scorePreview.pointsEarned, 2)} points (estimated)`
                       : "Points will be calculated when you submit."}
                   </p>
-                  {(triggeredThresholds.length > 0 || mediaFiles.length > 0) && (
+                  {(scorePreview?.triggeredBonuses.length ?? 0) > 0 && (
                     <div className="mt-2 flex flex-wrap gap-1.5">
-                      {triggeredThresholds.map((bonus, i) => (
+                      {scorePreview!.triggeredBonuses.map((
+                        bonus: { description: string; bonusPoints: number },
+                        i: number
+                      ) => (
                         <span
                           key={i}
                           className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-xs text-amber-500"
@@ -1141,12 +1065,6 @@ export function ActivityLogDialog({ challengeId, challengeStartDate, trigger }: 
                           {bonus.description} (+{bonus.bonusPoints})
                         </span>
                       ))}
-                      {mediaFiles.length > 0 && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-xs text-amber-500">
-                          <Zap className="h-3 w-3" />
-                          Photo bonus (+1)
-                        </span>
-                      )}
                     </div>
                   )}
                 </>

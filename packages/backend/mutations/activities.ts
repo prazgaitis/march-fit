@@ -1,81 +1,14 @@
 import { internalMutation, mutation } from "../_generated/server";
 import { ConvexError, v } from "convex/values";
-import { calculateActivityPoints, calculateThresholdBonuses, calculateOptionalBonuses, calculateMediaBonus } from "../lib/scoring";
+import { calculateFinalActivityScore } from "../lib/scoring";
 import { getCurrentUser } from "../lib/ids";
 import { isPaymentRequired } from "../lib/payments";
-import type { Id } from "../_generated/dataModel";
 import { dateOnlyToUtcMs, coerceDateOnlyToString, formatDateOnlyFromUtcMs } from "../lib/dateOnly";
 import { getChallengeWeekNumber, isInFinalDays } from "../lib/weeks";
 import { notDeleted } from "../lib/activityFilters";
 import { computeCriteriaProgress } from "../lib/achievements";
 import { reportLatencyIfExceeded } from "../lib/latencyMonitoring";
-
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-const getDateOnlyTs = (ts: number) => {
-  const d = new Date(ts);
-  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
-};
-
-async function recomputeStreakForUserChallenge(
-  ctx: any,
-  userId: any,
-  challengeId: any,
-  streakMinPoints: number
-) {
-  const activities = await ctx.db
-    .query("activities")
-    .withIndex("by_user_challenge_date", (q: any) =>
-      q.eq("userId", userId).eq("challengeId", challengeId)
-    )
-    .filter(notDeleted)
-    .collect();
-
-  if (activities.length === 0) {
-    return { currentStreak: 0, lastStreakDayTs: undefined };
-  }
-
-  const activityTypeIds = Array.from(new Set(activities.map((a: any) => a.activityTypeId))) as Id<"activityTypes">[];
-  const activityTypes = await Promise.all(activityTypeIds.map((id) => ctx.db.get(id)));
-  const contributesMap = new Map<Id<"activityTypes">, boolean>();
-  for (let i = 0; i < activityTypeIds.length; i++) {
-    const at = activityTypes[i];
-    if (at) contributesMap.set(activityTypeIds[i], at.contributesToStreak);
-  }
-
-  const dailyPoints = new Map<number, number>();
-  for (const act of activities) {
-    const contributes = contributesMap.get(act.activityTypeId as Id<"activityTypes">) ?? false;
-    if (!contributes) continue;
-    const dayTs = getDateOnlyTs(act.loggedDate);
-    dailyPoints.set(dayTs, (dailyPoints.get(dayTs) ?? 0) + act.pointsEarned);
-  }
-
-  const thresholdDays = Array.from(dailyPoints.entries())
-    .filter(([, points]) => points >= streakMinPoints)
-    .map(([dayTs]) => dayTs)
-    .sort((a, b) => a - b);
-
-  if (thresholdDays.length === 0) {
-    return { currentStreak: 0, lastStreakDayTs: undefined };
-  }
-
-  let currentStreak = 1;
-  let lastStreakDayTs = thresholdDays[0];
-
-  for (let i = 1; i < thresholdDays.length; i++) {
-    const dayTs = thresholdDays[i];
-    const diffDays = Math.floor((dayTs - lastStreakDayTs) / DAY_MS);
-    if (diffDays === 1) {
-      currentStreak += 1;
-    } else {
-      currentStreak = 1;
-    }
-    lastStreakDayTs = dayTs;
-  }
-
-  return { currentStreak, lastStreakDayTs };
-}
+import { applyParticipationScoreDeltaAndRecomputeStreak } from "../lib/participationScoring";
 
 // Internal mutation for seeding
 export const create = internalMutation({
@@ -220,26 +153,7 @@ export const log = mutation({
     // Calculate points using the full scoring system
     const metricsObj = args.metrics ?? {};
 
-    const basePoints = await calculateActivityPoints(activityType, {
-      ctx,
-      metrics: metricsObj,
-      userId: user._id,
-      challengeId: args.challengeId,
-      loggedDate: new Date(loggedDateTs),
-    });
-
-    // Calculate threshold bonuses (e.g., marathon bonus)
-    const { totalBonusPoints: thresholdBonusPoints, triggeredBonuses: thresholdTriggered } = calculateThresholdBonuses(
-      activityType,
-      metricsObj
-    );
-
-    // Calculate optional bonuses (e.g., weighted vest bonus)
     const selectedOptionalBonuses = metricsObj["selectedBonuses"] as string[] | undefined;
-    const { totalBonusPoints: optionalBonusPoints, triggeredBonuses: optionalTriggered } = calculateOptionalBonuses(
-      activityType,
-      selectedOptionalBonuses
-    );
 
     // Calculate media bonus (+1 point for posting at least one photo/media)
     // Only award once per day per challenge (daily cap)
@@ -265,25 +179,25 @@ export const log = mutation({
         return aDateStr === loggedDateStr && aHasMedia && aHasPhotoBonus;
       });
     }
-    const { totalBonusPoints: mediaBonusPoints, triggeredBonus: mediaTriggered } = calculateMediaBonus(hasMedia && !alreadyEarnedPhotoBonus);
+    const score = await calculateFinalActivityScore(
+      activityType,
+      {
+        ctx,
+        metrics: metricsObj,
+        userId: user._id,
+        challengeId: args.challengeId,
+        loggedDate: new Date(loggedDateTs),
+      },
+      {
+        selectedOptionalBonuses,
+        includeMediaBonus: hasMedia && !alreadyEarnedPhotoBonus,
+      }
+    );
 
-    const totalBonusPoints = thresholdBonusPoints + optionalBonusPoints + mediaBonusPoints;
-    // Combine bonuses into a unified format for storage
-    const triggeredBonuses = [
-      ...thresholdTriggered,
-      // Map optional bonuses to the triggeredBonuses schema format
-      ...optionalTriggered.map(b => ({
-        metric: "optional",
-        threshold: 0,
-        bonusPoints: b.bonusPoints,
-        description: b.description || b.name,
-      })),
-      // Media bonus
-      ...(mediaTriggered ? [mediaTriggered] : []),
-    ];
-
-    const rawPoints = basePoints + totalBonusPoints;
-    const pointsEarned = activityType.isNegative ? -rawPoints : rawPoints;
+    const basePoints = score.basePoints;
+    const totalBonusPoints = score.bonusPoints;
+    const pointsEarned = score.pointsEarned;
+    const triggeredBonuses = score.triggeredBonuses;
 
     // Create activity
     const activityId = await ctx.db.insert("activities", {
@@ -307,107 +221,15 @@ export const log = mutation({
       updatedAt: Date.now(),
     });
 
-    // --- Streak Calculation ---
-    
-    // 1. Get start and end of the logged day in UTC
-    const loggedDateObj = new Date(loggedDateTs);
-    const startOfDayUtc = Date.UTC(
-        loggedDateObj.getUTCFullYear(),
-        loggedDateObj.getUTCMonth(),
-        loggedDateObj.getUTCDate()
-    );
-    const endOfDayUtc = startOfDayUtc + 24 * 60 * 60 * 1000;
-
-    // 2. Fetch all activities for this user/challenge/day
-    const dailyActivities = await ctx.db
-        .query("activities")
-        .withIndex("by_user_challenge_date", (q) => 
-            q.eq("userId", user._id)
-             .eq("challengeId", args.challengeId)
-             .gte("loggedDate", startOfDayUtc)
-             .lt("loggedDate", endOfDayUtc)
-        )
-        .filter(notDeleted)
-        .collect();
-
-    // 3. Calculate daily total for streak-contributing activities
-    // We need to fetch activity types for each activity to check contributesToStreak
-    // Optimization: we know the current activityType contributes to streak or not.
-    // For others, we might need to fetch.
-    
-    // Collect unique activityTypeIds
-    const activityTypeIds = new Set(dailyActivities.map(a => a.activityTypeId));
-    const activityTypesMap = new Map<string, boolean>(); // ID -> contributesToStreak
-
-    for (const id of activityTypeIds) {
-        // Optimization: avoid fetch if it's the current one
-        if (id === args.activityTypeId) {
-            activityTypesMap.set(id, activityType.contributesToStreak);
-        } else {
-            const at = await ctx.db.get(id);
-            if (at) {
-                activityTypesMap.set(id, at.contributesToStreak);
-            }
-        }
-    }
-
-    const dailyPoints = dailyActivities.reduce((sum, act) => {
-        const contributes = activityTypesMap.get(act.activityTypeId) ?? false;
-        return contributes ? sum + act.pointsEarned : sum;
-    }, 0);
-
-    const meetsThreshold = dailyPoints >= challenge.streakMinPoints;
-
-    // 4. Calculate new streak and lastStreakDay
-    // Logic ported from StreakService.ts
-    let currentStreak = participation.currentStreak;
-    let lastStreakDayTs = participation.lastStreakDay;
-
-    const loggedDayTs = getDateOnlyTs(loggedDateTs);
-
-    if (!lastStreakDayTs) {
-        // First time
-        if (meetsThreshold) {
-            currentStreak = 1;
-            lastStreakDayTs = loggedDayTs;
-        }
-    } else {
-        const lastDayTs = getDateOnlyTs(lastStreakDayTs);
-        const diffMs = loggedDayTs - lastDayTs;
-        const daysDiff = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-
-        if (meetsThreshold) {
-            if (lastDayTs === loggedDayTs) {
-                // Already counted this day
-            } else if (daysDiff === 1) {
-                // Consecutive
-                currentStreak += 1;
-                lastStreakDayTs = loggedDayTs;
-            } else if (daysDiff > 1) {
-                // Broken streak, restart
-                currentStreak = 1;
-                lastStreakDayTs = loggedDayTs;
-            } else if (daysDiff < 0) {
-                // Backfilling - recompute streaks from all activities
-                const recomputed = await recomputeStreakForUserChallenge(
-                  ctx,
-                  user._id,
-                  args.challengeId,
-                  challenge.streakMinPoints
-                );
-                currentStreak = recomputed.currentStreak;
-                lastStreakDayTs = recomputed.lastStreakDayTs;
-            }
-        }
-    }
-
-    // Update participation total points and streak
-    await ctx.db.patch(participation._id, {
-      totalPoints: participation.totalPoints + pointsEarned,
-      currentStreak: currentStreak,
-      lastStreakDay: lastStreakDayTs,
-      updatedAt: Date.now(),
+    // Recompute streaks from all challenge days after any new activity.
+    // This handles backfills and penalties that can invalidate earlier days.
+    const streakUpdate = await applyParticipationScoreDeltaAndRecomputeStreak(ctx, {
+      userId: user._id,
+      challengeId: args.challengeId,
+      pointsDelta: pointsEarned,
+      streakMinPoints: challenge.streakMinPoints,
     });
+    const currentStreak = streakUpdate?.currentStreak ?? participation.currentStreak;
 
     // Check for achievement progress
     await checkAndAwardAchievements(ctx, user._id, args.challengeId, activityId);
@@ -706,6 +528,11 @@ export const editActivity = mutation({
       throw new ConvexError("You can only edit your own activities.");
     }
 
+    const challenge = await ctx.db.get(activity.challengeId);
+    if (!challenge) {
+      throw new Error("Challenge not found");
+    }
+
     // Determine which activity type to use
     const newActivityTypeId = args.activityTypeId ?? activity.activityTypeId;
     let activityType;
@@ -732,20 +559,7 @@ export const editActivity = mutation({
     // Recalculate points using the same scoring logic as `log`
     const metricsObj = newMetrics ?? {};
 
-    const basePoints = await calculateActivityPoints(activityType, {
-      ctx,
-      metrics: metricsObj,
-      userId: user._id,
-      challengeId: activity.challengeId,
-      loggedDate: new Date(newLoggedDateTs),
-    });
-
-    const { totalBonusPoints: thresholdBonusPoints, triggeredBonuses: thresholdTriggered } =
-      calculateThresholdBonuses(activityType, metricsObj);
-
     const selectedOptionalBonuses = (metricsObj as Record<string, unknown>)["selectedBonuses"] as string[] | undefined;
-    const { totalBonusPoints: optionalBonusPoints, triggeredBonuses: optionalTriggered } =
-      calculateOptionalBonuses(activityType, selectedOptionalBonuses);
 
     // Keep media bonus if activity already has media, but respect the 1-per-day cap.
     // Exclude this activity itself from the "already earned today" check since we're editing it.
@@ -772,39 +586,23 @@ export const editActivity = mutation({
         return aDateStr === loggedDateStrEdit && aHasMedia && aHasPhotoBonus;
       });
     }
-    const { totalBonusPoints: mediaBonusPoints, triggeredBonus: mediaTriggered } =
-      calculateMediaBonus(hasMedia && !alreadyEarnedPhotoBonusEdit);
-
-    const totalBonusPoints = thresholdBonusPoints + optionalBonusPoints + mediaBonusPoints;
-    const triggeredBonuses = [
-      ...thresholdTriggered,
-      ...optionalTriggered.map((b) => ({
-        metric: "optional",
-        threshold: 0,
-        bonusPoints: b.bonusPoints,
-        description: b.description || b.name,
-      })),
-      ...(mediaTriggered ? [mediaTriggered] : []),
-    ];
-
-    const rawNewPoints = basePoints + totalBonusPoints;
-    const newPoints = activityType.isNegative ? -rawNewPoints : rawNewPoints;
+    const score = await calculateFinalActivityScore(
+      activityType,
+      {
+        ctx,
+        metrics: metricsObj,
+        userId: user._id,
+        challengeId: activity.challengeId,
+        loggedDate: new Date(newLoggedDateTs),
+      },
+      {
+        selectedOptionalBonuses,
+        includeMediaBonus: hasMedia && !alreadyEarnedPhotoBonusEdit,
+      }
+    );
+    const newPoints = score.pointsEarned;
+    const triggeredBonuses = score.triggeredBonuses;
     const oldPoints = activity.pointsEarned;
-
-    // Update participation totalPoints
-    const participation = await ctx.db
-      .query("userChallenges")
-      .withIndex("userChallengeUnique", (q) =>
-        q.eq("userId", user._id).eq("challengeId", activity.challengeId)
-      )
-      .first();
-
-    if (participation) {
-      await ctx.db.patch(participation._id, {
-        totalPoints: Math.max(0, participation.totalPoints - oldPoints + newPoints),
-        updatedAt: Date.now(),
-      });
-    }
 
     // Patch the activity
     const now = Date.now();
@@ -816,6 +614,15 @@ export const editActivity = mutation({
       pointsEarned: newPoints,
       triggeredBonuses: triggeredBonuses.length > 0 ? triggeredBonuses : undefined,
       updatedAt: now,
+    });
+
+    // Update participation totalPoints + streak after activity is updated.
+    await applyParticipationScoreDeltaAndRecomputeStreak(ctx, {
+      userId: user._id,
+      challengeId: activity.challengeId,
+      pointsDelta: newPoints - oldPoints,
+      streakMinPoints: challenge.streakMinPoints,
+      now,
     });
 
     // Re-run achievement check
@@ -870,27 +677,20 @@ export const remove = mutation({
       throw new ConvexError("You don't have permission to delete this activity.");
     }
 
-    // Update participation points
-    const participation = await ctx.db
-      .query("userChallenges")
-      .withIndex("userChallengeUnique", (q) =>
-        q.eq("userId", activity.userId).eq("challengeId", activity.challengeId)
-      )
-      .first();
-
-    if (participation) {
-      await ctx.db.patch(participation._id, {
-        totalPoints: Math.max(0, participation.totalPoints - activity.pointsEarned),
-        updatedAt: Date.now(),
-      });
-    }
-
     const now = Date.now();
     await ctx.db.patch(args.activityId, {
       deletedAt: now,
       deletedById: actor?._id,
       deletedReason: "manual",
       updatedAt: now,
+    });
+
+    await applyParticipationScoreDeltaAndRecomputeStreak(ctx, {
+      userId: activity.userId,
+      challengeId: activity.challengeId,
+      pointsDelta: -activity.pointsEarned,
+      streakMinPoints: challenge.streakMinPoints,
+      now,
     });
 
       return { deleted: true };

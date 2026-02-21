@@ -5,10 +5,11 @@ import {
   mapStravaActivity,
   type StravaActivity,
 } from "../lib/strava";
-import { calculateActivityPoints, calculateThresholdBonuses, calculateMediaBonus } from "../lib/scoring";
+import { calculateFinalActivityScore } from "../lib/scoring";
 import { isPaymentRequired } from "../lib/payments";
 import { notDeleted } from "../lib/activityFilters";
 import { reportLatencyIfExceeded } from "../lib/latencyMonitoring";
+import { applyParticipationScoreDeltaAndRecomputeStreak } from "../lib/participationScoring";
 
 /**
  * Get user's active challenge participations
@@ -74,6 +75,10 @@ export const createFromStrava = internalMutation({
     const startedAt = Date.now();
     try {
       const stravaActivity = args.stravaActivity as StravaActivity;
+      const challenge = await ctx.db.get(args.challengeId);
+      if (!challenge) {
+        return null;
+      }
 
     const userChallenge = await ctx.db
       .query("userChallenges")
@@ -81,13 +86,16 @@ export const createFromStrava = internalMutation({
         q.eq("userId", args.userId).eq("challengeId", args.challengeId)
       )
       .first();
+    if (!userChallenge) {
+      return null;
+    }
 
     const paymentConfig = await ctx.db
       .query("challengePaymentConfig")
       .withIndex("challengeId", (q) => q.eq("challengeId", args.challengeId))
       .first();
 
-    if (isPaymentRequired(paymentConfig) && userChallenge?.paymentStatus !== "paid") {
+    if (isPaymentRequired(paymentConfig) && userChallenge.paymentStatus !== "paid") {
       console.log(
         `Skipping Strava activity for unpaid participation: ${args.userId} / ${args.challengeId}`
       );
@@ -122,32 +130,23 @@ export const createFromStrava = internalMutation({
 
     // Calculate points
     const loggedDateTs = Date.parse(mappedActivity.loggedDate);
-    const basePoints = await calculateActivityPoints(activityType, {
-      ctx,
-      metrics: mappedActivity.metrics,
-      userId: args.userId,
-      challengeId: args.challengeId,
-      loggedDate: new Date(loggedDateTs),
-    });
-
-    // Calculate threshold bonuses
-    const { totalBonusPoints: thresholdBonusPoints, triggeredBonuses: thresholdTriggered } = calculateThresholdBonuses(
-      activityType,
-      mappedActivity.metrics
-    );
-
     // Calculate media bonus (+1 point for Strava activities with photos)
     const hasMedia = mappedActivity.stravaPhotoUrls.length > 0 || !!mappedActivity.imageUrl;
-    const { totalBonusPoints: mediaBonusPoints, triggeredBonus: mediaTriggered } = calculateMediaBonus(hasMedia);
-
-    const totalBonusPoints = thresholdBonusPoints + mediaBonusPoints;
-    const triggeredBonuses = [
-      ...thresholdTriggered,
-      ...(mediaTriggered ? [mediaTriggered] : []),
-    ];
-
-    const rawPoints = basePoints + totalBonusPoints;
-    const pointsEarned = activityType.isNegative ? -rawPoints : rawPoints;
+    const score = await calculateFinalActivityScore(
+      activityType,
+      {
+        ctx,
+        metrics: mappedActivity.metrics,
+        userId: args.userId,
+        challengeId: args.challengeId,
+        loggedDate: new Date(loggedDateTs),
+      },
+      {
+        includeMediaBonus: hasMedia,
+      }
+    );
+    const pointsEarned = score.pointsEarned;
+    const triggeredBonuses = score.triggeredBonuses;
 
     // Check for existing activity
     const existing = await ctx.db
@@ -176,19 +175,12 @@ export const createFromStrava = internalMutation({
           updatedAt: Date.now(),
         });
 
-        const participation = await ctx.db
-          .query("userChallenges")
-          .withIndex("userChallengeUnique", (q) =>
-            q.eq("userId", args.userId).eq("challengeId", args.challengeId)
-          )
-          .first();
-
-        if (participation) {
-          await ctx.db.patch(participation._id, {
-            totalPoints: participation.totalPoints + pointsEarned,
-            updatedAt: Date.now(),
-          });
-        }
+        await applyParticipationScoreDeltaAndRecomputeStreak(ctx, {
+          userId: args.userId,
+          challengeId: args.challengeId,
+          pointsDelta: pointsEarned,
+          streakMinPoints: challenge.streakMinPoints,
+        });
 
         return existing._id;
       }
@@ -205,21 +197,12 @@ export const createFromStrava = internalMutation({
         updatedAt: Date.now(),
       });
 
-      // Update participation points (recalculate diff)
-      const participation = await ctx.db
-        .query("userChallenges")
-        .withIndex("userChallengeUnique", (q) =>
-          q.eq("userId", args.userId).eq("challengeId", args.challengeId)
-        )
-        .first();
-
-      if (participation) {
-        const pointsDiff = pointsEarned - existing.pointsEarned;
-        await ctx.db.patch(participation._id, {
-          totalPoints: participation.totalPoints + pointsDiff,
-          updatedAt: Date.now(),
-        });
-      }
+      await applyParticipationScoreDeltaAndRecomputeStreak(ctx, {
+        userId: args.userId,
+        challengeId: args.challengeId,
+        pointsDelta: pointsEarned - existing.pointsEarned,
+        streakMinPoints: challenge.streakMinPoints,
+      });
 
       return existing._id;
     }
@@ -245,20 +228,12 @@ export const createFromStrava = internalMutation({
       updatedAt: Date.now(),
     });
 
-    // Update participation total points
-    const participation = await ctx.db
-      .query("userChallenges")
-      .withIndex("userChallengeUnique", (q) =>
-        q.eq("userId", args.userId).eq("challengeId", args.challengeId)
-      )
-      .first();
-
-    if (participation) {
-      await ctx.db.patch(participation._id, {
-        totalPoints: participation.totalPoints + pointsEarned,
-        updatedAt: Date.now(),
-      });
-    }
+    await applyParticipationScoreDeltaAndRecomputeStreak(ctx, {
+      userId: args.userId,
+      challengeId: args.challengeId,
+      pointsDelta: pointsEarned,
+      streakMinPoints: challenge.streakMinPoints,
+    });
 
       return activityId;
     } finally {
@@ -299,25 +274,22 @@ export const deleteFromStrava = internalMutation({
       if (activity.deletedAt) {
         continue;
       }
-      // Update participation points
-      const participation = await ctx.db
-        .query("userChallenges")
-        .withIndex("userChallengeUnique", (q) =>
-          q.eq("userId", activity.userId).eq("challengeId", activity.challengeId)
-        )
-        .first();
-
-      if (participation) {
-        await ctx.db.patch(participation._id, {
-          totalPoints: Math.max(0, participation.totalPoints - activity.pointsEarned),
-          updatedAt: Date.now(),
-        });
+      const challenge = await ctx.db.get(activity.challengeId);
+      if (!challenge) {
+        continue;
       }
 
       await ctx.db.patch(activity._id, {
         deletedAt: now,
         deletedReason: "strava_delete",
         updatedAt: now,
+      });
+      await applyParticipationScoreDeltaAndRecomputeStreak(ctx, {
+        userId: activity.userId,
+        challengeId: activity.challengeId,
+        pointsDelta: -activity.pointsEarned,
+        streakMinPoints: challenge.streakMinPoints,
+        now,
       });
       deletedCount += 1;
     }

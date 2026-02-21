@@ -22,12 +22,12 @@ export const clearTable = internalMutation({
     ),
   },
   handler: async (ctx, args) => {
-    const documents = await ctx.db.query(args.table).collect();
+    const documents = await ctx.db.query(args.table).take(1000);
 
     for (const doc of documents) {
       await ctx.db.delete(doc._id);
     }
 
-    return { deleted: documents.length };
+    return { deleted: documents.length, hasMore: documents.length === 1000 };
   },
 });

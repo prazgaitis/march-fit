@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Trophy, Flame } from "lucide-react";
 
 import { UserAvatar } from "@/components/user-avatar";
+import { PointsDisplay } from "@/components/ui/points-display";
 import { cn } from "@/lib/utils";
 
 interface LeaderboardEntry {
@@ -106,9 +107,13 @@ export function LeaderboardList({ entries, challengeId, currentUserId }: Leaderb
             </div>
 
             <div className="text-right">
-              <p className="text-lg font-bold text-white">
-                {entry.totalPoints.toFixed(0)}
-              </p>
+              <PointsDisplay
+                points={entry.totalPoints}
+                size="lg"
+                showSign={false}
+                showLabel={false}
+                className={cn("font-bold", entry.totalPoints >= 0 && "text-white")}
+              />
               <p className="text-xs text-zinc-500">points</p>
             </div>
 

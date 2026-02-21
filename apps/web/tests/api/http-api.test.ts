@@ -296,6 +296,67 @@ describe("API Internal Mutations", () => {
     });
   });
 
+  describe("logActivityForUser", () => {
+    it("should keep penalty activities negative even with negative pointsPerUnit config", async () => {
+      const userId = await createTestUser(t, {
+        email: "api-negative-log@test.com",
+        username: "api-negative-log",
+      });
+      const challengeId = await createTestChallenge(t, userId);
+
+      const activityTypeId = await t.run(async (ctx) => {
+        await ctx.db.insert("userChallenges", {
+          userId,
+          challengeId,
+          joinedAt: Date.now(),
+          totalPoints: 0,
+          currentStreak: 0,
+          modifierFactor: 1,
+          paymentStatus: "paid",
+          updatedAt: Date.now(),
+        });
+
+        return await ctx.db.insert("activityTypes", {
+          challengeId,
+          name: "Penalty Count",
+          scoringConfig: {
+            unit: "count",
+            pointsPerUnit: -5,
+            basePoints: 0,
+          },
+          contributesToStreak: false,
+          isNegative: true,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+      });
+
+      const result = await t.mutation(
+        internal.mutations.apiMutations.logActivityForUser,
+        {
+          userId,
+          challengeId,
+          activityTypeId,
+          loggedDate: "2024-01-15",
+          metrics: { count: 2 },
+          source: "manual",
+        }
+      );
+
+      expect(result.pointsEarned).toBe(-10);
+
+      const participation = await t.run(async (ctx) =>
+        ctx.db
+          .query("userChallenges")
+          .withIndex("userChallengeUnique", (q) =>
+            q.eq("userId", userId).eq("challengeId", challengeId)
+          )
+          .first()
+      );
+      expect(participation!.totalPoints).toBe(-10);
+    });
+  });
+
   describe("updateChallengeForUser", () => {
     it("should update challenge fields", async () => {
       const userId = await createTestUser(t);
@@ -425,6 +486,63 @@ describe("API Internal Mutations", () => {
           activityId,
         })
       ).rejects.toThrow("Not authorized to delete activity");
+    });
+
+    it("should preserve negative totals when deleting a positive activity", async () => {
+      const userId = await createTestUser(t, {
+        email: "negative-api@test.com",
+        username: "negative-api",
+      });
+      const challengeId = await createTestChallenge(t, userId);
+
+      const { participationId, activityTypeId } = await t.run(async (ctx) => {
+        const pId = await ctx.db.insert("userChallenges", {
+          userId,
+          challengeId,
+          joinedAt: Date.now(),
+          totalPoints: -5,
+          currentStreak: 0,
+          modifierFactor: 1,
+          paymentStatus: "paid",
+          updatedAt: Date.now(),
+        });
+        const atId = await ctx.db.insert("activityTypes", {
+          challengeId,
+          name: "Running",
+          description: "Go for a run",
+          scoringConfig: { type: "fixed", points: 5 },
+          contributesToStreak: true,
+          isNegative: false,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+        return { participationId: pId, activityTypeId: atId };
+      });
+
+      const activityId = await t.run(async (ctx) =>
+        ctx.db.insert("activities", {
+          userId,
+          challengeId,
+          activityTypeId,
+          loggedDate: Date.now(),
+          metrics: {},
+          pointsEarned: 5,
+          source: "manual",
+          flagged: false,
+          adminCommentVisibility: "internal",
+          resolutionStatus: "pending",
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        })
+      );
+
+      await t.mutation(internal.mutations.apiMutations.removeActivityForUser, {
+        userId,
+        activityId,
+      });
+
+      const participation = await t.run(async (ctx) => ctx.db.get(participationId));
+      expect(participation!.totalPoints).toBe(-10);
     });
   });
 });

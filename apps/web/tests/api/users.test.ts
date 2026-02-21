@@ -155,4 +155,178 @@ describe("Users Queries", () => {
       expect(profile?.stats.prDay?.activities[0].activityTypeName).toBeDefined();
     });
   });
+
+  it("getProfile uses activity-derived total points and rank", async () => {
+    const ownerId = await createTestUser(t, {
+      email: "owner-users-profile@example.com",
+      username: "owner_users_profile",
+    });
+    const challengeId = await createTestChallenge(t, ownerId);
+    const userId = await createTestUser(t, {
+      email: "profile-negative@example.com",
+      username: "profile_negative",
+    });
+    const otherId = await createTestUser(t, {
+      email: "profile-positive@example.com",
+      username: "profile_positive",
+    });
+
+    await createTestParticipation(t, userId, challengeId, { totalPoints: 999 });
+    await createTestParticipation(t, otherId, challengeId, { totalPoints: -999 });
+
+    await t.run(async (ctx) => {
+      const penaltyTypeId = await ctx.db.insert("activityTypes", {
+        challengeId: challengeId as Id<"challenges">,
+        name: "Penalty",
+        scoringConfig: { unit: "count", pointsPerUnit: 1 },
+        contributesToStreak: false,
+        isNegative: true,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+      const runTypeId = await ctx.db.insert("activityTypes", {
+        challengeId: challengeId as Id<"challenges">,
+        name: "Run",
+        scoringConfig: { unit: "minutes", pointsPerUnit: 1 },
+        contributesToStreak: true,
+        isNegative: false,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      await ctx.db.insert("activities", {
+        userId: userId as Id<"users">,
+        challengeId: challengeId as Id<"challenges">,
+        activityTypeId: penaltyTypeId,
+        loggedDate: Date.parse("2024-01-10T12:00:00Z"),
+        metrics: { count: 1 },
+        pointsEarned: -7,
+        source: "manual",
+        flagged: false,
+        adminCommentVisibility: "internal",
+        resolutionStatus: "pending",
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      await ctx.db.insert("activities", {
+        userId: otherId as Id<"users">,
+        challengeId: challengeId as Id<"challenges">,
+        activityTypeId: runTypeId,
+        loggedDate: Date.parse("2024-01-10T13:00:00Z"),
+        metrics: { minutes: 3 },
+        pointsEarned: 3,
+        source: "manual",
+        flagged: false,
+        adminCommentVisibility: "internal",
+        resolutionStatus: "pending",
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+    });
+
+    const result = await t.query(api.queries.users.getProfile, {
+      userId: userId as Id<"users">,
+      challengeId: challengeId as Id<"challenges">,
+    });
+
+    expect(result).not.toBeNull();
+    expect(result!.participation).not.toBeNull();
+    expect(result!.participation!.totalPoints).toBe(-7);
+    expect(result!.participation!.rank).toBe(2);
+    expect(result!.stats.recentActivities[0].isNegative).toBe(true);
+  });
+
+  it("getGlobalProfile sums points from activities (including negatives)", async () => {
+    const ownerId = await createTestUser(t, {
+      email: "owner-global@example.com",
+      username: "owner_global_profile",
+    });
+    const userId = await createTestUser(t, {
+      email: "global-profile@example.com",
+      username: "global_profile",
+    });
+    const challengeA = await createTestChallenge(t, ownerId, { name: "Challenge A" });
+    const challengeB = await createTestChallenge(t, ownerId, { name: "Challenge B" });
+
+    await createTestParticipation(t, userId, challengeA, { totalPoints: 100 });
+    await createTestParticipation(t, userId, challengeB, { totalPoints: 200 });
+
+    await t.run(async (ctx) => {
+      const typeA = await ctx.db.insert("activityTypes", {
+        challengeId: challengeA as Id<"challenges">,
+        name: "Run A",
+        scoringConfig: { unit: "minutes", pointsPerUnit: 1 },
+        contributesToStreak: true,
+        isNegative: false,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+      const typeB = await ctx.db.insert("activityTypes", {
+        challengeId: challengeB as Id<"challenges">,
+        name: "Penalty B",
+        scoringConfig: { unit: "count", pointsPerUnit: 1 },
+        contributesToStreak: false,
+        isNegative: true,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      await ctx.db.insert("activities", {
+        userId: userId as Id<"users">,
+        challengeId: challengeA as Id<"challenges">,
+        activityTypeId: typeA,
+        loggedDate: Date.parse("2024-01-11T10:00:00Z"),
+        metrics: { minutes: 10 },
+        pointsEarned: 10,
+        source: "manual",
+        flagged: false,
+        adminCommentVisibility: "internal",
+        resolutionStatus: "pending",
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+      await ctx.db.insert("activities", {
+        userId: userId as Id<"users">,
+        challengeId: challengeA as Id<"challenges">,
+        activityTypeId: typeA,
+        loggedDate: Date.parse("2024-01-11T11:00:00Z"),
+        metrics: { minutes: 4 },
+        pointsEarned: -4,
+        source: "manual",
+        flagged: false,
+        adminCommentVisibility: "internal",
+        resolutionStatus: "pending",
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+      await ctx.db.insert("activities", {
+        userId: userId as Id<"users">,
+        challengeId: challengeB as Id<"challenges">,
+        activityTypeId: typeB,
+        loggedDate: Date.parse("2024-01-12T10:00:00Z"),
+        metrics: { count: 1 },
+        pointsEarned: -8,
+        source: "manual",
+        flagged: false,
+        adminCommentVisibility: "internal",
+        resolutionStatus: "pending",
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+    });
+
+    const result = await t.query(api.queries.users.getGlobalProfile, {
+      userId: userId as Id<"users">,
+    });
+
+    expect(result).not.toBeNull();
+    expect(result!.stats.totalPoints).toBe(-2);
+
+    const pointsByChallengeName = new Map(
+      result!.participations.map((p) => [p.challenge?.name, p.totalPoints])
+    );
+    expect(pointsByChallengeName.get("Challenge A")).toBe(6);
+    expect(pointsByChallengeName.get("Challenge B")).toBe(-8);
+  });
 });

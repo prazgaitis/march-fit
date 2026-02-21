@@ -5,6 +5,7 @@ import { internal, api } from "../_generated/api";
 import { v } from "convex/values";
 import type { Id } from "../_generated/dataModel";
 import { coerceDateOnlyToString } from "../lib/dateOnly";
+import { applyActivityPointSign } from "../lib/scoring";
 
 interface StravaTokenResponse {
   access_token: string;
@@ -477,14 +478,16 @@ function calculateScoringPreview(
     }
   }
 
-  const sign = matchedActivityType.isNegative ? -1 : 1;
+  const signedBasePoints = applyActivityPointSign(basePoints, matchedActivityType.isNegative);
+  const signedBonusPoints = applyActivityPointSign(bonusPoints, matchedActivityType.isNegative);
+  const signedTotalPoints = applyActivityPointSign(basePoints + bonusPoints, matchedActivityType.isNegative);
 
   return {
     activityTypeId: matchedActivityType._id,
     activityTypeName: matchedActivityType.name,
-    basePoints: Math.round(basePoints * sign * 100) / 100,
-    bonusPoints: bonusPoints * sign,
-    totalPoints: Math.round((basePoints + bonusPoints) * sign * 100) / 100,
+    basePoints: Math.round(signedBasePoints * 100) / 100,
+    bonusPoints: Math.round(signedBonusPoints * 100) / 100,
+    totalPoints: Math.round(signedTotalPoints * 100) / 100,
     triggeredBonuses,
     metrics,
     mappingSource,

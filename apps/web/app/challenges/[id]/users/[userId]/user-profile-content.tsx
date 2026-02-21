@@ -42,6 +42,7 @@ import {
 import { StravaConnectButton } from "@/components/integrations/strava-connect-button";
 import { ApiKeySection } from "@/components/api-key-section";
 import { cn } from "@/lib/utils";
+import { PointsDisplay } from "@/components/ui/points-display";
 
 interface UserProfileContentProps {
   challengeId: string;
@@ -272,9 +273,13 @@ export function UserProfileContent({
                 <Trophy className="h-5 w-5 text-yellow-500" />
               </div>
               <div>
-                <p className="text-2xl font-bold">
-                  {participation.totalPoints.toFixed(0)}
-                </p>
+                <PointsDisplay
+                  points={participation.totalPoints}
+                  size="xl"
+                  showSign={false}
+                  showLabel={false}
+                  className="font-bold"
+                />
                 <p className="text-sm text-muted-foreground">Total Points</p>
               </div>
             </CardContent>
@@ -441,7 +446,7 @@ export function UserProfileContent({
         <CardContent>
           {stats.recentActivities.length > 0 ? (
             <div className="space-y-3">
-              {stats.recentActivities.map((activity: { _id: string; activityTypeName: string; loggedDate: number; pointsEarned: number; createdAt: number }) => (
+              {stats.recentActivities.map((activity: { _id: string; activityTypeName: string; loggedDate: number; pointsEarned: number; createdAt: number; isNegative?: boolean }) => (
                 <Link
                   key={activity._id}
                   href={`/challenges/${challengeId}/activities/${activity._id}`}
@@ -456,9 +461,11 @@ export function UserProfileContent({
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="font-semibold text-primary">
-                      +{activity.pointsEarned.toFixed(0)} pts
-                    </p>
+                    <PointsDisplay
+                      points={activity.pointsEarned}
+                      isNegative={activity.isNegative}
+                      size="base"
+                    />
                   </div>
                 </Link>
               ))}

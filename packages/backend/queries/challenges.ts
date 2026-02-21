@@ -2,6 +2,7 @@ import { internalQuery, query } from "../_generated/server";
 import { v } from "convex/values";
 import type { Id, Doc } from "../_generated/dataModel";
 import { coerceDateOnlyToString, dateOnlyToUtcMs } from "../lib/dateOnly";
+import { getChallengePointsByUser, getPointsForUser } from "../lib/challengePoints";
 import { notDeleted } from "../lib/activityFilters";
 
 /**
@@ -143,6 +144,19 @@ export const listForUser = query({
 
     // Apply pagination
     const paginated = validChallenges.slice(offset, offset + limit);
+    const userActivities = await ctx.db
+      .query("activities")
+      .withIndex("userId", (q) => q.eq("userId", args.userId))
+      .filter(notDeleted)
+      .collect();
+    const pointsByChallenge = new Map<string, number>();
+    for (const activity of userActivities) {
+      const key = activity.challengeId as string;
+      pointsByChallenge.set(
+        key,
+        (pointsByChallenge.get(key) ?? 0) + activity.pointsEarned
+      );
+    }
 
     // Get participation data
     const result = await Promise.all(
@@ -159,7 +173,7 @@ export const listForUser = query({
           isParticipant: Boolean(participation),
           participantStats: participation
             ? {
-                totalPoints: participation.totalPoints,
+                totalPoints: pointsByChallenge.get(challenge._id as string) ?? 0,
                 currentStreak: participation.currentStreak,
               }
             : null,
@@ -279,18 +293,27 @@ export const getDashboardData = query({
       .withIndex("challengeId", (q) => q.eq("challengeId", args.challengeId))
       .collect();
 
-    // Sort by totalPoints descending
-    allParticipations.sort((a, b) => b.totalPoints - a.totalPoints);
+    const pointsByUser = await getChallengePointsByUser(ctx, args.challengeId);
+
+    const scoredParticipations = allParticipations.map((p) => ({
+      ...p,
+      computedTotalPoints: getPointsForUser(pointsByUser, p.userId),
+    }));
+
+    // Sort by computed totalPoints descending
+    scoredParticipations.sort(
+      (a, b) => b.computedTotalPoints - a.computedTotalPoints
+    );
 
     // Get top 10 leaderboard with user data
     const leaderboard = await Promise.all(
-      allParticipations.slice(0, 10).map(async (p) => {
+      scoredParticipations.slice(0, 10).map(async (p) => {
         const user = await ctx.db.get(p.userId);
         if (!user) return null;
 
         return {
           participantId: p.userId,
-          totalPoints: p.totalPoints,
+          totalPoints: p.computedTotalPoints,
           currentStreak: p.currentStreak,
           user: {
             id: user._id,
@@ -308,9 +331,12 @@ export const getDashboardData = query({
 
     // Calculate user rank (only if participation exists)
     let userRank: number | null = null;
+    const participationPoints = participation
+      ? getPointsForUser(pointsByUser, participation.userId)
+      : 0;
     if (participation) {
-      const higherCount = allParticipations.filter(
-        (p) => p.totalPoints > participation.totalPoints,
+      const higherCount = scoredParticipations.filter(
+        (p) => p.computedTotalPoints > participationPoints,
       ).length;
       userRank = higherCount + 1;
     }
@@ -330,8 +356,8 @@ export const getDashboardData = query({
 
     // Calculate totals
     const totalParticipants = allParticipations.length;
-    const totalPoints = allParticipations.reduce(
-      (sum, p) => sum + p.totalPoints,
+    const totalPoints = scoredParticipations.reduce(
+      (sum, p) => sum + p.computedTotalPoints,
       0,
     );
 
@@ -342,14 +368,19 @@ export const getDashboardData = query({
         startDate: coerceDateOnlyToString(challenge.startDate),
         endDate: coerceDateOnlyToString(challenge.endDate),
       },
-      participation,
+      participation: participation
+        ? {
+            ...participation,
+            totalPoints: participationPoints,
+          }
+        : null,
       leaderboard: validLeaderboard,
       stats: {
         totalActivities,
         totalParticipants,
         totalPoints,
         userRank,
-        userPoints: participation?.totalPoints ?? 0,
+        userPoints: participationPoints,
         userStreak: participation?.currentStreak ?? 0,
       },
       latestActivityId: latestActivity?._id ?? null,
@@ -374,12 +405,17 @@ export const getParticipants = query({
       .query("userChallenges")
       .withIndex("challengeId", (q) => q.eq("challengeId", args.challengeId))
       .collect();
+    const pointsByUser = await getChallengePointsByUser(ctx, args.challengeId);
+    const scoredParticipations = participations.map((p) => ({
+      ...p,
+      computedTotalPoints: getPointsForUser(pointsByUser, p.userId),
+    }));
 
-    // Sort by totalPoints descending
-    participations.sort((a, b) => b.totalPoints - a.totalPoints);
+    // Sort by activity-derived points descending
+    scoredParticipations.sort((a, b) => b.computedTotalPoints - a.computedTotalPoints);
 
     // Apply pagination
-    const paginated = participations.slice(offset, offset + limit);
+    const paginated = scoredParticipations.slice(offset, offset + limit);
 
     // Get user data
     const result = await Promise.all(
@@ -397,7 +433,7 @@ export const getParticipants = query({
             avatarUrl: user.avatarUrl,
           },
           stats: {
-            totalPoints: participation.totalPoints,
+            totalPoints: participation.computedTotalPoints,
             currentStreak: participation.currentStreak,
             modifierFactor: participation.modifierFactor,
           },

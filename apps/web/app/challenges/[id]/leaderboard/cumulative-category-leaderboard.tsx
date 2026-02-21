@@ -7,6 +7,7 @@ import Link from "next/link";
 import { Trophy, Loader2 } from "lucide-react";
 
 import { UserAvatar } from "@/components/user-avatar";
+import { PointsDisplay } from "@/components/ui/points-display";
 import { cn } from "@/lib/utils";
 
 interface CumulativeEntry {
@@ -90,9 +91,13 @@ function EntryRow({
       </div>
 
       <div className="text-right">
-        <p className="text-sm font-bold text-white">
-          {entry.totalPoints.toFixed(0)}
-        </p>
+        <PointsDisplay
+          points={entry.totalPoints}
+          size="sm"
+          showSign={false}
+          showLabel={false}
+          className={cn("font-bold", entry.totalPoints >= 0 && "text-white")}
+        />
         <p className="text-xs text-zinc-500">pts</p>
       </div>
     </Link>
