@@ -12,6 +12,7 @@ import { reportLatencyIfExceeded } from "../lib/latencyMonitoring";
 import { applyParticipationScoreDeltaAndRecomputeStreak } from "../lib/participationScoring";
 import { dateOnlyToUtcMs } from "../lib/dateOnly";
 import { insertActivity, patchActivity } from "../lib/activityWrites";
+import { applyCategoryPointsDelta } from "../lib/categoryPoints";
 
 /**
  * Get user's active challenge participations
@@ -182,6 +183,7 @@ export const createFromStrava = internalMutation({
           challengeId: args.challengeId,
           pointsDelta: pointsEarned,
           streakMinPoints: challenge.streakMinPoints,
+          categoryId: activityType.categoryId,
         });
 
         return existing._id;
@@ -199,12 +201,32 @@ export const createFromStrava = internalMutation({
         updatedAt: Date.now(),
       });
 
+      // If the activity type changed, unapply the old category first
+      const stravaTypeChanged = activityTypeId !== existing.activityTypeId;
+      if (stravaTypeChanged) {
+        const oldStravaType = await ctx.db.get(existing.activityTypeId);
+        await applyCategoryPointsDelta(ctx, {
+          userId: args.userId,
+          challengeId: args.challengeId,
+          categoryId: oldStravaType?.categoryId,
+          pointsDelta: -existing.pointsEarned,
+        });
+      }
       await applyParticipationScoreDeltaAndRecomputeStreak(ctx, {
         userId: args.userId,
         challengeId: args.challengeId,
         pointsDelta: pointsEarned - existing.pointsEarned,
         streakMinPoints: challenge.streakMinPoints,
+        categoryId: stravaTypeChanged ? undefined : activityType.categoryId,
       });
+      if (stravaTypeChanged) {
+        await applyCategoryPointsDelta(ctx, {
+          userId: args.userId,
+          challengeId: args.challengeId,
+          categoryId: activityType.categoryId,
+          pointsDelta: pointsEarned,
+        });
+      }
 
       return existing._id;
     }
@@ -235,6 +257,7 @@ export const createFromStrava = internalMutation({
       challengeId: args.challengeId,
       pointsDelta: pointsEarned,
       streakMinPoints: challenge.streakMinPoints,
+      categoryId: activityType.categoryId,
     });
 
       return activityId;
@@ -286,12 +309,14 @@ export const deleteFromStrava = internalMutation({
         deletedReason: "strava_delete",
         updatedAt: now,
       });
+      const deletedStravaType = await ctx.db.get(activity.activityTypeId);
       await applyParticipationScoreDeltaAndRecomputeStreak(ctx, {
         userId: activity.userId,
         challengeId: activity.challengeId,
         pointsDelta: -activity.pointsEarned,
         streakMinPoints: challenge.streakMinPoints,
         now,
+        categoryId: deletedStravaType?.categoryId,
       });
       deletedCount += 1;
     }

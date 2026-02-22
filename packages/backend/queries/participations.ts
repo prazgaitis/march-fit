@@ -448,61 +448,48 @@ export const getCumulativeCategoryLeaderboard = query({
       return null;
     }
 
-    // Fetch activity types for this challenge
-    const activityTypes = await ctx.db
-      .query("activityTypes")
-      .withIndex("challengeId", (q) => q.eq("challengeId", args.challengeId))
+    // Fetch categories for this challenge and filter to leaderboard-eligible ones.
+    // We no longer scan activities — reads are O(categories × participants).
+    const allCategoryPoints = await ctx.db
+      .query("categoryPoints")
+      .withIndex("challengeCategory", (q) =>
+        q.eq("challengeId", args.challengeId)
+      )
       .collect();
 
-    const activityTypeMap = new Map(
-      activityTypes.map((at) => [at._id, at])
-    );
-
-    // Collect unique category IDs and fetch category docs
-    const categoryIds = new Set<Id<"categories">>();
-    for (const at of activityTypes) {
-      if (at.categoryId) categoryIds.add(at.categoryId);
+    if (allCategoryPoints.length === 0) {
+      return { categories: [] };
     }
+
+    // Resolve category docs and filter to showInCategoryLeaderboard === true
+    const uniqueCategoryIds = [
+      ...new Set(allCategoryPoints.map((cp) => cp.categoryId as string)),
+    ];
     const categoryDocs = await Promise.all(
-      Array.from(categoryIds).map((id) => ctx.db.get(id))
+      uniqueCategoryIds.map((id) => ctx.db.get(id as Id<"categories">))
     );
-    const categoryMap = new Map(
+    const leaderboardCategoryMap = new Map(
       categoryDocs
-        .filter((c): c is NonNullable<typeof c> => c !== null)
-        .map((c) => [c._id, c])
+        .filter(
+          (c): c is NonNullable<typeof c> =>
+            c !== null && c.showInCategoryLeaderboard === true
+        )
+        .map((c) => [c._id as string, c])
     );
 
-    // Only show categories flagged for the leaderboard
-    const leaderboardCategoryIds = new Set<string>(
-      Array.from(categoryMap.entries())
-        .filter(([, cat]) => cat.showInCategoryLeaderboard === true)
-        .map(([id]) => id as string)
-    );
+    if (leaderboardCategoryMap.size === 0) {
+      return { categories: [] };
+    }
 
-    // Query ALL non-deleted activities for this challenge
-    const activities = await ctx.db
-      .query("activities")
-      .withIndex("challengeId", (q) => q.eq("challengeId", args.challengeId))
-      .filter(notDeleted)
-      .collect();
-
-    // Group points: categoryId -> userId -> totalPoints
+    // Group into categoryId → userId → totalPoints (only leaderboard categories)
     const categoryUserPoints = new Map<string, Map<string, number>>();
-
-    for (const activity of activities) {
-      const at = activityTypeMap.get(activity.activityTypeId);
-      if (!at || !at.categoryId) continue;
-
-      const catKey = at.categoryId as string;
-      // Skip categories not flagged for the leaderboard
-      if (!leaderboardCategoryIds.has(catKey)) continue;
-
+    for (const cp of allCategoryPoints) {
+      const catKey = cp.categoryId as string;
+      if (!leaderboardCategoryMap.has(catKey)) continue;
       if (!categoryUserPoints.has(catKey)) {
         categoryUserPoints.set(catKey, new Map());
       }
-      const userPoints = categoryUserPoints.get(catKey)!;
-      const current = userPoints.get(activity.userId) ?? 0;
-      userPoints.set(activity.userId, current + activity.pointsEarned);
+      categoryUserPoints.get(catKey)!.set(cp.userId as string, cp.totalPoints);
     }
 
     // Cache for user lookups
@@ -558,7 +545,7 @@ export const getCumulativeCategoryLeaderboard = query({
         const assignRanks = <T extends { rank: number }>(arr: T[]): T[] =>
           arr.slice(0, 5).map((e, i) => ({ ...e, rank: i + 1 }));
 
-        const catDoc = categoryMap.get(catKey as Id<"categories">);
+        const catDoc = leaderboardCategoryMap.get(catKey);
         const category = catDoc
           ? { id: catKey, name: catDoc.name }
           : { id: catKey, name: "Unknown" };
@@ -572,17 +559,12 @@ export const getCumulativeCategoryLeaderboard = query({
       })
     );
 
-    // Filter out categories where all gender groups are empty
-    const nonEmpty = categories.filter(
-      (c) => c.women.length > 0 || c.men.length > 0
-    );
-
-    // Sort alphabetically
-    nonEmpty.sort((a, b) => {
-      return a.category.name.localeCompare(b.category.name);
-    });
-
-    return { categories: nonEmpty };
+    // Filter out categories where all gender groups are empty, sort alphabetically
+    return {
+      categories: categories
+        .filter((c) => c.women.length > 0 || c.men.length > 0)
+        .sort((a, b) => a.category.name.localeCompare(b.category.name)),
+    };
   },
 });
 

@@ -90,7 +90,8 @@ describe('getCumulativeCategoryLeaderboard', () => {
     return userId;
   };
 
-  // Helper: insert an activity directly
+  // Helper: insert an activity directly and maintain the categoryPoints aggregation.
+  // Mirrors what the production write path (mutations/activities.ts → log) does.
   const insertActivity = async (
     userId: Id<'users'>,
     challengeId: Id<'challenges'>,

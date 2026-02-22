@@ -634,6 +634,19 @@ export default defineSchema({
     .index("userId", ["userId"])
     .index("postUserUnique", ["postId", "userId"]),
 
+  // Category Points - pre-aggregated per-user totals per category, maintained
+  // incrementally by all activity write paths. Used by getCumulativeCategoryLeaderboard
+  // to avoid full challenge scans that hit Convex's read-bytes limit.
+  categoryPoints: defineTable({
+    challengeId: v.id("challenges"),
+    userId: v.id("users"),
+    categoryId: v.id("categories"),
+    totalPoints: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("challengeUserCategory", ["challengeId", "userId", "categoryId"])
+    .index("challengeCategory", ["challengeId", "categoryId"]),
+
   // Email Sends - tracking sent emails
   emailSends: defineTable({
     emailSequenceId: v.id("emailSequences"),
