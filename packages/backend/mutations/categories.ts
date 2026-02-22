@@ -22,6 +22,29 @@ export const create = internalMutation({
   },
 });
 
+/**
+ * Public mutation for admin UI — create a category.
+ * Auth is enforced at the page level (admin layout).
+ */
+export const createCategory = mutation({
+  args: {
+    name: v.string(),
+    description: v.optional(v.string()),
+    sortOrder: v.optional(v.number()),
+    showInCategoryLeaderboard: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db.insert("categories", {
+      name: args.name,
+      description: args.description,
+      sortOrder: args.sortOrder,
+      showInCategoryLeaderboard: args.showInCategoryLeaderboard,
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+  },
+});
+
 export const updateInternal = internalMutation({
   args: {
     categoryId: v.id("categories"),

@@ -37,7 +37,7 @@ export default async function CategoriesAdminPage({
         <CardTitle>Categories</CardTitle>
       </CardHeader>
       <CardContent>
-        <AdminCategoriesTable categories={categories} />
+        <AdminCategoriesTable initialCategories={categories} />
       </CardContent>
     </Card>
   );
