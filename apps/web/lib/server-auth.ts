@@ -58,12 +58,22 @@ export function getHandler() {
 
 export const betterAuthHandler = {
   GET: async (req: Request) => {
-    const response = await getHandler().GET(req);
-    return response ?? new Response(null, { status: 404 });
+    try {
+      const response = await getHandler().GET(req);
+      return response ?? new Response(null, { status: 404 });
+    } catch (error) {
+      console.error("[server-auth] GET handler failed:", error);
+      return new Response(null, { status: 500 });
+    }
   },
   POST: async (req: Request) => {
-    const response = await getHandler().POST(req);
-    return response ?? new Response(null, { status: 404 });
+    try {
+      const response = await getHandler().POST(req);
+      return response ?? new Response(null, { status: 404 });
+    } catch (error) {
+      console.error("[server-auth] POST handler failed:", error);
+      return new Response(null, { status: 500 });
+    }
   },
 };
 
