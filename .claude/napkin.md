@@ -4,6 +4,9 @@
 | Date | Source | What Went Wrong | What To Do Instead |
 |------|--------|----------------|-------------------|
 | 2026-02-21 | self | New `scorePreview` map callback in `activity-log-dialog.tsx` failed TS strict mode due implicit `any` params | Add explicit callback parameter types when rendering arrays from loosely-typed query payloads |
+| 2026-02-21 | self | Web tests used `activityPointsAggregate/public/insertIfDoesNotExist`, but the aggregate component exposes `public/insert` and `public/replaceOrInsert` only | Use `aggregateInsertActivity`/`insertTestActivity` or `public/replaceOrInsert` instead of calling a non-existent module |
+| 2026-02-21 | self | Component registration for convex-test pointed at `packages/backend/node_modules` and missed `_generated`, so component modules were unresolved | Register aggregate component from `node_modules/@convex-dev/aggregate/dist/component/**/*.{js,ts}` so `_generated` is included |
+| 2026-02-21 | self | Imported `@repo/backend/lib/dateOnly` in web tests, but it is not exported from the backend package | Use `apps/web/lib/date-only` in web tests or add explicit exports in backend `package.json` |
 | 2026-02-21 | self | A Strava webhook test still expected clamped-to-zero totals after delete and failed once negative totals were enabled | Update legacy tests that assert `Math.max(0, ...)` behavior to align with current negative-total rules |
 | 2026-02-21 | self | Ran `rg`/`sed` on Next route paths with `[id]` unquoted and zsh globbing failed again | Always single-quote paths containing `[]` before shell commands |
 | 2026-02-21 | self | Ran eslint with unquoted app router paths (`[id]`) and zsh globbing failed | Quote all bracketed route paths in CLI invocations, including multi-file lint/diff commands |
@@ -41,6 +44,7 @@
 - For production troubleshooting UX, do not add user-facing alerts for transient feed/connection issues; log to Sentry instead.
 
 ## Patterns That Work
+- For aggregate adoption on existing tables, use write-sync first with idempotent aggregate ops (`insertIfDoesNotExist`/`replaceOrInsert`/`deleteIfExists`), then cut reads over after backfill.
 - Convex queries can join related data inline (e.g., activity types + categories in one query)
 - `conditional-header.tsx` hides header by challenge section (`/challenges/:id/:section`) so child routes inherit behavior without route regexes
 - Admin console sidebar approach was scrapped — revisit admin nav design in the future
@@ -95,5 +99,6 @@
 | 2026-02-21 | self | Added `@sentry/node` inside Convex backend helper, causing `backend:dev` bundling errors for built-ins (`node:path`, `util`) | For Convex backend runtime instrumentation, avoid Node SDKs unless file is explicitly `"use node"`; prefer runtime-safe `fetch` integration |
 | 2026-02-21 | self | Tried `cd packages/backend && pnpm test:run` during verification, but that package has no `test:run` script | Verify available scripts from `package.json` before invoking backend test commands |
 | 2026-02-21 | self | Ran `ls` before reading `.claude/napkin.md` again at session start | Make the first command `cat .claude/napkin.md` every single session, no exceptions |
+| 2026-02-22 | self | Ran `ls` before reading `.claude/napkin.md` at session start | Make the first command `cat .claude/napkin.md` every single session, no exceptions |
 | 2026-02-21 | self | Ran commands against Next dynamic-route paths without quoting bracket segments and hit `zsh: no matches found` | Always single-quote any path containing `[]` before `sed`/`rg`/`cat` |
 | 2026-02-21 | self | Initial mobile selector fix added touch-scroll classes but did not resolve drawer touch scrolling because the popover remained portaled to `body` | In Drawer/Dialog flows, portal popovers into an element inside the modal content to stay within scroll-lock shards and preserve touch scroll |

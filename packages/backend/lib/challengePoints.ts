@@ -1,8 +1,8 @@
 import type { Id } from "../_generated/dataModel";
 import type { QueryCtx } from "../_generated/server";
-import { notDeleted } from "./activityFilters";
+import { getChallengePointTotalsForUsers } from "./activityPointsAggregate";
 
-type QueryDbCtx = Pick<QueryCtx, "db">;
+type QueryDbCtx = Pick<QueryCtx, "db" | "runQuery">;
 
 /**
  * Build a map of challenge points keyed by userId from non-deleted activities.
@@ -12,16 +12,17 @@ export async function getChallengePointsByUser(
   ctx: QueryDbCtx,
   challengeId: Id<"challenges">
 ) {
-  const activities = await ctx.db
-    .query("activities")
+  const participationUserIds = await ctx.db
+    .query("userChallenges")
     .withIndex("challengeId", (q) => q.eq("challengeId", challengeId))
-    .filter(notDeleted)
     .collect();
 
+  const userIds = participationUserIds.map((p) => p.userId);
+  const totals = await getChallengePointTotalsForUsers(ctx, challengeId, userIds);
+
   const pointsByUser = new Map<string, number>();
-  for (const activity of activities) {
-    const key = activity.userId as string;
-    pointsByUser.set(key, (pointsByUser.get(key) ?? 0) + activity.pointsEarned);
+  for (const [userId, total] of totals.entries()) {
+    pointsByUser.set(userId as string, total);
   }
 
   return pointsByUser;

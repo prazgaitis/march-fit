@@ -8,6 +8,15 @@ export function parseDateOnlyToUtcMs(dateString: string): number {
   return Date.UTC(year, month - 1, day);
 }
 
+export function normalizeDateOnlyInput(value: string | number): string {
+  if (typeof value === "number") {
+    return formatDateOnlyFromUtcMs(value);
+  }
+  if (!value) return "";
+  // Accept full ISO timestamps but always use the calendar date portion.
+  return value.slice(0, 10);
+}
+
 export function formatDateOnlyFromUtcMs(timestampMs: number): string {
   if (!Number.isFinite(timestampMs)) return "";
   const date = new Date(timestampMs);

@@ -9,6 +9,18 @@ This is a fitness challenge platform with:
 - **Backend**: Convex serverless functions in `packages/backend/`
 - **Auth**: Better Auth via `@convex-dev/better-auth`
 
+## Date Handling (Local Date Semantics)
+
+Daily totals, streaks, and PR-day logic must be based on the user's local calendar date.
+We store this as a date-only value in `activities.loggedDate` (UTC ms at the local date),
+or derive it from Strava `start_date_local`. Do not bucket or compare by time-of-day.
+
+Use `formatDateOnlyFromUtcMs(loggedDate)` for grouping, and avoid
+`new Date(...).toISOString().slice(0, 10)` in daily rollups.
+
+The client must send a local date (or a local timestamp plus timezone) for activity logging.
+The backend should normalize to a date-only value and must not infer a local date from UTC alone.
+
 ## Development Process
 
 When starting a new task, add a markdown file in `/tasks` directory with a descriptive slug, date header, and checkbox todos.

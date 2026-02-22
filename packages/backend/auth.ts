@@ -86,6 +86,12 @@ export const createAuth = (ctx: GenericCtx<DataModel>) => {
         ? [process.env.SITE_URL.replace("://", "://www.")]
         : []),
     ].filter(Boolean),
+    account: {
+      accountLinking: {
+        enabled: true,
+        trustedProviders: ["google"],
+      },
+    },
     emailAndPassword: {
       enabled: true,
       password: {

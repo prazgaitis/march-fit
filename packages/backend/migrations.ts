@@ -3,6 +3,7 @@ import { components, internal } from "./_generated/api";
 import type { DataModel, Id } from "./_generated/dataModel";
 import { action } from "./_generated/server";
 import { coerceDateOnlyToString } from "./lib/dateOnly";
+import { activityPointsAggregate } from "./lib/activityPointsAggregate";
 
 export const migrations = new Migrations<DataModel>(components.migrations);
 
@@ -90,6 +91,13 @@ export const fixActivityTypeCategoriesAndOrder = migrations.define({
   },
 });
 
+export const backfillActivityPointsAggregate = migrations.define({
+  table: "activities",
+  migrateOne: async (ctx, activity) => {
+    await activityPointsAggregate.insertIfDoesNotExist(ctx, activity);
+  },
+});
+
 export const run = migrations.runner();
 
 export const runAll = action({
@@ -104,6 +112,9 @@ export const runAll = action({
       // Category sort order + activity type category fixes (2026-02)
       internal.migrations.setCategorySortOrder,
       internal.migrations.fixActivityTypeCategoriesAndOrder,
+
+      // Activity points aggregate backfill
+      internal.migrations.backfillActivityPointsAggregate,
     ];
 
     await migrations.runSerially(ctx, migrationsList);

@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { api } from '@repo/backend';
+import { dateOnlyToUtcMs } from '@/lib/date-only';
 import {
   createTestContext,
   createTestUser,
@@ -8,6 +9,7 @@ import {
   createTestParticipation,
 } from '../helpers/convex';
 import type { Id } from '@repo/backend/_generated/dataModel';
+import { insertTestActivity } from "../helpers/activities";
 
 describe('editActivity mutation', () => {
   let t: Awaited<ReturnType<typeof createTestContext>>;
@@ -57,7 +59,7 @@ describe('editActivity mutation', () => {
     const activity = await t.run(async (ctx) => ctx.db.get(activityId as Id<'activities'>));
     expect(activity!.notes).toBe('Updated notes');
     expect((activity!.metrics as Record<string, unknown>)['minutes']).toBe(45);
-    expect(activity!.loggedDate).toBe(new Date('2024-01-16').getTime());
+    expect(activity!.loggedDate).toBe(dateOnlyToUtcMs('2024-01-16'));
   });
 
   it('points are recalculated correctly after metric change', async () => {
@@ -136,7 +138,7 @@ describe('editActivity mutation', () => {
     await createTestParticipation(t, otherUserId, challengeId, { totalPoints: 500 });
 
     await t.run(async (ctx) => {
-      await ctx.db.insert('activities', {
+      await insertTestActivity(ctx, {
         userId: otherUserId as Id<'users'>,
         challengeId: challengeId as Id<'challenges'>,
         activityTypeId: penaltyTypeId as Id<'activityTypes'>,

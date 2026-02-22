@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { api } from '@repo/backend';
 import { Id } from '@repo/backend/_generated/dataModel';
 import { createTestContext, createTestUser, createTestChallenge } from '../helpers/convex';
+import { insertTestActivity } from "../helpers/activities";
 
 describe('Admin Activity Features', () => {
   let t: Awaited<ReturnType<typeof createTestContext>>;
@@ -79,7 +80,7 @@ describe('Admin Activity Features', () => {
 
     // Create an activity owned by "owner"
     const activityId = await t.run(async (ctx) => {
-      return await ctx.db.insert("activities", {
+      return await insertTestActivity(ctx, {
         userId: ownerId,
         challengeId,
         activityTypeId,
@@ -377,21 +378,21 @@ describe('Admin Activity Features', () => {
       await ownerAuth.mutation(api.mutations.activities.log, {
         challengeId,
         activityTypeId,
-        loggedDate: '2024-01-15T10:00:00Z',
+        loggedDate: '2024-01-15',
         metrics: { minutes: 15 },
         source: 'manual',
       });
       const day2 = await ownerAuth.mutation(api.mutations.activities.log, {
         challengeId,
         activityTypeId,
-        loggedDate: '2024-01-16T10:00:00Z',
+        loggedDate: '2024-01-16',
         metrics: { minutes: 15 },
         source: 'manual',
       });
       await ownerAuth.mutation(api.mutations.activities.log, {
         challengeId,
         activityTypeId,
-        loggedDate: '2024-01-17T10:00:00Z',
+        loggedDate: '2024-01-17',
         metrics: { minutes: 15 },
         source: 'manual',
       });

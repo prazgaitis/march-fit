@@ -114,3 +114,13 @@ This is a fitness challenge platform built as a Turborepo monorepo with:
 - shadcn components live in `apps/web/components/ui`
 - Convex schema changes are auto-deployed when running `pnpm dev` locally
 - Production deploys via Vercel which runs `npx convex deploy` as part of build
+
+## Date Handling (Local Date Semantics)
+
+Daily totals and challenge windows are based on the user's local calendar date.
+`activities.loggedDate` is stored as a date-only value (UTC ms for the local date),
+and Strava uses `start_date_local` to derive that date. Do not use time-of-day when
+grouping daily totals. Prefer `formatDateOnlyFromUtcMs(loggedDate)` for rollups.
+
+The client must send a local date (or a local timestamp plus timezone) for activity logging.
+The backend should normalize to a date-only value and must not infer a local date from UTC alone.

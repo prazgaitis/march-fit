@@ -2,7 +2,7 @@
 
 import { action } from "../_generated/server";
 import { v } from "convex/values";
-import { internal } from "../_generated/api";
+import { internal, api } from "../_generated/api";
 import { decryptKey, createStripeClient } from "../lib/stripe";
 
 /**
@@ -98,8 +98,10 @@ export const createCheckoutSession = action({
       throw new Error("Not authenticated");
     }
 
-    // Look up user + participation + payment config via internal queries
-    const checkoutData = await ctx.runQuery(
+    // Look up user + participation + payment config via internal queries.
+    // If the Convex user doesn't exist yet (Better Auth/Convex sync race),
+    // create it from the identity and retry once.
+    let checkoutData = await ctx.runQuery(
       internal.queries.paymentConfigInternal.getCheckoutData,
       {
         email: identity.email,
@@ -109,6 +111,29 @@ export const createCheckoutSession = action({
 
     if (!checkoutData) {
       throw new Error("Could not load checkout data");
+    }
+
+    if (checkoutData.error === "User not found") {
+      // Better Auth session exists but Convex user record hasn't synced yet.
+      // Create the user and retry once.
+      const name = identity.name || identity.givenName || identity.email.split("@")[0];
+      const username = identity.nickname || identity.email.split("@")[0];
+      await ctx.runMutation(api.mutations.users.createUser, {
+        email: identity.email,
+        username,
+        name,
+        avatarUrl: identity.pictureUrl,
+      });
+      checkoutData = await ctx.runQuery(
+        internal.queries.paymentConfigInternal.getCheckoutData,
+        {
+          email: identity.email,
+          challengeId: args.challengeId,
+        }
+      );
+      if (!checkoutData) {
+        throw new Error("Could not load checkout data");
+      }
     }
 
     if (checkoutData.error) {

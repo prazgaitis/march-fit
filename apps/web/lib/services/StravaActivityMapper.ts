@@ -4,6 +4,7 @@ export interface StravaActivity {
   type: string;
   sport_type: string;
   start_date: string;
+  start_date_local?: string;
   elapsed_time: number;
   moving_time: number;
   distance?: number;
@@ -45,9 +46,8 @@ export class StravaActivityMapper {
     stravaActivity: StravaActivity,
     activityTypeId: string
   ): Promise<LogActivityData> {
-    const loggedDate = new Date(stravaActivity.start_date)
-      .toISOString()
-      .split('T')[0];
+    const loggedDate = (stravaActivity.start_date_local ?? stravaActivity.start_date)
+      .split("T")[0];
 
     const metrics = this.extractMetrics(stravaActivity);
 
