@@ -99,5 +99,6 @@
 | 2026-02-21 | self | Added `@sentry/node` inside Convex backend helper, causing `backend:dev` bundling errors for built-ins (`node:path`, `util`) | For Convex backend runtime instrumentation, avoid Node SDKs unless file is explicitly `"use node"`; prefer runtime-safe `fetch` integration |
 | 2026-02-21 | self | Tried `cd packages/backend && pnpm test:run` during verification, but that package has no `test:run` script | Verify available scripts from `package.json` before invoking backend test commands |
 | 2026-02-21 | self | Ran `ls` before reading `.claude/napkin.md` again at session start | Make the first command `cat .claude/napkin.md` every single session, no exceptions |
+| 2026-02-22 | self | Ran `ls` before reading `.claude/napkin.md` at session start | Make the first command `cat .claude/napkin.md` every single session, no exceptions |
 | 2026-02-21 | self | Ran commands against Next dynamic-route paths without quoting bracket segments and hit `zsh: no matches found` | Always single-quote any path containing `[]` before `sed`/`rg`/`cat` |
 | 2026-02-21 | self | Initial mobile selector fix added touch-scroll classes but did not resolve drawer touch scrolling because the popover remained portaled to `body` | In Drawer/Dialog flows, portal popovers into an element inside the modal content to stay within scroll-lock shards and preserve touch scroll |
