@@ -641,6 +641,8 @@ export const getWeeklyCategoryLeaderboard = query({
     );
 
     // Query weekly activities for this challenge in the selected week date range.
+    // Uses the challengeLoggedDate index for efficient date-range filtering —
+    // avoids a full challenge scan and keeps reads well within Convex's limit.
     const weeklyActivities = await ctx.db
       .query("activities")
       .withIndex("challengeLoggedDate", (q) =>
@@ -652,60 +654,23 @@ export const getWeeklyCategoryLeaderboard = query({
       .filter(notDeleted)
       .collect();
 
-    // Query all activities for cumulative leaders (entire challenge).
-    const cumulativeActivities = await ctx.db
-      .query("activities")
-      .withIndex("challengeId", (q) => q.eq("challengeId", args.challengeId))
-      .filter(notDeleted)
-      .collect();
-
-    // Group points: categoryId -> userId -> totalPoints.
+    // Group weekly points: categoryId -> userId -> totalPoints.
     const weeklyCategoryUserPoints = new Map<string, Map<string, number>>();
-    const cumulativeCategoryUserPoints = new Map<string, Map<string, number>>();
-
-    const addPoints = (
-      map: Map<string, Map<string, number>>,
-      categoryKey: string,
-      userId: string,
-      points: number,
-    ) => {
-      if (!map.has(categoryKey)) {
-        map.set(categoryKey, new Map());
-      }
-      const userPoints = map.get(categoryKey)!;
-      const current = userPoints.get(userId) ?? 0;
-      userPoints.set(userId, current + points);
-    };
 
     for (const activity of weeklyActivities) {
       const at = activityTypeMap.get(activity.activityTypeId);
       if (!at || !at.categoryId) continue;
 
       const categoryKey = at.categoryId as string;
-      // Skip categories not flagged for the leaderboard
       if (!leaderboardCategoryIds.has(categoryKey)) continue;
 
-      addPoints(
-        weeklyCategoryUserPoints,
-        categoryKey,
+      if (!weeklyCategoryUserPoints.has(categoryKey)) {
+        weeklyCategoryUserPoints.set(categoryKey, new Map());
+      }
+      const userPoints = weeklyCategoryUserPoints.get(categoryKey)!;
+      userPoints.set(
         activity.userId as string,
-        activity.pointsEarned,
-      );
-    }
-
-    for (const activity of cumulativeActivities) {
-      const at = activityTypeMap.get(activity.activityTypeId);
-      if (!at || !at.categoryId) continue;
-
-      const categoryKey = at.categoryId as string;
-      // Skip categories not flagged for the leaderboard
-      if (!leaderboardCategoryIds.has(categoryKey)) continue;
-
-      addPoints(
-        cumulativeCategoryUserPoints,
-        categoryKey,
-        activity.userId as string,
-        activity.pointsEarned,
+        (userPoints.get(activity.userId as string) ?? 0) + activity.pointsEarned,
       );
     }
 
@@ -731,44 +696,18 @@ export const getWeeklyCategoryLeaderboard = query({
 
     const categories = await Promise.all(
       Array.from(weeklyCategoryUserPoints.entries()).map(async ([catKey, userPointsMap]) => {
-        // Sort users by weekly points descending.
+        // Sort users by weekly points descending, take top 10.
         const sorted = Array.from(userPointsMap.entries())
           .sort((a, b) => b[1] - a[1])
           .slice(0, 10);
 
-        // Fetch weekly leaderboard user data (with caching).
         const entries = await Promise.all(
           sorted.map(async ([userId, points], index) => {
             const user = await getUser(userId);
-            if (!user) {
-              return null;
-            }
-
-            return {
-              rank: index + 1,
-              user,
-              weeklyPoints: points,
-            };
+            if (!user) return null;
+            return { rank: index + 1, user, weeklyPoints: points };
           })
         );
-
-        // Find cumulative leader for this category.
-        const cumulativeUserPoints = cumulativeCategoryUserPoints.get(catKey);
-        const cumulativeWinner = cumulativeUserPoints
-          ? Array.from(cumulativeUserPoints.entries()).sort((a, b) => b[1] - a[1])[0]
-          : null;
-        const cumulativeLeader = cumulativeWinner
-          ? await (async () => {
-              const user = await getUser(cumulativeWinner[0]);
-              if (!user) {
-                return null;
-              }
-              return {
-                user,
-                cumulativePoints: cumulativeWinner[1],
-              };
-            })()
-          : null;
 
         const catDoc = categoryMap.get(catKey as Id<"categories">);
         const category = catDoc
@@ -777,10 +716,7 @@ export const getWeeklyCategoryLeaderboard = query({
 
         return {
           category,
-          entries: entries.filter(
-            (e): e is NonNullable<typeof e> => e !== null
-          ),
-          cumulativeLeader,
+          entries: entries.filter((e): e is NonNullable<typeof e> => e !== null),
         };
       })
     );

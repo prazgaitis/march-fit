@@ -274,8 +274,6 @@ describe('getWeeklyCategoryLeaderboard', () => {
     });
     expect(week1!.categories).toHaveLength(1);
     expect(week1!.categories[0].entries[0].weeklyPoints).toBe(100);
-    expect(week1!.categories[0].cumulativeLeader).toBeTruthy();
-    expect(week1!.categories[0].cumulativeLeader!.cumulativePoints).toBe(300);
 
     // Query week 2: should only see 200 pts
     const week2 = await t.query(api.queries.participations.getWeeklyCategoryLeaderboard, {
@@ -284,8 +282,6 @@ describe('getWeeklyCategoryLeaderboard', () => {
     });
     expect(week2!.categories).toHaveLength(1);
     expect(week2!.categories[0].entries[0].weeklyPoints).toBe(200);
-    expect(week2!.categories[0].cumulativeLeader).toBeTruthy();
-    expect(week2!.categories[0].cumulativeLeader!.cumulativePoints).toBe(300);
 
     // Query week 3: no activities
     const week3 = await t.query(api.queries.participations.getWeeklyCategoryLeaderboard, {
@@ -466,5 +462,78 @@ describe('getWeeklyCategoryLeaderboard', () => {
     expect(result!.categories).toHaveLength(1);
     expect(result!.categories[0].category.name).toBe('Cardio');
     expect(result!.categories[0].entries[0].weeklyPoints).toBe(50);
+  });
+
+  /**
+   * Regression: getWeeklyCategoryLeaderboard must NOT return cumulativeLeader.
+   *
+   * Previously the query did a second unbounded .collect() on ALL activities to
+   * compute a per-category cumulative leader. With a growing dataset this hit
+   * Convex's "Too many bytes read" limit. The cumulative leader has been removed
+   * from this query; it is available separately via getCumulativeCategoryLeaderboard.
+   *
+   * This test ensures the field is never re-introduced on this query.
+   */
+  it('regression: does not include cumulativeLeader in weekly results', async () => {
+    const { challengeId } = await setupChallenge();
+    const category = await createCategory('Cardio');
+    const actType = await createActivityType(challengeId, 'Running', category);
+    const alice = await createParticipant(challengeId, 'alice@test.com', 'Alice');
+
+    // Log activities in two different weeks so a cumulative leader would differ from weekly
+    await insertActivity(alice, challengeId, actType, Date.UTC(2024, 0, 2), 100); // week 1
+    await insertActivity(alice, challengeId, actType, Date.UTC(2024, 0, 10), 200); // week 2
+
+    const result = await t.query(api.queries.participations.getWeeklyCategoryLeaderboard, {
+      challengeId,
+      weekNumber: 1,
+    });
+
+    expect(result).not.toBeNull();
+    expect(result!.categories).toHaveLength(1);
+
+    const cat = result!.categories[0];
+    // Weekly points should reflect only week 1
+    expect(cat.entries[0].weeklyPoints).toBe(100);
+    // cumulativeLeader must not exist on the weekly result shape
+    expect('cumulativeLeader' in cat).toBe(false);
+  });
+
+  /**
+   * Regression: weekly query must not count activities from other weeks.
+   * Guards against a full-scan approach accidentally bleeding cross-week data.
+   */
+  it('regression: weekly points are isolated — other-week activities do not bleed in', async () => {
+    const { challengeId } = await setupChallenge();
+    const category = await createCategory('Cardio');
+    const actType = await createActivityType(challengeId, 'Running', category);
+    const alice = await createParticipant(challengeId, 'alice@test.com', 'Alice');
+    const bob = await createParticipant(challengeId, 'bob@test.com', 'Bob');
+
+    // Alice: big week-2 activity, small week-1 activity
+    await insertActivity(alice, challengeId, actType, Date.UTC(2024, 0, 2), 10);  // week 1
+    await insertActivity(alice, challengeId, actType, Date.UTC(2024, 0, 10), 999); // week 2
+
+    // Bob: small week-2 activity, bigger week-1 activity
+    await insertActivity(bob, challengeId, actType, Date.UTC(2024, 0, 3), 50);   // week 1
+    await insertActivity(bob, challengeId, actType, Date.UTC(2024, 0, 11), 5);   // week 2
+
+    // Week 1 winner should be Bob (50), not Alice (10 week-1, 999 cumulative)
+    const week1 = await t.query(api.queries.participations.getWeeklyCategoryLeaderboard, {
+      challengeId,
+      weekNumber: 1,
+    });
+    expect(week1!.categories[0].entries[0].user.name).toBe('Bob');
+    expect(week1!.categories[0].entries[0].weeklyPoints).toBe(50);
+    expect(week1!.categories[0].entries[1].user.name).toBe('Alice');
+    expect(week1!.categories[0].entries[1].weeklyPoints).toBe(10);
+
+    // Week 2 winner should be Alice (999), not Bob (5)
+    const week2 = await t.query(api.queries.participations.getWeeklyCategoryLeaderboard, {
+      challengeId,
+      weekNumber: 2,
+    });
+    expect(week2!.categories[0].entries[0].user.name).toBe('Alice');
+    expect(week2!.categories[0].entries[0].weeklyPoints).toBe(999);
   });
 });
