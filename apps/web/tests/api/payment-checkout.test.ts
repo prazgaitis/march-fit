@@ -362,6 +362,46 @@ describe("Payment checkout flow", () => {
       );
       expect(result.error).toBe("User not found");
     });
+
+    /**
+     * Regression: createCheckoutSession was throwing "User not found" when the
+     * Better Auth session existed but the Convex user record hadn't synced yet.
+     *
+     * The fix detects the "User not found" error, creates the user via
+     * api.mutations.users.createUser, then retries getCheckoutData.
+     *
+     * This test simulates that retry sequence: verify getCheckoutData fails
+     * before the user exists, then succeeds after createUser is called.
+     */
+    it("regression: succeeds after createUser is called for a missing Convex user", async () => {
+      const newEmail = "late-sync@example.com";
+      await createTestPaymentConfig(t, challengeId as string, {
+        stripeTestSecretKey: "encrypted_sk_test",
+      });
+
+      // Step 1: Before user exists — should return "User not found"
+      const beforeCreate = await t.query(
+        internal.queries.paymentConfigInternal.getCheckoutData,
+        { email: newEmail, challengeId }
+      );
+      expect(beforeCreate.error).toBe("User not found");
+
+      // Step 2: createUser (simulating the retry fix in createCheckoutSession)
+      await createTestUser(t, {
+        email: newEmail,
+        username: "late-sync",
+        name: "Late Sync User",
+      });
+
+      // Step 3: After user exists — getCheckoutData should succeed
+      const afterCreate = await t.query(
+        internal.queries.paymentConfigInternal.getCheckoutData,
+        { email: newEmail, challengeId }
+      );
+      expect(afterCreate.error).toBeNull();
+      expect(afterCreate.userId).toBeDefined();
+      expect(afterCreate.challengeName).toBeDefined();
+    });
   });
 
   // ── getVerifyData (internal query, no auth needed) ───────────
