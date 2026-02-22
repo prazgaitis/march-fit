@@ -4,6 +4,7 @@ import { calculateFinalActivityScore } from "../lib/scoring";
 import { notDeleted } from "../lib/activityFilters";
 import { reportLatencyIfExceeded } from "../lib/latencyMonitoring";
 import { applyParticipationScoreDeltaAndRecomputeStreak } from "../lib/participationScoring";
+import { patchActivity } from "../lib/activityWrites";
 
 /**
  * Re-score Strava activities with 0 points that have valid metrics.
@@ -79,7 +80,7 @@ export const rescoreZeroPointActivities = internalMutation({
         });
 
         if (!args.dryRun) {
-          await ctx.db.patch(activity._id, {
+          await patchActivity(ctx, activity._id, {
             pointsEarned: newPoints,
             triggeredBonuses:
               score.triggeredBonuses.length > 0

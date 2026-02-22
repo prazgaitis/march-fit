@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { api } from '@repo/backend';
 import { createTestContext, createTestUser, createTestChallenge } from '../helpers/convex';
 import type { Id } from '@repo/backend/_generated/dataModel';
+import { insertTestActivity } from "../helpers/activities";
 
 describe('getWeeklyCategoryLeaderboard', () => {
   let t: Awaited<ReturnType<typeof createTestContext>>;
@@ -93,7 +94,7 @@ describe('getWeeklyCategoryLeaderboard', () => {
     deletedAt?: number,
   ) => {
     return await t.run(async (ctx) => {
-      return await ctx.db.insert('activities', {
+      return await insertTestActivity(ctx, {
         userId,
         challengeId,
         activityTypeId,

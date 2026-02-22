@@ -40,7 +40,7 @@ async function logActivity(
   return tWithAuth.mutation(api.mutations.activities.log, {
     challengeId,
     activityTypeId,
-    loggedDate: new Date("2024-01-15").toISOString(),
+    loggedDate: "2024-01-15",
     metrics,
     source: "manual",
   });

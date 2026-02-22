@@ -2,6 +2,7 @@ import { query } from "../_generated/server";
 import { v } from "convex/values";
 import { notDeleted } from "../lib/activityFilters";
 import { getChallengePointsByUser } from "../lib/challengePoints";
+import { formatDateOnlyFromUtcMs } from "../lib/dateOnly";
 
 /**
  * List all mini-games for a challenge
@@ -237,7 +238,7 @@ export const getUserStatus = query({
           for (const activity of activities) {
             if (activity.loggedDate < game.startsAt || activity.loggedDate > game.endsAt)
               continue;
-            const dateStr = new Date(activity.loggedDate).toISOString().split("T")[0];
+            const dateStr = formatDateOnlyFromUtcMs(activity.loggedDate);
             dailyPoints[dateStr] = (dailyPoints[dateStr] || 0) + activity.pointsEarned;
           }
           const values = Object.values(dailyPoints);

@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as actions_addMarch2026Categories from "../actions/addMarch2026Categories.js";
 import type * as actions_cleanup from "../actions/cleanup.js";
 import type * as actions_clear from "../actions/clear.js";
 import type * as actions_createChallengeFromConfig from "../actions/createChallengeFromConfig.js";
@@ -16,6 +17,8 @@ import type * as actions_fixContributesToStreak from "../actions/fixContributesT
 import type * as actions_payments from "../actions/payments.js";
 import type * as actions_rescoreStravaActivities from "../actions/rescoreStravaActivities.js";
 import type * as actions_seed from "../actions/seed.js";
+import type * as actions_setMarch2026ActivityOrder from "../actions/setMarch2026ActivityOrder.js";
+import type * as actions_setMarch2026FinalDays from "../actions/setMarch2026FinalDays.js";
 import type * as actions_setup2026ActivityTypes from "../actions/setup2026ActivityTypes.js";
 import type * as actions_setup2026Challenges from "../actions/setup2026Challenges.js";
 import type * as actions_strava from "../actions/strava.js";
@@ -26,6 +29,8 @@ import type * as index from "../index.js";
 import type * as lib_achievementCriteria from "../lib/achievementCriteria.js";
 import type * as lib_achievements from "../lib/achievements.js";
 import type * as lib_activityFilters from "../lib/activityFilters.js";
+import type * as lib_activityPointsAggregate from "../lib/activityPointsAggregate.js";
+import type * as lib_activityWrites from "../lib/activityWrites.js";
 import type * as lib_apiKey from "../lib/apiKey.js";
 import type * as lib_challengePoints from "../lib/challengePoints.js";
 import type * as lib_dateOnly from "../lib/dateOnly.js";
@@ -109,6 +114,7 @@ import type {
  * ```
  */
 declare const fullApi: ApiFromModules<{
+  "actions/addMarch2026Categories": typeof actions_addMarch2026Categories;
   "actions/cleanup": typeof actions_cleanup;
   "actions/clear": typeof actions_clear;
   "actions/createChallengeFromConfig": typeof actions_createChallengeFromConfig;
@@ -117,6 +123,8 @@ declare const fullApi: ApiFromModules<{
   "actions/payments": typeof actions_payments;
   "actions/rescoreStravaActivities": typeof actions_rescoreStravaActivities;
   "actions/seed": typeof actions_seed;
+  "actions/setMarch2026ActivityOrder": typeof actions_setMarch2026ActivityOrder;
+  "actions/setMarch2026FinalDays": typeof actions_setMarch2026FinalDays;
   "actions/setup2026ActivityTypes": typeof actions_setup2026ActivityTypes;
   "actions/setup2026Challenges": typeof actions_setup2026Challenges;
   "actions/strava": typeof actions_strava;
@@ -127,6 +135,8 @@ declare const fullApi: ApiFromModules<{
   "lib/achievementCriteria": typeof lib_achievementCriteria;
   "lib/achievements": typeof lib_achievements;
   "lib/activityFilters": typeof lib_activityFilters;
+  "lib/activityPointsAggregate": typeof lib_activityPointsAggregate;
+  "lib/activityWrites": typeof lib_activityWrites;
   "lib/apiKey": typeof lib_apiKey;
   "lib/challengePoints": typeof lib_challengePoints;
   "lib/dateOnly": typeof lib_dateOnly;
@@ -2420,6 +2430,192 @@ export declare const components: {
           processed: number;
           state: "inProgress" | "success" | "failed" | "canceled" | "unknown";
         }
+      >;
+    };
+  };
+  activityPointsAggregate: {
+    btree: {
+      aggregateBetween: FunctionReference<
+        "query",
+        "internal",
+        { k1?: any; k2?: any; namespace?: any },
+        { count: number; sum: number }
+      >;
+      aggregateBetweenBatch: FunctionReference<
+        "query",
+        "internal",
+        { queries: Array<{ k1?: any; k2?: any; namespace?: any }> },
+        Array<{ count: number; sum: number }>
+      >;
+      atNegativeOffset: FunctionReference<
+        "query",
+        "internal",
+        { k1?: any; k2?: any; namespace?: any; offset: number },
+        { k: any; s: number; v: any }
+      >;
+      atOffset: FunctionReference<
+        "query",
+        "internal",
+        { k1?: any; k2?: any; namespace?: any; offset: number },
+        { k: any; s: number; v: any }
+      >;
+      atOffsetBatch: FunctionReference<
+        "query",
+        "internal",
+        {
+          queries: Array<{
+            k1?: any;
+            k2?: any;
+            namespace?: any;
+            offset: number;
+          }>;
+        },
+        Array<{ k: any; s: number; v: any }>
+      >;
+      get: FunctionReference<
+        "query",
+        "internal",
+        { key: any; namespace?: any },
+        null | { k: any; s: number; v: any }
+      >;
+      offset: FunctionReference<
+        "query",
+        "internal",
+        { k1?: any; key: any; namespace?: any },
+        number
+      >;
+      offsetUntil: FunctionReference<
+        "query",
+        "internal",
+        { k2?: any; key: any; namespace?: any },
+        number
+      >;
+      paginate: FunctionReference<
+        "query",
+        "internal",
+        {
+          cursor?: string;
+          k1?: any;
+          k2?: any;
+          limit: number;
+          namespace?: any;
+          order: "asc" | "desc";
+        },
+        {
+          cursor: string;
+          isDone: boolean;
+          page: Array<{ k: any; s: number; v: any }>;
+        }
+      >;
+      paginateNamespaces: FunctionReference<
+        "query",
+        "internal",
+        { cursor?: string; limit: number },
+        { cursor: string; isDone: boolean; page: Array<any> }
+      >;
+      validate: FunctionReference<
+        "query",
+        "internal",
+        { namespace?: any },
+        any
+      >;
+    };
+    inspect: {
+      display: FunctionReference<"query", "internal", { namespace?: any }, any>;
+      dump: FunctionReference<"query", "internal", { namespace?: any }, string>;
+      inspectNode: FunctionReference<
+        "query",
+        "internal",
+        { namespace?: any; node?: string },
+        null
+      >;
+      listTreeNodes: FunctionReference<
+        "query",
+        "internal",
+        { take?: number },
+        Array<{
+          _creationTime: number;
+          _id: string;
+          aggregate?: { count: number; sum: number };
+          items: Array<{ k: any; s: number; v: any }>;
+          subtrees: Array<string>;
+        }>
+      >;
+      listTrees: FunctionReference<
+        "query",
+        "internal",
+        { take?: number },
+        Array<{
+          _creationTime: number;
+          _id: string;
+          maxNodeSize: number;
+          namespace?: any;
+          root: string;
+        }>
+      >;
+    };
+    public: {
+      clear: FunctionReference<
+        "mutation",
+        "internal",
+        { maxNodeSize?: number; namespace?: any; rootLazy?: boolean },
+        null
+      >;
+      deleteIfExists: FunctionReference<
+        "mutation",
+        "internal",
+        { key: any; namespace?: any },
+        any
+      >;
+      delete_: FunctionReference<
+        "mutation",
+        "internal",
+        { key: any; namespace?: any },
+        null
+      >;
+      init: FunctionReference<
+        "mutation",
+        "internal",
+        { maxNodeSize?: number; namespace?: any; rootLazy?: boolean },
+        null
+      >;
+      insert: FunctionReference<
+        "mutation",
+        "internal",
+        { key: any; namespace?: any; summand?: number; value: any },
+        null
+      >;
+      makeRootLazy: FunctionReference<
+        "mutation",
+        "internal",
+        { namespace?: any },
+        null
+      >;
+      replace: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          currentKey: any;
+          namespace?: any;
+          newKey: any;
+          newNamespace?: any;
+          summand?: number;
+          value: any;
+        },
+        null
+      >;
+      replaceOrInsert: FunctionReference<
+        "mutation",
+        "internal",
+        {
+          currentKey: any;
+          namespace?: any;
+          newKey: any;
+          newNamespace?: any;
+          summand?: number;
+          value: any;
+        },
+        any
       >;
     };
   };

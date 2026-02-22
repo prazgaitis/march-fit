@@ -1,6 +1,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { api } from '@repo/backend';
+import { dateOnlyToUtcMs } from '@/lib/date-only';
 import { createTestContext, createTestUser, createTestChallenge } from '../helpers/convex';
+import { insertTestActivity } from "../helpers/activities";
 import type { Id } from '@repo/backend/_generated/dataModel';
 
 describe('Challenges Logic', () => {
@@ -95,11 +97,11 @@ describe('Challenges Logic', () => {
           updatedAt: Date.now(),
         });
 
-        await ctx.db.insert("activities", {
+        await insertTestActivity(ctx, {
           userId: userId as Id<'users'>,
           challengeId: challengeId as Id<'challenges'>,
           activityTypeId,
-          loggedDate: Date.parse('2024-01-12T09:00:00Z'),
+          loggedDate: dateOnlyToUtcMs('2024-01-12'),
           metrics: { count: 1 },
           pointsEarned: -12,
           source: 'manual',
@@ -431,11 +433,11 @@ describe('Challenges Logic', () => {
           updatedAt: Date.now(),
         });
 
-        await ctx.db.insert('activities', {
+        await insertTestActivity(ctx, {
           userId: userId as Id<'users'>,
           challengeId: challengeId as Id<'challenges'>,
           activityTypeId: penaltyTypeId as Id<'activityTypes'>,
-          loggedDate: Date.parse('2024-01-15T10:00:00Z'),
+          loggedDate: dateOnlyToUtcMs('2024-01-15'),
           metrics: { count: 1 },
           source: 'manual',
           pointsEarned: -10,
@@ -445,11 +447,11 @@ describe('Challenges Logic', () => {
           createdAt: Date.now(),
           updatedAt: Date.now(),
         });
-        await ctx.db.insert('activities', {
+        await insertTestActivity(ctx, {
           userId: otherId as Id<'users'>,
           challengeId: challengeId as Id<'challenges'>,
           activityTypeId: runTypeId as Id<'activityTypes'>,
-          loggedDate: Date.parse('2024-01-15T11:00:00Z'),
+          loggedDate: dateOnlyToUtcMs('2024-01-15'),
           metrics: { minutes: 5 },
           source: 'manual',
           pointsEarned: 5,

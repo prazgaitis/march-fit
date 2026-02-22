@@ -3,12 +3,18 @@ import { ConvexError, v } from "convex/values";
 import { calculateFinalActivityScore } from "../lib/scoring";
 import { getCurrentUser } from "../lib/ids";
 import { isPaymentRequired } from "../lib/payments";
-import { dateOnlyToUtcMs, coerceDateOnlyToString, formatDateOnlyFromUtcMs } from "../lib/dateOnly";
-import { getChallengeWeekNumber, isInFinalDays } from "../lib/weeks";
+import {
+  dateOnlyToUtcMs,
+  coerceDateOnlyToString,
+  formatDateOnlyFromUtcMs,
+  normalizeDateOnlyInput,
+} from "../lib/dateOnly";
+import { getChallengeWeekNumber } from "../lib/weeks";
 import { notDeleted } from "../lib/activityFilters";
 import { computeCriteriaProgress } from "../lib/achievements";
 import { reportLatencyIfExceeded } from "../lib/latencyMonitoring";
 import { applyParticipationScoreDeltaAndRecomputeStreak } from "../lib/participationScoring";
+import { insertActivity, patchActivity } from "../lib/activityWrites";
 
 // Internal mutation for seeding
 export const create = internalMutation({
@@ -33,7 +39,7 @@ export const create = internalMutation({
     updatedAt: v.number(),
   },
   handler: async (ctx, args) => {
-    return await ctx.db.insert("activities", {
+    return await insertActivity(ctx, {
       ...args,
       adminCommentVisibility: "internal",
       resolutionStatus: "pending",
@@ -45,7 +51,7 @@ export const log = mutation({
   args: {
     challengeId: v.id("challenges"),
     activityTypeId: v.id("activityTypes"),
-    loggedDate: v.string(), // ISO string
+    loggedDate: v.string(), // date-only "YYYY-MM-DD" (or ISO timestamp with local date)
     metrics: v.optional(v.any()),
     notes: v.optional(v.string()),
     imageUrl: v.optional(v.string()),
@@ -101,7 +107,7 @@ export const log = mutation({
     }
 
     // Parse logged date for validation
-    const loggedDateTs = Date.parse(args.loggedDate);
+    const loggedDateTs = dateOnlyToUtcMs(normalizeDateOnlyInput(args.loggedDate));
 
     // Prevent logging activities before the challenge start date (date-only comparison)
     const challengeStartStr = coerceDateOnlyToString(challenge.startDate);
@@ -115,9 +121,7 @@ export const log = mutation({
     // Enforce validWeeks restriction
     if (activityType.validWeeks && activityType.validWeeks.length > 0) {
       const weekNumber = getChallengeWeekNumber(challenge.startDate, loggedDateTs);
-      const inValidWeek = activityType.validWeeks.includes(weekNumber);
-      const inFinalDays = activityType.availableInFinalDays && isInFinalDays(challenge, loggedDateTs);
-      if (!inValidWeek && !inFinalDays) {
+      if (!activityType.validWeeks.includes(weekNumber)) {
         const weekLabel = activityType.validWeeks.length === 1
           ? `week ${activityType.validWeeks[0]}`
           : `weeks ${activityType.validWeeks.join(", ")}`;
@@ -200,7 +204,7 @@ export const log = mutation({
     const triggeredBonuses = score.triggeredBonuses;
 
     // Create activity
-    const activityId = await ctx.db.insert("activities", {
+    const activityId = await insertActivity(ctx, {
       userId: user._id,
       challengeId: args.challengeId,
       activityTypeId: args.activityTypeId,
@@ -319,7 +323,7 @@ async function checkAndAwardAchievements(
       challengeId
     );
 
-    const bonusActivityId = await ctx.db.insert("activities", {
+    const bonusActivityId = await insertActivity(ctx, {
       userId,
       challengeId,
       activityTypeId: bonusActivityType._id,
@@ -470,7 +474,7 @@ export const flagActivity = mutation({
 
     // Update the activity if not already flagged
     if (!activity.flagged) {
-      await ctx.db.patch(args.activityId, {
+      await patchActivity(ctx, args.activityId, {
         flagged: true,
         flaggedAt: now,
         flaggedReason: args.reason,
@@ -550,7 +554,7 @@ export const editActivity = mutation({
 
     // Determine new loggedDate
     const newLoggedDateTs = args.loggedDate
-      ? dateOnlyToUtcMs(args.loggedDate)
+      ? dateOnlyToUtcMs(normalizeDateOnlyInput(args.loggedDate))
       : activity.loggedDate;
 
     // Determine new metrics
@@ -606,7 +610,7 @@ export const editActivity = mutation({
 
     // Patch the activity
     const now = Date.now();
-    await ctx.db.patch(args.activityId, {
+    await patchActivity(ctx, args.activityId, {
       activityTypeId: newActivityTypeId,
       metrics: newMetrics,
       notes: args.notes !== undefined ? args.notes : activity.notes,
@@ -678,7 +682,7 @@ export const remove = mutation({
     }
 
     const now = Date.now();
-    await ctx.db.patch(args.activityId, {
+    await patchActivity(ctx, args.activityId, {
       deletedAt: now,
       deletedById: actor?._id,
       deletedReason: "manual",

@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { api } from '@repo/backend';
 import { createTestContext, createTestUser, createTestChallenge } from '../helpers/convex';
+import { insertTestActivity } from "../helpers/activities";
 
 // Fixed base timestamp within the test challenge window (Jan 10 2024)
 const TEST_NOW = new Date('2024-01-10T00:00:00Z').getTime();
@@ -69,7 +70,7 @@ describe('Mini-Games Scoring', () => {
     loggedDate: number
   ) => {
     return await t.run(async (ctx) => {
-      const activityId = await ctx.db.insert("activities", {
+      const activityId = await insertTestActivity(ctx, {
         userId,
         challengeId,
         activityTypeId,
@@ -780,7 +781,7 @@ describe('Mini-Games Scoring', () => {
       await tWithAuth.mutation(api.mutations.miniGames.start, { miniGameId });
 
       await t.run(async (ctx) => {
-        await ctx.db.insert("activities", {
+        await insertTestActivity(ctx, {
           userId: user1,
           challengeId,
           activityTypeId,
@@ -794,7 +795,7 @@ describe('Mini-Games Scoring', () => {
           createdAt: Date.now(),
           updatedAt: Date.now(),
         });
-        await ctx.db.insert("activities", {
+        await insertTestActivity(ctx, {
           userId: user2,
           challengeId,
           activityTypeId,

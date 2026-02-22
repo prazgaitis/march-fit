@@ -262,6 +262,9 @@ importers:
 
   packages/backend:
     dependencies:
+      '@convex-dev/aggregate':
+        specifier: ^0.2.1
+        version: 0.2.1(convex@1.28.0(@clerk/clerk-react@5.45.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react@19.2.4))
       '@convex-dev/better-auth':
         specifier: ^0.10.6
         version: 0.10.6(@better-auth/core@1.4.7(@better-auth/utils@0.3.0)(@better-fetch/fetch@1.1.21)(better-call@1.1.5(zod@4.2.1))(jose@6.1.3)(kysely@0.28.9)(nanostores@1.1.0))(@better-auth/utils@0.3.0)(@standard-schema/spec@1.1.0)(better-auth@1.4.7(next@16.1.6(@opentelemetry/api@1.9.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.11))(better-call@1.1.5(zod@4.2.1))(convex@1.28.0(@clerk/clerk-react@5.45.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react@19.2.4))(hono@4.11.9)(nanostores@1.1.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(typescript@5.9.2)
@@ -471,6 +474,11 @@ packages:
   '@clerk/types@4.83.0':
     resolution: {integrity: sha512-WEILYgTGkwdB7OUoxHPrdHe/UAUPYvwutJxrwPyHfTejBmRD0RcKmB8VwTqwOxlfQgcKVDfLQ9jLW8m7NeJHIA==}
     engines: {node: '>=18.17.0'}
+
+  '@convex-dev/aggregate@0.2.1':
+    resolution: {integrity: sha512-z8GeUC+cIZEgtMXecX6WTBQHNW4E2ioRsc5IkO8BWnCjgDOru/Mw8zXe9JPe35JkqDjlSVKuwxiQHKs/jaYAyA==}
+    peerDependencies:
+      convex: ^1.24.8
 
   '@convex-dev/better-auth@0.10.6':
     resolution: {integrity: sha512-EFP+T+MamR2J5fvtbjewnb/n0Jz/Vg9J4SreFDKi1gl5AdtAXFd9cjksgpSzBJaynjvV8JpY0RhU26IghhFI/Q==}
@@ -7512,7 +7520,7 @@ snapshots:
       '@better-auth/utils': 0.3.0
       '@better-fetch/fetch': 1.1.21
       '@standard-schema/spec': 1.1.0
-      better-call: 1.1.5(zod@4.1.5)
+      better-call: 1.1.5(zod@4.2.1)
       jose: 6.1.3
       kysely: 0.28.9
       nanostores: 1.1.0
@@ -7598,6 +7606,10 @@ snapshots:
     dependencies:
       csstype: 3.1.3
     optional: true
+
+  '@convex-dev/aggregate@0.2.1(convex@1.28.0(@clerk/clerk-react@5.45.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react@19.2.4))':
+    dependencies:
+      convex: 1.28.0(@clerk/clerk-react@5.45.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react@19.2.4)
 
   '@convex-dev/better-auth@0.10.6(@better-auth/core@1.4.7(@better-auth/utils@0.3.0)(@better-fetch/fetch@1.1.21)(better-call@1.1.5(zod@4.2.1))(jose@6.1.3)(kysely@0.28.9)(nanostores@1.1.0))(@better-auth/utils@0.3.0)(@standard-schema/spec@1.1.0)(better-auth@1.4.7(next@16.1.6(@babel/core@7.28.4)(@opentelemetry/api@1.9.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(solid-js@1.9.11)(vitest@1.6.1))(better-call@1.1.5(zod@4.1.5))(convex@1.28.0(@clerk/clerk-react@5.45.0(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react@19.2.4))(hono@4.11.9)(nanostores@1.1.0)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(typescript@5.9.2)':
     dependencies:

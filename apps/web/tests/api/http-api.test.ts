@@ -6,6 +6,7 @@ import {
   createTestChallenge,
 } from "../helpers/convex";
 import { generateApiKey, hashApiKey } from "../../../../packages/backend/lib/apiKey";
+import { insertTestActivity } from "../helpers/activities";
 
 describe("API Key Module", () => {
   describe("generateApiKey", () => {
@@ -407,7 +408,7 @@ describe("API Internal Mutations", () => {
 
       // Create activity
       const activityId = await t.run(async (ctx) => {
-        return ctx.db.insert("activities", {
+        return insertTestActivity(ctx, {
           userId,
           challengeId,
           activityTypeId,
@@ -464,7 +465,7 @@ describe("API Internal Mutations", () => {
           createdAt: Date.now(),
           updatedAt: Date.now(),
         });
-        return ctx.db.insert("activities", {
+        return insertTestActivity(ctx, {
           userId: user1,
           challengeId,
           activityTypeId: atId,
@@ -520,7 +521,7 @@ describe("API Internal Mutations", () => {
       });
 
       const activityId = await t.run(async (ctx) =>
-        ctx.db.insert("activities", {
+        insertTestActivity(ctx, {
           userId,
           challengeId,
           activityTypeId,

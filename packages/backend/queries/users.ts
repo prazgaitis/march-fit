@@ -1,7 +1,7 @@
 import { query } from "../_generated/server";
 import { v } from "convex/values";
 import { paginationOptsValidator } from "convex/server";
-import { coerceDateOnlyToString } from "../lib/dateOnly";
+import { coerceDateOnlyToString, formatDateOnlyFromUtcMs } from "../lib/dateOnly";
 import { internalQuery } from "../_generated/server";
 import { notDeleted } from "../lib/activityFilters";
 import { getChallengePointsByUser, getPointsForUser } from "../lib/challengePoints";
@@ -171,7 +171,7 @@ export const getProfile = query({
     // Compute PR day (the day with the highest total points).
     const totalsByDay = new Map<string, number>();
     for (const activity of challengeActivities) {
-      const dayKey = new Date(activity.loggedDate).toISOString().slice(0, 10);
+      const dayKey = formatDateOnlyFromUtcMs(activity.loggedDate);
       totalsByDay.set(dayKey, (totalsByDay.get(dayKey) ?? 0) + activity.pointsEarned);
     }
 
@@ -190,8 +190,7 @@ export const getProfile = query({
     const prDayActivities = prDayKey
       ? challengeActivities
           .filter(
-            (activity) =>
-              new Date(activity.loggedDate).toISOString().slice(0, 10) === prDayKey
+            (activity) => formatDateOnlyFromUtcMs(activity.loggedDate) === prDayKey
           )
           .sort((a, b) => b.createdAt - a.createdAt)
           .map((activity) => ({
