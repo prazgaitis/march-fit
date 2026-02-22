@@ -122,16 +122,16 @@ export function ForumPostDetail({ postId, challengeId }: ForumPostDetailProps) {
 
           {/* Content */}
           <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
+            <div className="flex items-start gap-2">
               {data.post.isPinned && (
-                <Pin className="h-4 w-4 flex-shrink-0 text-amber-400" />
+                <Pin className="mt-1 h-4 w-4 flex-shrink-0 text-amber-400" />
               )}
-              <h1 className="text-xl font-bold text-white">
+              <h1 className="break-words text-xl font-bold text-white">
                 {data.post.title}
               </h1>
             </div>
 
-            <div className="mt-2 flex items-center gap-3 text-xs text-zinc-500">
+            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-500">
               <UserAvatar
                 user={data.user}
                 challengeId={challengeId}
@@ -213,7 +213,7 @@ export function ForumPostDetail({ postId, challengeId }: ForumPostDetailProps) {
 
                 {/* Content */}
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-3 text-xs text-zinc-500">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-500">
                     {reply.user && (
                       <UserAvatar
                         user={reply.user}

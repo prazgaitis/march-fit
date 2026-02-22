@@ -141,7 +141,7 @@ function ForumPostCard({ item, challengeId }: ForumPostCardProps) {
           {getPlainTextFromValue(item.post.content)}
         </p>
 
-        <div className="mt-2 flex items-center gap-3 text-xs text-zinc-500">
+        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-500">
           {item.user && (
             <UserAvatar
               user={item.user}
