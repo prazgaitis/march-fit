@@ -1,11 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
 import { BarChart3, Loader2 } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 
@@ -18,7 +21,7 @@ interface Category {
 }
 
 interface AdminCategoriesTableProps {
-  categories: Category[];
+  initialCategories: Category[];
 }
 
 function CategoryRow({ category }: { category: Category }) {
@@ -80,7 +83,18 @@ function CategoryRow({ category }: { category: Category }) {
   );
 }
 
-export function AdminCategoriesTable({ categories }: AdminCategoriesTableProps) {
+export function AdminCategoriesTable({ initialCategories }: AdminCategoriesTableProps) {
+  const categories = useQuery(api.queries.categories.getAll, {}) ?? initialCategories;
+  const createCategory = useMutation(api.mutations.categories.createCategory);
+  const [createName, setCreateName] = useState("");
+  const [createDescription, setCreateDescription] = useState("");
+  const [createSortOrder, setCreateSortOrder] = useState("");
+  const [createShowInLeaderboard, setCreateShowInLeaderboard] = useState(false);
+  const [createPending, setCreatePending] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  const clearStatus = () => setTimeout(() => setStatusMessage(null), 3000);
+
   const sorted = [...categories].sort((a, b) => {
     const aOrder = a.sortOrder ?? 9999;
     const bOrder = b.sortOrder ?? 9999;
@@ -95,6 +109,32 @@ export function AdminCategoriesTable({ categories }: AdminCategoriesTableProps) 
     (c) => c.showInCategoryLeaderboard !== true
   );
 
+  const handleCreate = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!createName.trim()) return;
+    setCreatePending(true);
+    try {
+      const parsedSortOrder = Number(createSortOrder);
+      await createCategory({
+        name: createName.trim(),
+        description: createDescription.trim() || undefined,
+        sortOrder:
+          createSortOrder !== "" && Number.isFinite(parsedSortOrder) ? parsedSortOrder : undefined,
+        showInCategoryLeaderboard: createShowInLeaderboard,
+      });
+      setCreateName("");
+      setCreateDescription("");
+      setCreateSortOrder("");
+      setCreateShowInLeaderboard(false);
+      setStatusMessage({ type: "success", text: "Category created" });
+      clearStatus();
+    } catch {
+      setStatusMessage({ type: "error", text: "Failed to create category" });
+    } finally {
+      setCreatePending(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
       <p className="text-xs text-zinc-500">
@@ -102,6 +142,65 @@ export function AdminCategoriesTable({ categories }: AdminCategoriesTableProps) 
         <span className="font-medium text-zinc-300">Category Leader</span>{" "}
         leaderboard. Changes take effect immediately.
       </p>
+
+      <form
+        onSubmit={handleCreate}
+        className="space-y-4 rounded-lg border border-zinc-800 bg-zinc-900/40 p-4"
+      >
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="min-w-[200px] flex-1">
+            <label className="text-xs font-medium text-zinc-400">Name</label>
+            <Input
+              value={createName}
+              onChange={(event) => setCreateName(event.target.value)}
+              placeholder="e.g. Women / Men / Open"
+              disabled={createPending}
+            />
+          </div>
+          <div className="w-32">
+            <label className="text-xs font-medium text-zinc-400">Sort</label>
+            <Input
+              value={createSortOrder}
+              onChange={(event) => setCreateSortOrder(event.target.value)}
+              placeholder="10"
+              inputMode="numeric"
+              disabled={createPending}
+            />
+          </div>
+          <div className="flex items-center gap-2 pt-5">
+            <Switch
+              checked={createShowInLeaderboard}
+              onCheckedChange={setCreateShowInLeaderboard}
+              disabled={createPending}
+            />
+            <span className="text-xs text-zinc-400">Show on leaderboard</span>
+          </div>
+        </div>
+        <div>
+          <label className="text-xs font-medium text-zinc-400">Description</label>
+          <Textarea
+            value={createDescription}
+            onChange={(event) => setCreateDescription(event.target.value)}
+            placeholder="Optional description"
+            disabled={createPending}
+          />
+        </div>
+        <div className="flex items-center gap-3">
+          <Button type="submit" disabled={createPending || !createName.trim()}>
+            {createPending ? "Creating..." : "Create category"}
+          </Button>
+          {statusMessage && (
+            <span
+              className={cn(
+                "text-xs font-medium",
+                statusMessage.type === "success" ? "text-emerald-400" : "text-rose-400"
+              )}
+            >
+              {statusMessage.text}
+            </span>
+          )}
+        </div>
+      </form>
 
       {/* On leaderboard */}
       {leaderboardCategories.length > 0 && (
