@@ -153,4 +153,25 @@ describe('Activity Type Category Assignment', () => {
     expect(challengeCategories).toHaveLength(1);
     expect(challengeCategories[0]._id).toBe(categoryId);
   });
+
+  it('categories.createCategory creates a category via public mutation', async () => {
+    const { userId } = await setup();
+    const tWithAuth = t.withIdentity({ subject: "admin-user", email: "admin@example.com" });
+
+    const categoryId = await tWithAuth.mutation(api.mutations.categories.createCategory, {
+      name: "Wellness",
+      description: "Mind + body",
+      sortOrder: 3,
+      showInCategoryLeaderboard: true,
+    });
+
+    const stored = await t.run(async (ctx) => ctx.db.get(categoryId));
+    expect(stored).not.toBeNull();
+    expect(stored!.name).toBe("Wellness");
+    expect(stored!.description).toBe("Mind + body");
+    expect(stored!.sortOrder).toBe(3);
+    expect(stored!.showInCategoryLeaderboard).toBe(true);
+    expect(stored!.createdAt).toBeTypeOf("number");
+    expect(stored!.updatedAt).toBeTypeOf("number");
+  });
 });
