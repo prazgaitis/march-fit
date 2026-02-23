@@ -1,6 +1,7 @@
 import { createClient } from "@convex-dev/better-auth";
 import { betterAuth } from "better-auth";
 import { convex } from "@convex-dev/better-auth/plugins";
+import { lastLoginMethod } from "better-auth/plugins";
 import { components } from "./_generated/api";
 import type { DataModel } from "./_generated/dataModel";
 import type { GenericCtx } from "@convex-dev/better-auth";
@@ -106,8 +107,12 @@ export const createAuth = (ctx: GenericCtx<DataModel>) => {
       sendResetPassword: async ({ user, url }) => {
         const apiKey = process.env.RESEND_API_KEY;
         if (!apiKey) {
-          console.error(
-            "[auth] RESEND_API_KEY not set, cannot send password reset email",
+          console.log(
+            "\n========================================\n" +
+              "[auth] Password reset link (RESEND_API_KEY not set)\n" +
+              `  User:  ${user.email}\n` +
+              `  URL:   ${url}\n` +
+              "========================================\n",
           );
           return;
         }
@@ -173,6 +178,7 @@ export const createAuth = (ctx: GenericCtx<DataModel>) => {
       convex({
         authConfig,
       }),
+      lastLoginMethod(),
     ],
   });
 };

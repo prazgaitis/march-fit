@@ -6,7 +6,8 @@ import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@repo/backend";
 import type { Id, Doc } from "@repo/backend/_generated/dataModel";
-import { Loader2, User, List, Check } from "lucide-react";
+import { Loader2, User, List, Check, Shield } from "lucide-react";
+import { betterAuthClient } from "@/lib/better-auth/client";
 
 import { UserAvatar } from "@/components/user-avatar";
 import { Button } from "@/components/ui/button";
@@ -203,6 +204,10 @@ export function SettingsContent({
         </CardContent>
       </Card>
 
+      {/* Account Security */}
+      <AccountSecurityCard email={currentUser.email} />
+
+
       {/* Challenge Switcher */}
       <Card>
         <CardHeader>
@@ -261,5 +266,181 @@ export function SettingsContent({
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function AccountSecurityCard({ email }: { email: string }) {
+  const [isSending, setIsSending] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Change password state
+  const [showChangePassword, setShowChangePassword] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [changeError, setChangeError] = useState<string | null>(null);
+  const [changeSuccess, setChangeSuccess] = useState(false);
+  const [isChanging, setIsChanging] = useState(false);
+
+  async function handleSendResetLink() {
+    setIsSending(true);
+    setError(null);
+    try {
+      const result = await betterAuthClient.requestPasswordReset({
+        email,
+        redirectTo: "/reset-password",
+      });
+      if (result.error) {
+        setError("Failed to send reset link. Please try again.");
+        return;
+      }
+      setSent(true);
+    } catch {
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setIsSending(false);
+    }
+  }
+
+  async function handleChangePassword() {
+    if (newPassword.length < 8) {
+      setChangeError("New password must be at least 8 characters.");
+      return;
+    }
+    setIsChanging(true);
+    setChangeError(null);
+    try {
+      const result = await betterAuthClient.changePassword({
+        currentPassword,
+        newPassword,
+        revokeOtherSessions: false,
+      });
+      if (result.error) {
+        const msg = result.error.message?.toLowerCase() ?? "";
+        if (msg.includes("invalid") || msg.includes("incorrect"))
+          setChangeError("Current password is incorrect.");
+        else setChangeError("Failed to change password. Please try again.");
+        return;
+      }
+      setChangeSuccess(true);
+      setCurrentPassword("");
+      setNewPassword("");
+      setShowChangePassword(false);
+    } catch {
+      setChangeError("Something went wrong. Please try again.");
+    } finally {
+      setIsChanging(false);
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Shield className="h-5 w-5" />
+          Account Security
+        </CardTitle>
+        <CardDescription>Manage your password and login methods</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {sent ? (
+          <p className="text-sm text-green-600">
+            Password reset link sent to {email}. Check your inbox.
+          </p>
+        ) : (
+          <>
+            <p className="text-sm text-muted-foreground">
+              Set or reset your password to enable email + password login.
+            </p>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button
+                variant="outline"
+                onClick={handleSendResetLink}
+                disabled={isSending}
+                className="w-full sm:w-auto"
+              >
+                {isSending ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Sending...
+                  </>
+                ) : (
+                  "Send Password Reset Link"
+                )}
+              </Button>
+              {!showChangePassword && (
+                <Button
+                  variant="ghost"
+                  onClick={() => setShowChangePassword(true)}
+                  className="w-full sm:w-auto"
+                >
+                  Change Password
+                </Button>
+              )}
+            </div>
+            {error && <p className="text-sm text-red-600">{error}</p>}
+          </>
+        )}
+
+        {showChangePassword && (
+          <div className="space-y-3 rounded-lg border p-4">
+            <div className="space-y-2">
+              <Label htmlFor="currentPassword">Current Password</Label>
+              <Input
+                id="currentPassword"
+                type="password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="newPassword">New Password</Label>
+              <Input
+                id="newPassword"
+                type="password"
+                minLength={8}
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Must be at least 8 characters
+              </p>
+            </div>
+            {changeError && (
+              <p className="text-sm text-red-600">{changeError}</p>
+            )}
+            <div className="flex gap-2">
+              <Button
+                onClick={handleChangePassword}
+                disabled={isChanging || !currentPassword || !newPassword}
+                className="w-full sm:w-auto"
+              >
+                {isChanging ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Changing...
+                  </>
+                ) : (
+                  "Update Password"
+                )}
+              </Button>
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setShowChangePassword(false);
+                  setChangeError(null);
+                }}
+              >
+                Cancel
+              </Button>
+            </div>
+          </div>
+        )}
+
+        {changeSuccess && (
+          <p className="text-sm text-green-600">Password changed successfully!</p>
+        )}
+      </CardContent>
+    </Card>
   );
 }

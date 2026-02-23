@@ -2,6 +2,7 @@
 
 import { createAuthClient } from "better-auth/react";
 import { convexClient } from "@convex-dev/better-auth/client/plugins";
+import { lastLoginMethodClient } from "better-auth/client/plugins";
 
 function resolveBaseUrl() {
   // Use the Next.js API route as proxy to avoid cross-origin issues
@@ -23,7 +24,7 @@ export const betterAuthClient = createAuthClient({
   fetchOptions: {
     credentials: "include",
   },
-  plugins: [convexClient()],
+  plugins: [convexClient(), lastLoginMethodClient()],
   sessionOptions: {
     // Disable automatic refetch on tab focus — on mobile, switching apps or
     // pulling down the notification shade triggers visibilitychange, causing
