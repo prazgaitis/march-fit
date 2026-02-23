@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Suspense } from "react";
 import Script from "next/script";
+import { cookies } from "next/headers";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ConvexProviderWrapper } from "@/components/providers/convex-provider";
 import { HeaderContent, HeaderSkeleton } from "@/components/layout/header-content";
@@ -42,10 +43,15 @@ export default async function RootLayout({
     process.env.NEXT_PUBLIC_ENABLE_REACT_GRAB === "1";
   const canUseAuth = Boolean(process.env.NEXT_PUBLIC_CONVEX_URL);
 
-  // getToken() is fast (cookie read). During static prerender (e.g. /_not-found)
-  // auth env vars may be unavailable, so fail open to avoid build-time crashes.
+  // Only fetch the token if a session cookie exists. getToken() makes a network
+  // call to Convex (/api/auth/convex/token) — when there's no session cookie it
+  // always 401s and spams Convex logs with Better Auth ERROR entries.
+  const cookieStore = await cookies();
+  const hasSession = cookieStore.has("better-auth.session_token")
+    || cookieStore.has("__Secure-better-auth.session_token");
+
   let token: string | null = null;
-  if (canUseAuth) {
+  if (canUseAuth && hasSession) {
     try {
       token = (await getToken()) ?? null;
     } catch (error) {

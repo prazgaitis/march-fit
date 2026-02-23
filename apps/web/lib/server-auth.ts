@@ -56,23 +56,62 @@ export function getHandler() {
   return getBetterAuthUtils().handler;
 }
 
+/**
+ * Proxy an auth request to the Convex site URL.
+ *
+ * The library's built-in proxy (`new Request(url, request)`) can fail on
+ * Vercel when the incoming body stream has already been partially consumed
+ * by the platform. We eagerly read the body into an ArrayBuffer so the
+ * clone is always safe.
+ */
+async function proxyAuthRequest(req: Request): Promise<Response> {
+  const siteUrl = resolveConvexSiteUrl(process.env.NEXT_PUBLIC_CONVEX_URL!);
+  const incoming = new URL(req.url);
+  const target = `${siteUrl}${incoming.pathname}${incoming.search}`;
+
+  const body = req.method !== "GET" && req.method !== "HEAD"
+    ? await req.arrayBuffer()
+    : undefined;
+
+  const proxyReq = new Request(target, {
+    method: req.method,
+    headers: req.headers,
+    body,
+    redirect: "manual",
+  });
+  proxyReq.headers.set("host", new URL(siteUrl).host);
+
+  return fetch(proxyReq);
+}
+
+function ensureResponse(response: unknown, method: string): Response {
+  if (response instanceof Response) return response;
+  console.warn(`[server-auth] ${method} handler returned non-Response:`, typeof response);
+  return new Response(null, { status: 404 });
+}
+
 export const betterAuthHandler = {
   GET: async (req: Request) => {
     try {
-      const response = await getHandler().GET(req);
-      return response ?? new Response(null, { status: 404 });
+      const response = await proxyAuthRequest(req);
+      return ensureResponse(response, "GET");
     } catch (error) {
       console.error("[server-auth] GET handler failed:", error);
-      return new Response(null, { status: 500 });
+      return Response.json({ error: "Internal server error" }, { status: 500 });
     }
   },
   POST: async (req: Request) => {
     try {
-      const response = await getHandler().POST(req);
-      return response ?? new Response(null, { status: 404 });
+      const response = await proxyAuthRequest(req);
+      if (response instanceof Response && !response.ok) {
+        const url = new URL(req.url);
+        console.error(`[server-auth] POST ${url.pathname} returned ${response.status}`);
+      }
+      return ensureResponse(response, "POST");
     } catch (error) {
-      console.error("[server-auth] POST handler failed:", error);
-      return new Response(null, { status: 500 });
+      const url = new URL(req.url);
+      console.error(`[server-auth] POST ${url.pathname} handler threw:`, error);
+      return Response.json({ error: "Internal server error" }, { status: 500 });
     }
   },
 };

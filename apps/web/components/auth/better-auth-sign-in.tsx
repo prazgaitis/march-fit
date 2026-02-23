@@ -104,13 +104,22 @@ export function BetterAuthSignIn() {
           <button
             type="button"
             disabled={anyLoading}
-            onClick={() => {
+            onClick={async () => {
               setIsGoogleLoading(true);
               setError(null);
-              betterAuthClient.signIn.social({
-                provider: "google",
-                callbackURL: redirectTo,
-              });
+              try {
+                const result = await betterAuthClient.signIn.social({
+                  provider: "google",
+                  callbackURL: redirectTo,
+                });
+                if (result.error) {
+                  setError("Google sign-in failed. Please try again.");
+                  setIsGoogleLoading(false);
+                }
+              } catch {
+                setError("Google sign-in failed. Please try again.");
+                setIsGoogleLoading(false);
+              }
             }}
             className="relative flex w-full items-center justify-center gap-2.5 rounded-lg border border-white/10 bg-white/[0.04] px-4 py-2.5 text-sm font-medium text-white transition hover:bg-white/[0.08] disabled:opacity-50"
           >
