@@ -51,10 +51,13 @@
     "overrides": {
       "react-is": "19.2.4",
       "require-in-the-middle": "7.5.2"
+    },
+    "patchedDependencies": {
+      "@convex-dev/better-auth@0.10.11": "patches/@convex-dev__better-auth@0.10.11.patch"
     }
   },
   "devDependencies": {
-    "@convex-dev/better-auth": "^0.10.6",
+    "@convex-dev/better-auth": "^0.10.11",
     "@manypkg/cli": "^0.25.1",
     "@turbo/gen": "^2.5.6",
     "cross-env": "^10.0.0",

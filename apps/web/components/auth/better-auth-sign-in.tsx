@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 
 import { betterAuthClient } from "@/lib/better-auth/client";
+import { PasswordInput } from "@/components/ui/password-input";
 
 function friendlyError(message: string | undefined): string {
   if (!message) return "Something went wrong. Please try again.";
@@ -120,7 +121,7 @@ export function BetterAuthSignIn() {
             )}
             {isGoogleLoading ? "Redirecting..." : "Continue with Google"}
             {lastMethod === "google" && (
-              <span className="absolute -top-2 right-3 rounded-full bg-indigo-600 px-2 py-0.5 text-[10px] font-semibold text-white">
+              <span className="absolute -top-2.5 right-3 rounded-full border border-indigo-500/30 bg-indigo-600 px-2 py-0.5 text-[10px] font-semibold text-white shadow-sm">
                 Last used
               </span>
             )}
@@ -139,8 +140,13 @@ export function BetterAuthSignIn() {
           {/* Email / password */}
           <form className="space-y-4" onSubmit={handleSubmit}>
             <div className="space-y-1.5">
-              <label className="text-xs font-medium text-zinc-300">
+              <label className="flex items-center gap-2 text-xs font-medium text-zinc-300">
                 Email
+                {lastMethod === "email" && (
+                  <span className="rounded-full bg-indigo-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-400">
+                    Last used
+                  </span>
+                )}
               </label>
               <input
                 type="email"
@@ -164,12 +170,12 @@ export function BetterAuthSignIn() {
                   Forgot?
                 </Link>
               </div>
-              <input
-                type="password"
+              <PasswordInput
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full rounded-lg border border-white/10 bg-white/[0.04] px-3.5 py-2 text-sm text-white placeholder:text-zinc-600 focus:border-indigo-500/50 focus:outline-none focus:ring-1 focus:ring-indigo-500/30"
+                className="h-auto w-full rounded-lg border border-white/10 bg-white/[0.04] px-3.5 py-2 text-sm text-white shadow-none placeholder:text-zinc-600 focus:border-indigo-500/50 focus:outline-none focus:ring-1 focus:ring-indigo-500/30 focus-visible:ring-indigo-500/30"
+                toggleClassName="text-zinc-500 hover:text-zinc-300"
                 placeholder="Your password"
               />
             </div>
@@ -186,11 +192,6 @@ export function BetterAuthSignIn() {
               className="relative w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-indigo-500 disabled:opacity-50"
             >
               {isSubmitting ? "Signing in..." : "Sign In"}
-              {lastMethod === "email" && (
-                <span className="absolute -top-2 right-3 rounded-full bg-indigo-600 px-2 py-0.5 text-[10px] font-semibold text-white">
-                  Last used
-                </span>
-              )}
             </button>
           </form>
         </div>

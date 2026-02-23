@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 
 import { betterAuthClient } from "@/lib/better-auth/client";
+import { PasswordInput } from "@/components/ui/password-input";
 
 function friendlyError(message: string | undefined): string {
   if (!message) return "Unable to create your account. Please try again.";
@@ -191,13 +192,13 @@ export function BetterAuthSignUp() {
               <label className="text-xs font-medium text-zinc-300">
                 Password
               </label>
-              <input
-                type="password"
+              <PasswordInput
                 required
                 minLength={8}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full rounded-lg border border-white/10 bg-white/[0.04] px-3.5 py-2 text-sm text-white placeholder:text-zinc-600 focus:border-indigo-500/50 focus:outline-none focus:ring-1 focus:ring-indigo-500/30"
+                className="h-auto w-full rounded-lg border border-white/10 bg-white/[0.04] px-3.5 py-2 text-sm text-white shadow-none placeholder:text-zinc-600 focus:border-indigo-500/50 focus:outline-none focus:ring-1 focus:ring-indigo-500/30 focus-visible:ring-indigo-500/30"
+                toggleClassName="text-zinc-500 hover:text-zinc-300"
                 placeholder="Min. 8 characters"
               />
             </div>

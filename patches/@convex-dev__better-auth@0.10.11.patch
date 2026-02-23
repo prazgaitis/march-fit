@@ -1,0 +1,42 @@
+diff --git a/dist/client/adapter.js b/dist/client/adapter.js
+index 2aadacaced3d516ae6591c1dc3dde492d2e4fffb..748e8fb6a5b390d520d623d9c7b98c7cdd1eb13c 100644
+--- a/dist/client/adapter.js
++++ b/dist/client/adapter.js
+@@ -52,6 +52,15 @@ const parseWhere = (where) => {
+                 value: w.value.getTime(),
+             };
+         }
++        // When supportsDates is false, Better Auth passes dates as ISO strings.
++        // Convert them to epoch ms to match how dates are stored in Convex.
++        if (typeof w.value === "string" &&
++            /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(w.value)) {
++            const ms = new Date(w.value).getTime();
++            if (!isNaN(ms)) {
++                return { ...w, value: ms };
++            }
++        }
+         return w;
+     });
+ };
+diff --git a/src/client/adapter.ts b/src/client/adapter.ts
+index 002d4fa048943ca0a5deae21502d45f74ecb525a..4a30ee5cb904e40edb320caf274855d99b0851f6 100644
+--- a/src/client/adapter.ts
++++ b/src/client/adapter.ts
+@@ -98,6 +98,17 @@ const parseWhere = (
+         value: w.value.getTime(),
+       };
+     }
++    // When supportsDates is false, Better Auth passes dates as ISO strings.
++    // Convert them to epoch ms to match how dates are stored in Convex.
++    if (
++      typeof w.value === "string" &&
++      /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(w.value)
++    ) {
++      const ms = new Date(w.value).getTime();
++      if (!isNaN(ms)) {
++        return { ...w, value: ms };
++      }
++    }
+     return w;
+   }) as ConvexCleanedWhere[];
+ };

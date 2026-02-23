@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useQuery } from "convex/react";
 import { api } from "@repo/backend";
 import type { Doc, Id } from "@repo/backend/_generated/dataModel";
@@ -43,8 +44,11 @@ export function DashboardUserMenu({
 
   const isAdmin = adminStatus?.isAdmin ?? false;
 
-  const handleSignOut = () => {
-    void betterAuthClient.signOut();
+  const router = useRouter();
+
+  const handleSignOut = async () => {
+    await betterAuthClient.signOut();
+    router.push("/");
   };
 
   // User data for avatar
