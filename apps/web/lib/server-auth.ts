@@ -80,6 +80,9 @@ async function proxyAuthRequest(req: Request): Promise<Response> {
     redirect: "manual",
   });
   proxyReq.headers.set("host", new URL(siteUrl).host);
+  // Request uncompressed responses so Vercel doesn't trip over
+  // Content-Encoding when re-serving the proxied body.
+  proxyReq.headers.set("accept-encoding", "identity");
 
   return fetch(proxyReq);
 }
