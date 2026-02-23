@@ -101,7 +101,7 @@ describe('getCumulativeCategoryLeaderboard', () => {
     deletedAt?: number,
   ) => {
     return await t.run(async (ctx) => {
-      return await insertTestActivity(ctx, {
+      const activityId = await insertTestActivity(ctx, {
         userId,
         challengeId,
         activityTypeId,
@@ -116,6 +116,36 @@ describe('getCumulativeCategoryLeaderboard', () => {
         createdAt: Date.now(),
         updatedAt: Date.now(),
       });
+
+      // Maintain categoryPoints aggregation (skipped for deleted activities)
+      if (!deletedAt) {
+        const activityType = await ctx.db.get(activityTypeId);
+        const categoryId = activityType?.categoryId;
+        if (categoryId) {
+          const existing = await ctx.db
+            .query('categoryPoints')
+            .withIndex('challengeUserCategory', (q: any) =>
+              q.eq('challengeId', challengeId).eq('userId', userId).eq('categoryId', categoryId)
+            )
+            .first();
+          if (existing) {
+            await ctx.db.patch(existing._id, {
+              totalPoints: existing.totalPoints + pointsEarned,
+              updatedAt: Date.now(),
+            });
+          } else {
+            await ctx.db.insert('categoryPoints', {
+              challengeId,
+              userId,
+              categoryId,
+              totalPoints: pointsEarned,
+              updatedAt: Date.now(),
+            });
+          }
+        }
+      }
+
+      return activityId;
     });
   };
 

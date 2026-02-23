@@ -22,7 +22,7 @@ describe("Points negative + local date grouping", () => {
   it("includes negative points and excludes deleted activities in totals", async () => {
     const userId = await createTestUser(t, { email: "negative@test.com" });
     const challengeId = await createTestChallenge(t, userId);
-    await createTestParticipation(t, userId, challengeId);
+    await createTestParticipation(t, userId, challengeId, { totalPoints: 5 });
     const activityTypeId = await createTestActivityType(t, challengeId);
 
     await t.run(async (ctx) => {

@@ -368,21 +368,21 @@ describe('getWeeklyCategoryLeaderboard', () => {
     expect(entries[2].weeklyPoints).toBe(50);
   });
 
-  it('should limit to top 10 users per category', async () => {
+  it('should limit to top 5 users per category', async () => {
     const { challengeId } = await setupChallenge();
     const category = await createCategory('Cardio');
     const actType = await createActivityType(challengeId, 'Running', category);
 
-    // Create 12 participants
+    // Create 8 participants
     const userIds: Id<'users'>[] = [];
-    for (let i = 0; i < 12; i++) {
+    for (let i = 0; i < 8; i++) {
       const userId = await createParticipant(
         challengeId,
         `user${i}@test.com`,
         `User ${i}`,
       );
       userIds.push(userId);
-      await insertActivity(userId, challengeId, actType, Date.UTC(2024, 0, 2), (12 - i) * 10);
+      await insertActivity(userId, challengeId, actType, Date.UTC(2024, 0, 2), (8 - i) * 10);
     }
 
     const result = await t.query(api.queries.participations.getWeeklyCategoryLeaderboard, {
@@ -390,10 +390,10 @@ describe('getWeeklyCategoryLeaderboard', () => {
       weekNumber: 1,
     });
 
-    expect(result!.categories[0].entries).toHaveLength(10);
-    // Top user should have 120 pts, 10th should have 30 pts
-    expect(result!.categories[0].entries[0].weeklyPoints).toBe(120);
-    expect(result!.categories[0].entries[9].weeklyPoints).toBe(30);
+    expect(result!.categories[0].entries).toHaveLength(5);
+    // Top user should have 80 pts, 5th should have 40 pts
+    expect(result!.categories[0].entries[0].weeklyPoints).toBe(80);
+    expect(result!.categories[0].entries[4].weeklyPoints).toBe(40);
   });
 
   it('should not include categories with zero entries', async () => {

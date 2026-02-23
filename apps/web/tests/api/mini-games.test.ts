@@ -760,14 +760,14 @@ describe('Mini-Games Scoring', () => {
       expect(afterEnd - beforeEnd).toBe(10);
     });
 
-    it('getUserStatus liveData uses activity-derived totals', async () => {
+    it('getUserStatus liveData uses denormalized totals', async () => {
       const adminUser = await createTestUser(t, { email: "admin@example.com", role: "admin" });
       const tWithAuth = t.withIdentity({ subject: "admin-user-id", email: "admin@example.com" });
       const challengeId = await createTestChallenge(t, adminUser);
       const activityTypeId = await createActivityType(challengeId);
 
-      const user1 = await createUserWithParticipation(challengeId, 1000, { username: 'user1' });
-      const user2 = await createUserWithParticipation(challengeId, -1000, { username: 'user2' });
+      const user1 = await createUserWithParticipation(challengeId, -5, { username: 'user1' });
+      const user2 = await createUserWithParticipation(challengeId, 12, { username: 'user2' });
 
       const now = TEST_NOW;
       const { miniGameId } = await tWithAuth.mutation(api.mutations.miniGames.create, {

@@ -1878,7 +1878,7 @@ describe('Activities Logic', () => {
           userId: otherUserId,
           challengeId,
           joinedAt: Date.now(),
-          totalPoints: 999,
+          totalPoints: -6,
           currentStreak: 0,
           modifierFactor: 1,
           paymentStatus: "paid",

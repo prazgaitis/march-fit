@@ -135,7 +135,7 @@ describe('editActivity mutation', () => {
     expect(participation!.totalPoints).toBe(-10);
 
     const otherUserId = await createTestUser(t, { email: 'other-leaderboard@example.com' });
-    await createTestParticipation(t, otherUserId, challengeId, { totalPoints: 500 });
+    await createTestParticipation(t, otherUserId, challengeId, { totalPoints: -5 });
 
     await t.run(async (ctx) => {
       await insertTestActivity(ctx, {
