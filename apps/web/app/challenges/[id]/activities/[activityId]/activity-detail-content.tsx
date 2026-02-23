@@ -86,16 +86,6 @@ export function ActivityDetailContent({
   challengeId,
   activityId,
 }: ActivityDetailContentProps) {
-  const activityData = useQuery(api.queries.activities.getById, {
-    activityId: activityId as Id<'activities'>,
-  });
-
-  const challengeActivityTypes = useQuery(
-    api.queries.activityTypes.getByChallengeId,
-    { challengeId: challengeId as Id<'challenges'> }
-  );
-
-  const { users: mentionUsers } = useMentionableUsers(challengeId);
   const [pendingLike, setPendingLike] = useState(false);
   const [showFlagDialog, setShowFlagDialog] = useState(false);
   const [flagCategory, setFlagCategory] = useState('');
@@ -114,6 +104,18 @@ export function ActivityDetailContent({
   const [editMetricValue, setEditMetricValue] = useState('');
   const [editActivityTypeId, setEditActivityTypeId] = useState('');
   const [editSubmitting, setEditSubmitting] = useState(false);
+
+  const activityData = useQuery(api.queries.activities.getById, {
+    activityId: activityId as Id<'activities'>,
+  });
+
+  // Defer loading activity types until the edit dialog is opened (bundle-conditional)
+  const challengeActivityTypes = useQuery(
+    api.queries.activityTypes.getByChallengeId,
+    showEditDialog ? { challengeId: challengeId as Id<'challenges'> } : "skip"
+  );
+
+  const { users: mentionUsers } = useMentionableUsers(challengeId);
 
   const router = useRouter();
   const toggleLike = useMutation(api.mutations.likes.toggle);

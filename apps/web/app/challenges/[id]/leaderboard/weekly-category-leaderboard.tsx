@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
@@ -48,14 +48,17 @@ export function WeeklyCategoryLeaderboard({
     weekNumber,
   });
 
-  // Once we have data, if initialWeek wasn't provided, snap to current week
+  // Once we have data, if initialWeek wasn't provided, snap to current week.
+  // Must be in useEffect — setState during render causes a synchronous double-render.
   const hasSnapped = useRef(false);
-  if (data && !hasSnapped.current && !initialWeek) {
-    hasSnapped.current = true;
-    if (data.currentWeek >= 1 && data.currentWeek <= data.totalWeeks) {
-      setWeekNumber(data.currentWeek);
+  useEffect(() => {
+    if (data && !hasSnapped.current && !initialWeek) {
+      hasSnapped.current = true;
+      if (data.currentWeek >= 1 && data.currentWeek <= data.totalWeeks) {
+        setWeekNumber(data.currentWeek);
+      }
     }
-  }
+  }, [data, initialWeek]);
 
   if (!data) {
     return (

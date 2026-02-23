@@ -2,7 +2,7 @@
 
 import { Flame, Trophy, Users } from 'lucide-react';
 
-import { useChallengeRealtime } from './challenge-realtime-context';
+import { useChallengeSummary } from './challenge-realtime-context';
 import { UserAvatar } from '@/components/user-avatar';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ActiveMiniGames } from '@/components/mini-games';
@@ -18,7 +18,7 @@ interface ChallengeSidebarProps {
 }
 
 export function ChallengeSidebar({ challengeId, currentUserId, challengeStartDate }: ChallengeSidebarProps) {
-  const { summary } = useChallengeRealtime();
+  const { summary } = useChallengeSummary();
   const { stats, leaderboard } = summary;
 
   return (

@@ -4,7 +4,7 @@ import { useState, useMemo } from "react";
 import Link from "next/link";
 import { Search } from "lucide-react";
 
-import { useChallengeRealtime } from "./challenge-realtime-context";
+import { useChallengeSummary } from "./challenge-realtime-context";
 import { Input } from "@/components/ui/input";
 import { UserAvatar } from "@/components/user-avatar";
 
@@ -14,7 +14,7 @@ interface UserSearchProps {
 
 export function UserSearch({ challengeId }: UserSearchProps) {
   const [query, setQuery] = useState("");
-  const { summary } = useChallengeRealtime();
+  const { summary } = useChallengeSummary();
 
   const filteredUsers = useMemo(() => {
     if (!query.trim()) return [];

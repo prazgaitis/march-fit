@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
@@ -34,7 +35,7 @@ interface CumulativeCategoryLeaderboardProps {
   currentUserId: string;
 }
 
-function EntryRow({
+const EntryRow = memo(function EntryRow({
   entry,
   challengeId,
   currentUserId,
@@ -102,7 +103,7 @@ function EntryRow({
       </div>
     </Link>
   );
-}
+});
 
 function GenderColumn({
   label,

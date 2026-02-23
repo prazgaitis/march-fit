@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { formatDistanceToNow } from 'date-fns';
 import * as Sentry from '@sentry/nextjs';
@@ -26,7 +26,7 @@ const RichTextEditor = dynamic(
   () => import('@/components/editor/rich-text-editor').then((mod) => ({ default: mod.RichTextEditor })),
   { ssr: false, loading: () => <div className="min-h-[120px] w-full animate-pulse rounded-md border border-input bg-background" /> }
 );
-import { useChallengeRealtime } from './challenge-realtime-context';
+import { useActivityNotification } from './challenge-realtime-context';
 import { UserAvatar, UserAvatarInline } from '@/components/user-avatar';
 import { Button } from '@/components/ui/button';
 import {
@@ -117,9 +117,8 @@ export function ActivityFeed({
   initialLightweightMode = false,
 }: ActivityFeedProps) {
   const connectionState = useConvexConnectionState();
-  const { hasNewActivity, acknowledgeActivity } = useChallengeRealtime();
+  const { hasNewActivity, acknowledgeActivity } = useActivityNotification();
   const { users: mentionUsers } = useMentionableUsers(challengeId);
-  const [pendingLikes, setPendingLikes] = useState<Record<string, boolean>>({});
   const [feedFilter, setFeedFilter] = useState<FeedFilter>('all');
   const [useHttpFallback, setUseHttpFallback] = useState(false);
   const [httpItems, setHttpItems] = useState<ActivityFeedItem[]>(initialItems);
@@ -284,23 +283,6 @@ export function ActivityFeed({
     // effectively this just hides the alert.
   };
 
-  const toggleLike = useMutation(api.mutations.likes.toggle);
-
-  const handleToggleLike = async (activityId: string) => {
-    setPendingLikes((prev) => ({ ...prev, [activityId]: true }));
-    try {
-        await toggleLike({ activityId: activityId as Id<"activities"> });
-    } catch (error) {
-        console.error("Failed to toggle like", error);
-    } finally {
-        setPendingLikes((prev) => {
-            const next = { ...prev };
-            delete next[activityId];
-            return next;
-        });
-    }
-  };
-
   const liveDisplayResults = useMemo(() => {
     if (feedFilter !== 'all') {
       return results;
@@ -404,8 +386,6 @@ export function ActivityFeed({
               },
               mediaUrls: item.mediaUrls ?? [],
           }}
-          onToggleLike={handleToggleLike}
-          isLiking={!!pendingLikes[item.activity._id]}
           mentionOptions={mentionUsers}
         />
       ))}
@@ -526,21 +506,18 @@ interface ActivityCardProps {
   challengeId: string;
   item: ActivityFeedItem;
   showEngagementCounts: boolean;
-  onToggleLike: (activityId: string, shouldLike: boolean) => Promise<void> | void;
-  isLiking: boolean;
   mentionOptions: MentionableUser[];
 }
 
-function ActivityCard({
+const ActivityCard = memo(function ActivityCard({
   challengeId,
   item,
   showEngagementCounts,
-  onToggleLike,
-  isLiking,
   mentionOptions,
 }: ActivityCardProps) {
   const activityId = item.activity.id ?? item.activity._id;
   const router = useRouter();
+  const [isLiking, setIsLiking] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const [showFlagDialog, setShowFlagDialog] = useState(false);
   const [flagCategory, setFlagCategory] = useState('');
@@ -549,7 +526,19 @@ function ActivityCard({
   const [flagError, setFlagError] = useState<string | null>(null);
   const [flagSuccess, setFlagSuccess] = useState(false);
 
+  const toggleLike = useMutation(api.mutations.likes.toggle);
   const flagActivity = useMutation(api.mutations.activities.flagActivity);
+
+  const handleToggleLike = useCallback(async () => {
+    setIsLiking(true);
+    try {
+      await toggleLike({ activityId: activityId as Id<"activities"> });
+    } catch (error) {
+      console.error("Failed to toggle like", error);
+    } finally {
+      setIsLiking(false);
+    }
+  }, [activityId, toggleLike]);
 
   const activityUrl = `/challenges/${challengeId}/activities/${activityId}`;
 
@@ -709,7 +698,7 @@ function ActivityCard({
           variant={item.likedByUser ? 'default' : 'outline'}
           size="sm"
           disabled={isLiking}
-          onClick={() => onToggleLike(activityId, !item.likedByUser)}
+          onClick={handleToggleLike}
         >
           <ThumbsUp
             className={cn('mr-2 h-4 w-4', item.likedByUser && 'fill-current')}
@@ -842,7 +831,7 @@ function ActivityCard({
       )}
     </Card>
   );
-}
+});
 
 function ActivityComments({
     activityId,

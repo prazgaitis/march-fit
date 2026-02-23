@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import Link from "next/link";
 import { Trophy, Flame } from "lucide-react";
 
@@ -54,6 +55,71 @@ function getRankBadge(rank: number) {
   );
 }
 
+const LeaderboardEntryRow = memo(function LeaderboardEntryRow({
+  entry,
+  challengeId,
+  isCurrentUser,
+}: {
+  entry: LeaderboardEntry;
+  challengeId: string;
+  isCurrentUser: boolean;
+}) {
+  return (
+    <Link
+      href={`/challenges/${challengeId}/users/${entry.user.id}`}
+      className={cn(
+        "flex items-center gap-4 rounded-xl p-4 transition",
+        isCurrentUser
+          ? "bg-indigo-500/10 ring-1 ring-indigo-500/30 hover:bg-indigo-500/20"
+          : "bg-zinc-900/50 hover:bg-zinc-800/50"
+      )}
+    >
+      {getRankBadge(entry.rank)}
+
+      <UserAvatar
+        user={{
+          id: entry.user.id,
+          name: entry.user.name,
+          username: entry.user.username,
+          avatarUrl: entry.user.avatarUrl,
+        }}
+        challengeId={challengeId}
+        size="md"
+      />
+
+      <div className="flex-1 min-w-0">
+        <p className="font-medium text-white truncate">
+          {entry.user.name || entry.user.username}
+          {isCurrentUser && (
+            <span className="ml-2 text-xs text-indigo-400">(You)</span>
+          )}
+        </p>
+        <p className="text-sm text-zinc-500">@{entry.user.username}</p>
+      </div>
+
+      <div className="text-right">
+        <PointsDisplay
+          points={entry.totalPoints}
+          size="lg"
+          showSign={false}
+          showLabel={false}
+          className={cn("font-bold", entry.totalPoints >= 0 && "text-white")}
+        />
+        <p className="text-xs text-zinc-500">points</p>
+      </div>
+
+      {entry.currentStreak > 0 && (
+        <div className="flex items-center gap-1 rounded-full bg-orange-500/20 px-3 py-1">
+          <Flame className="h-4 w-4 text-orange-500" />
+          <span className="text-sm font-medium text-orange-500">
+            {entry.currentStreak}
+          </span>
+        </div>
+      )}
+    </Link>
+  );
+});
+
 export function LeaderboardList({ entries, challengeId, currentUserId }: LeaderboardListProps) {
   if (entries.length === 0) {
     return (
@@ -69,65 +135,14 @@ export function LeaderboardList({ entries, challengeId, currentUserId }: Leaderb
 
   return (
     <div className="space-y-2">
-      {entries.map((entry) => {
-        const isCurrentUser = entry.user.id === currentUserId;
-
-        return (
-          <Link
-            key={entry.user.id}
-            href={`/challenges/${challengeId}/users/${entry.user.id}`}
-            className={cn(
-              "flex items-center gap-4 rounded-xl p-4 transition",
-              isCurrentUser
-                ? "bg-indigo-500/10 ring-1 ring-indigo-500/30 hover:bg-indigo-500/20"
-                : "bg-zinc-900/50 hover:bg-zinc-800/50"
-            )}
-          >
-            {getRankBadge(entry.rank)}
-
-            <UserAvatar
-              user={{
-                id: entry.user.id,
-                name: entry.user.name,
-                username: entry.user.username,
-                avatarUrl: entry.user.avatarUrl,
-              }}
-              challengeId={challengeId}
-              size="md"
-            />
-
-            <div className="flex-1 min-w-0">
-              <p className="font-medium text-white truncate">
-                {entry.user.name || entry.user.username}
-                {isCurrentUser && (
-                  <span className="ml-2 text-xs text-indigo-400">(You)</span>
-                )}
-              </p>
-              <p className="text-sm text-zinc-500">@{entry.user.username}</p>
-            </div>
-
-            <div className="text-right">
-              <PointsDisplay
-                points={entry.totalPoints}
-                size="lg"
-                showSign={false}
-                showLabel={false}
-                className={cn("font-bold", entry.totalPoints >= 0 && "text-white")}
-              />
-              <p className="text-xs text-zinc-500">points</p>
-            </div>
-
-            {entry.currentStreak > 0 && (
-              <div className="flex items-center gap-1 rounded-full bg-orange-500/20 px-3 py-1">
-                <Flame className="h-4 w-4 text-orange-500" />
-                <span className="text-sm font-medium text-orange-500">
-                  {entry.currentStreak}
-                </span>
-              </div>
-            )}
-          </Link>
-        );
-      })}
+      {entries.map((entry) => (
+        <LeaderboardEntryRow
+          key={entry.user.id}
+          entry={entry}
+          challengeId={challengeId}
+          isCurrentUser={entry.user.id === currentUserId}
+        />
+      ))}
     </div>
   );
 }

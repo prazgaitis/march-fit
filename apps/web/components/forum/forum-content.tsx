@@ -1,5 +1,6 @@
 "use client";
 
+import { memo, useCallback, useMemo, useState } from "react";
 import Link from "next/link";
 import { usePaginatedQuery, useMutation } from "convex/react";
 import { api } from "@repo/backend";
@@ -88,14 +89,27 @@ interface ForumPostCardProps {
   challengeId: string;
 }
 
-function ForumPostCard({ item, challengeId }: ForumPostCardProps) {
+const ForumPostCard = memo(function ForumPostCard({ item, challengeId }: ForumPostCardProps) {
   const toggleUpvote = useMutation(api.mutations.forumPosts.toggleUpvote);
+  const [isUpvoting, setIsUpvoting] = useState(false);
 
-  const handleUpvote = async (e: React.MouseEvent) => {
+  const handleUpvote = useCallback(async (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    await toggleUpvote({ postId: item.post._id as Id<"forumPosts"> });
-  };
+    setIsUpvoting(true);
+    try {
+      await toggleUpvote({ postId: item.post._id as Id<"forumPosts"> });
+    } catch (error) {
+      console.error("Failed to toggle upvote", error);
+    } finally {
+      setIsUpvoting(false);
+    }
+  }, [item.post._id, toggleUpvote]);
+
+  const plainText = useMemo(
+    () => getPlainTextFromValue(item.post.content),
+    [item.post.content]
+  );
 
   return (
     <Link
@@ -106,6 +120,7 @@ function ForumPostCard({ item, challengeId }: ForumPostCardProps) {
       <div className="flex flex-col items-center gap-1">
         <button
           onClick={handleUpvote}
+          disabled={isUpvoting}
           className={`rounded p-1 transition-colors ${
             item.upvotedByUser
               ? "text-indigo-400 hover:text-indigo-300"
@@ -138,7 +153,7 @@ function ForumPostCard({ item, challengeId }: ForumPostCardProps) {
         </div>
 
         <p className="mt-1 line-clamp-2 text-sm text-zinc-400">
-          {getPlainTextFromValue(item.post.content)}
+          {plainText}
         </p>
 
         <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-500">
@@ -163,4 +178,4 @@ function ForumPostCard({ item, challengeId }: ForumPostCardProps) {
       </div>
     </Link>
   );
-}
+});

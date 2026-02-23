@@ -44,15 +44,24 @@ export interface ChallengeSummary {
   timestamp: string;
 }
 
-interface ChallengeRealtimeContextValue {
+// --- Summary context (leaderboard, stats) ---
+interface ChallengeSummaryContextValue {
   summary: ChallengeSummary;
-  hasNewActivity: boolean;
-  acknowledgeActivity: () => void;
   connectionState: 'connecting' | 'open' | 'error';
 }
 
-const ChallengeRealtimeContext = createContext<
-  ChallengeRealtimeContextValue | undefined
+const ChallengeSummaryContext = createContext<
+  ChallengeSummaryContextValue | undefined
+>(undefined);
+
+// --- Activity notification context (lightweight, changes less often) ---
+interface ActivityNotificationContextValue {
+  hasNewActivity: boolean;
+  acknowledgeActivity: () => void;
+}
+
+const ActivityNotificationContext = createContext<
+  ActivityNotificationContextValue | undefined
 >(undefined);
 
 interface ChallengeRealtimeProviderProps extends PropsWithChildren {
@@ -82,9 +91,7 @@ export function ChallengeRealtimeProvider({
     if (!liveData) return initialSummary;
 
     const { stats, leaderboard, latestActivityId } = liveData;
-    
-    // Convert Convex leaderboard shape to frontend shape if needed
-    // The query returns exactly what we need based on previous inspection
+
     const formattedLeaderboard: LeaderboardEntry[] = leaderboard.map((entry: LeaderboardEntry) => ({
       participantId: entry.participantId,
       totalPoints: entry.totalPoints,
@@ -92,14 +99,8 @@ export function ChallengeRealtimeProvider({
       user: entry.user,
     }));
 
-    // Calculate days remaining locally or use server value
-    // The server query returns daysRemaining in stats
-    
     return {
         stats: {
-            // Merge initial stats as fallback/base, then override with live stats
-            // Note: daysRemaining is calculated in the Page component, not in the query,
-            // so we rely on initialSummary.stats.daysRemaining
             ...initialSummary.stats,
             ...stats,
         },
@@ -123,29 +124,66 @@ export function ChallengeRealtimeProvider({
     setHasNewActivity(false);
   }, []);
 
-  const value = useMemo(
+  // Split into two stable context values so consumers re-render independently
+  const summaryValue = useMemo(
     () => ({
       summary,
-      hasNewActivity,
-      acknowledgeActivity,
       connectionState: (liveData ? 'open' : 'connecting') as 'connecting' | 'open' | 'error',
     }),
-    [summary, hasNewActivity, acknowledgeActivity, liveData],
+    [summary, liveData],
+  );
+
+  const notificationValue = useMemo(
+    () => ({
+      hasNewActivity,
+      acknowledgeActivity,
+    }),
+    [hasNewActivity, acknowledgeActivity],
   );
 
   return (
-    <ChallengeRealtimeContext.Provider value={value}>
-      {children}
-    </ChallengeRealtimeContext.Provider>
+    <ChallengeSummaryContext.Provider value={summaryValue}>
+      <ActivityNotificationContext.Provider value={notificationValue}>
+        {children}
+      </ActivityNotificationContext.Provider>
+    </ChallengeSummaryContext.Provider>
   );
 }
 
-export function useChallengeRealtime() {
-  const context = useContext(ChallengeRealtimeContext);
+/**
+ * Use for components that need the full summary (leaderboard, stats).
+ * Re-renders on every Convex update.
+ */
+export function useChallengeSummary() {
+  const context = useContext(ChallengeSummaryContext);
   if (!context) {
     throw new Error(
-      'useChallengeRealtime must be used within a ChallengeRealtimeProvider',
+      'useChallengeSummary must be used within a ChallengeRealtimeProvider',
     );
   }
   return context;
+}
+
+/**
+ * Use for components that only need to know about new activity notifications.
+ * Only re-renders when hasNewActivity changes — not on every leaderboard update.
+ */
+export function useActivityNotification() {
+  const context = useContext(ActivityNotificationContext);
+  if (!context) {
+    throw new Error(
+      'useActivityNotification must be used within a ChallengeRealtimeProvider',
+    );
+  }
+  return context;
+}
+
+/**
+ * @deprecated Use useChallengeSummary() or useActivityNotification() instead.
+ * Kept for backward compatibility — subscribes to both contexts.
+ */
+export function useChallengeRealtime() {
+  const { summary, connectionState } = useChallengeSummary();
+  const { hasNewActivity, acknowledgeActivity } = useActivityNotification();
+  return { summary, hasNewActivity, acknowledgeActivity, connectionState };
 }
