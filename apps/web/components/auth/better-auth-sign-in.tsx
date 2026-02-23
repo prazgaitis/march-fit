@@ -58,9 +58,7 @@ export function BetterAuthSignIn() {
 
         <form className="space-y-4" onSubmit={handleSubmit}>
           <div className="space-y-2">
-            <label className="text-sm font-medium text-zinc-200">
-              Email
-            </label>
+            <label className="text-sm font-medium text-zinc-200">Email</label>
             <input
               type="email"
               required
@@ -71,9 +69,17 @@ export function BetterAuthSignIn() {
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium text-zinc-200">
-              Password
-            </label>
+            <div className="flex items-center justify-between">
+              <label className="text-sm font-medium text-zinc-200">
+                Password
+              </label>
+              <Link
+                href="/forgot-password"
+                className="text-xs text-indigo-400 hover:text-indigo-300"
+              >
+                Forgot password?
+              </Link>
+            </div>
             <input
               type="password"
               required
@@ -83,9 +89,7 @@ export function BetterAuthSignIn() {
             />
           </div>
 
-          {error ? (
-            <p className="text-sm text-red-400">{error}</p>
-          ) : null}
+          {error ? <p className="text-sm text-red-400">{error}</p> : null}
 
           <button
             type="submit"
@@ -101,7 +105,9 @@ export function BetterAuthSignIn() {
             <div className="w-full border-t border-zinc-700" />
           </div>
           <div className="relative flex justify-center text-xs uppercase">
-            <span className="bg-black/60 px-2 text-zinc-500">Or continue with</span>
+            <span className="bg-black/60 px-2 text-zinc-500">
+              Or continue with
+            </span>
           </div>
         </div>
 
@@ -145,7 +151,10 @@ export function BetterAuthSignIn() {
 
         <p className="text-center text-sm text-zinc-400">
           Don&apos;t have an account?{" "}
-          <Link href="/sign-up" className="text-indigo-400 hover:text-indigo-300">
+          <Link
+            href="/sign-up"
+            className="text-indigo-400 hover:text-indigo-300"
+          >
             Sign up
           </Link>
         </p>

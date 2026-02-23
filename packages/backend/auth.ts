@@ -7,6 +7,11 @@ import type { GenericCtx } from "@convex-dev/better-auth";
 import authConfig from "./auth.config";
 import { scryptAsync } from "@noble/hashes/scrypt.js";
 import { hexToBytes } from "@noble/hashes/utils.js";
+import {
+  DEFAULT_FROM_EMAIL,
+  wrapEmailTemplate,
+  emailButton,
+} from "./lib/emailTemplate";
 
 // Custom scrypt password hashing with reduced memory for Convex runtime.
 // Default better-auth uses N=16384,r=16 (~32MB). We use r=8 (~16MB) which
@@ -97,6 +102,56 @@ export const createAuth = (ctx: GenericCtx<DataModel>) => {
       password: {
         hash: hashPassword,
         verify: verifyPassword,
+      },
+      sendResetPassword: async ({ user, url }) => {
+        const apiKey = process.env.RESEND_API_KEY;
+        if (!apiKey) {
+          console.error(
+            "[auth] RESEND_API_KEY not set, cannot send password reset email",
+          );
+          return;
+        }
+
+        const html = wrapEmailTemplate({
+          headerTitle: "Reset Your Password",
+          headerSubtitle: "We received a request to reset your password.",
+          content: `
+            <p style="margin: 0 0 20px;">Click the button below to choose a new password. This link will expire in 1 hour.</p>
+            <div style="text-align: center; margin: 28px 0;">
+              ${emailButton({ href: url, label: "Reset Password" })}
+            </div>
+            <p style="margin: 20px 0 0; color: #71717a; font-size: 13px;">If you didn&rsquo;t request this, you can safely ignore this email. Your password won&rsquo;t change.</p>
+          `,
+          footerText:
+            "You\u2019re receiving this because a password reset was requested for your March Fitness account.",
+        });
+
+        try {
+          const res = await fetch("https://api.resend.com/emails", {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${apiKey}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              from: DEFAULT_FROM_EMAIL,
+              to: [user.email],
+              subject: "Reset your password — March Fitness",
+              html,
+            }),
+          });
+
+          if (!res.ok) {
+            const body = await res.text();
+            console.error(
+              "[auth] Failed to send password reset email:",
+              res.status,
+              body,
+            );
+          }
+        } catch (err) {
+          console.error("[auth] Error sending password reset email:", err);
+        }
       },
     },
     session: {
