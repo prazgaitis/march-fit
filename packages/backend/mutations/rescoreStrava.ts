@@ -5,6 +5,7 @@ import { notDeleted } from "../lib/activityFilters";
 import { reportLatencyIfExceeded } from "../lib/latencyMonitoring";
 import { applyParticipationScoreDeltaAndRecomputeStreak } from "../lib/participationScoring";
 import { patchActivity } from "../lib/activityWrites";
+import { applyCategoryPointsDelta } from "../lib/categoryPoints";
 
 /**
  * Re-score Strava activities with 0 points that have valid metrics.
@@ -43,8 +44,9 @@ export const rescoreZeroPointActivities = internalMutation({
       newPoints: number;
     }> = [];
 
-    // Track per-user point adjustments
+    // Track per-user point and category adjustments
     const userPointAdjustments = new Map<string, number>();
+    const userCategoryAdjustments = new Map<string, Map<string, number>>();
 
     for (const activity of activities) {
       const activityType = await ctx.db.get(activity.activityTypeId);
@@ -91,11 +93,20 @@ export const rescoreZeroPointActivities = internalMutation({
 
           const prev = userPointAdjustments.get(activity.userId) ?? 0;
           userPointAdjustments.set(activity.userId, prev + newPoints);
+
+          if (activityType.categoryId) {
+            const catKey = activityType.categoryId as string;
+            if (!userCategoryAdjustments.has(activity.userId)) {
+              userCategoryAdjustments.set(activity.userId, new Map());
+            }
+            const catMap = userCategoryAdjustments.get(activity.userId)!;
+            catMap.set(catKey, (catMap.get(catKey) ?? 0) + newPoints);
+          }
         }
       }
     }
 
-    // Update participation totals + streaks
+    // Update participation totals + streaks + category aggregations
     if (!args.dryRun) {
       for (const [userId, pointsToAdd] of userPointAdjustments) {
         await applyParticipationScoreDeltaAndRecomputeStreak(ctx, {
@@ -104,6 +115,18 @@ export const rescoreZeroPointActivities = internalMutation({
           pointsDelta: pointsToAdd,
           streakMinPoints: challenge.streakMinPoints,
         });
+
+        const catMap = userCategoryAdjustments.get(userId);
+        if (catMap) {
+          for (const [categoryId, catDelta] of catMap) {
+            await applyCategoryPointsDelta(ctx, {
+              userId: userId as any,
+              challengeId: args.challengeId,
+              categoryId: categoryId as any,
+              pointsDelta: catDelta,
+            });
+          }
+        }
       }
     }
 

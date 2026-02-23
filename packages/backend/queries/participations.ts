@@ -5,7 +5,6 @@ import { getCurrentUser } from "../lib/ids";
 import { getChallengeWeekNumber, getWeekDateRange, getTotalWeeks } from "../lib/weeks";
 import type { Id } from "../_generated/dataModel";
 import { notDeleted } from "../lib/activityFilters";
-import { getChallengePointsByUser } from "../lib/challengePoints";
 import { dateOnlyToUtcMs } from "../lib/dateOnly";
 
 /**
@@ -88,7 +87,6 @@ export const getChallengeParticipants = query({
     paginationOpts: paginationOptsValidator,
   },
   handler: async (ctx, args) => {
-    const pointsByUser = await getChallengePointsByUser(ctx, args.challengeId);
     const participations = await ctx.db
       .query("userChallenges")
       .withIndex("challengeId", (q) => q.eq("challengeId", args.challengeId))
@@ -119,12 +117,12 @@ export const getChallengeParticipants = query({
         .map((item) => ({
           user: item.user!,
           stats: {
-            totalPoints: pointsByUser.get(item.participation.userId as string) ?? 0,
+            totalPoints: item.participation.totalPoints,
             currentStreak: item.participation.currentStreak,
             modifierFactor: item.participation.modifierFactor,
           },
         }))
-        .sort((a, b) => b.stats.totalPoints - a.stats.totalPoints), // Sort by points descending
+        .sort((a, b) => b.stats.totalPoints - a.stats.totalPoints),
     };
   },
 });
@@ -143,22 +141,16 @@ export const getChallengeLeaderboard = query({
       .withIndex("challengeId", (q) => q.eq("challengeId", args.challengeId))
       .collect();
 
-    const pointsByUser = await getChallengePointsByUser(ctx, args.challengeId);
-    const scoredParticipations = participations.map((p) => ({
-      ...p,
-      computedTotalPoints: pointsByUser.get(p.userId as string) ?? 0,
-    }));
-
-    // Sort by activity-derived points descending
-    scoredParticipations.sort(
-      (a, b) => b.computedTotalPoints - a.computedTotalPoints
+    // Sort by denormalized totalPoints descending
+    const sorted = [...participations].sort(
+      (a, b) => b.totalPoints - a.totalPoints
     );
 
     const limit = args.paginationOpts.numItems;
     const cursorIndex = args.paginationOpts.cursor ? Number(args.paginationOpts.cursor) : 0;
-    const paginatedItems = scoredParticipations.slice(cursorIndex, cursorIndex + limit);
+    const paginatedItems = sorted.slice(cursorIndex, cursorIndex + limit);
 
-    const isDone = cursorIndex + limit >= scoredParticipations.length;
+    const isDone = cursorIndex + limit >= sorted.length;
     const continueCursor = isDone ? null : (cursorIndex + limit).toString();
 
     const page = await Promise.all(
@@ -172,7 +164,7 @@ export const getChallengeLeaderboard = query({
                 name: user.name,
                 avatarUrl: user.avatarUrl,
             } : null,
-            totalPoints: participation.computedTotalPoints,
+            totalPoints: participation.totalPoints,
             currentStreak: participation.currentStreak,
         };
       })
@@ -201,20 +193,14 @@ export const getFullLeaderboard = query({
       .withIndex("challengeId", (q) => q.eq("challengeId", args.challengeId))
       .collect();
 
-    const pointsByUser = await getChallengePointsByUser(ctx, args.challengeId);
-    const scoredParticipations = participations.map((p) => ({
-      ...p,
-      computedTotalPoints: pointsByUser.get(p.userId as string) ?? 0,
-    }));
-
-    // Sort by activity-derived points descending
-    scoredParticipations.sort(
-      (a, b) => b.computedTotalPoints - a.computedTotalPoints
+    // Sort by denormalized totalPoints descending
+    const sorted = [...participations].sort(
+      (a, b) => b.totalPoints - a.totalPoints
     );
 
     // Batch fetch all users in parallel
     const entries = await Promise.all(
-      scoredParticipations.map(async (participation, index) => {
+      sorted.map(async (participation, index) => {
         const user = await ctx.db.get(participation.userId);
         if (!user) return null;
 
@@ -226,7 +212,7 @@ export const getFullLeaderboard = query({
             name: user.name,
             avatarUrl: user.avatarUrl,
           },
-          totalPoints: participation.computedTotalPoints,
+          totalPoints: participation.totalPoints,
           currentStreak: participation.currentStreak,
         };
       })
@@ -448,61 +434,48 @@ export const getCumulativeCategoryLeaderboard = query({
       return null;
     }
 
-    // Fetch activity types for this challenge
-    const activityTypes = await ctx.db
-      .query("activityTypes")
-      .withIndex("challengeId", (q) => q.eq("challengeId", args.challengeId))
+    // Fetch categories for this challenge and filter to leaderboard-eligible ones.
+    // We no longer scan activities — reads are O(categories × participants).
+    const allCategoryPoints = await ctx.db
+      .query("categoryPoints")
+      .withIndex("challengeCategory", (q) =>
+        q.eq("challengeId", args.challengeId)
+      )
       .collect();
 
-    const activityTypeMap = new Map(
-      activityTypes.map((at) => [at._id, at])
-    );
-
-    // Collect unique category IDs and fetch category docs
-    const categoryIds = new Set<Id<"categories">>();
-    for (const at of activityTypes) {
-      if (at.categoryId) categoryIds.add(at.categoryId);
+    if (allCategoryPoints.length === 0) {
+      return { categories: [] };
     }
+
+    // Resolve category docs and filter to showInCategoryLeaderboard === true
+    const uniqueCategoryIds = [
+      ...new Set(allCategoryPoints.map((cp) => cp.categoryId as string)),
+    ];
     const categoryDocs = await Promise.all(
-      Array.from(categoryIds).map((id) => ctx.db.get(id))
+      uniqueCategoryIds.map((id) => ctx.db.get(id as Id<"categories">))
     );
-    const categoryMap = new Map(
+    const leaderboardCategoryMap = new Map(
       categoryDocs
-        .filter((c): c is NonNullable<typeof c> => c !== null)
-        .map((c) => [c._id, c])
+        .filter(
+          (c): c is NonNullable<typeof c> =>
+            c !== null && c.showInCategoryLeaderboard === true
+        )
+        .map((c) => [c._id as string, c])
     );
 
-    // Only show categories flagged for the leaderboard
-    const leaderboardCategoryIds = new Set<string>(
-      Array.from(categoryMap.entries())
-        .filter(([, cat]) => cat.showInCategoryLeaderboard === true)
-        .map(([id]) => id as string)
-    );
+    if (leaderboardCategoryMap.size === 0) {
+      return { categories: [] };
+    }
 
-    // Query ALL non-deleted activities for this challenge
-    const activities = await ctx.db
-      .query("activities")
-      .withIndex("challengeId", (q) => q.eq("challengeId", args.challengeId))
-      .filter(notDeleted)
-      .collect();
-
-    // Group points: categoryId -> userId -> totalPoints
+    // Group into categoryId → userId → totalPoints (only leaderboard categories)
     const categoryUserPoints = new Map<string, Map<string, number>>();
-
-    for (const activity of activities) {
-      const at = activityTypeMap.get(activity.activityTypeId);
-      if (!at || !at.categoryId) continue;
-
-      const catKey = at.categoryId as string;
-      // Skip categories not flagged for the leaderboard
-      if (!leaderboardCategoryIds.has(catKey)) continue;
-
+    for (const cp of allCategoryPoints) {
+      const catKey = cp.categoryId as string;
+      if (!leaderboardCategoryMap.has(catKey)) continue;
       if (!categoryUserPoints.has(catKey)) {
         categoryUserPoints.set(catKey, new Map());
       }
-      const userPoints = categoryUserPoints.get(catKey)!;
-      const current = userPoints.get(activity.userId) ?? 0;
-      userPoints.set(activity.userId, current + activity.pointsEarned);
+      categoryUserPoints.get(catKey)!.set(cp.userId as string, cp.totalPoints);
     }
 
     // Cache for user lookups
@@ -558,7 +531,7 @@ export const getCumulativeCategoryLeaderboard = query({
         const assignRanks = <T extends { rank: number }>(arr: T[]): T[] =>
           arr.slice(0, 5).map((e, i) => ({ ...e, rank: i + 1 }));
 
-        const catDoc = categoryMap.get(catKey as Id<"categories">);
+        const catDoc = leaderboardCategoryMap.get(catKey);
         const category = catDoc
           ? { id: catKey, name: catDoc.name }
           : { id: catKey, name: "Unknown" };
@@ -572,17 +545,12 @@ export const getCumulativeCategoryLeaderboard = query({
       })
     );
 
-    // Filter out categories where all gender groups are empty
-    const nonEmpty = categories.filter(
-      (c) => c.women.length > 0 || c.men.length > 0
-    );
-
-    // Sort alphabetically
-    nonEmpty.sort((a, b) => {
-      return a.category.name.localeCompare(b.category.name);
-    });
-
-    return { categories: nonEmpty };
+    // Filter out categories where all gender groups are empty, sort alphabetically
+    return {
+      categories: categories
+        .filter((c) => c.women.length > 0 || c.men.length > 0)
+        .sort((a, b) => a.category.name.localeCompare(b.category.name)),
+    };
   },
 });
 
@@ -699,7 +667,7 @@ export const getWeeklyCategoryLeaderboard = query({
         // Sort users by weekly points descending, take top 10.
         const sorted = Array.from(userPointsMap.entries())
           .sort((a, b) => b[1] - a[1])
-          .slice(0, 10);
+          .slice(0, 5);
 
         const entries = await Promise.all(
           sorted.map(async ([userId, points], index) => {

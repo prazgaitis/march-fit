@@ -158,7 +158,7 @@ describe("Users Queries", () => {
     });
   });
 
-  it("getProfile uses activity-derived total points and rank", async () => {
+  it("getProfile uses denormalized total points and rank", async () => {
     const ownerId = await createTestUser(t, {
       email: "owner-users-profile@example.com",
       username: "owner_users_profile",
@@ -173,8 +173,8 @@ describe("Users Queries", () => {
       username: "profile_positive",
     });
 
-    await createTestParticipation(t, userId, challengeId, { totalPoints: 999 });
-    await createTestParticipation(t, otherId, challengeId, { totalPoints: -999 });
+    await createTestParticipation(t, userId, challengeId, { totalPoints: -7 });
+    await createTestParticipation(t, otherId, challengeId, { totalPoints: 3 });
 
     await t.run(async (ctx) => {
       const penaltyTypeId = await ctx.db.insert("activityTypes", {

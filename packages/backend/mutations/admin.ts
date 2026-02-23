@@ -6,6 +6,7 @@ import { reportLatencyIfExceeded } from "../lib/latencyMonitoring";
 import { applyParticipationScoreDeltaAndRecomputeStreak } from "../lib/participationScoring";
 import { dateOnlyToUtcMs, normalizeDateOnlyInput } from "../lib/dateOnly";
 import { deleteActivity, patchActivity } from "../lib/activityWrites";
+import { applyCategoryPointsDelta } from "../lib/categoryPoints";
 
 async function requireChallengeAdminForActivity(
   ctx: { db: any; auth: any },
@@ -296,13 +297,46 @@ export const adminEditActivity = mutation({
     await patchActivity(ctx, args.activityId, updates);
 
     if (shouldRecomputeStreak || pointsDiff !== 0) {
+      const adminTypeChanged =
+        args.activityTypeId !== undefined &&
+        args.activityTypeId !== activity.activityTypeId;
+
+      type ActivityTypeShape = { categoryId?: import("../_generated/dataModel").Id<"categories"> } | null;
+
+      if (adminTypeChanged) {
+        // Unapply old category, then apply new category via the main call below
+        const oldActivityType = await ctx.db.get(activity.activityTypeId) as ActivityTypeShape;
+        await applyCategoryPointsDelta(ctx, {
+          userId: activity.userId,
+          challengeId: activity.challengeId,
+          categoryId: oldActivityType?.categoryId,
+          pointsDelta: -activity.pointsEarned,
+          now,
+        });
+      }
+
+      const effectiveActivityTypeId = args.activityTypeId ?? activity.activityTypeId;
+      const effectiveActivityType = await ctx.db.get(effectiveActivityTypeId) as ActivityTypeShape;
+      const newPointsEarned = args.pointsEarned ?? activity.pointsEarned;
+
       await applyParticipationScoreDeltaAndRecomputeStreak(ctx, {
         userId: activity.userId,
         challengeId: activity.challengeId,
         pointsDelta: pointsDiff,
         streakMinPoints: (challenge as any).streakMinPoints,
         now,
+        categoryId: adminTypeChanged ? undefined : effectiveActivityType?.categoryId,
       });
+
+      if (adminTypeChanged) {
+        await applyCategoryPointsDelta(ctx, {
+          userId: activity.userId,
+          challengeId: activity.challengeId,
+          categoryId: effectiveActivityType?.categoryId,
+          pointsDelta: newPointsEarned,
+          now,
+        });
+      }
     }
 
     // Add history entry

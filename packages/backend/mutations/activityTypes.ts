@@ -163,3 +163,20 @@ export const updateActivityType = mutation({
     return { success: true };
   },
 });
+
+export const batchAssignCategories = internalMutation({
+  args: {
+    assignments: v.array(
+      v.object({
+        activityTypeId: v.id("activityTypes"),
+        categoryId: v.id("categories"),
+      })
+    ),
+  },
+  handler: async (ctx, args) => {
+    for (const { activityTypeId, categoryId } of args.assignments) {
+      await ctx.db.patch(activityTypeId, { categoryId });
+    }
+    return { updated: args.assignments.length };
+  },
+});

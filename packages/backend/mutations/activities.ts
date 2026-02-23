@@ -15,6 +15,7 @@ import { computeCriteriaProgress } from "../lib/achievements";
 import { reportLatencyIfExceeded } from "../lib/latencyMonitoring";
 import { applyParticipationScoreDeltaAndRecomputeStreak } from "../lib/participationScoring";
 import { insertActivity, patchActivity } from "../lib/activityWrites";
+import { applyCategoryPointsDelta } from "../lib/categoryPoints";
 
 // Internal mutation for seeding
 export const create = internalMutation({
@@ -227,11 +228,13 @@ export const log = mutation({
 
     // Recompute streaks from all challenge days after any new activity.
     // This handles backfills and penalties that can invalidate earlier days.
+    // categoryId is passed so the common write path also maintains categoryPoints.
     const streakUpdate = await applyParticipationScoreDeltaAndRecomputeStreak(ctx, {
       userId: user._id,
       challengeId: args.challengeId,
       pointsDelta: pointsEarned,
       streakMinPoints: challenge.streakMinPoints,
+      categoryId: activityType.categoryId,
     });
     const currentStreak = streakUpdate?.currentStreak ?? participation.currentStreak;
 
@@ -620,14 +623,43 @@ export const editActivity = mutation({
       updatedAt: now,
     });
 
+    // When the activity type changed, the category may have changed too.
+    // Unapply old category points first; new category is handled via categoryId below.
+    const typeChanged =
+      args.activityTypeId !== undefined &&
+      args.activityTypeId !== activity.activityTypeId;
+    if (typeChanged) {
+      const oldActivityType = await ctx.db.get(activity.activityTypeId);
+      await applyCategoryPointsDelta(ctx, {
+        userId: user._id,
+        challengeId: activity.challengeId,
+        categoryId: oldActivityType?.categoryId,
+        pointsDelta: -oldPoints,
+        now,
+      });
+    }
+
     // Update participation totalPoints + streak after activity is updated.
+    // categoryId routes through the common write path for aggregation.
     await applyParticipationScoreDeltaAndRecomputeStreak(ctx, {
       userId: user._id,
       challengeId: activity.challengeId,
       pointsDelta: newPoints - oldPoints,
       streakMinPoints: challenge.streakMinPoints,
       now,
+      // When type changed: new category gets +newPoints; when same: apply delta
+      categoryId: typeChanged ? undefined : activityType.categoryId,
     });
+    // When type changed, apply the full new points to the new category
+    if (typeChanged) {
+      await applyCategoryPointsDelta(ctx, {
+        userId: user._id,
+        challengeId: activity.challengeId,
+        categoryId: activityType.categoryId,
+        pointsDelta: newPoints,
+        now,
+      });
+    }
 
     // Re-run achievement check
     await checkAndAwardAchievements(ctx, user._id, activity.challengeId, args.activityId);
@@ -689,12 +721,14 @@ export const remove = mutation({
       updatedAt: now,
     });
 
+    const deletedActivityType = await ctx.db.get(activity.activityTypeId);
     await applyParticipationScoreDeltaAndRecomputeStreak(ctx, {
       userId: activity.userId,
       challengeId: activity.challengeId,
       pointsDelta: -activity.pointsEarned,
       streakMinPoints: challenge.streakMinPoints,
       now,
+      categoryId: deletedActivityType?.categoryId,
     });
 
       return { deleted: true };

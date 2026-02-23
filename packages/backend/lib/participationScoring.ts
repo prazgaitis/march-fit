@@ -1,5 +1,6 @@
 import type { Id } from "../_generated/dataModel";
 import { notDeleted } from "./activityFilters";
+import { applyCategoryPointsDelta } from "./categoryPoints";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -80,6 +81,8 @@ export async function applyParticipationScoreDeltaAndRecomputeStreak(
     pointsDelta: number;
     streakMinPoints: number;
     now?: number;
+    /** When provided, also increments the categoryPoints aggregation table. */
+    categoryId?: Id<"categories">;
   }
 ) {
   const participation = await ctx.db
@@ -107,6 +110,17 @@ export async function applyParticipationScoreDeltaAndRecomputeStreak(
     lastStreakDay: recomputed.lastStreakDayTs,
     updatedAt: now,
   });
+
+  // Maintain category points aggregation when a category is known.
+  if (args.categoryId) {
+    await applyCategoryPointsDelta(ctx, {
+      userId: args.userId,
+      challengeId: args.challengeId,
+      categoryId: args.categoryId,
+      pointsDelta: args.pointsDelta,
+      now,
+    });
+  }
 
   return {
     participationId: participation._id,

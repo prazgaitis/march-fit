@@ -383,7 +383,7 @@ describe('Challenges Logic', () => {
   });
 
   describe('getDashboardData', () => {
-    it('uses activity-derived totals for leaderboard and user points', async () => {
+    it('uses denormalized totals for leaderboard and user points', async () => {
       const ownerId = await createTestUser(t, { email: 'owner-dashboard@example.com', username: 'owner' });
       const challengeId = await createTestChallenge(t, ownerId);
       const userId = await createTestUser(t, { email: 'negative-dashboard@example.com', username: 'negative' });
@@ -416,7 +416,7 @@ describe('Challenges Logic', () => {
           userId: userId as Id<'users'>,
           challengeId: challengeId as Id<'challenges'>,
           joinedAt: Date.now(),
-          totalPoints: 999,
+          totalPoints: -10,
           currentStreak: 0,
           modifierFactor: 1,
           paymentStatus: 'paid',
@@ -426,7 +426,7 @@ describe('Challenges Logic', () => {
           userId: otherId as Id<'users'>,
           challengeId: challengeId as Id<'challenges'>,
           joinedAt: Date.now(),
-          totalPoints: -999,
+          totalPoints: 5,
           currentStreak: 0,
           modifierFactor: 1,
           paymentStatus: 'paid',

@@ -9,7 +9,6 @@ import { ChevronLeft, ChevronRight, Trophy, Loader2 } from "lucide-react";
 
 import { UserAvatar } from "@/components/user-avatar";
 import { PointsDisplay } from "@/components/ui/points-display";
-import { formatPoints } from "@/lib/points";
 import { cn } from "@/lib/utils";
 
 interface WeeklyLeaderboardEntry {

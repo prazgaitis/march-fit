@@ -1,7 +1,7 @@
 import { query } from "../_generated/server";
 import { v } from "convex/values";
+import type { Id } from "../_generated/dataModel";
 import { notDeleted } from "../lib/activityFilters";
-import { getChallengePointsByUser } from "../lib/challengePoints";
 import { formatDateOnlyFromUtcMs } from "../lib/dateOnly";
 
 /**
@@ -164,7 +164,16 @@ export const getUserStatus = query({
     userId: v.id("users"),
   },
   handler: async (ctx, args) => {
-    const pointsByUser = await getChallengePointsByUser(ctx, args.challengeId);
+    // Helper to get a user's points from denormalized userChallenges
+    const getUserPoints = async (userId: Id<"users">) => {
+      const uc = await ctx.db
+        .query("userChallenges")
+        .withIndex("userChallengeUnique", (q) =>
+          q.eq("userId", userId).eq("challengeId", args.challengeId)
+        )
+        .first();
+      return uc?.totalPoints ?? 0;
+    };
 
     // Get active mini-games
     const activeMiniGames = await ctx.db
@@ -202,24 +211,21 @@ export const getUserStatus = query({
         let userCurrentPoints = null;
 
         // Get current leaderboard positions for live updates
-        userCurrentPoints = pointsByUser.get(args.userId as string) ?? 0;
+        userCurrentPoints = await getUserPoints(args.userId);
 
         if (participation.partnerUserId) {
           partnerUser = await ctx.db.get(participation.partnerUserId);
-          partnerCurrentPoints =
-            pointsByUser.get(participation.partnerUserId as string) ?? 0;
+          partnerCurrentPoints = await getUserPoints(participation.partnerUserId);
         }
 
         if (participation.preyUserId) {
           preyUser = await ctx.db.get(participation.preyUserId);
-          preyCurrentPoints =
-            pointsByUser.get(participation.preyUserId as string) ?? 0;
+          preyCurrentPoints = await getUserPoints(participation.preyUserId);
         }
 
         if (participation.hunterUserId) {
           hunterUser = await ctx.db.get(participation.hunterUserId);
-          hunterCurrentPoints =
-            pointsByUser.get(participation.hunterUserId as string) ?? 0;
+          hunterCurrentPoints = await getUserPoints(participation.hunterUserId);
         }
 
         // Calculate current week max for PR week

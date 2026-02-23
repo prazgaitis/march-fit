@@ -25,6 +25,7 @@ import { notDeleted } from "../lib/activityFilters";
 import { reportLatencyIfExceeded } from "../lib/latencyMonitoring";
 import { applyParticipationScoreDeltaAndRecomputeStreak } from "../lib/participationScoring";
 import { insertActivity, patchActivity } from "../lib/activityWrites";
+import { applyCategoryPointsDelta } from "../lib/categoryPoints";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -166,6 +167,7 @@ export const logActivityForUser = internalMutation({
       challengeId: args.challengeId,
       pointsDelta: pointsEarned,
       streakMinPoints: challenge.streakMinPoints,
+      categoryId: activityType.categoryId,
     });
     const currentStreak = streakUpdate?.currentStreak ?? participation.currentStreak;
 
@@ -232,12 +234,14 @@ export const removeActivityForUser = internalMutation({
       updatedAt: now,
     });
 
+    const deletedApiActivityType = await ctx.db.get(activity.activityTypeId);
     await applyParticipationScoreDeltaAndRecomputeStreak(ctx, {
       userId: activity.userId,
       challengeId: activity.challengeId,
       pointsDelta: -activity.pointsEarned,
       streakMinPoints: challenge.streakMinPoints,
       now,
+      categoryId: deletedApiActivityType?.categoryId,
     });
 
       return { deleted: true };
@@ -673,13 +677,43 @@ export const adminEditActivityForUser = internalMutation({
     await patchActivity(ctx, args.activityId, updates);
 
     if (shouldRecomputeStreak || pointsDiff !== 0) {
+      const apiTypeChanged =
+        args.activityTypeId !== undefined &&
+        args.activityTypeId !== activity.activityTypeId;
+
+      if (apiTypeChanged) {
+        const oldApiActivityType = await ctx.db.get(activity.activityTypeId);
+        await applyCategoryPointsDelta(ctx, {
+          userId: activity.userId,
+          challengeId: activity.challengeId,
+          categoryId: oldApiActivityType?.categoryId,
+          pointsDelta: -activity.pointsEarned,
+          now,
+        });
+      }
+
+      const effectiveApiTypeId = args.activityTypeId ?? activity.activityTypeId;
+      const effectiveApiActivityType = await ctx.db.get(effectiveApiTypeId);
+      const newApiPointsEarned = args.pointsEarned ?? activity.pointsEarned;
+
       await applyParticipationScoreDeltaAndRecomputeStreak(ctx, {
         userId: activity.userId,
         challengeId: activity.challengeId,
         pointsDelta: pointsDiff,
         streakMinPoints: challenge.streakMinPoints,
         now,
+        categoryId: apiTypeChanged ? undefined : effectiveApiActivityType?.categoryId,
       });
+
+      if (apiTypeChanged) {
+        await applyCategoryPointsDelta(ctx, {
+          userId: activity.userId,
+          challengeId: activity.challengeId,
+          categoryId: effectiveApiActivityType?.categoryId,
+          pointsDelta: newApiPointsEarned,
+          now,
+        });
+      }
     }
 
     await ctx.db.insert("activityFlagHistory", {
