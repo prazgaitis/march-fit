@@ -3,6 +3,7 @@
 import { FormEvent, useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import * as Sentry from "@sentry/nextjs";
 
 import { betterAuthClient } from "@/lib/better-auth/client";
 import { PasswordInput } from "@/components/ui/password-input";
@@ -59,6 +60,19 @@ export function BetterAuthSignIn() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
+  // Surface OAuth callback errors (e.g. state mismatch, user denied, mobile cookie loss)
+  const oauthError = searchParams.get("error");
+  useEffect(() => {
+    if (oauthError) {
+      setError("Google sign-in failed. Please try again.");
+      Sentry.captureMessage(`OAuth callback error on sign-in: ${oauthError}`, {
+        level: "error",
+        tags: { area: "auth", provider: "google", flow: "sign-in" },
+        extra: { errorParam: oauthError },
+      });
+    }
+  }, [oauthError]);
+
   const anyLoading = isSubmitting || isGoogleLoading;
 
   const lastMethod = betterAuthClient.getLastUsedLoginMethod?.() ?? null;
@@ -107,16 +121,32 @@ export function BetterAuthSignIn() {
             onClick={async () => {
               setIsGoogleLoading(true);
               setError(null);
+              Sentry.addBreadcrumb({
+                category: "auth",
+                message: "Google sign-in initiated",
+                level: "info",
+              });
               try {
                 const result = await betterAuthClient.signIn.social({
                   provider: "google",
                   callbackURL: redirectTo,
+                  errorCallbackURL: "/sign-in?error=oauth_failed",
                 });
                 if (result.error) {
+                  Sentry.captureException(
+                    new Error(`Google sign-in failed: ${result.error.message || result.error.code || "unknown"}`),
+                    {
+                      tags: { area: "auth", provider: "google", flow: "sign-in" },
+                      extra: { errorCode: result.error.code, errorMessage: result.error.message },
+                    },
+                  );
                   setError("Google sign-in failed. Please try again.");
                   setIsGoogleLoading(false);
                 }
-              } catch {
+              } catch (err) {
+                Sentry.captureException(err, {
+                  tags: { area: "auth", provider: "google", flow: "sign-in" },
+                });
                 setError("Google sign-in failed. Please try again.");
                 setIsGoogleLoading(false);
               }

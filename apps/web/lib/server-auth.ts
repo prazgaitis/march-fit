@@ -1,5 +1,6 @@
 import "server-only";
 
+import * as Sentry from "@sentry/nextjs";
 import { convexBetterAuthNextJs } from "@convex-dev/better-auth/nextjs";
 import { FunctionReference, OptionalRestArgs } from "convex/server";
 import { Preloaded } from "convex/react";
@@ -97,8 +98,25 @@ export const betterAuthHandler = {
   GET: async (req: Request) => {
     try {
       const response = await proxyAuthRequest(req);
+      // Only report 4xx/5xx — 3xx redirects are expected in OAuth flows
+      if (response instanceof Response && response.status >= 400) {
+        const url = new URL(req.url);
+        Sentry.captureMessage(
+          `Auth proxy GET ${url.pathname} returned ${response.status}`,
+          {
+            level: "warning",
+            tags: { area: "auth-proxy", method: "GET", status: String(response.status) },
+            extra: { pathname: url.pathname, search: url.search },
+          },
+        );
+      }
       return ensureResponse(response, "GET");
     } catch (error) {
+      const url = new URL(req.url);
+      Sentry.captureException(error, {
+        tags: { area: "auth-proxy", method: "GET" },
+        extra: { pathname: url.pathname, search: url.search },
+      });
       console.error("[server-auth] GET handler failed:", error);
       return Response.json({ error: "Internal server error" }, { status: 500 });
     }
@@ -106,13 +124,26 @@ export const betterAuthHandler = {
   POST: async (req: Request) => {
     try {
       const response = await proxyAuthRequest(req);
-      if (response instanceof Response && !response.ok) {
+      // Only report 4xx/5xx — 3xx redirects are expected in OAuth flows
+      if (response instanceof Response && response.status >= 400) {
         const url = new URL(req.url);
+        Sentry.captureMessage(
+          `Auth proxy POST ${url.pathname} returned ${response.status}`,
+          {
+            level: "warning",
+            tags: { area: "auth-proxy", method: "POST", status: String(response.status) },
+            extra: { pathname: url.pathname, search: url.search },
+          },
+        );
         console.error(`[server-auth] POST ${url.pathname} returned ${response.status}`);
       }
       return ensureResponse(response, "POST");
     } catch (error) {
       const url = new URL(req.url);
+      Sentry.captureException(error, {
+        tags: { area: "auth-proxy", method: "POST" },
+        extra: { pathname: url.pathname },
+      });
       console.error(`[server-auth] POST ${url.pathname} handler threw:`, error);
       return Response.json({ error: "Internal server error" }, { status: 500 });
     }
