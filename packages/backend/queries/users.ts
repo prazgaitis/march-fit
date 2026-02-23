@@ -4,7 +4,6 @@ import { paginationOptsValidator } from "convex/server";
 import { coerceDateOnlyToString, formatDateOnlyFromUtcMs } from "../lib/dateOnly";
 import { internalQuery } from "../_generated/server";
 import { notDeleted } from "../lib/activityFilters";
-import { getChallengePointsByUser, getPointsForUser } from "../lib/challengePoints";
 
 /**
  * Get current authenticated user
@@ -118,19 +117,12 @@ export const getProfile = query({
       .query("userChallenges")
       .withIndex("challengeId", (q) => q.eq("challengeId", args.challengeId))
       .collect();
-    const pointsByUser = await getChallengePointsByUser(ctx, args.challengeId);
-    const scoredParticipations = allParticipations
-      .map((p) => ({
-        ...p,
-        computedTotalPoints: getPointsForUser(pointsByUser, p.userId),
-      }))
-      .sort((a, b) => b.computedTotalPoints - a.computedTotalPoints);
+    const sortedParticipations = [...allParticipations]
+      .sort((a, b) => b.totalPoints - a.totalPoints);
     const rank = participation
-      ? scoredParticipations.findIndex((p) => p.userId === args.userId) + 1
+      ? sortedParticipations.findIndex((p) => p.userId === args.userId) + 1
       : null;
-    const participationPoints = participation
-      ? getPointsForUser(pointsByUser, args.userId)
-      : 0;
+    const participationPoints = participation?.totalPoints ?? 0;
 
     // Get activity count for this user in this challenge
     const activities = await ctx.db
