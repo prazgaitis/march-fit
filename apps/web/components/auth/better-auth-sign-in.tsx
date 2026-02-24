@@ -91,6 +91,11 @@ export function BetterAuthSignIn() {
 
         {/* Card */}
         <div className="rounded-2xl border border-white/[0.08] bg-zinc-950/80 p-6 shadow-2xl backdrop-blur-xl sm:p-8">
+          {/* Status banner */}
+          <div className="mb-4 rounded-lg border border-amber-500/20 bg-amber-500/10 px-3 py-2 text-xs text-amber-300">
+            We&apos;re experiencing intermittent sign-in issues and are actively investigating. If you have trouble, please try again in a few minutes.
+          </div>
+
           <div className="mb-6 space-y-1">
             <h1 className="text-xl font-bold text-white sm:text-2xl">
               Welcome back
