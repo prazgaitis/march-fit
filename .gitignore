@@ -57,6 +57,10 @@ packages/backend/.env.local.self-hosted
 # Admin tools (local-only scripts, not open-sourced)
 admin-tools/
 
+# Playwright
+e2e/playwright-report/
+e2e/test-results/
+
 # Misc
 coverage/
 .nyc_output/

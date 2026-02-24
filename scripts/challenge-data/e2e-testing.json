@@ -1,0 +1,38 @@
+{
+  "challenge": {
+    "name": "E2E Test Challenge",
+    "description": "Private challenge used by automated E2E tests. Do not join manually.",
+    "startDate": "2026-01-01",
+    "endDate": "2026-12-31",
+    "streakMinPoints": 10,
+    "weekCalcMethod": "sunday",
+    "visibility": "private"
+  },
+  "creatorEmail": "prazgaitis@gmail.com",
+  "activityTypes": [
+    {
+      "name": "E2E Run",
+      "description": "Test running activity. 10 points per mile.",
+      "category": "E2E Testing",
+      "scoringConfig": { "type": "unit_based", "unit": "miles", "pointsPerUnit": 10 },
+      "contributesToStreak": true,
+      "isNegative": false
+    },
+    {
+      "name": "E2E Workout",
+      "description": "Test workout activity. 1 point per minute.",
+      "category": "E2E Testing",
+      "scoringConfig": { "type": "unit_based", "unit": "minutes", "pointsPerUnit": 1 },
+      "contributesToStreak": true,
+      "isNegative": false
+    },
+    {
+      "name": "E2E Completion",
+      "description": "Test completion activity. 25 fixed points.",
+      "category": "E2E Testing",
+      "scoringConfig": { "type": "completion", "fixedPoints": 25 },
+      "contributesToStreak": true,
+      "isNegative": false
+    }
+  ]
+}
