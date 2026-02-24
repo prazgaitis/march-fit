@@ -89,7 +89,7 @@ function getTrustedOrigins(siteUrl?: string): string[] {
  * This provides the adapter and HTTP route registration for Better Auth
  */
 export const authComponent = createClient<DataModel>(components.betterAuth, {
-  verbose: verboseAuthLogging,
+  verbose: true,
 });
 
 /**
