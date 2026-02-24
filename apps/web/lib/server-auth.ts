@@ -90,23 +90,15 @@ function proxyHandler(method: "GET" | "POST") {
       headers.set("accept-encoding", "application/json");
       headers.set("host", new URL(siteUrl).host);
 
-      const response = await fetch(targetUrl, {
+      // Return the upstream response directly to preserve Set-Cookie headers.
+      // Do NOT use `instanceof Response` — on Vercel, fetch() returns an undici
+      // Response that fails the check against the global Response constructor.
+      return await fetch(targetUrl, {
         method,
         headers,
         body,
         redirect: "manual",
       });
-
-      if (!(response instanceof Response)) {
-        console.error(`[server-auth] ${method} proxy returned non-Response`, {
-          path,
-          type: typeof response,
-          value: String(response),
-        });
-        return Response.json({ error: "Internal server error" }, { status: 500 });
-      }
-
-      return response;
     } catch (error) {
       console.error(`[server-auth] ${method} proxy threw`, {
         path,
