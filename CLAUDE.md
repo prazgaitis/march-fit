@@ -68,8 +68,12 @@ npx convex data <table> --prod
 
 **Testing:**
 ```bash
-# Run tests
+# Run unit tests
 pnpm test -- --run
+
+# Run E2E tests (requires env vars: E2E_CHALLENGE_ID, E2E_CHALLENGE_INVITE_CODE, E2E_USER_PASSWORD)
+pnpm e2e                  # Run Playwright E2E tests (headless)
+pnpm e2e:headed           # Run with browser visible
 ```
 
 **Install shadcn components (run from `apps/web`):**
@@ -84,6 +88,7 @@ This is a fitness challenge platform built as a Turborepo monorepo with:
 **Core Structure:**
 - `apps/web/` - Next.js 15 frontend with Better Auth and shadcn/ui components
 - `packages/backend/` - Convex backend with schema, queries, mutations, and actions
+- `e2e/` - Playwright E2E tests that run nightly against production
 
 **Key Data Models:**
 - **Users** - Managed by Better Auth with Convex adapter
