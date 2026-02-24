@@ -22,7 +22,7 @@ if [ -z "${NEXT_PUBLIC_CONVEX_URL:-}" ] && [ -n "${CONVEX_SELF_HOSTED_URL:-}" ];
 fi
 
 if [ -z "${NEXT_PUBLIC_CONVEX_SITE_URL:-}" ]; then
-  export NEXT_PUBLIC_CONVEX_SITE_URL="http://127.0.0.1:3211"
+  export NEXT_PUBLIC_CONVEX_SITE_URL="http://127.0.0.1:${CONVEX_SITE_PORT:-3211}"
 fi
 
 if [ -z "${CONVEX_SELF_HOSTED_URL:-}" ] || [ -z "${CONVEX_SELF_HOSTED_ADMIN_KEY:-}" ]; then
