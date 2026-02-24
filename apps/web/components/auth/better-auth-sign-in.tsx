@@ -98,10 +98,6 @@ export function BetterAuthSignIn() {
             <p className="text-sm text-zinc-400">
               Sign in to your account to continue.
             </p>
-            <p className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
-              We&apos;re investigating errors with sign in. Please try again later
-              today.
-            </p>
           </div>
 
           {/* Google */}
