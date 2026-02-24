@@ -109,3 +109,5 @@
 | 2026-02-24 | self | Ran repo exploration commands before reading `.claude/napkin.md` at session start | Always make `cat .claude/napkin.md` the first command before any other repo command |
 | 2026-02-24 | self | Pulled latest `main` with new `e2e` workspace and ran Playwright before syncing deps, causing missing `@playwright/test` | Run `pnpm install` immediately after pull when workspace manifests/lockfile changed |
 | 2026-02-24 | self | New sign-out E2E initially failed by asserting anonymous state immediately after click; auth/session transitions can lag briefly | In auth E2E flows, wait for `/api/auth/sign-out` response and use `expect.poll` for session-state assertions |
+
+| 2026-02-24 | self | Used `status` as a shell variable in zsh loop (`read-only variable`) during auth probing | Avoid reserved shell params (`status`) and use non-special variable names like `st` |

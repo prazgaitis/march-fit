@@ -84,7 +84,17 @@ async function proxyAuthRequest(req: Request): Promise<Response> {
   // Content-Encoding when re-serving the proxied body.
   proxyReq.headers.set("accept-encoding", "identity");
 
-  return fetch(proxyReq);
+  const upstream = await fetch(proxyReq);
+  const upstreamBody = await upstream.arrayBuffer();
+  const headers = new Headers(upstream.headers);
+  // Let the runtime compute length for the rebuilt Response object.
+  headers.delete("content-length");
+
+  return new Response(upstreamBody, {
+    status: upstream.status,
+    statusText: upstream.statusText,
+    headers,
+  });
 }
 
 export const betterAuthHandler = {
