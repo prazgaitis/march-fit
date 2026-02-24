@@ -10,6 +10,28 @@ const http = httpRouter();
 const STRAVA_OBJECT_TYPES = new Set(["activity", "athlete"]);
 const STRAVA_ASPECT_TYPES = new Set(["create", "update", "delete"]);
 
+function getAllowedOrigins(siteUrl?: string): string[] {
+  const origins = new Set<string>(["http://localhost:3000", "http://localhost:3001"]);
+  if (!siteUrl) return Array.from(origins);
+
+  const normalized = siteUrl.replace(/\/+$/, "");
+  origins.add(normalized);
+
+  try {
+    const url = new URL(normalized);
+    const host = url.hostname;
+    if (host.startsWith("www.")) {
+      origins.add(`${url.protocol}//${host.slice(4)}`);
+    } else {
+      origins.add(`${url.protocol}//www.${host}`);
+    }
+  } catch {
+    // Ignore malformed values; keep explicit site URL origin.
+  }
+
+  return Array.from(origins);
+}
+
 type StravaWebhookPayload = Record<string, unknown> & {
   object_type: "activity" | "athlete";
   aspect_type: "create" | "update" | "delete";
@@ -32,15 +54,7 @@ function isStravaWebhookPayload(value: unknown): value is StravaWebhookPayload {
 // Register Better Auth routes
 authComponent.registerRoutes(http, createAuth, {
   cors: {
-    allowedOrigins: [
-      "http://localhost:3000",
-      "http://localhost:3001",
-      process.env.SITE_URL || "",
-      // Also allow www variant (matches trustedOrigins in auth.ts)
-      ...(process.env.SITE_URL
-        ? [process.env.SITE_URL.replace("://", "://www.")]
-        : []),
-    ].filter(Boolean),
+    allowedOrigins: getAllowedOrigins(process.env.SITE_URL),
   },
 });
 

@@ -62,6 +62,28 @@ const authLogLevel = (process.env.AUTH_LOG_LEVEL ?? "").toUpperCase();
 const verboseAuthLogging =
   authLogLevel === "DEBUG" || process.env.CONVEX_AUTH_VERBOSE === "1";
 
+function getTrustedOrigins(siteUrl?: string): string[] {
+  const origins = new Set<string>(["http://localhost:3000", "http://localhost:3001"]);
+  if (!siteUrl) return Array.from(origins);
+
+  const normalized = siteUrl.replace(/\/+$/, "");
+  origins.add(normalized);
+
+  try {
+    const url = new URL(normalized);
+    const host = url.hostname;
+    if (host.startsWith("www.")) {
+      origins.add(`${url.protocol}//${host.slice(4)}`);
+    } else {
+      origins.add(`${url.protocol}//www.${host}`);
+    }
+  } catch {
+    // Ignore invalid SITE_URL values; the explicit value is still included above.
+  }
+
+  return Array.from(origins);
+}
+
 /**
  * Better Auth client for Convex backend
  * This provides the adapter and HTTP route registration for Better Auth
@@ -78,20 +100,13 @@ export const createAuth = (ctx: GenericCtx<DataModel>) => {
   // Use SITE_URL (Next.js app) as base — OAuth state cookies are set on the
   // Next.js domain, so the callback must go through the Next.js proxy too.
   const siteUrl = process.env.SITE_URL || process.env.CONVEX_SITE_URL;
+  const trustedOrigins = getTrustedOrigins(process.env.SITE_URL);
 
   return betterAuth({
     baseURL: siteUrl,
     basePath: "/api/auth",
     database: authComponent.adapter(ctx),
-    trustedOrigins: [
-      "http://localhost:3000",
-      "http://localhost:3001",
-      process.env.SITE_URL || "",
-      // Also trust www variant of the site URL
-      ...(process.env.SITE_URL
-        ? [process.env.SITE_URL.replace("://", "://www.")]
-        : []),
-    ].filter(Boolean),
+    trustedOrigins,
     account: {
       accountLinking: {
         enabled: true,

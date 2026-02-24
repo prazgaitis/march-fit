@@ -102,4 +102,5 @@
 | 2026-02-22 | self | Ran `ls` before reading `.claude/napkin.md` at session start | Make the first command `cat .claude/napkin.md` every single session, no exceptions |
 | 2026-02-21 | self | Ran commands against Next dynamic-route paths without quoting bracket segments and hit `zsh: no matches found` | Always single-quote any path containing `[]` before `sed`/`rg`/`cat` |
 | 2026-02-21 | self | Initial mobile selector fix added touch-scroll classes but did not resolve drawer touch scrolling because the popover remained portaled to `body` | In Drawer/Dialog flows, portal popovers into an element inside the modal content to stay within scroll-lock shards and preserve touch scroll |
-- For public challenge routes (`/challenges/:id`), guard backend query args with `normalizeId` when IDs can come from arbitrary URL input to avoid noisy Convex argument-validation errors on malformed IDs.
+| 2026-02-24 | self | Tried `pnpm convex logs --prod` without deployment env and got blocked by missing `CONVEX_DEPLOYMENT` | Use repo wrapper (`scripts/convex.sh`) or a configured deployment env before running Convex CLI log commands |
+| 2026-02-24 | self | Ran `rg` against `apps/web/app/(auth)` without quoting and zsh parsed parentheses, causing `number expected` | Always quote paths containing parentheses in shell commands (e.g., `'apps/web/app/(auth)'`) |
