@@ -61,6 +61,9 @@ admin-tools/
 e2e/playwright-report/
 e2e/test-results/
 
+# E2E env (un-ignore the checked-in defaults, keep .env.local secret)
+!e2e/.env
+
 # Misc
 coverage/
 .nyc_output/

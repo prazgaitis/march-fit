@@ -1,4 +1,19 @@
 import { defineConfig, devices } from "@playwright/test";
+import { readFileSync, existsSync } from "fs";
+import { resolve } from "path";
+
+// Load .env then .env.local (local overrides checked-in defaults)
+for (const file of [".env", ".env.local"]) {
+  const path = resolve(__dirname, file);
+  if (existsSync(path)) {
+    for (const line of readFileSync(path, "utf-8").split("\n")) {
+      const match = line.match(/^\s*([^#=]+?)\s*=\s*(.*?)\s*$/);
+      if (match && !process.env[match[1]]) {
+        process.env[match[1]] = match[2];
+      }
+    }
+  }
+}
 
 const BASE_URL = process.env.E2E_BASE_URL ?? "https://march.fit";
 
