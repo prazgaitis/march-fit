@@ -87,17 +87,10 @@ async function proxyAuthRequest(req: Request): Promise<Response> {
   return fetch(proxyReq);
 }
 
-function ensureResponse(response: unknown, method: string): Response {
-  if (response instanceof Response) return response;
-  console.warn(`[server-auth] ${method} handler returned non-Response:`, typeof response);
-  return new Response(null, { status: 404 });
-}
-
 export const betterAuthHandler = {
   GET: async (req: Request) => {
     try {
-      const response = await proxyAuthRequest(req);
-      return ensureResponse(response, "GET");
+      return await proxyAuthRequest(req);
     } catch (error) {
       console.error("[server-auth] GET handler failed:", error);
       return Response.json({ error: "Internal server error" }, { status: 500 });
@@ -106,11 +99,11 @@ export const betterAuthHandler = {
   POST: async (req: Request) => {
     try {
       const response = await proxyAuthRequest(req);
-      if (response instanceof Response && !response.ok) {
+      if (response.status >= 400) {
         const url = new URL(req.url);
         console.error(`[server-auth] POST ${url.pathname} returned ${response.status}`);
       }
-      return ensureResponse(response, "POST");
+      return response;
     } catch (error) {
       const url = new URL(req.url);
       console.error(`[server-auth] POST ${url.pathname} handler threw:`, error);
