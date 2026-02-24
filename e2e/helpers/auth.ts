@@ -89,3 +89,68 @@ export async function trySignIn(
 
   return result;
 }
+
+/**
+ * Sign out the current user from authenticated UI.
+ * Uses the global user menu in header and falls back to any visible sign-out control.
+ */
+export async function signOut(page: Page) {
+  await page.goto("/challenges");
+  await page.waitForLoadState("networkidle");
+
+  const userMenuTrigger = page.getByRole("button", { name: /user menu/i });
+  const hasUserMenu = await userMenuTrigger.isVisible().catch(() => false);
+
+  if (hasUserMenu) {
+    await userMenuTrigger.click();
+  }
+
+  const menuItem = page.getByRole("menuitem", { name: /sign out/i }).first();
+  const menuButton = page.getByRole("button", { name: /sign out/i }).first();
+
+  const signOutResponsePromise = page.waitForResponse(
+    (response) =>
+      response.url().includes("/api/auth/sign-out") &&
+      response.request().method() === "POST",
+    { timeout: 15_000 }
+  );
+
+  if (await menuItem.isVisible().catch(() => false)) {
+    await menuItem.click();
+  } else {
+    await expect(menuButton).toBeVisible({ timeout: 10_000 });
+    await menuButton.click();
+  }
+
+  const signOutResponse = await signOutResponsePromise;
+  expect(signOutResponse.status()).toBeLessThan(500);
+  await page.waitForLoadState("networkidle");
+}
+
+/**
+ * Assert whether Better Auth session exists for the current browser context.
+ */
+export async function expectSessionState(
+  page: Page,
+  expected: "authenticated" | "anonymous"
+) {
+  await expect
+    .poll(
+      async () => {
+        const response = await page.request.get("/api/auth/get-session");
+        if (!response.ok()) return false;
+
+        const session = await response.json();
+        if (expected === "authenticated") {
+          return Boolean(session?.user);
+        }
+
+        return session === null;
+      },
+      {
+        timeout: 15_000,
+        intervals: [500, 1_000, 2_000],
+      }
+    )
+    .toBe(true);
+}

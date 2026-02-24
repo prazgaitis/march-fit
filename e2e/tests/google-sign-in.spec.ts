@@ -57,6 +57,7 @@ test.describe("Google Sign-In", () => {
     // The response should indicate a redirect toward Google OAuth
     // or at least that our auth endpoint was called
     expect(response.status()).toBeLessThan(500);
+    await page.waitForURL(/accounts\.google\.com/, { timeout: 15_000 });
   });
 
   test("sign-up page renders correctly", async ({ page }) => {

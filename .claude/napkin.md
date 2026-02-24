@@ -72,6 +72,7 @@
 - Schema changes auto-deploy locally via `pnpm dev`
 - Local Convex HTTP routes (`httpAction`, `/api/v1/*`) are served from site origin (`127.0.0.1:3211`), not cloud origin (`127.0.0.1:3210`)
 - Dev-only third-party scripts should be opt-in; avoid `beforeInteractive` for non-critical tooling (e.g., `react-grab`)
+- Vercel API tokens may be scoped to a different team/account; verify project visibility with `vercel project ls` before depending on log access.
 | 2026-02-13 | self | Assumed `request.json()` in Convex HTTP actions returned typed JSON; TS now treats it as `unknown` | Add runtime type guards (or explicit schema validation) before accessing webhook payload fields |
 - Convex `httpAction` webhook handlers are safer with explicit type guards before deriving event keys (`object_type`, `aspect_type`) from `request.json()`
 - `apps/web` dev script runs `@react-grab/cursor` before `next dev`; this can create behavior differences vs production. Prefer validating layout bugs with `next build && next start` too.
@@ -105,3 +106,6 @@
 | 2026-02-24 | self | Tried `pnpm convex logs --prod` without deployment env and got blocked by missing `CONVEX_DEPLOYMENT` | Use repo wrapper (`scripts/convex.sh`) or a configured deployment env before running Convex CLI log commands |
 | 2026-02-24 | self | Ran `rg` against `apps/web/app/(auth)` without quoting and zsh parsed parentheses, causing `number expected` | Always quote paths containing parentheses in shell commands (e.g., `'apps/web/app/(auth)'`) |
 | 2026-02-24 | self | Set Better Auth `createAuthClient` `baseURL` to relative `/api/auth`; library requires absolute URL and production app rendered 500 | Always pass an absolute URL to Better Auth client (derive from `window.location.origin` at runtime for same-host behavior) |
+| 2026-02-24 | self | Ran repo exploration commands before reading `.claude/napkin.md` at session start | Always make `cat .claude/napkin.md` the first command before any other repo command |
+| 2026-02-24 | self | Pulled latest `main` with new `e2e` workspace and ran Playwright before syncing deps, causing missing `@playwright/test` | Run `pnpm install` immediately after pull when workspace manifests/lockfile changed |
+| 2026-02-24 | self | New sign-out E2E initially failed by asserting anonymous state immediately after click; auth/session transitions can lag briefly | In auth E2E flows, wait for `/api/auth/sign-out` response and use `expect.poll` for session-state assertions |
