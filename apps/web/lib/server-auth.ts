@@ -59,111 +59,26 @@ function getRequestPath(req: Request): string {
   }
 }
 
-function getRequestContext(req: Request, target: string) {
-  return {
-    method: req.method,
-    path: getRequestPath(req),
-    target,
-    origin: req.headers.get("origin"),
-    referer: req.headers.get("referer"),
-    userAgent: req.headers.get("user-agent"),
-    vercelId: req.headers.get("x-vercel-id"),
-  };
-}
-
-function previewBody(buffer: ArrayBuffer): string {
-  if (buffer.byteLength === 0) return "";
-  const maxBytes = Math.min(buffer.byteLength, 512);
-  try {
-    const decoded = new TextDecoder("utf-8").decode(
-      new Uint8Array(buffer, 0, maxBytes)
-    );
-    return decoded.replace(/\s+/g, " ").trim();
-  } catch {
-    return "<non-text-body>";
-  }
-}
-
-// Export getters that lazily initialize
-export function getHandler() {
-  return getBetterAuthUtils().handler;
-}
-
 /**
- * Proxy an auth request to the Convex site URL.
+ * Auth route handler that delegates to the library's built-in proxy.
  *
- * The library's built-in proxy (`new Request(url, request)`) can fail on
- * Vercel when the incoming body stream has already been partially consumed
- * by the platform. We eagerly read the body into an ArrayBuffer so the
- * clone is always safe.
+ * Previous versions used a custom proxy that consumed the upstream response
+ * body into an ArrayBuffer and rebuilt a new Response(). That response
+ * rebuilding could corrupt multi-valued Set-Cookie headers — Better Auth sets
+ * session token, JWT, and cache cookies in a single response, and the
+ * `new Headers(upstream.headers)` step could mangle them. This caused
+ * intermittent UNAUTHORIZED errors on /api/auth/convex/token because browsers
+ * never received valid session cookies.
+ *
+ * The library's handler returns the fetch() Response directly, which
+ * preserves all headers including multiple Set-Cookie values.
  */
-async function proxyAuthRequest(req: Request): Promise<Response> {
-  const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
-  if (!convexUrl) {
-    throw new Error("NEXT_PUBLIC_CONVEX_URL is not set for auth proxy");
-  }
-  const siteUrl = resolveConvexSiteUrl(convexUrl);
-  const incoming = new URL(req.url);
-  const target = `${siteUrl}${incoming.pathname}${incoming.search}`;
-  const context = getRequestContext(req, target);
-
-  const body = req.method !== "GET" && req.method !== "HEAD"
-    ? await req.arrayBuffer()
-    : undefined;
-
-  const proxyReq = new Request(target, {
-    method: req.method,
-    headers: req.headers,
-    body,
-    redirect: "manual",
-  });
-  proxyReq.headers.set("host", new URL(siteUrl).host);
-  // Request uncompressed responses so Vercel doesn't trip over
-  // Content-Encoding when re-serving the proxied body.
-  proxyReq.headers.set("accept-encoding", "identity");
-
-  let upstream: Response;
-  try {
-    upstream = await fetch(proxyReq);
-  } catch (error) {
-    console.error("[server-auth] proxy fetch failed", {
-      ...context,
-      error,
-    });
-    throw error;
-  }
-
-  const upstreamBody = await upstream.arrayBuffer();
-  const headers = new Headers(upstream.headers);
-  // Let the runtime compute length for the rebuilt Response object.
-  headers.delete("content-length");
-
-  if (upstream.status >= 400) {
-    console.error("[server-auth] upstream auth error response", {
-      ...context,
-      upstreamStatus: upstream.status,
-      upstreamStatusText: upstream.statusText,
-      upstreamContentType: upstream.headers.get("content-type"),
-      upstreamContentLength: upstream.headers.get("content-length"),
-      upstreamVercelId: upstream.headers.get("x-vercel-id"),
-      bodyPreview: previewBody(upstreamBody),
-    });
-  }
-
-  return new Response(upstreamBody, {
-    status: upstream.status,
-    statusText: upstream.statusText,
-    headers,
-  });
-}
-
 export const betterAuthHandler = {
   GET: async (req: Request) => {
     try {
-      return await proxyAuthRequest(req);
+      return await getBetterAuthUtils().handler.GET(req);
     } catch (error) {
       console.error("[server-auth] GET handler failed", {
-        method: req.method,
         path: getRequestPath(req),
         error,
       });
@@ -172,19 +87,9 @@ export const betterAuthHandler = {
   },
   POST: async (req: Request) => {
     try {
-      const response = await proxyAuthRequest(req);
-      if (response.status >= 400 || response.status < 100) {
-        console.error("[server-auth] POST proxied response returned non-2xx", {
-          method: req.method,
-          path: getRequestPath(req),
-          status: response.status,
-          statusText: response.statusText,
-        });
-      }
-      return response;
+      return await getBetterAuthUtils().handler.POST(req);
     } catch (error) {
-      console.error("[server-auth] POST handler threw", {
-        method: req.method,
+      console.error("[server-auth] POST handler failed", {
         path: getRequestPath(req),
         error,
       });
