@@ -112,3 +112,4 @@
 | 2026-02-24 | self | New sign-out E2E initially failed by asserting anonymous state immediately after click; auth/session transitions can lag briefly | In auth E2E flows, wait for `/api/auth/sign-out` response and use `expect.poll` for session-state assertions |
 
 | 2026-02-24 | self | Used `status` as a shell variable in zsh loop (`read-only variable`) during auth probing | Avoid reserved shell params (`status`) and use non-special variable names like `st` |
+| 2026-02-24 | self | Ran `git diff` on a Next dynamic-route path without quoting `[id]` and zsh globbing failed | Always single-quote dynamic-route paths in git/sed/rg commands |

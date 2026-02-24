@@ -1,13 +1,7 @@
 import type { Id } from "../_generated/dataModel";
 import { notDeleted } from "./activityFilters";
 import { applyCategoryPointsDelta } from "./categoryPoints";
-
-const DAY_MS = 24 * 60 * 60 * 1000;
-
-const getDateOnlyTs = (ts: number) => {
-  const d = new Date(ts);
-  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
-};
+import { aggregateDailyStreakPoints, computeStreak } from "./streak";
 
 export async function recomputeStreakForUserChallenge(
   ctx: any,
@@ -24,7 +18,7 @@ export async function recomputeStreakForUserChallenge(
     .collect();
 
   if (activities.length === 0) {
-    return { currentStreak: 0, lastStreakDayTs: undefined };
+    return { currentStreak: 0, lastStreakDayTs: undefined, totalStreakBonus: 0 };
   }
 
   const activityTypeIds = Array.from(
@@ -39,38 +33,17 @@ export async function recomputeStreakForUserChallenge(
     if (at) contributesMap.set(activityTypeIds[i], at.contributesToStreak);
   }
 
-  const dailyPoints = new Map<number, number>();
-  for (const act of activities) {
-    const contributes =
-      contributesMap.get(act.activityTypeId as Id<"activityTypes">) ?? false;
-    if (!contributes) continue;
-    const dayTs = getDateOnlyTs(act.loggedDate);
-    dailyPoints.set(dayTs, (dailyPoints.get(dayTs) ?? 0) + act.pointsEarned);
-  }
+  const dailyPoints = aggregateDailyStreakPoints(
+    activities,
+    (id) => contributesMap.get(id as Id<"activityTypes">) ?? false,
+  );
 
-  const thresholdDays = Array.from(dailyPoints.entries())
-    .filter(([, points]) => points >= streakMinPoints)
-    .map(([dayTs]) => dayTs)
-    .sort((a, b) => a - b);
-
-  if (thresholdDays.length === 0) {
-    return { currentStreak: 0, lastStreakDayTs: undefined };
-  }
-
-  let currentStreak = 1;
-  let lastStreakDayTs = thresholdDays[0];
-  for (let i = 1; i < thresholdDays.length; i++) {
-    const dayTs = thresholdDays[i];
-    const diffDays = Math.floor((dayTs - lastStreakDayTs) / DAY_MS);
-    if (diffDays === 1) {
-      currentStreak += 1;
-    } else {
-      currentStreak = 1;
-    }
-    lastStreakDayTs = dayTs;
-  }
-
-  return { currentStreak, lastStreakDayTs };
+  const result = computeStreak(dailyPoints, streakMinPoints);
+  return {
+    currentStreak: result.currentStreak,
+    lastStreakDayTs: result.lastStreakDay,
+    totalStreakBonus: result.totalStreakBonus,
+  };
 }
 
 export async function applyParticipationScoreDeltaAndRecomputeStreak(
@@ -104,8 +77,12 @@ export async function applyParticipationScoreDeltaAndRecomputeStreak(
   );
   const now = args.now ?? Date.now();
 
+  const previousStreakBonus = participation.streakBonusPoints ?? 0;
+  const streakBonusDelta = recomputed.totalStreakBonus - previousStreakBonus;
+
   await ctx.db.patch(participation._id, {
-    totalPoints: participation.totalPoints + args.pointsDelta,
+    totalPoints: participation.totalPoints + args.pointsDelta + streakBonusDelta,
+    streakBonusPoints: recomputed.totalStreakBonus,
     currentStreak: recomputed.currentStreak,
     lastStreakDay: recomputed.lastStreakDayTs,
     updatedAt: now,
