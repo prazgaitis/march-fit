@@ -196,10 +196,15 @@ export const listForUser = query({
  */
 export const getByIdWithCount = query({
   args: {
-    challengeId: v.id("challenges"),
+    challengeId: v.string(),
   },
   handler: async (ctx, args) => {
-    const challenge = await ctx.db.get(args.challengeId);
+    const challengeId = await ctx.db.normalizeId("challenges", args.challengeId);
+    if (!challengeId) {
+      return null;
+    }
+
+    const challenge = await ctx.db.get(challengeId);
     if (!challenge) {
       return null;
     }
@@ -207,7 +212,7 @@ export const getByIdWithCount = query({
     // Get participant count
     const participations = await ctx.db
       .query("userChallenges")
-      .withIndex("challengeId", (q) => q.eq("challengeId", args.challengeId))
+      .withIndex("challengeId", (q) => q.eq("challengeId", challengeId))
       .collect();
 
     return {

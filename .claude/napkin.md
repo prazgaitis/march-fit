@@ -102,3 +102,4 @@
 | 2026-02-22 | self | Ran `ls` before reading `.claude/napkin.md` at session start | Make the first command `cat .claude/napkin.md` every single session, no exceptions |
 | 2026-02-21 | self | Ran commands against Next dynamic-route paths without quoting bracket segments and hit `zsh: no matches found` | Always single-quote any path containing `[]` before `sed`/`rg`/`cat` |
 | 2026-02-21 | self | Initial mobile selector fix added touch-scroll classes but did not resolve drawer touch scrolling because the popover remained portaled to `body` | In Drawer/Dialog flows, portal popovers into an element inside the modal content to stay within scroll-lock shards and preserve touch scroll |
+- For public challenge routes (`/challenges/:id`), guard backend query args with `normalizeId` when IDs can come from arbitrary URL input to avoid noisy Convex argument-validation errors on malformed IDs.
