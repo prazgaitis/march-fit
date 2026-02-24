@@ -113,3 +113,4 @@
 
 | 2026-02-24 | self | Used `status` as a shell variable in zsh loop (`read-only variable`) during auth probing | Avoid reserved shell params (`status`) and use non-special variable names like `st` |
 | 2026-02-24 | self | Ran `git diff` on a Next dynamic-route path without quoting `[id]` and zsh globbing failed | Always single-quote dynamic-route paths in git/sed/rg commands |
+- For client-side Sentry reporting, use a shared helper that adds `area`, `pathname`, `host`, and optional `challengeId`/`userId` so events remain filterable without per-call duplication.

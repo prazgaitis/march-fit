@@ -2,10 +2,10 @@
 
 import { ConvexReactClient } from "convex/react";
 import { ConvexBetterAuthProvider } from "@convex-dev/better-auth/react";
-import * as Sentry from "@sentry/nextjs";
 import { ReactNode, useMemo } from "react";
 
 import { betterAuthClient } from "@/lib/better-auth/client";
+import { captureAppMessage } from "@/lib/sentry";
 
 let convexClientSingleton: ConvexReactClient | null = null;
 
@@ -57,14 +57,15 @@ function getConvexClient() {
         }
 
         console.warn("[convex][disconnect]", message);
-        Sentry.captureMessage("Convex server disconnect", {
+        captureAppMessage("Convex server disconnect", {
+          area: "convex-client",
           level: "warning",
           tags: {
-            area: "convex-client",
             source: "onServerDisconnectError",
           },
           extra: {
             message,
+            convexUrl: convexClientSingleton?.url,
           },
         });
       },

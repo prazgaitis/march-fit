@@ -3,7 +3,6 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { formatDistanceToNow } from 'date-fns';
-import * as Sentry from '@sentry/nextjs';
 import {
   Flag,
   Loader2,
@@ -59,6 +58,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { PointsDisplay } from '@/components/ui/points-display';
+import { captureAppException, captureAppMessage } from '@/lib/sentry';
 
 interface BonusThreshold {
   metric: string;
@@ -189,15 +189,15 @@ export function ActivityFeed({
         return;
       }
       console.error("Failed to load feed over HTTP fallback", error);
-      Sentry.captureException(error, {
+      captureAppException(error, {
+        area: "activity-feed",
+        challengeId,
         tags: {
-          area: "activity-feed",
           transport: "http-fallback",
           feedFilter,
           platform: isMobileClient ? "mobile" : "desktop",
         },
         extra: {
-          challengeId,
           lightweightFeedMode,
         },
       });
@@ -220,15 +220,15 @@ export function ActivityFeed({
     }
 
     const timeoutId = window.setTimeout(() => {
-      Sentry.captureMessage("Convex websocket not ready; enabling HTTP feed fallback", {
+      captureAppMessage("Convex websocket not ready; enabling HTTP feed fallback", {
+        area: "activity-feed",
         level: "warning",
+        challengeId,
         tags: {
-          area: "activity-feed",
           feedFilter,
           platform: isMobileClient ? "mobile" : "desktop",
         },
         extra: {
-          challengeId,
           hasEverConnected: connectionState.hasEverConnected,
           isWebSocketConnected: connectionState.isWebSocketConnected,
           connectionRetries: connectionState.connectionRetries,

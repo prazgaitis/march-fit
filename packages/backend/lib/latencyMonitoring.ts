@@ -5,6 +5,19 @@ type LatencyReportArgs = {
   userId?: string;
 };
 
+type SentryLevel = "fatal" | "error" | "warning" | "info" | "debug";
+
+type BackendSentryEventArgs = {
+  message: string;
+  operation: string;
+  level?: SentryLevel;
+  challengeId?: string;
+  userId?: string;
+  sampleRate?: number;
+  extra?: Record<string, unknown>;
+  tags?: Record<string, string>;
+};
+
 type ParsedDsn = {
   envelopeUrl: string;
   dsn: string;
@@ -63,21 +76,44 @@ async function sendLatencyEvent(
   args: LatencyReportArgs,
   durationMs: number
 ): Promise<void> {
-  const event = {
-    event_id: buildEventId(),
-    level: "error",
+  await sendBackendEvent(parsedDsn, {
     message: `Backend latency threshold exceeded: ${args.operation}`,
-    timestamp: new Date().toISOString(),
-    tags: {
-      subsystem: "backend-latency",
-      operation: args.operation,
-    },
+    operation: args.operation,
+    level: "error",
+    challengeId: args.challengeId,
+    userId: args.userId,
     extra: {
       durationMs,
       thresholdMs: getThresholdMs(),
+    },
+  });
+}
+
+async function sendBackendEvent(
+  parsedDsn: ParsedDsn,
+  args: BackendSentryEventArgs
+): Promise<void> {
+  const event = {
+    event_id: buildEventId(),
+    level: args.level ?? "error",
+    message: args.message,
+    timestamp: new Date().toISOString(),
+    tags: {
+      subsystem: "backend",
+      operation: args.operation,
+      challengeId: args.challengeId,
+      deployment: process.env.CONVEX_DEPLOYMENT,
+      runtime: "convex",
+      ...args.tags,
+    },
+    extra: {
       challengeId: args.challengeId,
       userId: args.userId,
+      nodeEnv: process.env.NODE_ENV,
+      convexSiteUrl: process.env.CONVEX_SITE_URL,
+      ...args.extra,
     },
+    user: args.userId ? { id: args.userId } : undefined,
   };
 
   const header = {
@@ -122,5 +158,22 @@ export function reportLatencyIfExceeded(args: LatencyReportArgs): void {
   void sendLatencyEvent(parsedDsn, args, durationMs).catch((error) => {
     const message = error instanceof Error ? error.message : String(error);
     console.error(`[latency-monitoring] failed to send Sentry event: ${message}`);
+  });
+}
+
+export function reportBackendSentryEvent(args: BackendSentryEventArgs): void {
+  if (!isEnabled()) return;
+  const sampleRate = args.sampleRate ?? 1;
+  if (sampleRate <= 0 || Math.random() > sampleRate) return;
+
+  const dsn = process.env.SENTRY_DSN;
+  if (!dsn) return;
+
+  const parsedDsn = parseDsn(dsn);
+  if (!parsedDsn) return;
+
+  void sendBackendEvent(parsedDsn, args).catch((error) => {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error(`[latency-monitoring] failed to send backend Sentry event: ${message}`);
   });
 }
