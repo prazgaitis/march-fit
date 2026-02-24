@@ -3,20 +3,22 @@
 #
 # First-time setup:
 #   gh auth token | docker login ghcr.io -u YOUR_USERNAME --password-stdin
-
+#
 services:
   backend:
     image: ghcr.io/get-convex/convex-backend:latest
     stop_grace_period: 10s
     stop_signal: SIGINT
     ports:
-      - "3210:3210"
-      - "3211:3211"
+      - "${CONVEX_BACKEND_PORT:-3210}:3210"
+      - "${CONVEX_SITE_PORT:-3211}:3211"
     volumes:
       - convex_data:/convex/data
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     environment:
-      - CONVEX_CLOUD_ORIGIN=http://127.0.0.1:3210
-      - CONVEX_SITE_ORIGIN=http://127.0.0.1:3211
+      - CONVEX_CLOUD_ORIGIN=http://host.docker.internal:${CONVEX_BACKEND_PORT:-3210}
+      - CONVEX_SITE_ORIGIN=http://host.docker.internal:${CONVEX_SITE_PORT:-3211}
       - RUST_LOG=info
     healthcheck:
       test: curl -f http://localhost:3210/version || exit 1
@@ -30,9 +32,9 @@ services:
     stop_grace_period: 10s
     stop_signal: SIGINT
     ports:
-      - "6791:6791"
+      - "${CONVEX_DASHBOARD_PORT:-6791}:6791"
     environment:
-      - NEXT_PUBLIC_DEPLOYMENT_URL=http://127.0.0.1:3210
+      - NEXT_PUBLIC_DEPLOYMENT_URL=http://127.0.0.1:${CONVEX_BACKEND_PORT:-3210}
     depends_on:
       backend:
         condition: service_healthy
