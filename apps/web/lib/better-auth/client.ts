@@ -5,6 +5,7 @@ import { convexClient } from "@convex-dev/better-auth/client/plugins";
 import { lastLoginMethodClient } from "better-auth/client/plugins";
 
 export const betterAuthClient = createAuthClient({
+  baseURL: "/api/auth",
   plugins: [convexClient(), lastLoginMethodClient()],
   sessionOptions: {
     // Disable automatic refetch on tab focus — on mobile, switching apps or
