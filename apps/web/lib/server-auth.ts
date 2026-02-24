@@ -73,29 +73,43 @@ function getRequestPath(req: Request): string {
  * The library's handler returns the fetch() Response directly, which
  * preserves all headers including multiple Set-Cookie values.
  */
+/**
+ * Wraps the library proxy handler to guarantee a Response is always returned.
+ *
+ * The library handler calls fetch() to the Convex site URL. In rare cases the
+ * upstream may return undefined (e.g. body-stream issues on Vercel) which would
+ * cause Next.js to throw "No response is returned from route handler".
+ */
+function wrapHandler(method: "GET" | "POST") {
+  return async (req: Request): Promise<Response> => {
+    const path = getRequestPath(req);
+    try {
+      const response = await getBetterAuthUtils().handler[method](req);
+
+      if (!(response instanceof Response)) {
+        console.error(`[server-auth] ${method} handler returned non-Response`, {
+          path,
+          type: typeof response,
+          value: String(response),
+        });
+        return Response.json({ error: "Internal server error" }, { status: 500 });
+      }
+
+      return response;
+    } catch (error) {
+      console.error(`[server-auth] ${method} handler threw`, {
+        path,
+        error: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+      });
+      return Response.json({ error: "Internal server error" }, { status: 500 });
+    }
+  };
+}
+
 export const betterAuthHandler = {
-  GET: async (req: Request) => {
-    try {
-      return await getBetterAuthUtils().handler.GET(req);
-    } catch (error) {
-      console.error("[server-auth] GET handler failed", {
-        path: getRequestPath(req),
-        error,
-      });
-      return Response.json({ error: "Internal server error" }, { status: 500 });
-    }
-  },
-  POST: async (req: Request) => {
-    try {
-      return await getBetterAuthUtils().handler.POST(req);
-    } catch (error) {
-      console.error("[server-auth] POST handler failed", {
-        path: getRequestPath(req),
-        error,
-      });
-      return Response.json({ error: "Internal server error" }, { status: 500 });
-    }
-  },
+  GET: wrapHandler("GET"),
+  POST: wrapHandler("POST"),
 };
 
 export async function isAuthenticated() {
