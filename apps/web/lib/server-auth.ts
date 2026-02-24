@@ -51,6 +51,39 @@ function getBetterAuthUtils() {
   return _betterAuthUtils;
 }
 
+function getRequestPath(req: Request): string {
+  try {
+    return new URL(req.url).pathname;
+  } catch {
+    return "<invalid-url>";
+  }
+}
+
+function getRequestContext(req: Request, target: string) {
+  return {
+    method: req.method,
+    path: getRequestPath(req),
+    target,
+    origin: req.headers.get("origin"),
+    referer: req.headers.get("referer"),
+    userAgent: req.headers.get("user-agent"),
+    vercelId: req.headers.get("x-vercel-id"),
+  };
+}
+
+function previewBody(buffer: ArrayBuffer): string {
+  if (buffer.byteLength === 0) return "";
+  const maxBytes = Math.min(buffer.byteLength, 512);
+  try {
+    const decoded = new TextDecoder("utf-8").decode(
+      new Uint8Array(buffer, 0, maxBytes)
+    );
+    return decoded.replace(/\s+/g, " ").trim();
+  } catch {
+    return "<non-text-body>";
+  }
+}
+
 // Export getters that lazily initialize
 export function getHandler() {
   return getBetterAuthUtils().handler;
@@ -65,9 +98,14 @@ export function getHandler() {
  * clone is always safe.
  */
 async function proxyAuthRequest(req: Request): Promise<Response> {
-  const siteUrl = resolveConvexSiteUrl(process.env.NEXT_PUBLIC_CONVEX_URL!);
+  const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
+  if (!convexUrl) {
+    throw new Error("NEXT_PUBLIC_CONVEX_URL is not set for auth proxy");
+  }
+  const siteUrl = resolveConvexSiteUrl(convexUrl);
   const incoming = new URL(req.url);
   const target = `${siteUrl}${incoming.pathname}${incoming.search}`;
+  const context = getRequestContext(req, target);
 
   const body = req.method !== "GET" && req.method !== "HEAD"
     ? await req.arrayBuffer()
@@ -84,11 +122,33 @@ async function proxyAuthRequest(req: Request): Promise<Response> {
   // Content-Encoding when re-serving the proxied body.
   proxyReq.headers.set("accept-encoding", "identity");
 
-  const upstream = await fetch(proxyReq);
+  let upstream: Response;
+  try {
+    upstream = await fetch(proxyReq);
+  } catch (error) {
+    console.error("[server-auth] proxy fetch failed", {
+      ...context,
+      error,
+    });
+    throw error;
+  }
+
   const upstreamBody = await upstream.arrayBuffer();
   const headers = new Headers(upstream.headers);
   // Let the runtime compute length for the rebuilt Response object.
   headers.delete("content-length");
+
+  if (upstream.status >= 400) {
+    console.error("[server-auth] upstream auth error response", {
+      ...context,
+      upstreamStatus: upstream.status,
+      upstreamStatusText: upstream.statusText,
+      upstreamContentType: upstream.headers.get("content-type"),
+      upstreamContentLength: upstream.headers.get("content-length"),
+      upstreamVercelId: upstream.headers.get("x-vercel-id"),
+      bodyPreview: previewBody(upstreamBody),
+    });
+  }
 
   return new Response(upstreamBody, {
     status: upstream.status,
@@ -102,21 +162,32 @@ export const betterAuthHandler = {
     try {
       return await proxyAuthRequest(req);
     } catch (error) {
-      console.error("[server-auth] GET handler failed:", error);
+      console.error("[server-auth] GET handler failed", {
+        method: req.method,
+        path: getRequestPath(req),
+        error,
+      });
       return Response.json({ error: "Internal server error" }, { status: 500 });
     }
   },
   POST: async (req: Request) => {
     try {
       const response = await proxyAuthRequest(req);
-      if (response.status >= 400) {
-        const url = new URL(req.url);
-        console.error(`[server-auth] POST ${url.pathname} returned ${response.status}`);
+      if (response.status >= 400 || response.status < 100) {
+        console.error("[server-auth] POST proxied response returned non-2xx", {
+          method: req.method,
+          path: getRequestPath(req),
+          status: response.status,
+          statusText: response.statusText,
+        });
       }
       return response;
     } catch (error) {
-      const url = new URL(req.url);
-      console.error(`[server-auth] POST ${url.pathname} handler threw:`, error);
+      console.error("[server-auth] POST handler threw", {
+        method: req.method,
+        path: getRequestPath(req),
+        error,
+      });
       return Response.json({ error: "Internal server error" }, { status: 500 });
     }
   },
