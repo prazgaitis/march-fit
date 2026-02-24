@@ -434,23 +434,30 @@ export const getCumulativeCategoryLeaderboard = query({
       return null;
     }
 
-    // Fetch categories for this challenge and filter to leaderboard-eligible ones.
-    // We no longer scan activities — reads are O(categories × participants).
-    const allCategoryPoints = await ctx.db
-      .query("categoryPoints")
-      .withIndex("challengeCategory", (q) =>
-        q.eq("challengeId", args.challengeId)
-      )
+    // Step 1: Discover which categories exist for this challenge via activityTypes.
+    // This is much cheaper than scanning all categoryPoints upfront, and avoids
+    // the 16MB bytes-read limit that a full .collect() on categoryPoints can hit
+    // for large challenges (hundreds of participants × many categories).
+    const activityTypes = await ctx.db
+      .query("activityTypes")
+      .withIndex("challengeId", (q) => q.eq("challengeId", args.challengeId))
       .collect();
 
-    if (allCategoryPoints.length === 0) {
+    const uniqueCategoryIds = [
+      ...new Set(
+        activityTypes
+          .map((at) => at.categoryId as string | undefined)
+          .filter((id): id is string => !!id)
+      ),
+    ];
+
+    if (uniqueCategoryIds.length === 0) {
       return { categories: [] };
     }
 
-    // Resolve category docs and filter to showInCategoryLeaderboard === true
-    const uniqueCategoryIds = [
-      ...new Set(allCategoryPoints.map((cp) => cp.categoryId as string)),
-    ];
+    // Step 2: Resolve category docs and filter to showInCategoryLeaderboard === true.
+    // We resolve categories before touching categoryPoints so we only query
+    // the categoryPoints rows we actually need.
     const categoryDocs = await Promise.all(
       uniqueCategoryIds.map((id) => ctx.db.get(id as Id<"categories">))
     );
@@ -467,15 +474,22 @@ export const getCumulativeCategoryLeaderboard = query({
       return { categories: [] };
     }
 
-    // Group into categoryId → userId → totalPoints (only leaderboard categories)
+    // Step 3: For each leaderboard-eligible category, query categoryPoints scoped
+    // to (challengeId, categoryId). This keeps reads bounded to
+    // O(leaderboard_categories × participants) instead of O(all_categories × participants).
     const categoryUserPoints = new Map<string, Map<string, number>>();
-    for (const cp of allCategoryPoints) {
-      const catKey = cp.categoryId as string;
-      if (!leaderboardCategoryMap.has(catKey)) continue;
-      if (!categoryUserPoints.has(catKey)) {
-        categoryUserPoints.set(catKey, new Map());
+    for (const catId of leaderboardCategoryMap.keys()) {
+      const points = await ctx.db
+        .query("categoryPoints")
+        .withIndex("challengeCategory", (q) =>
+          q.eq("challengeId", args.challengeId).eq("categoryId", catId as Id<"categories">)
+        )
+        .collect();
+      const userMap = new Map<string, number>();
+      for (const cp of points) {
+        userMap.set(cp.userId as string, cp.totalPoints);
       }
-      categoryUserPoints.get(catKey)!.set(cp.userId as string, cp.totalPoints);
+      categoryUserPoints.set(catId, userMap);
     }
 
     // Cache for user lookups
