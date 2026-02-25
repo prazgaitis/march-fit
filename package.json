@@ -26,7 +26,7 @@
     "lint:fix": "turbo lint --cache-dir=.turbo --affected --continue -- --fix --cache --cache-location \"node_modules/.cache/.eslintcache\" && manypkg fix",
     "typecheck": "turbo typecheck --affected --cache-dir=.turbo",
     "precommit": "turbo lint typecheck --cache-dir=.turbo --affected --continue",
-    "test": "turbo test --cache-dir=.turbo --filter='!e2e'",
+    "test": "turbo test --cache-dir=.turbo",
     "fix:workspaces": "manypkg fix",
     "syncpack:list": "pnpm dlx syncpack list-mismatches",
     "syncpack:fix": "pnpm dlx syncpack fix-mismatches",
@@ -56,6 +56,11 @@
     },
     "patchedDependencies": {
       "@convex-dev/better-auth@0.10.11": "patches/@convex-dev__better-auth@0.10.11.patch"
+    },
+    "peerDependencyRules": {
+      "ignoreMissing": [
+        "@playwright/test"
+      ]
     }
   },
   "devDependencies": {
