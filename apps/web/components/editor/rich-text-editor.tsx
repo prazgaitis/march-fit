@@ -223,7 +223,7 @@ export function RichTextEditor({
   const mentionExtension = useMemo(
     () =>
       createMentionExtension({
-        // @ts-expect-error - Suggestion type mismatch between @tiptap versions
+        // @ts-ignore - Suggestion type mismatch between @tiptap versions
         suggestion: createMentionSuggestion(() => mentionOptionsRef.current),
       }),
     [],
