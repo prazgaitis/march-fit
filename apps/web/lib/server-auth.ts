@@ -83,21 +83,45 @@ function proxyHandler(method: "GET" | "POST") {
       const requestUrl = new URL(req.url);
       const targetUrl = `${siteUrl}${requestUrl.pathname}${requestUrl.search}`;
 
-      // Read body explicitly to avoid Node 25+ ReadableStream cloning issue
+      // Read body explicitly to avoid ReadableStream cloning issues
       const body = method === "POST" ? await req.arrayBuffer() : undefined;
 
       const headers = new Headers(req.headers);
-      headers.set("accept-encoding", "application/json");
+      // Use "identity" so the upstream sends uncompressed data — we buffer the
+      // response body below and don't want to deal with decompression mismatch.
+      headers.set("accept-encoding", "identity");
       headers.set("host", new URL(siteUrl).host);
 
-      // Return the upstream response directly to preserve Set-Cookie headers.
-      // Do NOT use `instanceof Response` — on Vercel, fetch() returns an undici
-      // Response that fails the check against the global Response constructor.
-      return await fetch(targetUrl, {
+      const upstream = await fetch(targetUrl, {
         method,
         headers,
         body,
         redirect: "manual",
+      });
+
+      // Buffer the full response body before constructing the return value.
+      //
+      // Returning the raw fetch() Response (whose body is an undici
+      // ReadableStream) can cause Next.js / Turbopack to report
+      // "No response is returned from route handler" when the stream is piped
+      // through the route handler infrastructure.  Reading into an ArrayBuffer
+      // first sidesteps the streaming issue and guarantees we hand back a
+      // self-contained Response that Next.js can always serialise.
+      const upstreamBody = await upstream.arrayBuffer();
+
+      const responseHeaders = new Headers(upstream.headers);
+      // fetch() transparently decompresses gzip/br, so strip the
+      // content-encoding header to avoid double-decompression on the client.
+      responseHeaders.delete("content-encoding");
+      responseHeaders.delete("transfer-encoding");
+      if (upstreamBody.byteLength > 0) {
+        responseHeaders.set("content-length", String(upstreamBody.byteLength));
+      }
+
+      return new Response(upstreamBody.byteLength > 0 ? upstreamBody : null, {
+        status: upstream.status,
+        statusText: upstream.statusText,
+        headers: responseHeaders,
       });
     } catch (error) {
       console.error(`[server-auth] ${method} proxy threw`, {
@@ -105,7 +129,10 @@ function proxyHandler(method: "GET" | "POST") {
         error: error instanceof Error ? error.message : String(error),
         stack: error instanceof Error ? error.stack : undefined,
       });
-      return Response.json({ error: "Internal server error" }, { status: 500 });
+      return new Response(JSON.stringify({ error: "Internal server error" }), {
+        status: 500,
+        headers: { "content-type": "application/json" },
+      });
     }
   };
 }
