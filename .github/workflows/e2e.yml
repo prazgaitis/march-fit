@@ -29,19 +29,28 @@ jobs:
         with:
           version: ${{ env.PNPM_VERSION }}
 
-      - name: Install dependencies
+      - name: Install monorepo dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Install e2e dependencies
+        # e2e/ is intentionally excluded from pnpm-workspace.yaml to prevent
+        # @playwright/test from being hoisted as a Next.js peer dependency,
+        # which corrupts the App Router's async response handling in production.
+        working-directory: e2e
+        run: pnpm install
+
       - name: Install Playwright browsers
-        run: pnpm -F e2e exec playwright install --with-deps chromium
+        working-directory: e2e
+        run: pnpm exec playwright install --with-deps chromium
 
       - name: Run E2E tests
+        working-directory: e2e
         env:
           E2E_BASE_URL: "https://march.fit"
           E2E_CHALLENGE_ID: ${{ secrets.E2E_CHALLENGE_ID }}
           E2E_CHALLENGE_INVITE_CODE: ${{ secrets.E2E_CHALLENGE_INVITE_CODE }}
           E2E_USER_PASSWORD: ${{ secrets.E2E_USER_PASSWORD }}
-        run: pnpm -F e2e test
+        run: pnpm exec playwright test
 
       - name: Upload test results
         uses: actions/upload-artifact@v4

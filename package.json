@@ -56,6 +56,11 @@
     },
     "patchedDependencies": {
       "@convex-dev/better-auth@0.10.11": "patches/@convex-dev__better-auth@0.10.11.patch"
+    },
+    "peerDependencyRules": {
+      "ignoreMissing": [
+        "@playwright/test"
+      ]
     }
   },
   "devDependencies": {
