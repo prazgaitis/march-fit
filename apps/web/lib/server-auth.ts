@@ -51,68 +51,21 @@ function getBetterAuthUtils() {
   return _betterAuthUtils;
 }
 
-function getRequestPath(req: Request): string {
-  try {
-    return new URL(req.url).pathname;
-  } catch {
-    return "<invalid-url>";
-  }
-}
-
 /**
- * Custom auth proxy handler that forwards requests to the Convex site URL.
+ * Auth route handler — delegates to the library's built-in proxy.
  *
- * The library's built-in handler uses `new Request(url, originalRequest)` to
- * clone the request, which fails on Node 25+ with "expected non-null body
- * source" because the body ReadableStream cannot be cloned that way.
- * See: https://github.com/get-convex/better-auth/issues/274
+ * The library handler is patched (see patches/@convex-dev__better-auth) to fix
+ * a Node 25+ crash where `new Request(url, req)` fails because the body
+ * ReadableStream cannot be cloned. The patch reads the body explicitly and
+ * returns the upstream fetch() Response directly, preserving Set-Cookie headers.
  *
- * This handler explicitly reads the body and constructs a new fetch call,
- * returning the upstream Response directly to preserve Set-Cookie headers.
+ * Lazy wrappers keep env-var resolution deferred until request time so the
+ * module can be imported during static builds when NEXT_PUBLIC_CONVEX_URL
+ * is not yet available.
  */
-function proxyHandler(method: "GET" | "POST") {
-  return async (req: Request): Promise<Response> => {
-    const path = getRequestPath(req);
-    try {
-      const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
-      if (!convexUrl) {
-        throw new Error("NEXT_PUBLIC_CONVEX_URL is not set.");
-      }
-      const siteUrl = resolveConvexSiteUrl(convexUrl);
-
-      const requestUrl = new URL(req.url);
-      const targetUrl = `${siteUrl}${requestUrl.pathname}${requestUrl.search}`;
-
-      // Read body explicitly to avoid Node 25+ ReadableStream cloning issue
-      const body = method === "POST" ? await req.arrayBuffer() : undefined;
-
-      const headers = new Headers(req.headers);
-      headers.set("accept-encoding", "application/json");
-      headers.set("host", new URL(siteUrl).host);
-
-      // Return the upstream response directly to preserve Set-Cookie headers.
-      // Do NOT use `instanceof Response` — on Vercel, fetch() returns an undici
-      // Response that fails the check against the global Response constructor.
-      return await fetch(targetUrl, {
-        method,
-        headers,
-        body,
-        redirect: "manual",
-      });
-    } catch (error) {
-      console.error(`[server-auth] ${method} proxy threw`, {
-        path,
-        error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined,
-      });
-      return Response.json({ error: "Internal server error" }, { status: 500 });
-    }
-  };
-}
-
 export const betterAuthHandler = {
-  GET: proxyHandler("GET"),
-  POST: proxyHandler("POST"),
+  GET: (req: Request) => getBetterAuthUtils().handler.GET(req),
+  POST: (req: Request) => getBetterAuthUtils().handler.POST(req),
 };
 
 export async function isAuthenticated() {

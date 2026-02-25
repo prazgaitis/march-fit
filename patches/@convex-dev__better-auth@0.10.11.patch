@@ -18,6 +18,35 @@ index 2aadacaced3d516ae6591c1dc3dde492d2e4fffb..748e8fb6a5b390d520d623d9c7b98c7c
          return w;
      });
  };
+diff --git a/dist/nextjs/index.js b/dist/nextjs/index.js
+index 87f5f355c1fb554973583d98293b08cbb22a8173..patched 100644
+--- a/dist/nextjs/index.js
++++ b/dist/nextjs/index.js
+@@ -23,13 +23,19 @@ const parseConvexSiteUrl = (url) => {
+     }
+     return url;
+ };
+-const handler = (request, siteUrl) => {
++const handler = async (request, siteUrl) => {
+     const requestUrl = new URL(request.url);
+     const nextUrl = `${siteUrl}${requestUrl.pathname}${requestUrl.search}`;
+-    const newRequest = new Request(nextUrl, request);
+-    newRequest.headers.set("accept-encoding", "application/json");
+-    newRequest.headers.set("host", new URL(siteUrl).host);
+-    return fetch(newRequest, { method: request.method, redirect: "manual" });
++    // Read body explicitly to avoid Node 25+ ReadableStream cloning issue
++    // with `new Request(url, request)`.
++    // See: https://github.com/get-convex/better-auth/issues/274
++    const body = request.method !== "GET" && request.method !== "HEAD"
++        ? await request.arrayBuffer()
++        : undefined;
++    const headers = new Headers(request.headers);
++    headers.set("accept-encoding", "application/json");
++    headers.set("host", new URL(siteUrl).host);
++    return fetch(nextUrl, { method: request.method, headers, body, redirect: "manual" });
+ };
+ const nextJsHandler = (siteUrl) => ({
+     GET: (request) => handler(request, siteUrl),
 diff --git a/src/client/adapter.ts b/src/client/adapter.ts
 index 002d4fa048943ca0a5deae21502d45f74ecb525a..4a30ee5cb904e40edb320caf274855d99b0851f6 100644
 --- a/src/client/adapter.ts
@@ -40,3 +69,32 @@ index 002d4fa048943ca0a5deae21502d45f74ecb525a..4a30ee5cb904e40edb320caf274855d9
      return w;
    }) as ConvexCleanedWhere[];
  };
+diff --git a/src/nextjs/index.ts b/src/nextjs/index.ts
+index 3bc2d840dba9f08442f1ddfd126d5b6d1c0a9e11..patched 100644
+--- a/src/nextjs/index.ts
++++ b/src/nextjs/index.ts
+@@ -40,13 +40,19 @@ const parseConvexSiteUrl = (url: string) => {
+   return url;
+ };
+
+-const handler = (request: Request, siteUrl: string) => {
++const handler = async (request: Request, siteUrl: string) => {
+   const requestUrl = new URL(request.url);
+   const nextUrl = `${siteUrl}${requestUrl.pathname}${requestUrl.search}`;
+-  const newRequest = new Request(nextUrl, request);
+-  newRequest.headers.set("accept-encoding", "application/json");
+-  newRequest.headers.set("host", new URL(siteUrl).host);
+-  return fetch(newRequest, { method: request.method, redirect: "manual" });
++  // Read body explicitly to avoid Node 25+ ReadableStream cloning issue
++  // with `new Request(url, request)`.
++  // See: https://github.com/get-convex/better-auth/issues/274
++  const body = request.method !== "GET" && request.method !== "HEAD"
++    ? await request.arrayBuffer()
++    : undefined;
++  const headers = new Headers(request.headers);
++  headers.set("accept-encoding", "application/json");
++  headers.set("host", new URL(siteUrl).host);
++  return fetch(nextUrl, { method: request.method, headers, body, redirect: "manual" });
+ };
+
+ const nextJsHandler = (siteUrl: string) => ({

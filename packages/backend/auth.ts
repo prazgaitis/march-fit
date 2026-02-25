@@ -58,10 +58,6 @@ const verifyPassword = async ({
   return diff === 0;
 };
 
-const authLogLevel = (process.env.AUTH_LOG_LEVEL ?? "").toUpperCase();
-const verboseAuthLogging =
-  authLogLevel === "DEBUG" || process.env.CONVEX_AUTH_VERBOSE === "1";
-
 function getTrustedOrigins(siteUrl?: string): string[] {
   const origins = new Set<string>(["http://localhost:3000", "http://localhost:3001"]);
   if (!siteUrl) return Array.from(origins);
@@ -89,7 +85,7 @@ function getTrustedOrigins(siteUrl?: string): string[] {
  * This provides the adapter and HTTP route registration for Better Auth
  */
 export const authComponent = createClient<DataModel>(components.betterAuth, {
-  verbose: true,
+  verbose: false,
 });
 
 /**
