@@ -5,6 +5,7 @@ import { FunctionReference, OptionalRestArgs } from "convex/server";
 import { Preloaded } from "convex/react";
 
 import { api } from "@repo/backend";
+import { rebuildResponse } from "./rebuild-response";
 
 type AuthUser = {
   id: string;
@@ -60,15 +61,14 @@ function getRequestPath(req: Request): string {
 }
 
 /**
- * Custom auth proxy handler that forwards requests to the Convex site URL.
+ * Auth proxy handler that forwards requests to the Convex site URL.
  *
- * The library's built-in handler uses `new Request(url, originalRequest)` to
- * clone the request, which fails on Node 25+ with "expected non-null body
- * source" because the body ReadableStream cannot be cloned that way.
- * See: https://github.com/get-convex/better-auth/issues/274
- *
- * This handler explicitly reads the body and constructs a new fetch call,
- * returning the upstream Response directly to preserve Set-Cookie headers.
+ * Two critical constraints on Vercel:
+ * 1. Node 25+: `new Request(url, originalRequest)` crashes ("expected non-null
+ *    body source") so we read the body explicitly via arrayBuffer().
+ * 2. Warm instances: Returning the raw undici fetch() Response causes Next.js
+ *    to return 500 with empty body on warm serverless instances. We must
+ *    reconstruct a new global Response from the upstream data.
  */
 function proxyHandler(method: "GET" | "POST") {
   return async (req: Request): Promise<Response> => {
@@ -83,22 +83,20 @@ function proxyHandler(method: "GET" | "POST") {
       const requestUrl = new URL(req.url);
       const targetUrl = `${siteUrl}${requestUrl.pathname}${requestUrl.search}`;
 
-      // Read body explicitly to avoid Node 25+ ReadableStream cloning issue
       const body = method === "POST" ? await req.arrayBuffer() : undefined;
 
       const headers = new Headers(req.headers);
-      headers.set("accept-encoding", "application/json");
+      headers.set("accept-encoding", "identity");
       headers.set("host", new URL(siteUrl).host);
 
-      // Return the upstream response directly to preserve Set-Cookie headers.
-      // Do NOT use `instanceof Response` — on Vercel, fetch() returns an undici
-      // Response that fails the check against the global Response constructor.
-      return await fetch(targetUrl, {
+      const upstream = await fetch(targetUrl, {
         method,
         headers,
         body,
         redirect: "manual",
       });
+
+      return rebuildResponse(upstream);
     } catch (error) {
       console.error(`[server-auth] ${method} proxy threw`, {
         path,
