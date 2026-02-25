@@ -6,9 +6,10 @@ import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@repo/backend";
 import type { Id, Doc } from "@repo/backend/_generated/dataModel";
-import { Loader2, User, List, Check, Shield } from "lucide-react";
+import { Loader2, User, List, Check, Shield, LogOut } from "lucide-react";
 import { betterAuthClient } from "@/lib/better-auth/client";
 
+import { SignOutButton } from "@/components/auth/sign-out-button";
 import { UserAvatar } from "@/components/user-avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -266,6 +267,12 @@ export function SettingsContent({
           </div>
         </CardContent>
       </Card>
+
+      {/* Sign Out */}
+      <SignOutButton className="flex w-full items-center justify-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-600 transition-colors hover:bg-red-100 dark:border-red-900 dark:bg-red-950/50 dark:text-red-400 dark:hover:bg-red-950">
+        <LogOut className="h-4 w-4" />
+        Sign Out
+      </SignOutButton>
     </div>
   );
 }
