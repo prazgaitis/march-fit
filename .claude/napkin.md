@@ -3,6 +3,10 @@
 ## Corrections
 | Date | Source | What Went Wrong | What To Do Instead |
 |------|--------|----------------|-------------------|
+| 2026-02-25 | self | Ran `sed` on `apps/web/app/(auth)/sign-in/[[...sign-in]]/page.tsx` without quoting and zsh globbing failed | Always single-quote paths with `[]` and `()` in shell commands |
+| 2026-02-25 | self | Deleted `apps/web/app/api/auth/[...all]/route.ts` and hit Next generated validator import errors from `.next/dev/types` during typecheck | Keep a minimal stub route (404 handler) until Next type artifacts are regenerated cleanly |
+| 2026-02-25 | self | Clerk `clerkMiddleware()` wrapper in `apps/web/proxy.ts` was first typed with `Request`, causing TS mismatch against `NextRequest` | Type proxy handlers with `NextRequest` when delegating to Next middleware helpers |
+| 2026-02-25 | self | Tried a targeted `apply_patch` edit on `components/auth/user-button.tsx` that failed due stale context after prior edits | When a patch fails on a heavily edited file, replace the file in a single add/delete patch to avoid partial-context drift |
 | 2026-02-21 | self | New `scorePreview` map callback in `activity-log-dialog.tsx` failed TS strict mode due implicit `any` params | Add explicit callback parameter types when rendering arrays from loosely-typed query payloads |
 | 2026-02-21 | self | Web tests used `activityPointsAggregate/public/insertIfDoesNotExist`, but the aggregate component exposes `public/insert` and `public/replaceOrInsert` only | Use `aggregateInsertActivity`/`insertTestActivity` or `public/replaceOrInsert` instead of calling a non-existent module |
 | 2026-02-21 | self | Component registration for convex-test pointed at `packages/backend/node_modules` and missed `_generated`, so component modules were unresolved | Register aggregate component from `node_modules/@convex-dev/aggregate/dist/component/**/*.{js,ts}` so `_generated` is included |
@@ -62,6 +66,7 @@
 
 ## Domain Notes
 - Scoring configs have types: distance, duration, count, variant
+- As of 2026-02-25, this repo has no first-class Clerk integration yet; only lockfile transitive refs and `.gitignore` entries exist.
 - `page-with-header` CSS class = `pt-16` to offset fixed navbar
 - Dashboard layout uses `h-dvh` + `overflow-hidden` shell with an internal `main` scroller (`overflow-y-auto`); mobile browser chrome hide behavior is tied to this choice.
 - Seed data lives in `packages/backend/actions/seed.ts`

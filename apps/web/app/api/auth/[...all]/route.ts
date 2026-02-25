@@ -1,5 +1,8 @@
-import { betterAuthHandler } from "@/lib/server-auth";
-
 export const runtime = "nodejs";
 
-export const { GET, POST } = betterAuthHandler;
+async function notFoundHandler() {
+  return Response.json({ error: "Not Found" }, { status: 404 });
+}
+
+export const GET = notFoundHandler;
+export const POST = notFoundHandler;

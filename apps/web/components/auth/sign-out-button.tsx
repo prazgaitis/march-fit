@@ -2,8 +2,7 @@
 
 import type { ReactNode } from "react";
 import { useRouter } from "next/navigation";
-
-import { betterAuthClient } from "@/lib/better-auth/client";
+import { useClerk } from "@clerk/nextjs";
 
 interface SignOutButtonProps {
   children?: ReactNode;
@@ -12,9 +11,10 @@ interface SignOutButtonProps {
 
 export function SignOutButton({ children, className }: SignOutButtonProps) {
   const router = useRouter();
+  const clerk = useClerk();
 
   const handleSignOut = async () => {
-    await betterAuthClient.signOut();
+    await clerk.signOut({ redirectUrl: "/" });
     router.push("/");
   };
 

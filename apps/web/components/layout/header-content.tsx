@@ -1,5 +1,4 @@
-import { preloadAuthQuery } from "@/lib/server-auth";
-import { api } from "@repo/backend";
+import { getCurrentUser } from "@/lib/auth";
 import { ConditionalHeader } from "./conditional-header";
 
 /**
@@ -8,8 +7,8 @@ import { ConditionalHeader } from "./conditional-header";
  * the auth query resolves in parallel.
  */
 export async function HeaderContent() {
-  const preloadedUser = await preloadAuthQuery(api.queries.users.current);
-  return <ConditionalHeader preloadedUser={preloadedUser} />;
+  const user = await getCurrentUser();
+  return <ConditionalHeader user={user} />;
 }
 
 /**

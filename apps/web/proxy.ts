@@ -1,9 +1,10 @@
-import { NextResponse } from "next/server";
+import { clerkMiddleware } from "@clerk/nextjs/server";
+import { NextRequest, NextResponse } from "next/server";
 
-// Better Auth handles authentication via cookies
-// No proxy protection needed - routes are protected at the page/API level
-export function proxy() {
-  return NextResponse.next();
+const runClerkProxy = clerkMiddleware();
+
+export function proxy(request: NextRequest, event: Parameters<typeof runClerkProxy>[1]) {
+  return runClerkProxy(request, event) ?? NextResponse.next();
 }
 
 export const config = {

@@ -98,14 +98,14 @@ export const createCheckoutSession = action({
       throw new Error("Not authenticated");
     }
 
-    // Normalize email to lowercase. Better Auth may return the email with
+    // Normalize email to lowercase. Identity providers may return the email with
     // different casing depending on the OAuth provider (e.g. Google sometimes
     // returns mixed-case emails). The users table stores emails as-inserted, so
     // a casing mismatch causes the index lookup to miss even when the user exists.
     const email = identity.email.toLowerCase();
 
     // Look up user + participation + payment config via internal queries.
-    // If the Convex user doesn't exist yet (Better Auth/Convex sync race),
+    // If the Convex user doesn't exist yet (auth/Convex sync race),
     // create it from the identity and retry once.
     let checkoutData = await ctx.runQuery(
       internal.queries.paymentConfigInternal.getCheckoutData,
@@ -120,7 +120,7 @@ export const createCheckoutSession = action({
     }
 
     if (checkoutData.error === "User not found") {
-      // Better Auth session exists but Convex user record hasn't synced yet
+      // Auth session exists but Convex user record hasn't synced yet
       // (or the stored email has different casing). Create/upsert the user
       // with the normalised email and retry once.
       console.warn(

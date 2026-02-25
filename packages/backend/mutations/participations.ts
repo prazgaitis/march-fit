@@ -81,7 +81,7 @@ export const join = mutation({
 
     console.log("Identity found:", { subject: identity.subject, email: identity.email });
 
-    // Get the user by email (linked to Better Auth)
+    // Get the user by email (linked to auth identity)
     let user = await getCurrentUser(ctx);
 
     if (!user) {

@@ -38,7 +38,7 @@ export const create = internalMutation({
 // Emails that should always be admin
 const ADMIN_EMAILS = ["prazgaitis@gmail.com", "paul@gocomplete.ai"];
 
-// Public mutation for creating users (used by Better Auth user sync)
+// Public mutation for creating users (used by auth user sync)
 export const createUser = mutation({
   args: {
     username: v.string(),

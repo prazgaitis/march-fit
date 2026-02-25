@@ -1,8 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { Preloaded } from "convex/react";
-import { api } from "@repo/backend";
+import type { Doc } from "@repo/backend/_generated/dataModel";
 import { Header } from "./header";
 
 // Challenge sub-routes that use dashboard/fullscreen layouts and should hide top header.
@@ -21,9 +20,9 @@ const HIDDEN_CHALLENGE_SECTIONS = new Set([
 ]);
 
 export function ConditionalHeader({
-  preloadedUser,
+  user,
 }: {
-  preloadedUser: Preloaded<typeof api.queries.users.current>;
+  user: Doc<"users"> | null;
 }) {
   const pathname = usePathname();
 
@@ -41,5 +40,5 @@ export function ConditionalHeader({
     return null;
   }
 
-  return <Header preloadedUser={preloadedUser} />;
+  return <Header user={user} />;
 }

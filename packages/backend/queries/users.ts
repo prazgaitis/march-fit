@@ -7,7 +7,7 @@ import { notDeleted } from "../lib/activityFilters";
 
 /**
  * Get current authenticated user
- * Links Better Auth users to our users table via email
+ * Links auth identities to our users table via email
  */
 export const current = query({
   args: {},
@@ -17,7 +17,7 @@ export const current = query({
       return null;
     }
 
-    // Look up user by email (Better Auth provides email in the identity)
+    // Look up user by email from auth identity claims.
     if (identity.email) {
       return await ctx.db
         .query("users")

@@ -2,7 +2,7 @@
 
 ## Near Term
 
-- Complete Better Auth migration and user sync
+- Complete Clerk auth rollout and user sync hardening
 - Harden integration flows (Strava, Stripe)
 - Improve admin tooling for challenges and moderation
 

@@ -42,16 +42,10 @@ export default async function RootLayout({
     process.env.NODE_ENV === "development" &&
     process.env.NEXT_PUBLIC_ENABLE_REACT_GRAB === "1";
   const canUseAuth = Boolean(process.env.NEXT_PUBLIC_CONVEX_URL);
-
-  // Only fetch the token if a session cookie exists. getToken() makes a network
-  // call to Convex (/api/auth/convex/token) — when there's no session cookie it
-  // always 401s and spams Convex logs with Better Auth ERROR entries.
-  const cookieStore = await cookies();
-  const hasSession = cookieStore.has("better-auth.session_token")
-    || cookieStore.has("__Secure-better-auth.session_token");
+  await cookies();
 
   let token: string | null = null;
-  if (canUseAuth && hasSession) {
+  if (canUseAuth) {
     try {
       token = (await getToken()) ?? null;
     } catch (error) {
@@ -59,7 +53,7 @@ export default async function RootLayout({
     }
   }
 
-  return (
+  const appTree = (
     <ConvexProviderWrapper initialToken={token ?? null}>
       <html lang="en">
       <head>
@@ -97,4 +91,7 @@ export default async function RootLayout({
       </html>
     </ConvexProviderWrapper>
   );
+
+  const { ClerkProvider } = await import("@clerk/nextjs");
+  return <ClerkProvider>{appTree}</ClerkProvider>;
 }

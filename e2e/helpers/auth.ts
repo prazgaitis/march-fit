@@ -128,7 +128,7 @@ export async function signOut(page: Page) {
 }
 
 /**
- * Assert whether Better Auth session exists for the current browser context.
+ * Assert whether an auth session exists for the current browser context.
  */
 export async function expectSessionState(
   page: Page,

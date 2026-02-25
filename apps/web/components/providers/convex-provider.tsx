@@ -1,11 +1,10 @@
 "use client";
 
 import { ConvexReactClient } from "convex/react";
-import { ConvexBetterAuthProvider } from "@convex-dev/better-auth/react";
+import { ConvexProviderWithClerk } from "convex/react-clerk";
 import * as Sentry from "@sentry/nextjs";
 import { ReactNode, useMemo } from "react";
-
-import { betterAuthClient } from "@/lib/better-auth/client";
+import { useAuth as useClerkAuth } from "@clerk/nextjs";
 
 let convexClientSingleton: ConvexReactClient | null = null;
 
@@ -81,20 +80,14 @@ function getConvexClient() {
 
 export function ConvexProviderWrapper({
   children,
-  initialToken,
 }: {
   children: ReactNode;
   initialToken?: string | null;
 }) {
   const convex = useMemo(() => getConvexClient(), []);
-
   return (
-    <ConvexBetterAuthProvider
-      client={convex}
-      authClient={betterAuthClient}
-      initialToken={initialToken}
-    >
+    <ConvexProviderWithClerk client={convex} useAuth={useClerkAuth}>
       {children}
-    </ConvexBetterAuthProvider>
+    </ConvexProviderWithClerk>
   );
 }

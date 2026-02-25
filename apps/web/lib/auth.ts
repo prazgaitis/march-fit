@@ -19,7 +19,7 @@ export const getCurrentUser = cache(async function getCurrentUser(): Promise<Doc
   let user = null;
 
   // Use authenticated query first; if the user isn't in Convex yet, create them
-  // from the Better Auth identity via an authenticated mutation.
+  // from the Clerk-backed identity via an authenticated mutation.
   try {
     user = await fetchAuthQuery<Doc<"users"> | null>(api.queries.users.current, {});
     if (!user) {

@@ -102,7 +102,7 @@ export const getVerifyData = internalQuery({
 
 /**
  * Internal query to check if user is a challenge admin
- * Looks up user by email (linked to Better Auth)
+ * Looks up user by email (linked to auth identity)
  */
 /**
  * Internal query to get all data needed for creating a checkout session.

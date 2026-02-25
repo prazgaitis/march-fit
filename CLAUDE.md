@@ -86,12 +86,12 @@ pnpm dlx shadcn@latest add input   # Example: add input component inside apps/we
 This is a fitness challenge platform built as a Turborepo monorepo with:
 
 **Core Structure:**
-- `apps/web/` - Next.js 15 frontend with Better Auth and shadcn/ui components
+- `apps/web/` - Next.js 15 frontend with Clerk and shadcn/ui components
 - `packages/backend/` - Convex backend with schema, queries, mutations, and actions
 - `e2e/` - Playwright E2E tests that run nightly against production
 
 **Key Data Models:**
-- **Users** - Managed by Better Auth with Convex adapter
+- **Users** - Managed by Clerk identity and synced into Convex `users`
 - **Challenges** - Fitness challenges with start/end dates, scoring rules
 - **Activities** - User fitness activities logged to challenges (with points, streaks)
 - **Categories** - Activity categorization system
@@ -100,7 +100,7 @@ This is a fitness challenge platform built as a Turborepo monorepo with:
 - **Template Activity Types** - Reusable activity type templates
 
 **Authentication & Multi-tenancy:**
-- Better Auth handles authentication via `@convex-dev/better-auth`
+- Clerk handles authentication
 - Challenge-based multi-tenancy (users can participate in multiple challenges)
 - Convex queries/mutations handle data operations with auth checks
 
