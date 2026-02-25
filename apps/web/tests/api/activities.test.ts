@@ -861,7 +861,7 @@ describe('Activities Logic', () => {
 
       const participation = await getParticipation();
       expect(participation.currentStreak).toBe(5);
-      expect(participation.totalPoints).toBe(75); // 5 days * 15 points
+      expect(participation.totalPoints).toBe(90); // 5 days * 15 points + streak bonus (1+2+3+4+5=15)
     });
 
     it('should accumulate total points correctly across activities', async () => {
@@ -886,7 +886,7 @@ describe('Activities Logic', () => {
       });
 
       const participation = await getParticipation();
-      expect(participation.totalPoints).toBe(35); // 15 + 20
+      expect(participation.totalPoints).toBe(36); // 15 + 20 + 1 streak bonus
       expect(participation.currentStreak).toBe(1); // Only streak activity counts
     });
   });
@@ -1019,7 +1019,7 @@ describe('Activities Logic', () => {
           .first();
       });
       expect(participation).not.toBeNull();
-      expect(participation!.totalPoints).toBeCloseTo(390.6, 5);
+      expect(participation!.totalPoints).toBeCloseTo(393.6, 5); // includes streak bonus (1+2=3)
 
       expect(userAchievements[0].bonusActivityId).toBeDefined();
       const bonusActivity = await t.run(async (ctx) => {
@@ -1152,7 +1152,7 @@ describe('Activities Logic', () => {
       );
       const beforeUserEntry = beforeBonusLeaderboard.page.find((entry) => entry.user.id === userId);
       expect(beforeUserEntry).toBeDefined();
-      expect(beforeUserEntry!.totalPoints).toBeCloseTo(138.2, 5);
+      expect(beforeUserEntry!.totalPoints).toBeCloseTo(141.2, 5); // includes streak bonus (1+2=3)
       expect(beforeUserEntry!.rank).toBe(2);
 
       await tWithAuth.mutation(api.mutations.activities.log, {
@@ -1169,7 +1169,7 @@ describe('Activities Logic', () => {
       );
       const afterUserEntry = afterBonusLeaderboard.page.find((entry) => entry.user.id === userId);
       expect(afterUserEntry).toBeDefined();
-      expect(afterUserEntry!.totalPoints).toBeCloseTo(390.6, 5);
+      expect(afterUserEntry!.totalPoints).toBeCloseTo(393.6, 5); // includes streak bonus (1+2=3)
       expect(afterUserEntry!.rank).toBe(1);
     });
   });

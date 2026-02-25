@@ -23,6 +23,7 @@ import {
 
 import { UserAvatar } from "@/components/user-avatar";
 import { UserMiniGames } from "@/components/mini-games";
+import { StreakCalendarCard } from "@/components/streak-calendar-card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -131,7 +132,7 @@ export function UserProfileContent({
     );
   }
 
-  const { user, challenge, participation, stats } = profileData;
+  const { user, challenge, participation, stats, streakCalendar } = profileData;
   const prDay = stats.prDay;
   const hasStrava = integrations?.some(
     (integration: { service: string; revoked: boolean; accessToken?: string }) =>
@@ -327,6 +328,17 @@ export function UserProfileContent({
             </CardContent>
           </Card>
         </div>
+      )}
+
+      {participation && streakCalendar && (
+        <StreakCalendarCard
+          startDate={streakCalendar.startDate}
+          endDate={streakCalendar.endDate}
+          streakMinPoints={streakCalendar.streakMinPoints}
+          dailyPoints={streakCalendar.dailyPoints}
+          dailyStreakCount={streakCalendar.dailyStreakCount}
+          totalStreakBonusPoints={streakCalendar.totalStreakBonusPoints}
+        />
       )}
 
       {participation && (
