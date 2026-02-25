@@ -1,0 +1,6 @@
+# Local secrets — never commit
+.env.local
+
+# Playwright output
+test-results/
+playwright-report/
