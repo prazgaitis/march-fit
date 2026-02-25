@@ -30,6 +30,7 @@
     "@repo/backend": "workspace:*",
     "@sentry/nextjs": "^10.38.0",
     "@tiptap/extension-mention": "^2.10.4",
+    "@tiptap/suggestion": "^2.10.4",
     "@tiptap/extension-placeholder": "^2.10.4",
     "@tiptap/html": "^2.10.4",
     "@tiptap/react": "^2.10.4",
