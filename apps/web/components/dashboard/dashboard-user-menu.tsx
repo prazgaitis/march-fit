@@ -1,19 +1,18 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useQuery } from "convex/react";
 import { api } from "@repo/backend";
 import type { Doc, Id } from "@repo/backend/_generated/dataModel";
 import {
   ChevronUp,
   Home,
-  LogOut,
   Settings,
   Shield,
   User,
 } from "lucide-react";
 
+import { SignOutButton } from "@/components/auth/sign-out-button";
 import { UserAvatar } from "@/components/user-avatar";
 import {
   DropdownMenu,
@@ -23,7 +22,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { betterAuthClient } from "@/lib/better-auth/client";
 
 interface DashboardUserMenuProps {
   challengeId: string;
@@ -43,13 +41,6 @@ export function DashboardUserMenu({
   });
 
   const isAdmin = adminStatus?.isAdmin ?? false;
-
-  const router = useRouter();
-
-  const handleSignOut = async () => {
-    await betterAuthClient.signOut();
-    router.push("/");
-  };
 
   // User data for avatar
   const userData = {
@@ -130,12 +121,10 @@ export function DashboardUserMenu({
 
             <DropdownMenuSeparator className="bg-zinc-800" />
 
-            <DropdownMenuItem
-              onClick={handleSignOut}
-              className="flex cursor-pointer items-center gap-2 text-red-400 focus:text-red-400"
-            >
-              <LogOut className="h-4 w-4" />
-              Sign Out
+            <DropdownMenuItem asChild>
+              <SignOutButton className="flex w-full cursor-pointer items-center gap-2 text-red-400 focus:text-red-400">
+                Sign Out
+              </SignOutButton>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
@@ -211,12 +200,10 @@ export function DashboardUserMenu({
 
         <DropdownMenuSeparator className="bg-zinc-800" />
 
-        <DropdownMenuItem
-          onClick={handleSignOut}
-          className="flex cursor-pointer items-center gap-2 text-red-400 focus:text-red-400"
-        >
-          <LogOut className="h-4 w-4" />
-          Sign Out
+        <DropdownMenuItem asChild>
+          <SignOutButton className="flex w-full cursor-pointer items-center gap-2 text-red-400 focus:text-red-400">
+            Sign Out
+          </SignOutButton>
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

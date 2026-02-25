@@ -1,5 +1,5 @@
-import { BetterAuthSignUp } from "@/components/auth/better-auth-sign-up";
+import { ClerkSignUp } from "@/components/auth/clerk-auth";
 
 export default function SignUpPage() {
-  return <BetterAuthSignUp />;
+  return <ClerkSignUp />;
 }

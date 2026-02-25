@@ -1,5 +1,5 @@
-import { ResetPassword } from "@/components/auth/reset-password";
+import { redirect } from "next/navigation";
 
 export default function ResetPasswordPage() {
-  return <ResetPassword />;
+  redirect("/sign-in");
 }

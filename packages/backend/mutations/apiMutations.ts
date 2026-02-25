@@ -2,7 +2,7 @@
  * Internal mutations for the HTTP API.
  *
  * These are equivalents of the public mutations but accept an explicit userId
- * instead of relying on Better Auth session identity. The HTTP API layer
+ * instead of relying on session identity. The HTTP API layer
  * authenticates via API key and passes the resolved userId here.
  */
 import { internalMutation } from "../_generated/server";

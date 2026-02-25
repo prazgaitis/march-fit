@@ -17,22 +17,22 @@ import { rebuildResponse } from "@/lib/rebuild-response";
  */
 describe("rebuildResponse", () => {
   it("preserves multiple Set-Cookie headers individually", async () => {
-    // Better Auth sets 3 cookies in one response: session token, JWT, cache
+    // Auth flows can set multiple cookies in one response (session, JWT, cache).
     const upstream = new Response('{"ok":true}', {
       status: 200,
       headers: [
         ["content-type", "application/json"],
         [
           "set-cookie",
-          "__Secure-better-auth.session_token=abc123; Path=/; HttpOnly; Secure; SameSite=Lax; Expires=Thu, 01 Jan 2026 00:00:00 GMT",
+          "__Secure-auth.session_token=abc123; Path=/; HttpOnly; Secure; SameSite=Lax; Expires=Thu, 01 Jan 2026 00:00:00 GMT",
         ],
         [
           "set-cookie",
-          "__Secure-better-auth.convex_jwt=eyJhbGc; Max-Age=300; Path=/; HttpOnly; Secure; SameSite=Lax",
+          "__Secure-auth.convex_jwt=eyJhbGc; Max-Age=300; Path=/; HttpOnly; Secure; SameSite=Lax",
         ],
         [
           "set-cookie",
-          "__Secure-better-auth.session_data=xyz; Max-Age=300; Path=/; HttpOnly; Secure; SameSite=Lax",
+          "__Secure-auth.session_data=xyz; Max-Age=300; Path=/; HttpOnly; Secure; SameSite=Lax",
         ],
       ],
     });

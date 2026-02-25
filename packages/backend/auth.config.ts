@@ -1,9 +1,12 @@
-import { getAuthConfigProvider } from "@convex-dev/better-auth/auth-config";
+import type { AuthConfig } from "convex/server";
 
-// Use Better Auth provider for Convex authentication
-// This uses the CONVEX_SITE_URL to fetch JWKS from the Convex deployment
+const providers: AuthConfig["providers"] = process.env.CLERK_JWT_ISSUER_DOMAIN
+  ? [{
+      domain: process.env.CLERK_JWT_ISSUER_DOMAIN,
+      applicationID: process.env.CLERK_CONVEX_AUDIENCE ?? "convex",
+    }]
+  : [];
+
 export default {
-  providers: [getAuthConfigProvider()],
-};
-
-
+  providers,
+} satisfies AuthConfig;

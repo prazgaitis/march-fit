@@ -7,7 +7,7 @@ Instructions for AI code agents (OpenAI Codex, Claude Code, etc.) working on thi
 This is a fitness challenge platform with:
 - **Frontend**: Next.js 15 app in `apps/web/`
 - **Backend**: Convex serverless functions in `packages/backend/`
-- **Auth**: Better Auth via `@convex-dev/better-auth`
+- **Auth**: Clerk
 
 ## Date Handling (Local Date Semantics)
 
@@ -206,9 +206,11 @@ convex-test is a mock - always manually test against real Convex before shipping
 # Required for Convex
 NEXT_PUBLIC_CONVEX_URL="https://your-project.convex.cloud"
 
-# For Better Auth
-BETTER_AUTH_SECRET="generate-a-long-secret"
-NEXT_PUBLIC_AUTH_PROVIDER="better-auth"
+# For Clerk
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY="pk_test_..."
+CLERK_SECRET_KEY="sk_test_..."
+CLERK_JWT_ISSUER_DOMAIN="https://your-instance.clerk.accounts.dev"
+CLERK_CONVEX_AUDIENCE="convex"
 ```
 
 ## Verification Checklist
@@ -222,4 +224,4 @@ NEXT_PUBLIC_AUTH_PROVIDER="better-auth"
 
 - [Convex Docs](https://docs.convex.dev/)
 - [convex-test](https://docs.convex.dev/testing/convex-test)
-- [Better Auth](https://www.better-auth.com/)
+- [Clerk Docs](https://clerk.com/docs)

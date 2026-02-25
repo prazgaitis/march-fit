@@ -110,7 +110,7 @@ async function buildUserProgress(
 
 /**
  * Get the logged-in user's progress on all achievements for a challenge.
- * Uses Clerk/Better Auth identity.
+ * Uses authenticated identity from Clerk.
  */
 export const getUserProgress = query({
   args: {

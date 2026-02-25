@@ -3,7 +3,6 @@ import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import Stripe from "stripe";
 import { decryptKey } from "./lib/stripe";
-import { authComponent, createAuth } from "./auth";
 import { apiV1Router } from "./httpApi";
 
 const http = httpRouter();
@@ -28,12 +27,6 @@ function isStravaWebhookPayload(value: unknown): value is StravaWebhookPayload {
     STRAVA_ASPECT_TYPES.has(payload.aspect_type)
   );
 }
-
-// Register Better Auth routes.
-// Note: no CORS option needed — all browser requests go through the Next.js proxy
-// (apps/web/app/api/auth/[...all]/route.ts), so Convex never receives direct
-// cross-origin requests from browsers.
-authComponent.registerRoutes(http, createAuth);
 
 /**
  * Stripe webhook endpoint

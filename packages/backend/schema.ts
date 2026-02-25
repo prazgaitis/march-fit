@@ -2,7 +2,7 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
 export default defineSchema({
-  // Users table - linked to Better Auth via email
+  // Users table - linked to auth identity via email
   users: defineTable({
     username: v.string(),
     email: v.string(),

@@ -1,19 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { Preloaded } from "convex/react";
-import { usePreloadedAuthQuery } from "@convex-dev/better-auth/nextjs/client";
-import { api } from "@repo/backend";
+import type { Doc } from "@repo/backend/_generated/dataModel";
 
 import { UserButton } from "@/components/auth/user-button";
 
 export function Header({
-  preloadedUser,
+  user,
 }: {
-  preloadedUser: Preloaded<typeof api.queries.users.current>;
+  user: Doc<"users"> | null;
 }) {
-  const user = usePreloadedAuthQuery(preloadedUser);
-
   return (
     <header className="fixed top-0 left-0 right-0 z-50 border-b border-zinc-800 bg-black/95 backdrop-blur supports-[backdrop-filter]:bg-black/60">
       <div className="container flex h-16 items-center justify-between px-6">

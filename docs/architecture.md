@@ -7,7 +7,7 @@ March Fit is a monorepo with a Next.js frontend and a Convex backend.
 - Next.js 15 app in `apps/web`
 - React 19
 - Uses Convex client for data access
-- Auth via Better Auth with `@convex-dev/better-auth` adapter
+- Auth via Clerk + Convex JWT auth
 
 ## Backend
 

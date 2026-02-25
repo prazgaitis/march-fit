@@ -1,5 +1,6 @@
 "use client";
 
+import { useClerk } from "@clerk/nextjs";
 import { LogOut } from "lucide-react";
 
 import {
@@ -11,7 +12,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { UserAvatar } from "@/components/user-avatar";
-import { betterAuthClient } from "@/lib/better-auth/client";
 
 type UserButtonUser = {
   id: string;
@@ -21,6 +21,8 @@ type UserButtonUser = {
 };
 
 export function UserButton({ user }: { user: UserButtonUser }) {
+  const clerk = useClerk();
+
   if (!user?.id) {
     return null;
   }
@@ -46,26 +48,25 @@ export function UserButton({ user }: { user: UserButtonUser }) {
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
-        className="w-56 bg-zinc-900 border-zinc-800"
+        className="w-56 border-zinc-800 bg-zinc-900"
         sideOffset={8}
       >
         <DropdownMenuLabel className="font-normal">
           <div className="flex flex-col space-y-1">
-            <p className="text-sm font-medium text-white truncate">{user.name}</p>
+            <p className="truncate text-sm font-medium text-white">{user.name}</p>
             {user.email && (
-              <p className="text-xs text-zinc-400 truncate">{user.email}</p>
+              <p className="truncate text-xs text-zinc-400">{user.email}</p>
             )}
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator className="bg-zinc-800" />
         <DropdownMenuItem
           onClick={async () => {
-            await betterAuthClient.signOut();
-            window.location.href = "/";
+            await clerk.signOut({ redirectUrl: "/" });
           }}
-          className="flex items-center gap-2 px-2 py-3 text-sm text-red-400 cursor-pointer hover:bg-zinc-800 hover:text-red-300 focus:bg-zinc-800 focus:text-red-300"
+          className="cursor-pointer px-2 py-3 text-sm text-red-400 hover:bg-zinc-800 hover:text-red-300 focus:bg-zinc-800 focus:text-red-300"
         >
-          <LogOut className="h-4 w-4" />
+          <LogOut className="mr-2 h-4 w-4" />
           Sign out
         </DropdownMenuItem>
       </DropdownMenuContent>

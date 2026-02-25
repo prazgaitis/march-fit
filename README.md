@@ -19,7 +19,7 @@ This repository contains the full source (web app + backend). Contributions are 
 
 - **Frontend** — Next.js 15, React 19, Tailwind CSS, shadcn/ui
 - **Backend** — [Convex](https://convex.dev) (serverless database + functions)
-- **Auth** — Better Auth with `@convex-dev/better-auth` adapter
+- **Auth** — Clerk
 - **Monorepo** — pnpm workspaces + Turborepo
 
 ## Quick Start

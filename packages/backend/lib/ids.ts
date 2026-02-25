@@ -15,7 +15,7 @@ export async function getById<T extends TableNames>(
 
 /**
  * Get the current authenticated user from the identity.
- * Links Better Auth users to our users table via email.
+ * Links Clerk identities to our users table via email.
  */
 export async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
   const identity = await ctx.auth.getUserIdentity();
@@ -23,7 +23,7 @@ export async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
     return null;
   }
 
-  // Look up user by email (Better Auth provides email in the identity)
+  // Look up user by email (email comes from the auth identity claims).
   if (identity.email) {
     return await ctx.db
       .query("users")
@@ -63,4 +63,3 @@ export async function getActivityById(
 ) {
   return getById(ctx, "activities", id);
 }
-

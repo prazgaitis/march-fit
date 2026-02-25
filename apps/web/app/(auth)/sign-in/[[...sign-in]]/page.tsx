@@ -1,5 +1,5 @@
-import { BetterAuthSignIn } from "@/components/auth/better-auth-sign-in";
+import { ClerkSignIn } from "@/components/auth/clerk-auth";
 
 export default function SignInPage() {
-  return <BetterAuthSignIn />;
+  return <ClerkSignIn />;
 }
