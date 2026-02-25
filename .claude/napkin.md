@@ -3,6 +3,7 @@
 ## Corrections
 | Date | Source | What Went Wrong | What To Do Instead |
 |------|--------|----------------|-------------------|
+| 2026-02-25 | self | Ran `git checkout` + `git add` + `git commit` in parallel; `git add` hit index lock and commit ran with nothing staged | Never parallelize dependent git state-changing commands; run branch/switch/add/commit sequentially |
 | 2026-02-25 | self | Ran `sed` on `apps/web/app/(auth)/sign-in/[[...sign-in]]/page.tsx` without quoting and zsh globbing failed | Always single-quote paths with `[]` and `()` in shell commands |
 | 2026-02-25 | self | Deleted `apps/web/app/api/auth/[...all]/route.ts` and hit Next generated validator import errors from `.next/dev/types` during typecheck | Keep a minimal stub route (404 handler) until Next type artifacts are regenerated cleanly |
 | 2026-02-25 | self | Clerk `clerkMiddleware()` wrapper in `apps/web/proxy.ts` was first typed with `Request`, causing TS mismatch against `NextRequest` | Type proxy handlers with `NextRequest` when delegating to Next middleware helpers |
