@@ -215,8 +215,12 @@ http.route({
         }
       );
 
-      // Delegate all processing to the internalAction
-      await ctx.runAction(
+      // Schedule processing asynchronously so we can return 200 to Strava
+      // immediately. Strava expects a response within ~2s or it disconnects.
+      // The payload is already persisted above, so nothing is lost if the
+      // scheduled action fails — it can be reprocessed from webhookPayloads.
+      await ctx.scheduler.runAfter(
+        0,
         internal.actions.strava.processStravaWebhook,
         {
           payloadId,

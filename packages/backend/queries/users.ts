@@ -4,6 +4,7 @@ import { paginationOptsValidator } from "convex/server";
 import { coerceDateOnlyToString, formatDateOnlyFromUtcMs } from "../lib/dateOnly";
 import { internalQuery } from "../_generated/server";
 import { notDeleted } from "../lib/activityFilters";
+import { aggregateDailyStreakPoints, computeStreak } from "../lib/streak";
 
 /**
  * Get current authenticated user
@@ -146,6 +147,22 @@ export const getProfile = query({
     );
     const activityTypeMap = new Map(activityTypeEntries);
 
+    // Build daily streak points and running streak count for calendar
+    const dailyPointsMap = aggregateDailyStreakPoints(
+      challengeActivities,
+      (id) => activityTypeMap.get(id as typeof activityTypeIds[number])?.contributesToStreak ?? false,
+    );
+    const streakResult = computeStreak(dailyPointsMap, challenge.streakMinPoints);
+
+    const dailyStreakPoints: Record<string, number> = {};
+    for (const [ms, pts] of dailyPointsMap) {
+      dailyStreakPoints[formatDateOnlyFromUtcMs(ms)] = pts;
+    }
+    const dailyStreakCount: Record<string, number> = {};
+    for (const [ms, count] of streakResult.dailyStreakCount) {
+      dailyStreakCount[formatDateOnlyFromUtcMs(ms)] = count;
+    }
+
     // Get recent activities (last 5)
     const recentActivities = challengeActivities
       .sort((a, b) => b.createdAt - a.createdAt)
@@ -226,6 +243,14 @@ export const getProfile = query({
               activities: prDayActivities,
             }
           : null,
+      },
+      streakCalendar: {
+        startDate: coerceDateOnlyToString(challenge.startDate),
+        endDate: coerceDateOnlyToString(challenge.endDate),
+        streakMinPoints: challenge.streakMinPoints,
+        dailyPoints: dailyStreakPoints,
+        dailyStreakCount,
+        totalStreakBonusPoints: streakResult.totalStreakBonus,
       },
     };
   },

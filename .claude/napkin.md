@@ -101,6 +101,7 @@
 | 2026-02-21 | self | Tried `cd packages/backend && pnpm test:run` during verification, but that package has no `test:run` script | Verify available scripts from `package.json` before invoking backend test commands |
 | 2026-02-21 | self | Ran `ls` before reading `.claude/napkin.md` again at session start | Make the first command `cat .claude/napkin.md` every single session, no exceptions |
 | 2026-02-22 | self | Ran `ls` before reading `.claude/napkin.md` at session start | Make the first command `cat .claude/napkin.md` every single session, no exceptions |
+| 2026-02-23 | self | Ran `ls` before reading `.claude/napkin.md` at session start | Make the first command `cat .claude/napkin.md` every single session, no exceptions |
 | 2026-02-21 | self | Ran commands against Next dynamic-route paths without quoting bracket segments and hit `zsh: no matches found` | Always single-quote any path containing `[]` before `sed`/`rg`/`cat` |
 | 2026-02-21 | self | Initial mobile selector fix added touch-scroll classes but did not resolve drawer touch scrolling because the popover remained portaled to `body` | In Drawer/Dialog flows, portal popovers into an element inside the modal content to stay within scroll-lock shards and preserve touch scroll |
 | 2026-02-24 | self | Tried `pnpm convex logs --prod` without deployment env and got blocked by missing `CONVEX_DEPLOYMENT` | Use repo wrapper (`scripts/convex.sh`) or a configured deployment env before running Convex CLI log commands |
@@ -111,3 +112,4 @@
 | 2026-02-24 | self | New sign-out E2E initially failed by asserting anonymous state immediately after click; auth/session transitions can lag briefly | In auth E2E flows, wait for `/api/auth/sign-out` response and use `expect.poll` for session-state assertions |
 
 | 2026-02-24 | self | Used `status` as a shell variable in zsh loop (`read-only variable`) during auth probing | Avoid reserved shell params (`status`) and use non-special variable names like `st` |
+| 2026-02-24 | self | Ran `git diff` on a Next dynamic-route path without quoting `[id]` and zsh globbing failed | Always single-quote dynamic-route paths in git/sed/rg commands |

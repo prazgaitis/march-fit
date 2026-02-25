@@ -342,7 +342,7 @@ describe('Admin Activity Features', () => {
           )
           .first();
       });
-      expect(participation!.totalPoints).toBe(15); // was 0, diff is 50-35=15
+      expect(participation!.totalPoints).toBe(16); // was 0, diff is 50-35=15 + 1 streak bonus
     });
 
     it('should send notification on edit', async () => {

@@ -240,6 +240,7 @@ export default defineSchema({
     joinedAt: v.number(),
     invitedByUserId: v.optional(v.id("users")),
     totalPoints: v.number(),
+    streakBonusPoints: v.optional(v.number()),
     currentStreak: v.number(),
     lastStreakDay: v.optional(v.number()),
     modifierFactor: v.number(),

@@ -87,7 +87,7 @@ describe('editActivity mutation', () => {
         )
         .first()
     );
-    expect(before!.totalPoints).toBe(35);
+    expect(before!.totalPoints).toBe(36); // 35 activity pts + 1 streak bonus
 
     // Edit to 60 minutes => 65 pts
     await tAuth.mutation(api.mutations.activities.editActivity, {
@@ -103,8 +103,8 @@ describe('editActivity mutation', () => {
         )
         .first()
     );
-    // 35 - 35 + 65 = 65
-    expect(after!.totalPoints).toBe(65);
+    // 36 - 35 + 65 = 66 (streak bonus stays 1)
+    expect(after!.totalPoints).toBe(66);
   });
 
   it('allows totalPoints to go negative after editing to a negative activity type', async () => {
