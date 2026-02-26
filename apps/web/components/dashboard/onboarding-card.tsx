@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
@@ -35,7 +35,7 @@ import {
   ChevronUp,
 } from "lucide-react";
 
-function getOnboardingTitle(startDate: string): string {
+function computeOnboardingTitle(startDate: string): string {
   const startMs = parseDateOnlyToUtcMs(startDate);
   const now = Date.now();
   const daysUntilStart = Math.ceil((startMs - now) / (1000 * 60 * 60 * 24));
@@ -53,6 +53,12 @@ interface OnboardingCardProps {
 export function OnboardingCard({ challengeId, userId, challengeStartDate }: OnboardingCardProps) {
   const [dismissed, setDismissed] = useState(false);
   const [expandedStep, setExpandedStep] = useState<number | null>(null);
+
+  // Compute client-side only — Date.now() differs between server and client renders
+  const [title, setTitle] = useState("Getting started");
+  useEffect(() => {
+    setTitle(computeOnboardingTitle(challengeStartDate));
+  }, [challengeStartDate]);
 
   // Data fetching
   const currentUser = useQuery(api.queries.users.current);
@@ -164,7 +170,7 @@ export function OnboardingCard({ challengeId, userId, challengeStartDate }: Onbo
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle className="text-base">{getOnboardingTitle(challengeStartDate)}</CardTitle>
+            <CardTitle className="text-base">{title}</CardTitle>
           </div>
           {allCompletableStepsDone && (
             <Button
@@ -494,8 +500,7 @@ function StravaStep({
     );
   }
 
-  const origin =
-    typeof window !== "undefined" ? window.location.origin : "";
+  const origin = process.env.NEXT_PUBLIC_APP_URL ?? "";
 
   return (
     <StravaConnectButton
@@ -532,8 +537,9 @@ function InviteStep({
 
   const code = inviteCode ?? existingCode;
 
+  const origin = process.env.NEXT_PUBLIC_APP_URL ?? "";
   const inviteUrl = code
-    ? `${typeof window !== "undefined" ? window.location.origin : ""}/challenges/${challengeId}/invite/${code}`
+    ? `${origin}/challenges/${challengeId}/invite/${code}`
     : null;
 
   const handleGenerateCode = async () => {
@@ -600,8 +606,7 @@ function InviteStep({
       const result = await sendInviteEmails({
         challengeId: challengeId as Id<"challenges">,
         emails: emailList,
-        origin:
-          typeof window !== "undefined" ? window.location.origin : "",
+        origin: process.env.NEXT_PUBLIC_APP_URL ?? window.location.origin,
       });
       setSendResult(result);
       setEmails("");
