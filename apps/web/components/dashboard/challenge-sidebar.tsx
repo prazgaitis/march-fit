@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import { Flame, Trophy, Users } from 'lucide-react';
 
 import { useChallengeSummary } from './challenge-realtime-context';
@@ -20,6 +21,12 @@ interface ChallengeSidebarProps {
 export function ChallengeSidebar({ challengeId, currentUserId, challengeStartDate }: ChallengeSidebarProps) {
   const { summary } = useChallengeSummary();
   const { stats, leaderboard } = summary;
+
+  // Compute client-side only to avoid hydration mismatch (Date.now() differs server vs client)
+  const [challengeStarted, setChallengeStarted] = useState(false);
+  useEffect(() => {
+    setChallengeStarted(dateOnlyToUtcMs(challengeStartDate) <= Date.now());
+  }, [challengeStartDate]);
 
   return (
     <div className="space-y-4">
@@ -117,7 +124,7 @@ export function ChallengeSidebar({ challengeId, currentUserId, challengeStartDat
         </CardContent>
       </Card>
 
-      {dateOnlyToUtcMs(challengeStartDate) <= Date.now() && (
+      {challengeStarted && (
         <OnboardingCard challengeId={challengeId} userId={currentUserId} challengeStartDate={challengeStartDate} />
       )}
     </div>
