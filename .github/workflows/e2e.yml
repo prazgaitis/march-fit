@@ -41,7 +41,9 @@ jobs:
 
       - name: Install Playwright browsers
         working-directory: e2e
-        run: pnpm exec playwright install --with-deps chromium
+        # Use local binary directly — pnpm exec traverses up to the monorepo root
+        # and picks up apps/web's `playwright` package instead of e2e's @playwright/test.
+        run: ./node_modules/.bin/playwright install --with-deps chromium
 
       - name: Run E2E tests
         working-directory: e2e
@@ -50,7 +52,8 @@ jobs:
           E2E_CHALLENGE_ID: ${{ secrets.E2E_CHALLENGE_ID }}
           E2E_CHALLENGE_INVITE_CODE: ${{ secrets.E2E_CHALLENGE_INVITE_CODE }}
           E2E_USER_PASSWORD: ${{ secrets.E2E_USER_PASSWORD }}
-        run: pnpm exec playwright test
+        # Use local binary directly — same reason as above
+        run: ./node_modules/.bin/playwright test
 
       - name: Upload test results
         uses: actions/upload-artifact@v4
