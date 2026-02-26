@@ -33,7 +33,9 @@ function getNotificationIcon(type: string) {
     case "comment":
       return <MessageCircle className="h-4 w-4 text-blue-500" />;
     case "follow":
+    case "new_follower":
     case "join":
+    case "invite_accepted":
       return <UserPlus className="h-4 w-4 text-green-500" />;
     case "achievement":
     case "streak":
@@ -61,9 +63,12 @@ function getNotificationMessage(notification: Notification) {
     case "forum_mention":
       return `${actorName} mentioned you in a forum post`;
     case "follow":
+    case "new_follower":
       return `${actorName} started following you`;
     case "join":
       return `${actorName} joined the challenge`;
+    case "invite_accepted":
+      return `${actorName} joined the challenge with your invite link`;
     case "achievement":
       return `${actorName} earned an achievement`;
     case "streak":
@@ -81,6 +86,10 @@ function getNotificationLink(notification: Notification, challengeId: string) {
   if (notification.type === "forum_mention" && notification.data?.postId) {
     const cId = notification.data.challengeId ?? challengeId;
     return `/challenges/${cId}/forum/${notification.data.postId}`;
+  }
+  if (notification.type === "invite_accepted" || notification.type === "join") {
+    const cId = notification.data?.challengeId ?? challengeId;
+    return `/challenges/${cId}/users/${notification.actor.id}`;
   }
   if (notification.data?.activityId) {
     return `/challenges/${challengeId}/activities/${notification.data.activityId}`;

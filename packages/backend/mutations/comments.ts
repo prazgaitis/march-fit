@@ -1,6 +1,7 @@
 import { mutation } from "../_generated/server";
 import { v } from "convex/values";
 import { getCurrentUser } from "../lib/ids";
+import { insertNotification } from "../lib/notifications";
 
 export const create = mutation({
   args: {
@@ -17,15 +18,26 @@ export const create = mutation({
         throw new Error("Comment cannot be empty");
     }
 
+    const now = Date.now();
     const commentId = await ctx.db.insert("comments", {
       activityId: args.activityId,
       userId: user._id,
       content: args.content,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
+      createdAt: now,
+      updatedAt: now,
     });
 
-    // Notify activity owner logic could go here
+    // Notify the activity owner (skip self-comments, dedup within rollup window)
+    const activity = await ctx.db.get(args.activityId);
+    if (activity && activity.userId !== user._id) {
+      await insertNotification(ctx, {
+        userId: activity.userId,
+        actorId: user._id,
+        type: "comment",
+        data: { activityId: args.activityId },
+        createdAt: now,
+      });
+    }
 
     return commentId;
   },
