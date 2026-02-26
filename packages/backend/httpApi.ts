@@ -8,6 +8,7 @@ import { httpAction } from "./_generated/server";
 import { internal, api } from "./_generated/api";
 import type { Id, Doc } from "./_generated/dataModel";
 import { hashApiKey } from "./lib/apiKey";
+import { reportBackendSentryEvent } from "./lib/latencyMonitoring";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -1513,7 +1514,33 @@ export const apiV1Router = httpAction(async (ctx, request) => {
     if (route.method !== method) continue;
     const params = matchRoute(path, route.pattern);
     if (params !== null) {
-      return route.handler(ctx, request, params);
+      try {
+        return await route.handler(ctx, request, params);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        reportBackendSentryEvent({
+          message: "Unhandled API v1 route error",
+          operation: "httpApi.apiV1Router",
+          level: "error",
+          tags: {
+            routePattern: route.pattern,
+            method,
+          },
+          extra: {
+            path,
+            params,
+            errorMessage: message,
+          },
+        });
+        console.error("[httpApi] unhandled route error", {
+          method,
+          path,
+          routePattern: route.pattern,
+          params,
+          message,
+        });
+        return errorResponse("Internal server error", 500);
+      }
     }
   }
 
