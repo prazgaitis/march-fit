@@ -1,0 +1,9 @@
+# This file exists intentionally to prevent pnpm from walking up to the
+# monorepo root's pnpm-workspace.yaml when running `pnpm install` here.
+#
+# Without this, pnpm detects the parent workspace and runs a workspace-scoped
+# install, which means @playwright/test never lands in e2e/node_modules.
+#
+# With this file, pnpm treats e2e/ as its own workspace root and installs
+# dependencies locally, giving us e2e/node_modules/.bin/playwright.
+packages: []
