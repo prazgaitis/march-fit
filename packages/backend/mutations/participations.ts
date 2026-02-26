@@ -175,6 +175,17 @@ export const join = mutation({
       updatedAt: now,
     });
 
+    // Notify the inviter that someone joined with their link
+    if (invitedByUserId && invitedByUserId !== user._id) {
+      await ctx.db.insert("notifications", {
+        userId: invitedByUserId,
+        actorId: user._id,
+        type: "invite_accepted",
+        data: { challengeId: args.challengeId, challengeName: challenge.name },
+        createdAt: now,
+      });
+    }
+
     // Auto-create mutual follow relationships if joined via invite
     if (invitedByUserId && invitedByUserId !== user._id) {
       // Invitee follows inviter

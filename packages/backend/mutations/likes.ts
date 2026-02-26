@@ -23,11 +23,25 @@ export const toggle = mutation({
       await ctx.db.delete(existing._id);
       return { liked: false };
     } else {
+      const now = Date.now();
       await ctx.db.insert("likes", {
         activityId: args.activityId,
         userId: user._id,
-        createdAt: Date.now(),
+        createdAt: now,
       });
+
+      // Notify the activity owner (skip self-likes)
+      const activity = await ctx.db.get(args.activityId);
+      if (activity && activity.userId !== user._id) {
+        await ctx.db.insert("notifications", {
+          userId: activity.userId,
+          actorId: user._id,
+          type: "like",
+          data: { activityId: args.activityId },
+          createdAt: now,
+        });
+      }
+
       return { liked: true };
     }
   },
