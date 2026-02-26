@@ -186,6 +186,41 @@ export const join = mutation({
       });
     }
 
+    // Notify challenge creator and challenge admins about the new join
+    const notifiedForJoin = new Set<string>();
+    if (invitedByUserId) notifiedForJoin.add(String(invitedByUserId)); // already got invite_accepted
+    notifiedForJoin.add(String(user._id)); // don't notify the joiner
+
+    // Notify the creator
+    if (!notifiedForJoin.has(String(challenge.creatorId))) {
+      notifiedForJoin.add(String(challenge.creatorId));
+      await ctx.db.insert("notifications", {
+        userId: challenge.creatorId,
+        actorId: user._id,
+        type: "join",
+        data: { challengeId: args.challengeId, challengeName: challenge.name },
+        createdAt: now,
+      });
+    }
+
+    // Notify challenge-level admins
+    const adminParticipations = await ctx.db
+      .query("userChallenges")
+      .withIndex("challengeId", (q) => q.eq("challengeId", args.challengeId))
+      .collect();
+    for (const p of adminParticipations) {
+      if (p.role === "admin" && !notifiedForJoin.has(String(p.userId))) {
+        notifiedForJoin.add(String(p.userId));
+        await ctx.db.insert("notifications", {
+          userId: p.userId,
+          actorId: user._id,
+          type: "join",
+          data: { challengeId: args.challengeId, challengeName: challenge.name },
+          createdAt: now,
+        });
+      }
+    }
+
     // Auto-create mutual follow relationships if joined via invite
     if (invitedByUserId && invitedByUserId !== user._id) {
       // Invitee follows inviter

@@ -87,7 +87,7 @@ function getNotificationLink(notification: Notification, challengeId: string) {
     const cId = notification.data.challengeId ?? challengeId;
     return `/challenges/${cId}/forum/${notification.data.postId}`;
   }
-  if (notification.type === "invite_accepted") {
+  if (notification.type === "invite_accepted" || notification.type === "join") {
     const cId = notification.data?.challengeId ?? challengeId;
     return `/challenges/${cId}/users/${notification.actor.id}`;
   }

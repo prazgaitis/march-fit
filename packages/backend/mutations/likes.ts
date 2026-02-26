@@ -1,6 +1,7 @@
 import { mutation } from "../_generated/server";
 import { v } from "convex/values";
 import { getCurrentUser } from "../lib/ids";
+import { insertNotification } from "../lib/notifications";
 
 export const toggle = mutation({
   args: {
@@ -30,10 +31,10 @@ export const toggle = mutation({
         createdAt: now,
       });
 
-      // Notify the activity owner (skip self-likes)
+      // Notify the activity owner (skip self-likes, dedup within rollup window)
       const activity = await ctx.db.get(args.activityId);
       if (activity && activity.userId !== user._id) {
-        await ctx.db.insert("notifications", {
+        await insertNotification(ctx, {
           userId: activity.userId,
           actorId: user._id,
           type: "like",

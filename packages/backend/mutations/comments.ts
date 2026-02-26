@@ -1,6 +1,7 @@
 import { mutation } from "../_generated/server";
 import { v } from "convex/values";
 import { getCurrentUser } from "../lib/ids";
+import { insertNotification } from "../lib/notifications";
 
 export const create = mutation({
   args: {
@@ -26,10 +27,10 @@ export const create = mutation({
       updatedAt: now,
     });
 
-    // Notify the activity owner (skip self-comments)
+    // Notify the activity owner (skip self-comments, dedup within rollup window)
     const activity = await ctx.db.get(args.activityId);
     if (activity && activity.userId !== user._id) {
-      await ctx.db.insert("notifications", {
+      await insertNotification(ctx, {
         userId: activity.userId,
         actorId: user._id,
         type: "comment",
