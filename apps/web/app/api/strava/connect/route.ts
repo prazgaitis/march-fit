@@ -1,4 +1,3 @@
-import { redirect } from "next/navigation";
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 
@@ -19,7 +18,9 @@ export async function GET(request: NextRequest) {
   const { userId } = await getServerAuth();
 
   if (!userId) {
-    redirect("/sign-in?redirect_url=/integrations");
+    return NextResponse.redirect(
+      new URL("/sign-in?redirect_url=/integrations", request.url),
+    );
   }
 
   const searchParams = request.nextUrl.searchParams;

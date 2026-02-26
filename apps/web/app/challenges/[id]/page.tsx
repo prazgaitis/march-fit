@@ -1,4 +1,6 @@
 import { notFound } from "next/navigation";
+import { headers } from "next/headers";
+import * as Sentry from "@sentry/nextjs";
 import { getConvexClient } from "@/lib/convex-server";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
@@ -12,7 +14,11 @@ interface PageProps {
 export default async function ChallengePage({ params }: PageProps) {
   const convex = getConvexClient();
   const pageStart = performance.now();
-  const [user, { id }] = await Promise.all([getCurrentUser(), params]);
+  const [user, { id }, headersList] = await Promise.all([
+    getCurrentUser(),
+    params,
+    headers(),
+  ]);
 
   try {
     const challengeId = id as Id<"challenges">;
@@ -56,6 +62,25 @@ export default async function ChallengePage({ params }: PageProps) {
     );
 
     if (!challenge) {
+      const referer = headersList.get("referer");
+      Sentry.captureMessage("Challenge not found — possible broken link", {
+        level: "warning",
+        extra: {
+          challengeId: id,
+          referer: referer ?? "(direct / none)",
+        },
+        tags: {
+          referrer_host: referer
+            ? (() => {
+                try {
+                  return new URL(referer).hostname;
+                } catch {
+                  return "unparseable";
+                }
+              })()
+            : "direct",
+        },
+      });
       notFound();
     }
 
@@ -76,7 +101,25 @@ export default async function ChallengePage({ params }: PageProps) {
       />
     );
   } catch (error) {
+    const referer = headersList.get("referer");
     console.error("Error loading challenge page:", error);
+    Sentry.captureException(error, {
+      extra: {
+        challengeId: id,
+        referer: referer ?? "(direct / none)",
+      },
+      tags: {
+        referrer_host: referer
+          ? (() => {
+              try {
+                return new URL(referer).hostname;
+              } catch {
+                return "unparseable";
+              }
+            })()
+          : "direct",
+      },
+    });
     notFound();
   }
 }
