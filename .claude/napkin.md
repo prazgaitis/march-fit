@@ -3,6 +3,8 @@
 ## Corrections
 | Date | Source | What Went Wrong | What To Do Instead |
 |------|--------|----------------|-------------------|
+| 2026-02-27 | self | Imported `@repo/backend/lib/streak` from web tests; package doesn't export that subpath | In web tests, import non-exported backend internals via repo-relative paths (or export them explicitly first) |
+| 2026-02-27 | self | Ran `ls` before reading `.claude/napkin.md` at session start | Make the first command `cat .claude/napkin.md` before any other command, every session |
 | 2026-02-21 | self | New `scorePreview` map callback in `activity-log-dialog.tsx` failed TS strict mode due implicit `any` params | Add explicit callback parameter types when rendering arrays from loosely-typed query payloads |
 | 2026-02-21 | self | Web tests used `activityPointsAggregate/public/insertIfDoesNotExist`, but the aggregate component exposes `public/insert` and `public/replaceOrInsert` only | Use `aggregateInsertActivity`/`insertTestActivity` or `public/replaceOrInsert` instead of calling a non-existent module |
 | 2026-02-21 | self | Component registration for convex-test pointed at `packages/backend/node_modules` and missed `_generated`, so component modules were unresolved | Register aggregate component from `node_modules/@convex-dev/aggregate/dist/component/**/*.{js,ts}` so `_generated` is included |
@@ -44,6 +46,7 @@
 - For production troubleshooting UX, do not add user-facing alerts for transient feed/connection issues; log to Sentry instead.
 
 ## Patterns That Work
+- For idea/research tasks, combine source reading with a quick scan of local CI/docs/testing files before proposing changes; recommendations become concrete and repo-specific.
 - For aggregate adoption on existing tables, use write-sync first with idempotent aggregate ops (`insertIfDoesNotExist`/`replaceOrInsert`/`deleteIfExists`), then cut reads over after backfill.
 - Convex queries can join related data inline (e.g., activity types + categories in one query)
 - `conditional-header.tsx` hides header by challenge section (`/challenges/:id/:section`) so child routes inherit behavior without route regexes
