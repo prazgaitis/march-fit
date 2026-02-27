@@ -435,3 +435,130 @@ export const getActivities = query({
     };
   },
 });
+
+/**
+ * Get a full points ledger for a user in a challenge.
+ * Returns all activities grouped by day with streak bonus per day.
+ */
+export const getLedger = query({
+  args: {
+    userId: v.id("users"),
+    challengeId: v.id("challenges"),
+  },
+  handler: async (ctx, args) => {
+    const [user, challenge] = await Promise.all([
+      ctx.db.get(args.userId),
+      ctx.db.get(args.challengeId),
+    ]);
+
+    if (!user || !challenge) return null;
+
+    const participation = await ctx.db
+      .query("userChallenges")
+      .withIndex("userChallengeUnique", (q) =>
+        q.eq("userId", args.userId).eq("challengeId", args.challengeId)
+      )
+      .first();
+
+    if (!participation) return null;
+
+    const activities = await ctx.db
+      .query("activities")
+      .withIndex("userId", (q) => q.eq("userId", args.userId))
+      .filter(notDeleted)
+      .collect();
+
+    const challengeActivities = activities.filter(
+      (a) => a.challengeId === args.challengeId
+    );
+
+    // Build activity type map
+    const activityTypeIds = Array.from(
+      new Set(challengeActivities.map((a) => a.activityTypeId))
+    );
+    const activityTypeEntries = await Promise.all(
+      activityTypeIds.map(
+        async (id) => [id, await ctx.db.get(id)] as const
+      )
+    );
+    const activityTypeMap = new Map(activityTypeEntries);
+
+    // Compute streak data
+    const dailyPointsMap = aggregateDailyStreakPoints(
+      challengeActivities,
+      (id) =>
+        activityTypeMap.get(id as typeof activityTypeIds[number])
+          ?.contributesToStreak ?? false,
+    );
+    const streakResult = computeStreak(dailyPointsMap, challenge.streakMinPoints);
+
+    // Group activities by day
+    const dayMap = new Map<
+      string,
+      {
+        dateMs: number;
+        activities: typeof challengeActivities;
+      }
+    >();
+
+    for (const activity of challengeActivities) {
+      const dayKey = formatDateOnlyFromUtcMs(activity.loggedDate);
+      let entry = dayMap.get(dayKey);
+      if (!entry) {
+        entry = { dateMs: activity.loggedDate, activities: [] };
+        dayMap.set(dayKey, entry);
+      }
+      entry.activities.push(activity);
+    }
+
+    // Build ledger days sorted most recent first
+    const days = Array.from(dayMap.entries())
+      .sort(([a], [b]) => (b > a ? 1 : b < a ? -1 : 0))
+      .map(([dayKey, { dateMs, activities: dayActivities }]) => {
+        const streakCount = streakResult.dailyStreakCount.get(dateMs) ?? 0;
+        const activityPoints = dayActivities.reduce(
+          (sum, a) => sum + a.pointsEarned,
+          0
+        );
+
+        return {
+          date: dayKey,
+          streakBonus: streakCount,
+          activityPoints,
+          dayTotal: activityPoints + streakCount,
+          activities: dayActivities
+            .sort((a, b) => a.createdAt - b.createdAt)
+            .map((a) => {
+              const at = activityTypeMap.get(a.activityTypeId);
+              return {
+                id: a._id,
+                activityTypeName: at?.name ?? "Unknown",
+                isNegative: at?.isNegative ?? false,
+                pointsEarned: a.pointsEarned,
+                triggeredBonuses: a.triggeredBonuses as
+                  | Array<{ description: string; bonusPoints: number }>
+                  | undefined,
+                notes: a.notes,
+                metrics: a.metrics as Record<string, unknown> | undefined,
+              };
+            }),
+        };
+      });
+
+    const totalActivityPoints = challengeActivities.reduce(
+      (sum, a) => sum + a.pointsEarned,
+      0
+    );
+    const totalStreakBonus = streakResult.totalStreakBonus;
+
+    return {
+      user: { id: user._id, name: user.name, username: user.username },
+      challenge: { id: challenge._id, name: challenge.name },
+      totalPoints: participation.totalPoints,
+      totalActivityPoints,
+      totalStreakBonus,
+      streakMinPoints: challenge.streakMinPoints,
+      days,
+    };
+  },
+});
