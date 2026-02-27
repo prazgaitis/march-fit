@@ -93,7 +93,7 @@ export function DashboardLayout({
               Challenge
             </p>
             <h1 className="mt-1 text-lg font-bold text-white">{challenge.name}</h1>
-            <p className="mt-1 text-xs text-muted-foreground">
+            <p className="mt-1 text-xs text-muted-foreground" suppressHydrationWarning>
               {formatDateShortFromDateOnly(challenge.startDate)} –{" "}
               {formatDateShortFromDateOnly(challenge.endDate)}
             </p>

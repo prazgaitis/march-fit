@@ -114,3 +114,4 @@
 | 2026-02-24 | self | Used `status` as a shell variable in zsh loop (`read-only variable`) during auth probing | Avoid reserved shell params (`status`) and use non-special variable names like `st` |
 | 2026-02-24 | self | Ran `git diff` on a Next dynamic-route path without quoting `[id]` and zsh globbing failed | Always single-quote dynamic-route paths in git/sed/rg commands |
 - For client-side Sentry reporting, use a shared helper that adds `area`, `pathname`, `host`, and optional `challengeId`/`userId` so events remain filterable without per-call duplication.
+| 2026-02-27 | self | Hydration error on leaderboard (Mobile Safari) from server/client divergence | Avoid `new Date().toISOString()` in initialSummary fallback (dashboard-layout-wrapper); use constant. Add `suppressHydrationWarning` to date spans using `formatDateShortFromDateOnly` (Intl output can differ between Node and Safari).

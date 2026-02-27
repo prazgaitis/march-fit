@@ -31,7 +31,8 @@ export function DashboardLayoutWrapper({
   hideRightSidebar,
   initialSummary,
 }: DashboardLayoutWrapperProps) {
-  // Use provided summary or create a minimal one for the realtime provider
+  // Use provided summary or create a minimal one for the realtime provider.
+  // Avoid new Date().toISOString() here — it differs between server and client, causing hydration errors.
   const summary: ChallengeSummary = initialSummary ?? {
     stats: {
       totalActivities: 0,
@@ -44,7 +45,7 @@ export function DashboardLayoutWrapper({
     },
     leaderboard: [],
     latestActivityId: null,
-    timestamp: new Date().toISOString(),
+    timestamp: "",
   };
 
   return (
