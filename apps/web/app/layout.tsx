@@ -1,10 +1,8 @@
 import type { Metadata, Viewport } from "next";
-import { Suspense } from "react";
 import Script from "next/script";
 import { cookies } from "next/headers";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ConvexProviderWrapper } from "@/components/providers/convex-provider";
-import { HeaderContent, HeaderSkeleton } from "@/components/layout/header-content";
 import { Toaster } from "@/components/ui/sonner";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
@@ -81,11 +79,6 @@ export default async function RootLayout({
           className={`${geistSans.variable} ${geistMono.variable} bg-black text-white antialiased`}
         >
           <div className="relative min-h-screen">
-            {canUseAuth && (
-              <Suspense fallback={<HeaderSkeleton />}>
-                <HeaderContent />
-              </Suspense>
-            )}
             <div className="relative z-10">
               {children}
             </div>

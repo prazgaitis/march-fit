@@ -1,6 +1,7 @@
 "use client";
 
 import { ReactNode } from "react";
+import { usePathname } from "next/navigation";
 import type { Doc, Id } from "@repo/backend/_generated/dataModel";
 
 import {
@@ -9,7 +10,10 @@ import {
 } from "@/components/dashboard/challenge-realtime-context";
 import { DashboardLayout } from "@/components/dashboard/dashboard-layout";
 
-interface DashboardLayoutWrapperProps {
+/** Paths that show the right sidebar (leaderboard, stats). All others hide it. */
+const SHOW_RIGHT_SIDEBAR_SEGMENTS = new Set(["dashboard", "notifications"]);
+
+interface DashboardShellProps {
   challenge: {
     id: string;
     name: string;
@@ -18,21 +22,21 @@ interface DashboardLayoutWrapperProps {
   };
   currentUserId: string;
   currentUser: Doc<"users">;
-  children: ReactNode;
-  hideRightSidebar?: boolean;
   initialSummary?: ChallengeSummary;
+  children: ReactNode;
 }
 
-export function DashboardLayoutWrapper({
+export function DashboardShell({
   challenge,
   currentUserId,
   currentUser,
-  children,
-  hideRightSidebar,
   initialSummary,
-}: DashboardLayoutWrapperProps) {
-  // Use provided summary or create a minimal one for the realtime provider.
-  // Avoid new Date().toISOString() here — it differs between server and client, causing hydration errors.
+  children,
+}: DashboardShellProps) {
+  const pathname = usePathname();
+  const segment = pathname.split("/").filter(Boolean)[2] ?? "";
+  const hideRightSidebar = !SHOW_RIGHT_SIDEBAR_SEGMENTS.has(segment);
+
   const summary: ChallengeSummary = initialSummary ?? {
     stats: {
       totalActivities: 0,

@@ -1,15 +1,15 @@
 import { preloadAuthQuery } from "@/lib/server-auth";
 import { api } from "@repo/backend";
-import { ConditionalHeader } from "./conditional-header";
+import { Header } from "./header";
 
 /**
  * Async server component that fetches auth data inside Suspense.
- * This allows the root layout shell to stream immediately while
+ * This allows the page to stream immediately while
  * the auth query resolves in parallel.
  */
 export async function HeaderContent() {
   const preloadedUser = await preloadAuthQuery(api.queries.users.current);
-  return <ConditionalHeader preloadedUser={preloadedUser} />;
+  return <Header preloadedUser={preloadedUser} />;
 }
 
 /**

@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { ChallengesGrid } from "@/components/challenges/challenges-grid";
+import { HeaderContent, HeaderSkeleton } from "@/components/layout/header-content";
 import { getCurrentUser } from "@/lib/auth";
 import { getConvexClient } from "@/lib/convex-server";
 import { api } from "@repo/backend";
@@ -20,6 +21,9 @@ function ChallengesSkeleton() {
 export default function ChallengesPage() {
   return (
     <main className="min-h-screen bg-background text-foreground page-with-header">
+      <Suspense fallback={<HeaderSkeleton />}>
+        <HeaderContent />
+      </Suspense>
       <div className="container mx-auto px-6 py-12">
         <div className="mb-12">
           <h1 className="text-5xl font-black uppercase tracking-tight mb-4">

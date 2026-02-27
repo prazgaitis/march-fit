@@ -6,7 +6,7 @@ import { ArrowLeft, CalendarDays, Flame, Users } from "lucide-react";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ActivityTypesList } from "../../activity-types/activity-types-list";
+import { ActivityTypesList } from "../../(dashboard)/activity-types/activity-types-list";
 import { formatDateShortFromDateOnly } from "@/lib/date-only";
 import { getToken } from "@/lib/server-auth";
 import { InviteJoinCta } from "./invite-join-cta";

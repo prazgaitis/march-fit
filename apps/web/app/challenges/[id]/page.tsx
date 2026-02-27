@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { notFound } from "next/navigation";
 import { headers } from "next/headers";
 import * as Sentry from "@sentry/nextjs";
@@ -5,6 +6,7 @@ import { getConvexClient } from "@/lib/convex-server";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
 import { ChallengePageContent } from "@/components/challenges/challenge-page-content";
+import { HeaderContent, HeaderSkeleton } from "@/components/layout/header-content";
 import { getCurrentUser } from "@/lib/auth";
 
 interface PageProps {
@@ -85,6 +87,10 @@ export default async function ChallengePage({ params }: PageProps) {
     }
 
     return (
+      <>
+      <Suspense fallback={<HeaderSkeleton />}>
+        <HeaderContent />
+      </Suspense>
       <ChallengePageContent
         challenge={{
           ...challenge,
@@ -99,6 +105,7 @@ export default async function ChallengePage({ params }: PageProps) {
         }))}
         activityTypes={activityTypes}
       />
+      </>
     );
   } catch (error) {
     const referer = headersList.get("referer");

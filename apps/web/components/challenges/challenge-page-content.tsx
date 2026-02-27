@@ -276,7 +276,7 @@ export function ChallengePageContent({
   };
 
   return (
-    <div className="min-h-screen bg-background text-foreground pb-24 lg:pb-8">
+    <div className="min-h-screen bg-background text-foreground pb-24 lg:pb-8 page-with-header">
       {/* Header */}
       <div className="container mx-auto px-4 pt-6 pb-4">
         <div className="mb-4">

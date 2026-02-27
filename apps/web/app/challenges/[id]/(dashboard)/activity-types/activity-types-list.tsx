@@ -138,14 +138,15 @@ export function ActivityTypesList({
   categoryMap,
   streakMinPoints,
 }: ActivityTypesListProps) {
-  // Group activity types by category (skip uncategorized)
+  // Group activity types by category
+  const UNCATEGORIZED = "__uncategorized__";
   const grouped = activityTypes.reduce(
     (acc, type) => {
-      if (!type.categoryId) return acc;
-      if (!acc[type.categoryId]) {
-        acc[type.categoryId] = [];
+      const key = type.categoryId || UNCATEGORIZED;
+      if (!acc[key]) {
+        acc[key] = [];
       }
-      acc[type.categoryId].push(type);
+      acc[key].push(type);
       return acc;
     },
     {} as Record<string, ActivityType[]>
@@ -161,8 +162,10 @@ export function ActivityTypesList({
     });
   }
 
-  // Sort category IDs by category sortOrder (nulls last)
+  // Sort category IDs by category sortOrder (uncategorized last)
   const categoryIds = Object.keys(grouped).sort((a, b) => {
+    if (a === UNCATEGORIZED) return 1;
+    if (b === UNCATEGORIZED) return -1;
     const catA = categoryMap.get(a);
     const catB = categoryMap.get(b);
     const orderA = catA?.sortOrder;
