@@ -40,7 +40,7 @@ export function LeaderboardTabs({
         <button
           onClick={() => setActiveTab("overall")}
           className={cn(
-            "flex-1 rounded-md px-4 py-2 text-sm font-medium transition",
+            "flex-1 rounded-md px-3 py-2 text-sm font-medium transition",
             activeTab === "overall"
               ? "bg-zinc-800 text-white shadow-sm"
               : "text-zinc-400 hover:text-zinc-300"
@@ -51,24 +51,24 @@ export function LeaderboardTabs({
         <button
           onClick={() => setActiveTab("cumulative")}
           className={cn(
-            "flex-1 rounded-md px-4 py-2 text-sm font-medium transition",
+            "flex-1 rounded-md px-3 py-2 text-sm font-medium transition",
             activeTab === "cumulative"
               ? "bg-zinc-800 text-white shadow-sm"
               : "text-zinc-400 hover:text-zinc-300"
           )}
         >
-          Cumulative by Category
+          Category
         </button>
         <button
           onClick={() => setActiveTab("weekly")}
           className={cn(
-            "flex-1 rounded-md px-4 py-2 text-sm font-medium transition",
+            "flex-1 rounded-md px-3 py-2 text-sm font-medium transition",
             activeTab === "weekly"
               ? "bg-zinc-800 text-white shadow-sm"
               : "text-zinc-400 hover:text-zinc-300"
           )}
         >
-          Weekly by Category
+          Weekly
         </button>
       </div>
 
