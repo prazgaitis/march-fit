@@ -115,3 +115,4 @@
 | 2026-02-24 | self | Ran `git diff` on a Next dynamic-route path without quoting `[id]` and zsh globbing failed | Always single-quote dynamic-route paths in git/sed/rg commands |
 - For client-side Sentry reporting, use a shared helper that adds `area`, `pathname`, `host`, and optional `challengeId`/`userId` so events remain filterable without per-call duplication.
 | 2026-02-27 | self | Hydration error on leaderboard (Mobile Safari) from server/client divergence | Avoid `new Date().toISOString()` in initialSummary fallback (dashboard-layout-wrapper); use constant. Add `suppressHydrationWarning` to date spans using `formatDateShortFromDateOnly` (Intl output can differ between Node and Safari).
+| 2026-02-27 | user | Tiptap "SSR has been detected" error on activity detail view | Add `immediatelyRender: false` to `useEditor` in rich-text-editor.tsx to avoid hydration mismatches.
