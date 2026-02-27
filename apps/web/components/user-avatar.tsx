@@ -15,6 +15,8 @@ interface UserAvatarProps {
   user: UserAvatarUser;
   /** Challenge ID - when provided, avatar/name will link to user profile */
   challengeId?: string;
+  /** When true, never render a Link (e.g. when inside another link to avoid nested <a>) */
+  disableLink?: boolean;
   /** Size variant */
   size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl';
   /** Show name next to avatar */
@@ -54,13 +56,14 @@ function getDisplayName(name: string | null, username: string): string {
 export function UserAvatar({
   user,
   challengeId,
+  disableLink = false,
   size = 'md',
   showName = false,
   showUsername = false,
   children,
   className,
 }: UserAvatarProps) {
-  const profileUrl = challengeId
+  const profileUrl = !disableLink && challengeId
     ? `/challenges/${challengeId}/users/${user.id}`
     : undefined;
 

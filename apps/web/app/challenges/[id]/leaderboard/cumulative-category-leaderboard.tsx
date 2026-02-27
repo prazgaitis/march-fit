@@ -79,6 +79,7 @@ const EntryRow = memo(function EntryRow({
           avatarUrl: entry.user.avatarUrl,
         }}
         challengeId={challengeId}
+        disableLink
         size="sm"
       />
 

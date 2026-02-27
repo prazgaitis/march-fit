@@ -158,6 +158,7 @@ export function WeeklyCategoryLeaderboard({
                         avatarUrl: entry.user.avatarUrl,
                       }}
                       challengeId={challengeId}
+                      disableLink
                       size="sm"
                     />
 

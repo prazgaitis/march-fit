@@ -84,6 +84,7 @@ const LeaderboardEntryRow = memo(function LeaderboardEntryRow({
           avatarUrl: entry.user.avatarUrl,
         }}
         challengeId={challengeId}
+        disableLink
         size="md"
       />
 
