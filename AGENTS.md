@@ -5,7 +5,7 @@ Instructions for AI code agents (OpenAI Codex, Claude Code, etc.) working on thi
 ## Project Overview
 
 This is a fitness challenge platform with:
-- **Frontend**: Next.js 15 app in `apps/web/`
+- **Frontend**: Next.js 16 app in `apps/web/`
 - **Backend**: Convex serverless functions in `packages/backend/`
 - **Auth**: Better Auth via `@convex-dev/better-auth`
 
@@ -215,8 +215,9 @@ NEXT_PUBLIC_AUTH_PROVIDER="better-auth"
 
 1. `pnpm typecheck` - Types compile
 2. `pnpm lint` - Linting passes
-3. `cd packages/backend && pnpm test:run` - Tests pass
-4. `pnpm dev` - Dev server runs without errors
+3. `pnpm -F web test --run` - Unit/API tests pass (includes Convex logic coverage via `convex-test`)
+4. `pnpm -F web test --run tests/api/activity-lifecycle-harness.test.ts` - Lifecycle harness passes
+5. `pnpm dev` - Dev server runs without errors
 
 ## Resources
 

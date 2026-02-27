@@ -3,6 +3,7 @@
 ## Corrections
 | Date | Source | What Went Wrong | What To Do Instead |
 |------|--------|----------------|-------------------|
+| 2026-02-27 | self | While patching `scripts/perf-test.mjs`, I left the old hardcoded sign-in `goto` line, causing duplicate navigation | Re-open the full file immediately after broad replacements to catch leftover lines before moving on |
 | 2026-02-27 | self | Imported `@repo/backend/lib/streak` from web tests; package doesn't export that subpath | In web tests, import non-exported backend internals via repo-relative paths (or export them explicitly first) |
 | 2026-02-27 | self | Ran `ls` before reading `.claude/napkin.md` at session start | Make the first command `cat .claude/napkin.md` before any other command, every session |
 | 2026-02-21 | self | New `scorePreview` map callback in `activity-log-dialog.tsx` failed TS strict mode due implicit `any` params | Add explicit callback parameter types when rendering arrays from loosely-typed query payloads |

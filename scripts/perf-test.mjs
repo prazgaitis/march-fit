@@ -1,5 +1,20 @@
 import { chromium } from 'playwright';
 
+function requireEnv(name) {
+  const value = process.env[name];
+  if (!value) {
+    throw new Error(`Missing required env var: ${name}`);
+  }
+  return value;
+}
+
+const BASE_URL = (process.env.PERF_TEST_BASE_URL ?? 'https://www.march.fit').replace(/\/$/, '');
+const SIGN_IN_URL = `${BASE_URL}/sign-in`;
+const CHALLENGE_URL = process.env.PERF_TEST_CHALLENGE_URL
+  ?? `${BASE_URL}/challenges/js79t7qjg4sdehecxyngd3jjcs810wp1/dashboard`;
+const PERF_TEST_EMAIL = requireEnv('PERF_TEST_EMAIL');
+const PERF_TEST_PASSWORD = requireEnv('PERF_TEST_PASSWORD');
+
 const browser = await chromium.launch({ headless: true });
 
 // Test with mobile emulation
@@ -18,10 +33,10 @@ const page = await context.newPage();
 // Sign in first
 console.log('--- Sign in ---');
 let start = performance.now();
-await page.goto('https://www.march.fit/sign-in', { waitUntil: 'domcontentloaded' });
+await page.goto(SIGN_IN_URL, { waitUntil: 'domcontentloaded' });
 await page.waitForTimeout(2000);
-await page.fill('input[type="email"]', 'anon.admin.marchfit@gmail.com');
-await page.fill('input[type="password"]', 'M4rchF1t!2026admin');
+await page.fill('input[type="email"]', PERF_TEST_EMAIL);
+await page.fill('input[type="password"]', PERF_TEST_PASSWORD);
 await page.click('button[type="submit"]');
 await page.waitForTimeout(5000);
 console.log(`Sign in → ${page.url()} (${Math.round(performance.now() - start)}ms)`);
@@ -29,7 +44,7 @@ console.log(`Sign in → ${page.url()} (${Math.round(performance.now() - start)}
 // Test challenges page
 console.log('\n--- /challenges (mobile) ---');
 start = performance.now();
-const challengesResponse = await page.goto('https://www.march.fit/challenges', { waitUntil: 'domcontentloaded' });
+const challengesResponse = await page.goto(`${BASE_URL}/challenges`, { waitUntil: 'domcontentloaded' });
 const dcl1 = Math.round(performance.now() - start);
 await page.waitForLoadState('networkidle').catch(() => {});
 const full1 = Math.round(performance.now() - start);
@@ -42,10 +57,9 @@ const visibleText = await page.evaluate(() => document.body.innerText.substring(
 console.log(`Visible content: ${visibleText.substring(0, 200)}`);
 
 // Test dashboard page
-const challengeUrl = 'https://www.march.fit/challenges/js79t7qjg4sdehecxyngd3jjcs810wp1/dashboard';
 console.log(`\n--- Dashboard (mobile) ---`);
 start = performance.now();
-const dashResponse = await page.goto(challengeUrl, { waitUntil: 'domcontentloaded' });
+const dashResponse = await page.goto(CHALLENGE_URL, { waitUntil: 'domcontentloaded' });
 const dcl2 = Math.round(performance.now() - start);
 await page.waitForLoadState('networkidle').catch(() => {});
 const full2 = Math.round(performance.now() - start);
@@ -60,16 +74,16 @@ const desktopContext = await browser.newContext({
 const desktopPage = await desktopContext.newPage();
 
 // Sign in on desktop
-await desktopPage.goto('https://www.march.fit/sign-in', { waitUntil: 'domcontentloaded' });
+await desktopPage.goto(SIGN_IN_URL, { waitUntil: 'domcontentloaded' });
 await desktopPage.waitForTimeout(2000);
-await desktopPage.fill('input[type="email"]', 'anon.admin.marchfit@gmail.com');
-await desktopPage.fill('input[type="password"]', 'M4rchF1t!2026admin');
+await desktopPage.fill('input[type="email"]', PERF_TEST_EMAIL);
+await desktopPage.fill('input[type="password"]', PERF_TEST_PASSWORD);
 await desktopPage.click('button[type="submit"]');
 await desktopPage.waitForTimeout(5000);
 
 console.log(`\n--- /challenges (desktop) ---`);
 start = performance.now();
-await desktopPage.goto('https://www.march.fit/challenges', { waitUntil: 'domcontentloaded' });
+await desktopPage.goto(`${BASE_URL}/challenges`, { waitUntil: 'domcontentloaded' });
 const dcl3 = Math.round(performance.now() - start);
 await desktopPage.waitForLoadState('networkidle').catch(() => {});
 const full3 = Math.round(performance.now() - start);
@@ -78,7 +92,7 @@ console.log(`Network idle: ${full3}ms`);
 
 console.log(`\n--- Dashboard (desktop) ---`);
 start = performance.now();
-await desktopPage.goto(challengeUrl, { waitUntil: 'domcontentloaded' });
+await desktopPage.goto(CHALLENGE_URL, { waitUntil: 'domcontentloaded' });
 const dcl4 = Math.round(performance.now() - start);
 await desktopPage.waitForLoadState('networkidle').catch(() => {});
 const full4 = Math.round(performance.now() - start);
