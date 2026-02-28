@@ -26,6 +26,7 @@ import { reportLatencyIfExceeded } from "../lib/latencyMonitoring";
 import { applyParticipationScoreDeltaAndRecomputeStreak } from "../lib/participationScoring";
 import { insertActivity, patchActivity } from "../lib/activityWrites";
 import { applyCategoryPointsDelta } from "../lib/categoryPoints";
+import { applyWeeklyPointsDelta } from "../lib/weeklyPoints";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -168,6 +169,7 @@ export const logActivityForUser = internalMutation({
       pointsDelta: pointsEarned,
       streakMinPoints: challenge.streakMinPoints,
       categoryId: activityType.categoryId,
+      weekNumber: getChallengeWeekNumber(challenge.startDate, loggedDateTs),
     });
     const currentStreak = streakUpdate?.currentStreak ?? participation.currentStreak;
 
@@ -242,6 +244,7 @@ export const removeActivityForUser = internalMutation({
       streakMinPoints: challenge.streakMinPoints,
       now,
       categoryId: deletedApiActivityType?.categoryId,
+      weekNumber: getChallengeWeekNumber(challenge.startDate, activity.loggedDate),
     });
 
       return { deleted: true };
@@ -681,6 +684,11 @@ export const adminEditActivityForUser = internalMutation({
         args.activityTypeId !== undefined &&
         args.activityTypeId !== activity.activityTypeId;
 
+      const oldApiLoggedDate = activity.loggedDate;
+      const newApiLoggedDate = (updates.loggedDate as number | undefined) ?? oldApiLoggedDate;
+      const oldApiWeekNumber = getChallengeWeekNumber(challenge.startDate, oldApiLoggedDate);
+      const newApiWeekNumber = getChallengeWeekNumber(challenge.startDate, newApiLoggedDate);
+
       if (apiTypeChanged) {
         const oldApiActivityType = await ctx.db.get(activity.activityTypeId);
         await applyCategoryPointsDelta(ctx, {
@@ -690,11 +698,20 @@ export const adminEditActivityForUser = internalMutation({
           pointsDelta: -activity.pointsEarned,
           now,
         });
+        await applyWeeklyPointsDelta(ctx, {
+          userId: activity.userId,
+          challengeId: activity.challengeId,
+          categoryId: oldApiActivityType?.categoryId,
+          weekNumber: oldApiWeekNumber,
+          pointsDelta: -activity.pointsEarned,
+          now,
+        });
       }
 
       const effectiveApiTypeId = args.activityTypeId ?? activity.activityTypeId;
       const effectiveApiActivityType = await ctx.db.get(effectiveApiTypeId);
       const newApiPointsEarned = args.pointsEarned ?? activity.pointsEarned;
+      const apiWeekUnchanged = !apiTypeChanged && oldApiWeekNumber === newApiWeekNumber;
 
       await applyParticipationScoreDeltaAndRecomputeStreak(ctx, {
         userId: activity.userId,
@@ -703,6 +720,7 @@ export const adminEditActivityForUser = internalMutation({
         streakMinPoints: challenge.streakMinPoints,
         now,
         categoryId: apiTypeChanged ? undefined : effectiveApiActivityType?.categoryId,
+        weekNumber: apiWeekUnchanged ? newApiWeekNumber : undefined,
       });
 
       if (apiTypeChanged) {
@@ -710,6 +728,34 @@ export const adminEditActivityForUser = internalMutation({
           userId: activity.userId,
           challengeId: activity.challengeId,
           categoryId: effectiveApiActivityType?.categoryId,
+          pointsDelta: newApiPointsEarned,
+          now,
+        });
+        await applyWeeklyPointsDelta(ctx, {
+          userId: activity.userId,
+          challengeId: activity.challengeId,
+          categoryId: effectiveApiActivityType?.categoryId,
+          weekNumber: newApiWeekNumber,
+          pointsDelta: newApiPointsEarned,
+          now,
+        });
+      }
+
+      // Same type but different week: subtract from old week, add to new week
+      if (!apiTypeChanged && oldApiWeekNumber !== newApiWeekNumber) {
+        await applyWeeklyPointsDelta(ctx, {
+          userId: activity.userId,
+          challengeId: activity.challengeId,
+          categoryId: effectiveApiActivityType?.categoryId,
+          weekNumber: oldApiWeekNumber,
+          pointsDelta: -activity.pointsEarned,
+          now,
+        });
+        await applyWeeklyPointsDelta(ctx, {
+          userId: activity.userId,
+          challengeId: activity.challengeId,
+          categoryId: effectiveApiActivityType?.categoryId,
+          weekNumber: newApiWeekNumber,
           pointsDelta: newApiPointsEarned,
           now,
         });

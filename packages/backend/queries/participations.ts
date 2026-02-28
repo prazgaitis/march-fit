@@ -589,17 +589,12 @@ export const getWeeklyCategoryLeaderboard = query({
 
     // Clamp weekNumber to valid range
     const weekNumber = Math.max(1, Math.min(args.weekNumber, totalWeeks));
-    const { start, end } = getWeekDateRange(challenge.startDate, weekNumber);
 
-    // Fetch activity types for this challenge to build categoryId mapping
+    // Fetch activity types to discover which categories are in this challenge.
     const activityTypes = await ctx.db
       .query("activityTypes")
       .withIndex("challengeId", (q) => q.eq("challengeId", args.challengeId))
       .collect();
-
-    const activityTypeMap = new Map(
-      activityTypes.map((at) => [at._id, at])
-    );
 
     // Collect unique category IDs and fetch category docs
     const categoryIds = new Set<Id<"categories">>();
@@ -622,38 +617,28 @@ export const getWeeklyCategoryLeaderboard = query({
         .map(([id]) => id as string)
     );
 
-    // Query weekly activities for this challenge in the selected week date range.
-    // Uses the challengeLoggedDate index for efficient date-range filtering —
-    // avoids a full challenge scan and keeps reads well within Convex's limit.
-    const weeklyActivities = await ctx.db
-      .query("activities")
-      .withIndex("challengeLoggedDate", (q) =>
-        q
-          .eq("challengeId", args.challengeId)
-          .gte("loggedDate", start)
-          .lt("loggedDate", end)
+    // Read pre-aggregated weekly points — tiny denormalized rows, no externalData.
+    // Replaces the previous full .collect() on activities which hit Convex's 16MB
+    // read limit for large challenges (Sentry issue 7284293562).
+    const weeklyPointsRows = await ctx.db
+      .query("weeklyPoints")
+      .withIndex("weekCategory", (q) =>
+        q.eq("challengeId", args.challengeId).eq("weekNumber", weekNumber)
       )
-      .filter(notDeleted)
       .collect();
 
-    // Group weekly points: categoryId -> userId -> totalPoints.
+    // Group pre-aggregated rows: categoryId -> userId -> totalPoints.
     const weeklyCategoryUserPoints = new Map<string, Map<string, number>>();
 
-    for (const activity of weeklyActivities) {
-      const at = activityTypeMap.get(activity.activityTypeId);
-      if (!at || !at.categoryId) continue;
-
-      const categoryKey = at.categoryId as string;
+    for (const row of weeklyPointsRows) {
+      const categoryKey = row.categoryId as string;
       if (!leaderboardCategoryIds.has(categoryKey)) continue;
 
       if (!weeklyCategoryUserPoints.has(categoryKey)) {
         weeklyCategoryUserPoints.set(categoryKey, new Map());
       }
       const userPoints = weeklyCategoryUserPoints.get(categoryKey)!;
-      userPoints.set(
-        activity.userId as string,
-        (userPoints.get(activity.userId as string) ?? 0) + activity.pointsEarned,
-      );
+      userPoints.set(row.userId as string, row.totalPoints);
     }
 
     // Build leaderboard per category: sort weekly users, take top 10, fetch user data.

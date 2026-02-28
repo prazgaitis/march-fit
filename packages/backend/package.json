@@ -32,6 +32,14 @@
     "./lib/activityPointsAggregate": {
       "types": "./lib/activityPointsAggregate.ts",
       "default": "./lib/activityPointsAggregate.ts"
+    },
+    "./lib/weeklyPoints": {
+      "types": "./lib/weeklyPoints.ts",
+      "default": "./lib/weeklyPoints.ts"
+    },
+    "./lib/weeks": {
+      "types": "./lib/weeks.ts",
+      "default": "./lib/weeks.ts"
     }
   },
   "scripts": {

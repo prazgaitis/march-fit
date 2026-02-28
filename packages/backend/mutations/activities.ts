@@ -16,6 +16,7 @@ import { reportLatencyIfExceeded } from "../lib/latencyMonitoring";
 import { applyParticipationScoreDeltaAndRecomputeStreak } from "../lib/participationScoring";
 import { insertActivity, patchActivity } from "../lib/activityWrites";
 import { applyCategoryPointsDelta } from "../lib/categoryPoints";
+import { applyWeeklyPointsDelta } from "../lib/weeklyPoints";
 
 // Internal mutation for seeding
 export const create = internalMutation({
@@ -229,12 +230,14 @@ export const log = mutation({
     // Recompute streaks from all challenge days after any new activity.
     // This handles backfills and penalties that can invalidate earlier days.
     // categoryId is passed so the common write path also maintains categoryPoints.
+    // weekNumber is passed so the write path also maintains weeklyPoints.
     const streakUpdate = await applyParticipationScoreDeltaAndRecomputeStreak(ctx, {
       userId: user._id,
       challengeId: args.challengeId,
       pointsDelta: pointsEarned,
       streakMinPoints: challenge.streakMinPoints,
       categoryId: activityType.categoryId,
+      weekNumber: getChallengeWeekNumber(challenge.startDate, loggedDateTs),
     });
     const currentStreak = streakUpdate?.currentStreak ?? participation.currentStreak;
 
@@ -623,17 +626,31 @@ export const editActivity = mutation({
       updatedAt: now,
     });
 
+    // Compute week numbers for old and new logged dates (needed for weeklyPoints).
+    const oldWeekNumber = getChallengeWeekNumber(challenge.startDate, activity.loggedDate);
+    const newWeekNumber = getChallengeWeekNumber(challenge.startDate, newLoggedDateTs);
+
     // When the activity type changed, the category may have changed too.
     // Unapply old category points first; new category is handled via categoryId below.
     const typeChanged =
       args.activityTypeId !== undefined &&
       args.activityTypeId !== activity.activityTypeId;
+    let oldCategoryId: typeof activityType.categoryId | undefined;
     if (typeChanged) {
       const oldActivityType = await ctx.db.get(activity.activityTypeId);
+      oldCategoryId = oldActivityType?.categoryId;
       await applyCategoryPointsDelta(ctx, {
         userId: user._id,
         challengeId: activity.challengeId,
-        categoryId: oldActivityType?.categoryId,
+        categoryId: oldCategoryId,
+        pointsDelta: -oldPoints,
+        now,
+      });
+      await applyWeeklyPointsDelta(ctx, {
+        userId: user._id,
+        challengeId: activity.challengeId,
+        categoryId: oldCategoryId,
+        weekNumber: oldWeekNumber,
         pointsDelta: -oldPoints,
         now,
       });
@@ -641,6 +658,9 @@ export const editActivity = mutation({
 
     // Update participation totalPoints + streak after activity is updated.
     // categoryId routes through the common write path for aggregation.
+    // weekNumber is only passed when the week hasn't changed (same category, same week)
+    // to avoid double-counting — cross-week edits are handled explicitly below.
+    const weekUnchanged = !typeChanged && oldWeekNumber === newWeekNumber;
     await applyParticipationScoreDeltaAndRecomputeStreak(ctx, {
       userId: user._id,
       challengeId: activity.challengeId,
@@ -649,6 +669,7 @@ export const editActivity = mutation({
       now,
       // When type changed: new category gets +newPoints; when same: apply delta
       categoryId: typeChanged ? undefined : activityType.categoryId,
+      weekNumber: weekUnchanged ? newWeekNumber : undefined,
     });
     // When type changed, apply the full new points to the new category
     if (typeChanged) {
@@ -656,6 +677,35 @@ export const editActivity = mutation({
         userId: user._id,
         challengeId: activity.challengeId,
         categoryId: activityType.categoryId,
+        pointsDelta: newPoints,
+        now,
+      });
+      await applyWeeklyPointsDelta(ctx, {
+        userId: user._id,
+        challengeId: activity.challengeId,
+        categoryId: activityType.categoryId,
+        weekNumber: newWeekNumber,
+        pointsDelta: newPoints,
+        now,
+      });
+    }
+
+    // When same type but the activity moved to a different week, handle the
+    // cross-week weekly points adjustment (subtract from old week, add to new).
+    if (!typeChanged && oldWeekNumber !== newWeekNumber) {
+      await applyWeeklyPointsDelta(ctx, {
+        userId: user._id,
+        challengeId: activity.challengeId,
+        categoryId: activityType.categoryId,
+        weekNumber: oldWeekNumber,
+        pointsDelta: -oldPoints,
+        now,
+      });
+      await applyWeeklyPointsDelta(ctx, {
+        userId: user._id,
+        challengeId: activity.challengeId,
+        categoryId: activityType.categoryId,
+        weekNumber: newWeekNumber,
         pointsDelta: newPoints,
         now,
       });
@@ -729,6 +779,7 @@ export const remove = mutation({
       streakMinPoints: challenge.streakMinPoints,
       now,
       categoryId: deletedActivityType?.categoryId,
+      weekNumber: getChallengeWeekNumber(challenge.startDate, activity.loggedDate),
     });
 
       return { deleted: true };

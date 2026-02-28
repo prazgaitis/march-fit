@@ -6,6 +6,8 @@ import { reportLatencyIfExceeded } from "../lib/latencyMonitoring";
 import { applyParticipationScoreDeltaAndRecomputeStreak } from "../lib/participationScoring";
 import { patchActivity } from "../lib/activityWrites";
 import { applyCategoryPointsDelta } from "../lib/categoryPoints";
+import { applyWeeklyPointsDelta } from "../lib/weeklyPoints";
+import { getChallengeWeekNumber } from "../lib/weeks";
 
 /**
  * Re-score Strava activities with 0 points that have valid metrics.
@@ -44,9 +46,11 @@ export const rescoreZeroPointActivities = internalMutation({
       newPoints: number;
     }> = [];
 
-    // Track per-user point and category adjustments
+    // Track per-user point, category, and weekly adjustments
     const userPointAdjustments = new Map<string, number>();
     const userCategoryAdjustments = new Map<string, Map<string, number>>();
+    // weeklyKey = `${userId}:${weekNumber}:${categoryId}` -> pointsDelta
+    const weeklyAdjustments = new Map<string, { userId: string; weekNumber: number; categoryId: string; pointsDelta: number }>();
 
     for (const activity of activities) {
       const activityType = await ctx.db.get(activity.activityTypeId);
@@ -101,6 +105,21 @@ export const rescoreZeroPointActivities = internalMutation({
             }
             const catMap = userCategoryAdjustments.get(activity.userId)!;
             catMap.set(catKey, (catMap.get(catKey) ?? 0) + newPoints);
+
+            // Track weekly adjustments
+            const weekNumber = getChallengeWeekNumber(challenge.startDate, activity.loggedDate);
+            const weeklyKey = `${activity.userId}:${weekNumber}:${catKey}`;
+            const existing = weeklyAdjustments.get(weeklyKey);
+            if (existing) {
+              existing.pointsDelta += newPoints;
+            } else {
+              weeklyAdjustments.set(weeklyKey, {
+                userId: activity.userId,
+                weekNumber,
+                categoryId: catKey,
+                pointsDelta: newPoints,
+              });
+            }
           }
         }
       }
@@ -127,6 +146,17 @@ export const rescoreZeroPointActivities = internalMutation({
             });
           }
         }
+      }
+
+      // Apply weekly points adjustments
+      for (const adj of weeklyAdjustments.values()) {
+        await applyWeeklyPointsDelta(ctx, {
+          userId: adj.userId as any,
+          challengeId: args.challengeId,
+          categoryId: adj.categoryId as any,
+          weekNumber: adj.weekNumber,
+          pointsDelta: adj.pointsDelta,
+        });
       }
     }
 

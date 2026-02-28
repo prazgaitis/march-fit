@@ -649,6 +649,23 @@ export default defineSchema({
     .index("challengeUserCategory", ["challengeId", "userId", "categoryId"])
     .index("challengeCategory", ["challengeId", "categoryId"]),
 
+  // Weekly pre-aggregated category points.
+  // Maintained in sync with activity writes — same pattern as categoryPoints
+  // but scoped to a specific challenge week number.
+  // Fixes the "Too many bytes read" error on getWeeklyCategoryLeaderboard,
+  // which previously did a full .collect() on activity documents (including
+  // large externalData / Strava JSON payloads) for each leaderboard query.
+  weeklyPoints: defineTable({
+    challengeId: v.id("challenges"),
+    weekNumber: v.number(),
+    categoryId: v.id("categories"),
+    userId: v.id("users"),
+    totalPoints: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("weekCategory", ["challengeId", "weekNumber", "categoryId"])
+    .index("challengeUserWeekCategory", ["challengeId", "userId", "weekNumber", "categoryId"]),
+
   // Email Sends - tracking sent emails
   emailSends: defineTable({
     emailSequenceId: v.id("emailSequences"),

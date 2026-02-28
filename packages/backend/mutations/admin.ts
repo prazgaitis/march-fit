@@ -7,6 +7,8 @@ import { applyParticipationScoreDeltaAndRecomputeStreak } from "../lib/participa
 import { dateOnlyToUtcMs, normalizeDateOnlyInput } from "../lib/dateOnly";
 import { deleteActivity, patchActivity } from "../lib/activityWrites";
 import { applyCategoryPointsDelta } from "../lib/categoryPoints";
+import { applyWeeklyPointsDelta } from "../lib/weeklyPoints";
+import { getChallengeWeekNumber } from "../lib/weeks";
 
 async function requireChallengeAdminForActivity(
   ctx: { db: any; auth: any },
@@ -303,6 +305,12 @@ export const adminEditActivity = mutation({
 
       type ActivityTypeShape = { categoryId?: import("../_generated/dataModel").Id<"categories"> } | null;
 
+      const oldAdminLoggedDate = activity.loggedDate;
+      const newAdminLoggedDate = (updates.loggedDate as number | undefined) ?? oldAdminLoggedDate;
+      const adminChallengeStartDate = (challenge as any).startDate as string | number;
+      const oldAdminWeekNumber = getChallengeWeekNumber(adminChallengeStartDate, oldAdminLoggedDate);
+      const newAdminWeekNumber = getChallengeWeekNumber(adminChallengeStartDate, newAdminLoggedDate);
+
       if (adminTypeChanged) {
         // Unapply old category, then apply new category via the main call below
         const oldActivityType = await ctx.db.get(activity.activityTypeId) as ActivityTypeShape;
@@ -313,11 +321,20 @@ export const adminEditActivity = mutation({
           pointsDelta: -activity.pointsEarned,
           now,
         });
+        await applyWeeklyPointsDelta(ctx, {
+          userId: activity.userId,
+          challengeId: activity.challengeId,
+          categoryId: oldActivityType?.categoryId,
+          weekNumber: oldAdminWeekNumber,
+          pointsDelta: -activity.pointsEarned,
+          now,
+        });
       }
 
       const effectiveActivityTypeId = args.activityTypeId ?? activity.activityTypeId;
       const effectiveActivityType = await ctx.db.get(effectiveActivityTypeId) as ActivityTypeShape;
       const newPointsEarned = args.pointsEarned ?? activity.pointsEarned;
+      const adminWeekUnchanged = !adminTypeChanged && oldAdminWeekNumber === newAdminWeekNumber;
 
       await applyParticipationScoreDeltaAndRecomputeStreak(ctx, {
         userId: activity.userId,
@@ -326,6 +343,7 @@ export const adminEditActivity = mutation({
         streakMinPoints: (challenge as any).streakMinPoints,
         now,
         categoryId: adminTypeChanged ? undefined : effectiveActivityType?.categoryId,
+        weekNumber: adminWeekUnchanged ? newAdminWeekNumber : undefined,
       });
 
       if (adminTypeChanged) {
@@ -333,6 +351,34 @@ export const adminEditActivity = mutation({
           userId: activity.userId,
           challengeId: activity.challengeId,
           categoryId: effectiveActivityType?.categoryId,
+          pointsDelta: newPointsEarned,
+          now,
+        });
+        await applyWeeklyPointsDelta(ctx, {
+          userId: activity.userId,
+          challengeId: activity.challengeId,
+          categoryId: effectiveActivityType?.categoryId,
+          weekNumber: newAdminWeekNumber,
+          pointsDelta: newPointsEarned,
+          now,
+        });
+      }
+
+      // Same type but different week: subtract from old week, add to new week
+      if (!adminTypeChanged && oldAdminWeekNumber !== newAdminWeekNumber) {
+        await applyWeeklyPointsDelta(ctx, {
+          userId: activity.userId,
+          challengeId: activity.challengeId,
+          categoryId: effectiveActivityType?.categoryId,
+          weekNumber: oldAdminWeekNumber,
+          pointsDelta: -activity.pointsEarned,
+          now,
+        });
+        await applyWeeklyPointsDelta(ctx, {
+          userId: activity.userId,
+          challengeId: activity.challengeId,
+          categoryId: effectiveActivityType?.categoryId,
+          weekNumber: newAdminWeekNumber,
           pointsDelta: newPointsEarned,
           now,
         });
