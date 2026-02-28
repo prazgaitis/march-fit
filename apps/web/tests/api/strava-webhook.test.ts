@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { internal } from "@repo/backend";
+import { api, internal } from "@repo/backend";
 import {
   createTestContext,
   createTestUser,
@@ -98,6 +98,18 @@ async function getActivity(
 ) {
   return await t.run(async (ctx) => {
     return await ctx.db.get(activityId);
+  });
+}
+
+async function getActivityExternalData(
+  t: ReturnType<typeof createTestContext>,
+  activityId: string
+) {
+  return await t.run(async (ctx) => {
+    return await ctx.db
+      .query("activityExternalData")
+      .withIndex("activityId", (q: any) => q.eq("activityId", activityId))
+      .first();
   });
 }
 
@@ -412,10 +424,17 @@ describe("Strava Webhook: createFromStrava", () => {
       { userId, challengeId, stravaActivity }
     );
 
-    const activity = await getActivity(t, activityId!);
-    expect(activity!.externalData).toBeDefined();
-    expect((activity!.externalData as any).id).toBe(12345678);
-    expect((activity!.externalData as any).name).toBe("Morning Run");
+    const activityDoc = await getActivity(t, activityId!);
+    expect(activityDoc!.externalData).toBeUndefined();
+
+    const externalData = await getActivityExternalData(t, activityId!);
+    expect(externalData).toBeDefined();
+    expect((externalData!.externalData as any).id).toBe(12345678);
+    expect((externalData!.externalData as any).name).toBe("Morning Run");
+
+    const hydrated = await t.query(api.queries.activities.getById, { activityId: activityId! });
+    expect(hydrated).not.toBeNull();
+    expect((hydrated!.activity.externalData as any).id).toBe(12345678);
   });
 
   it("should award media bonus for activities with photos", async () => {
