@@ -1911,4 +1911,105 @@ describe('Activities Logic', () => {
       expect(leaderboard[1].totalPoints).toBe(-10);
     });
   });
+
+  describe('read queries', () => {
+    it('hydrates externalData on getById from companion table', async () => {
+      const userId = await createTestUser(t, { email: 'read-hydrate@example.com' });
+      const challengeId = await createTestChallenge(t, userId);
+
+      const activityTypeId = await t.run(async (ctx) => {
+        return await ctx.db.insert('activityTypes', {
+          challengeId,
+          name: 'Running',
+          scoringConfig: { unit: 'minutes', pointsPerUnit: 1, basePoints: 0 },
+          contributesToStreak: true,
+          isNegative: false,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+      });
+
+      const activityId = await t.run(async (ctx) => {
+        return await insertTestActivity(ctx, {
+          userId,
+          challengeId,
+          activityTypeId,
+          loggedDate: dateOnlyToUtcMs('2024-01-15'),
+          metrics: { minutes: 20 },
+          source: 'strava',
+          pointsEarned: 20,
+          flagged: false,
+          adminCommentVisibility: 'internal',
+          resolutionStatus: 'pending',
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+      });
+
+      await t.run(async (ctx) => {
+        await ctx.db.insert('activityExternalData', {
+          activityId,
+          externalData: { id: 987654, name: 'Hydrated Run' },
+        });
+      });
+
+      const result = await t.query(api.queries.activities.getById, {
+        activityId,
+      });
+
+      expect(result).not.toBeNull();
+      expect((result!.activity.externalData as any).id).toBe(987654);
+      expect((result!.activity.externalData as any).name).toBe('Hydrated Run');
+    });
+
+    it('returns challenge feed entries when companion external data exists', async () => {
+      const userId = await createTestUser(t, { email: 'feed-read@example.com' });
+      const challengeId = await createTestChallenge(t, userId);
+
+      const activityTypeId = await t.run(async (ctx) => {
+        return await ctx.db.insert('activityTypes', {
+          challengeId,
+          name: 'Walk',
+          scoringConfig: { unit: 'minutes', pointsPerUnit: 1, basePoints: 0 },
+          contributesToStreak: true,
+          isNegative: false,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+      });
+
+      const activityId = await t.run(async (ctx) => {
+        return await insertTestActivity(ctx, {
+          userId,
+          challengeId,
+          activityTypeId,
+          loggedDate: dateOnlyToUtcMs('2024-01-16'),
+          metrics: { minutes: 10 },
+          source: 'strava',
+          pointsEarned: 10,
+          flagged: false,
+          adminCommentVisibility: 'internal',
+          resolutionStatus: 'pending',
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+      });
+
+      await t.run(async (ctx) => {
+        await ctx.db.insert('activityExternalData', {
+          activityId,
+          externalData: { id: 111, name: 'Feed Walk' },
+        });
+      });
+
+      const feed = await t.query(api.queries.activities.getChallengeFeed, {
+        challengeId,
+        paginationOpts: { numItems: 10, cursor: null },
+      });
+
+      expect(feed.page).toHaveLength(1);
+      expect(feed.page[0].activity._id).toBe(activityId);
+      expect(feed.page[0].activity.pointsEarned).toBe(10);
+    });
+  });
 });

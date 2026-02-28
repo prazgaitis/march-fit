@@ -19,7 +19,7 @@ export const getById = query({
       return null;
     }
 
-    const [user, activityType, challenge, likeCount, commentCount, currentUser] = await Promise.all([
+    const [user, activityType, challenge, likeCount, commentCount, currentUser, externalDataRecord] = await Promise.all([
       ctx.db.get(activity.userId),
       ctx.db.get(activity.activityTypeId),
       ctx.db.get(activity.challengeId),
@@ -34,6 +34,10 @@ export const getById = query({
         .collect()
         .then((comments) => comments.length),
       getCurrentUser(ctx),
+      ctx.db
+        .query("activityExternalData")
+        .withIndex("activityId", (q) => q.eq("activityId", activity._id))
+        .first(),
     ]);
 
     if (!user || !activityType || !challenge) {
@@ -79,8 +83,12 @@ export const getById = query({
           ).filter((url): url is string => url !== null)
         : [];
 
+    const hydratedActivity = externalDataRecord
+      ? { ...activity, externalData: externalDataRecord.externalData }
+      : activity;
+
     return {
-      activity,
+      activity: hydratedActivity,
       user: {
         id: user._id,
         username: user.username,

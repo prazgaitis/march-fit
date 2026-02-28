@@ -48,6 +48,7 @@
 
 ## Patterns That Work
 - For idea/research tasks, combine source reading with a quick scan of local CI/docs/testing files before proposing changes; recommendations become concrete and repo-specific.
+- For CI triage, `gh run view --log-failed <run-id>` plus a targeted local `pnpm -F web test --run <failing files>` quickly separates real assertion failures from suite-load/import failures.
 - For aggregate adoption on existing tables, use write-sync first with idempotent aggregate ops (`insertIfDoesNotExist`/`replaceOrInsert`/`deleteIfExists`), then cut reads over after backfill.
 - Convex queries can join related data inline (e.g., activity types + categories in one query)
 - `conditional-header.tsx` hides header by challenge section (`/challenges/:id/:section`) so child routes inherit behavior without route regexes
