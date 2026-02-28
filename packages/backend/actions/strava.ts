@@ -1,7 +1,7 @@
 "use node";
 
 import { action, internalAction } from "../_generated/server";
-import { internal, api } from "../_generated/api";
+import { internal } from "../_generated/api";
 import { v } from "convex/values";
 import type { Id } from "../_generated/dataModel";
 import { coerceDateOnlyToString } from "../lib/dateOnly";
@@ -15,8 +15,91 @@ interface StravaTokenResponse {
   token_type: string;
 }
 
+// ---------------------------------------------------------------------------
+// Plain async HTTP helpers — no Convex action context, no funrun permits.
+// Call these directly from within actions instead of via ctx.runAction() to
+// avoid nesting action calls (which exhaust Convex's concurrent permit pool).
+// ---------------------------------------------------------------------------
+
 /**
- * Refresh Strava access token if expired or expiring soon
+ * Exchange a Strava refresh token for a new access token via the Strava API.
+ * Pure HTTP — does NOT update the database. Callers are responsible for
+ * persisting the new tokens via ctx.runMutation(...updateStravaTokens).
+ */
+async function httpRefreshStravaToken(refreshTokenStr: string): Promise<StravaTokenResponse> {
+  const response = await fetch("https://www.strava.com/api/v3/oauth/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      client_id: process.env.NEXT_PUBLIC_STRAVA_CLIENT_ID,
+      client_secret: process.env.STRAVA_CLIENT_SECRET,
+      grant_type: "refresh_token",
+      refresh_token: refreshTokenStr,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error("Failed to refresh Strava token:", errorText);
+    throw new Error("Failed to refresh Strava token");
+  }
+
+  return (await response.json()) as StravaTokenResponse;
+}
+
+/**
+ * Fetch a single Strava activity by ID. Pure HTTP — no Convex context needed.
+ */
+async function httpFetchStravaActivity(accessToken: string, activityId: number): Promise<StravaActivity> {
+  const response = await fetch(
+    `https://www.strava.com/api/v3/activities/${activityId}`,
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error("Failed to fetch Strava activity:", errorText);
+    throw new Error("Failed to fetch activity from Strava");
+  }
+
+  return await response.json() as StravaActivity;
+}
+
+/**
+ * Fetch a page of recent Strava activities. Pure HTTP — no Convex context needed.
+ */
+async function httpFetchStravaRecentActivities(
+  accessToken: string,
+  opts: { perPage?: number; page?: number; after?: number; before?: number }
+): Promise<unknown[]> {
+  const params = new URLSearchParams();
+  params.set("per_page", String(opts.perPage ?? 30));
+  params.set("page", String(opts.page ?? 1));
+  if (opts.after) params.set("after", String(opts.after));
+  if (opts.before) params.set("before", String(opts.before));
+
+  const response = await fetch(
+    `https://www.strava.com/api/v3/athlete/activities?${params.toString()}`,
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+
+  if (!response.ok) {
+    const errorText = await response.text();
+    console.error("Failed to fetch Strava activities:", errorText);
+    throw new Error("Failed to fetch activities from Strava");
+  }
+
+  return await response.json() as unknown[];
+}
+
+// ---------------------------------------------------------------------------
+// Convex action wrappers — kept for backward-compat / external callers.
+// These are thin wrappers; internal code should call the http* helpers above.
+// ---------------------------------------------------------------------------
+
+/**
+ * Refresh Strava access token if expired or expiring soon.
+ * Returns the new access token, or "" if no refresh was needed.
  */
 export const refreshToken = action({
   args: {
@@ -26,39 +109,13 @@ export const refreshToken = action({
   },
   handler: async (ctx, args): Promise<string> => {
     const now = Math.floor(Date.now() / 1000);
-    const oneHourFromNow = now + 3600;
-
-    // If token is still valid for more than an hour, no need to refresh
-    if (args.currentExpiresAt > oneHourFromNow) {
-      // Return empty string to indicate no refresh was needed
-      // Caller should use existing token
-      return "";
+    if (args.currentExpiresAt > now + 3600) {
+      return ""; // Still valid for more than an hour
     }
 
     console.log("Refreshing Strava token for integration:", args.integrationId);
+    const data = await httpRefreshStravaToken(args.refreshToken);
 
-    const response = await fetch("https://www.strava.com/api/v3/oauth/token", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        client_id: process.env.NEXT_PUBLIC_STRAVA_CLIENT_ID,
-        client_secret: process.env.STRAVA_CLIENT_SECRET,
-        grant_type: "refresh_token",
-        refresh_token: args.refreshToken,
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Failed to refresh Strava token:", errorText);
-      throw new Error("Failed to refresh Strava token");
-    }
-
-    const data = (await response.json()) as StravaTokenResponse;
-
-    // Update the stored tokens
     await ctx.runMutation(internal.mutations.integrations.updateStravaTokens, {
       integrationId: args.integrationId,
       accessToken: data.access_token,
@@ -71,72 +128,36 @@ export const refreshToken = action({
 });
 
 /**
- * Fetch activity details from Strava API
+ * Fetch activity details from Strava API.
  */
 export const fetchActivity = action({
   args: {
     accessToken: v.string(),
     activityId: v.number(),
   },
-  handler: async (ctx, args) => {
-    const response = await fetch(
-      `https://www.strava.com/api/v3/activities/${args.activityId}`,
-      {
-        headers: {
-          Authorization: `Bearer ${args.accessToken}`,
-        },
-      }
-    );
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Failed to fetch Strava activity:", errorText);
-      throw new Error("Failed to fetch activity from Strava");
-    }
-
-    return await response.json();
+  handler: async (_ctx, args) => {
+    return await httpFetchStravaActivity(args.accessToken, args.activityId);
   },
 });
 
 /**
- * Fetch recent activities from Strava API
+ * Fetch recent activities from Strava API.
  */
 export const fetchRecentActivities = action({
   args: {
     accessToken: v.string(),
     perPage: v.optional(v.number()),
     page: v.optional(v.number()),
-    after: v.optional(v.number()), // Unix timestamp
-    before: v.optional(v.number()), // Unix timestamp
+    after: v.optional(v.number()),
+    before: v.optional(v.number()),
   },
-  handler: async (ctx, args) => {
-    const params = new URLSearchParams();
-    params.set("per_page", String(args.perPage ?? 30));
-    params.set("page", String(args.page ?? 1));
-
-    if (args.after) {
-      params.set("after", String(args.after));
-    }
-    if (args.before) {
-      params.set("before", String(args.before));
-    }
-
-    const response = await fetch(
-      `https://www.strava.com/api/v3/athlete/activities?${params.toString()}`,
-      {
-        headers: {
-          Authorization: `Bearer ${args.accessToken}`,
-        },
-      }
-    );
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Failed to fetch Strava activities:", errorText);
-      throw new Error("Failed to fetch activities from Strava");
-    }
-
-    return await response.json();
+  handler: async (_ctx, args) => {
+    return await httpFetchStravaRecentActivities(args.accessToken, {
+      perPage: args.perPage,
+      page: args.page,
+      after: args.after,
+      before: args.before,
+    });
   },
 });
 
@@ -146,6 +167,7 @@ interface StravaActivity {
   type: string;
   sport_type: string;
   start_date: string;
+  start_date_local?: string;
   elapsed_time: number;
   moving_time: number;
   distance?: number;
@@ -224,30 +246,27 @@ export const fetchActivitiesWithScoringPreview = action({
     }>;
     tokenRefreshed: boolean;
   }> => {
-    // Refresh token if needed
+    // Refresh token if needed — call the HTTP helper directly (no nested action).
     let accessToken = args.accessToken;
     let tokenRefreshed = false;
 
     const now = Math.floor(Date.now() / 1000);
-    const oneHourFromNow = now + 3600;
 
-    if (args.expiresAt <= oneHourFromNow) {
+    if (args.expiresAt <= now + 3600) {
       console.log("Token expired or expiring soon, refreshing...");
-      const newToken = await ctx.runAction(api.actions.strava.refreshToken, {
+      const data = await httpRefreshStravaToken(args.refreshToken);
+      await ctx.runMutation(internal.mutations.integrations.updateStravaTokens, {
         integrationId: args.integrationId,
-        currentExpiresAt: args.expiresAt,
-        refreshToken: args.refreshToken,
+        accessToken: data.access_token,
+        refreshToken: data.refresh_token,
+        expiresAt: data.expires_at,
       });
-
-      if (newToken) {
-        accessToken = newToken;
-        tokenRefreshed = true;
-      }
+      accessToken = data.access_token;
+      tokenRefreshed = true;
     }
 
-    // Fetch activities from Strava
-    const stravaActivities = await ctx.runAction(api.actions.strava.fetchRecentActivities, {
-      accessToken,
+    // Fetch activities from Strava — direct HTTP call, no nested action.
+    const stravaActivities = await httpFetchStravaRecentActivities(accessToken, {
       perPage: args.perPage ?? 20,
       after: args.after,
     }) as StravaActivity[];
@@ -606,26 +625,25 @@ export const processStravaWebhook = internalAction({
       return;
     }
 
-    // Refresh token if needed
-    const refreshedToken = await ctx.runAction(
-      api.actions.strava.refreshToken,
-      {
+    // Refresh token if needed — call HTTP helper directly to avoid consuming
+    // a second funrun permit (nested ctx.runAction was the root cause of
+    // "Couldn't acquire a permit on this funrun" under concurrent webhooks).
+    const now = Math.floor(Date.now() / 1000);
+    if (integration.expiresAt <= now + 3600) {
+      console.log("Refreshing Strava token for integration:", integration._id);
+      const tokenData = await httpRefreshStravaToken(integration.refreshToken);
+      await ctx.runMutation(internal.mutations.integrations.updateStravaTokens, {
         integrationId: integration._id,
-        currentExpiresAt: integration.expiresAt,
-        refreshToken: integration.refreshToken,
-      }
-    );
-
-    if (refreshedToken) {
-      accessToken = refreshedToken;
+        accessToken: tokenData.access_token,
+        refreshToken: tokenData.refresh_token,
+        expiresAt: tokenData.expires_at,
+      });
+      accessToken = tokenData.access_token;
     }
 
-    // Fetch activity details from Strava
+    // Fetch activity details from Strava — direct HTTP call, no nested action.
     console.log("Fetching activity details from Strava:", body.object_id);
-    const activity = await ctx.runAction(api.actions.strava.fetchActivity, {
-      accessToken: accessToken!,
-      activityId: body.object_id,
-    });
+    const activity = await httpFetchStravaActivity(accessToken!, body.object_id);
 
     console.log("Activity details:", {
       id: activity.id,
