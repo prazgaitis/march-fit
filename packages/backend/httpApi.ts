@@ -1279,6 +1279,265 @@ async function handleToggleForumPin(
   }
 }
 
+// ─── Mini-Games ──────────────────────────────────────────────────────────────
+
+async function handleListMiniGames(
+  ctx: HttpCtx,
+  request: Request,
+  params: Record<string, string>
+): Promise<Response> {
+  const auth = await authenticateApiKey(ctx, request);
+  if (auth instanceof Response) return auth;
+
+  const challengeId = params.id as Id<"challenges">;
+  const miniGames = await ctx.runQuery(api.queries.miniGames.list, {
+    challengeId,
+  });
+
+  return jsonResponse({ miniGames });
+}
+
+async function handleGetMiniGame(
+  ctx: HttpCtx,
+  request: Request,
+  params: Record<string, string>
+): Promise<Response> {
+  const auth = await authenticateApiKey(ctx, request);
+  if (auth instanceof Response) return auth;
+
+  const miniGameId = params.id as Id<"miniGames">;
+  const miniGame = await ctx.runQuery(api.queries.miniGames.getById, {
+    miniGameId,
+  });
+
+  if (!miniGame) {
+    return errorResponse("Mini-game not found", 404);
+  }
+
+  return jsonResponse({ miniGame });
+}
+
+async function handleCreateMiniGame(
+  ctx: HttpCtx,
+  request: Request,
+  params: Record<string, string>
+): Promise<Response> {
+  const auth = await authenticateApiKey(ctx, request);
+  if (auth instanceof Response) return auth;
+
+  const challengeId = params.id as Id<"challenges">;
+  const isAdmin = await checkChallengeAdmin(
+    ctx,
+    auth.user._id,
+    challengeId,
+    auth.user
+  );
+  if (!isAdmin) {
+    return errorResponse("Not authorized - challenge admin required", 403);
+  }
+
+  const body = await parseJsonBody(request);
+  if (body instanceof Response) return body;
+
+  const { type, name, startsAt, endsAt, config } = body;
+
+  if (!type || !name || startsAt === undefined || endsAt === undefined) {
+    return errorResponse(
+      "Missing required fields: type, name, startsAt, endsAt",
+      400
+    );
+  }
+
+  const validTypes = ["partner_week", "hunt_week", "pr_week"];
+  if (!validTypes.includes(type)) {
+    return errorResponse(
+      `Invalid type. Must be one of: ${validTypes.join(", ")}`,
+      400
+    );
+  }
+
+  try {
+    const result = await ctx.runMutation(
+      internal.mutations.apiMutations.createMiniGameForUser,
+      {
+        userId: auth.user._id,
+        challengeId,
+        type,
+        name,
+        startsAt,
+        endsAt,
+        config,
+      }
+    );
+    return jsonResponse(result, 201);
+  } catch (err: any) {
+    return errorResponse(err.message || "Failed to create mini-game", 400);
+  }
+}
+
+async function handleUpdateMiniGame(
+  ctx: HttpCtx,
+  request: Request,
+  params: Record<string, string>
+): Promise<Response> {
+  const auth = await authenticateApiKey(ctx, request);
+  if (auth instanceof Response) return auth;
+
+  const miniGameId = params.id as Id<"miniGames">;
+
+  // Look up mini-game to find its challenge for admin check
+  const miniGame = await ctx.runQuery(api.queries.miniGames.getById, {
+    miniGameId,
+  });
+  if (!miniGame) {
+    return errorResponse("Mini-game not found", 404);
+  }
+
+  const isAdmin = await checkChallengeAdmin(
+    ctx,
+    auth.user._id,
+    miniGame.challengeId as Id<"challenges">,
+    auth.user
+  );
+  if (!isAdmin) {
+    return errorResponse("Not authorized - challenge admin required", 403);
+  }
+
+  const body = await parseJsonBody(request);
+  if (body instanceof Response) return body;
+
+  try {
+    const result = await ctx.runMutation(
+      internal.mutations.apiMutations.updateMiniGameForUser,
+      {
+        userId: auth.user._id,
+        miniGameId,
+        name: body.name,
+        startsAt: body.startsAt,
+        endsAt: body.endsAt,
+        config: body.config,
+      }
+    );
+    return jsonResponse(result);
+  } catch (err: any) {
+    return errorResponse(err.message || "Failed to update mini-game", 400);
+  }
+}
+
+async function handleDeleteMiniGame(
+  ctx: HttpCtx,
+  request: Request,
+  params: Record<string, string>
+): Promise<Response> {
+  const auth = await authenticateApiKey(ctx, request);
+  if (auth instanceof Response) return auth;
+
+  const miniGameId = params.id as Id<"miniGames">;
+
+  const miniGame = await ctx.runQuery(api.queries.miniGames.getById, {
+    miniGameId,
+  });
+  if (!miniGame) {
+    return errorResponse("Mini-game not found", 404);
+  }
+
+  const isAdmin = await checkChallengeAdmin(
+    ctx,
+    auth.user._id,
+    miniGame.challengeId as Id<"challenges">,
+    auth.user
+  );
+  if (!isAdmin) {
+    return errorResponse("Not authorized - challenge admin required", 403);
+  }
+
+  try {
+    const result = await ctx.runMutation(
+      internal.mutations.apiMutations.removeMiniGameForUser,
+      { userId: auth.user._id, miniGameId }
+    );
+    return jsonResponse(result);
+  } catch (err: any) {
+    return errorResponse(err.message || "Failed to delete mini-game", 400);
+  }
+}
+
+async function handleStartMiniGame(
+  ctx: HttpCtx,
+  request: Request,
+  params: Record<string, string>
+): Promise<Response> {
+  const auth = await authenticateApiKey(ctx, request);
+  if (auth instanceof Response) return auth;
+
+  const miniGameId = params.id as Id<"miniGames">;
+
+  const miniGame = await ctx.runQuery(api.queries.miniGames.getById, {
+    miniGameId,
+  });
+  if (!miniGame) {
+    return errorResponse("Mini-game not found", 404);
+  }
+
+  const isAdmin = await checkChallengeAdmin(
+    ctx,
+    auth.user._id,
+    miniGame.challengeId as Id<"challenges">,
+    auth.user
+  );
+  if (!isAdmin) {
+    return errorResponse("Not authorized - challenge admin required", 403);
+  }
+
+  try {
+    const result = await ctx.runMutation(
+      api.mutations.miniGames.start,
+      { miniGameId }
+    );
+    return jsonResponse(result);
+  } catch (err: any) {
+    return errorResponse(err.message || "Failed to start mini-game", 400);
+  }
+}
+
+async function handleEndMiniGame(
+  ctx: HttpCtx,
+  request: Request,
+  params: Record<string, string>
+): Promise<Response> {
+  const auth = await authenticateApiKey(ctx, request);
+  if (auth instanceof Response) return auth;
+
+  const miniGameId = params.id as Id<"miniGames">;
+
+  const miniGame = await ctx.runQuery(api.queries.miniGames.getById, {
+    miniGameId,
+  });
+  if (!miniGame) {
+    return errorResponse("Mini-game not found", 404);
+  }
+
+  const isAdmin = await checkChallengeAdmin(
+    ctx,
+    auth.user._id,
+    miniGame.challengeId as Id<"challenges">,
+    auth.user
+  );
+  if (!isAdmin) {
+    return errorResponse("Not authorized - challenge admin required", 403);
+  }
+
+  try {
+    const result = await ctx.runMutation(
+      api.mutations.miniGames.end,
+      { miniGameId }
+    );
+    return jsonResponse(result);
+  } catch (err: any) {
+    return errorResponse(err.message || "Failed to end mini-game", 400);
+  }
+}
+
 // ─── Router ──────────────────────────────────────────────────────────────────
 
 type RouteEntry = {
@@ -1395,6 +1654,18 @@ const routes: RouteEntry[] = [
     handler: handleCreateForumPost,
   },
 
+  // Mini-games (challenge sub-resource)
+  {
+    method: "GET",
+    pattern: "/api/v1/challenges/:id/mini-games",
+    handler: handleListMiniGames,
+  },
+  {
+    method: "POST",
+    pattern: "/api/v1/challenges/:id/mini-games",
+    handler: handleCreateMiniGame,
+  },
+
   // Single challenge
   {
     method: "GET",
@@ -1461,6 +1732,33 @@ const routes: RouteEntry[] = [
     method: "DELETE",
     pattern: "/api/v1/forum-posts/:id",
     handler: handleDeleteForumPost,
+  },
+
+  // Mini-game management (single resource - longer paths first)
+  {
+    method: "POST",
+    pattern: "/api/v1/mini-games/:id/start",
+    handler: handleStartMiniGame,
+  },
+  {
+    method: "POST",
+    pattern: "/api/v1/mini-games/:id/end",
+    handler: handleEndMiniGame,
+  },
+  {
+    method: "GET",
+    pattern: "/api/v1/mini-games/:id",
+    handler: handleGetMiniGame,
+  },
+  {
+    method: "PATCH",
+    pattern: "/api/v1/mini-games/:id",
+    handler: handleUpdateMiniGame,
+  },
+  {
+    method: "DELETE",
+    pattern: "/api/v1/mini-games/:id",
+    handler: handleDeleteMiniGame,
   },
 
   // Admin activity edit

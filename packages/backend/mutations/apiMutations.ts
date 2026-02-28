@@ -1037,3 +1037,130 @@ export const toggleForumPinForUser = internalMutation({
     return { isPinned: !post.isPinned };
   },
 });
+
+// ─── Mini-Game Mutations (API key authenticated) ────────────────────────────
+
+/**
+ * Create a mini-game on behalf of an admin user (API key authenticated).
+ */
+export const createMiniGameForUser = internalMutation({
+  args: {
+    userId: v.id("users"),
+    challengeId: v.id("challenges"),
+    type: v.union(
+      v.literal("partner_week"),
+      v.literal("hunt_week"),
+      v.literal("pr_week"),
+    ),
+    name: v.string(),
+    startsAt: v.number(),
+    endsAt: v.number(),
+    config: v.optional(v.any()),
+  },
+  handler: async (ctx, args) => {
+    const challenge = await ctx.db.get(args.challengeId);
+    if (!challenge) throw new Error("Challenge not found");
+
+    if (args.startsAt >= args.endsAt) {
+      throw new Error("Start date must be before end date");
+    }
+
+    if (args.endsAt > dateOnlyToUtcMs(challenge.endDate)) {
+      throw new Error("Mini-game cannot extend past challenge end date");
+    }
+
+    const now = Date.now();
+    const defaultConfig = getDefaultMiniGameConfig(args.type);
+
+    const miniGameId = await ctx.db.insert("miniGames", {
+      challengeId: args.challengeId,
+      type: args.type,
+      name: args.name,
+      startsAt: args.startsAt,
+      endsAt: args.endsAt,
+      status: "draft",
+      config: args.config ?? defaultConfig,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    return { miniGameId };
+  },
+});
+
+/**
+ * Update a draft mini-game on behalf of an admin user (API key authenticated).
+ */
+export const updateMiniGameForUser = internalMutation({
+  args: {
+    userId: v.id("users"),
+    miniGameId: v.id("miniGames"),
+    name: v.optional(v.string()),
+    startsAt: v.optional(v.number()),
+    endsAt: v.optional(v.number()),
+    config: v.optional(v.any()),
+  },
+  handler: async (ctx, args) => {
+    const miniGame = await ctx.db.get(args.miniGameId);
+    if (!miniGame) throw new Error("Mini-game not found");
+
+    if (miniGame.status !== "draft") {
+      throw new Error("Can only edit draft mini-games");
+    }
+
+    const challenge = await ctx.db.get(miniGame.challengeId);
+    if (!challenge) throw new Error("Challenge not found");
+
+    const startsAt = args.startsAt ?? miniGame.startsAt;
+    const endsAt = args.endsAt ?? miniGame.endsAt;
+
+    if (startsAt >= endsAt) {
+      throw new Error("Start date must be before end date");
+    }
+
+    if (endsAt > dateOnlyToUtcMs(challenge.endDate)) {
+      throw new Error("Mini-game cannot extend past challenge end date");
+    }
+
+    const updates: Record<string, unknown> = { updatedAt: Date.now() };
+    if (args.name !== undefined) updates.name = args.name;
+    if (args.startsAt !== undefined) updates.startsAt = args.startsAt;
+    if (args.endsAt !== undefined) updates.endsAt = args.endsAt;
+    if (args.config !== undefined) updates.config = args.config;
+
+    await ctx.db.patch(args.miniGameId, updates);
+    return { success: true };
+  },
+});
+
+/**
+ * Delete a draft mini-game on behalf of an admin user (API key authenticated).
+ */
+export const removeMiniGameForUser = internalMutation({
+  args: {
+    userId: v.id("users"),
+    miniGameId: v.id("miniGames"),
+  },
+  handler: async (ctx, args) => {
+    const miniGame = await ctx.db.get(args.miniGameId);
+    if (!miniGame) throw new Error("Mini-game not found");
+
+    if (miniGame.status !== "draft") {
+      throw new Error("Can only delete draft mini-games");
+    }
+
+    await ctx.db.delete(args.miniGameId);
+    return { success: true };
+  },
+});
+
+function getDefaultMiniGameConfig(type: "partner_week" | "hunt_week" | "pr_week") {
+  switch (type) {
+    case "partner_week":
+      return { bonusPercentage: 10 };
+    case "hunt_week":
+      return { catchBonus: 75, caughtPenalty: 25 };
+    case "pr_week":
+      return { prBonus: 100 };
+  }
+}

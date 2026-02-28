@@ -120,6 +120,38 @@ This is a fitness challenge platform built as a Turborepo monorepo with:
 - Convex schema changes are auto-deployed when running `pnpm dev` locally
 - Production deploys via Vercel which runs `npx convex deploy` as part of build
 
+## Mini-Games System
+
+Weekly bonus challenges that run within a parent challenge. See `packages/backend/MINI-GAMES.md` for full documentation.
+
+**Three game types:**
+
+- **Partner Week** (`partner_week`) — Rank-based pairing (1st↔last, 2nd↔2nd-last). Each player earns `bonusPercentage`% (default 10%) of their partner's points during the game period.
+- **Hunt Week** (`hunt_week`) — Predator-prey chain by rank. Surpass the person above you: `+catchBonus` (default 75). Get surpassed by the person below: `-caughtPenalty` (default 25).
+- **PR Week** (`pr_week`) — Beat your highest single-day point total from before the game. Strictly greater than required. Bonus: `+prBonus` (default 100).
+
+**Lifecycle:** `draft` → `active` → `calculating` → `completed`
+
+**Key files:**
+- `packages/backend/mutations/miniGames.ts` — Game CRUD, lifecycle, outcome calculation
+- `packages/backend/queries/miniGames.ts` — Real-time queries
+- `packages/backend/mutations/apiMutations.ts` — Internal mutations for HTTP API
+- `packages/backend/httpApi.ts` — REST API endpoints (`/api/v1/challenges/:id/mini-games`, `/api/v1/mini-games/:id`)
+
+**API endpoints (admin only for mutations):**
+- `GET /api/v1/challenges/:id/mini-games` — List games
+- `POST /api/v1/challenges/:id/mini-games` — Create game
+- `GET /api/v1/mini-games/:id` — Get game with participants
+- `PATCH /api/v1/mini-games/:id` — Update draft game
+- `DELETE /api/v1/mini-games/:id` — Delete draft game
+- `POST /api/v1/mini-games/:id/start` — Start game
+- `POST /api/v1/mini-games/:id/end` — End game
+
+**Important rules:**
+- Bonus activities use `source: "mini_game"` and are excluded from game calculations to prevent circular scoring
+- PR Week requires strictly greater than (equal does not count)
+- All configs are optional; defaults are applied when not provided
+
 ## Date Handling (Local Date Semantics)
 
 Daily totals and challenge windows are based on the user's local calendar date.
