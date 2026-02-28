@@ -60,6 +60,7 @@
 - Scroll-direction-driven nav fade works with a throttled `requestAnimationFrame` + `opacity` transition, and avoids layout jumps versus translate-based hide.
 - For Convex mobile diagnostics, prefer env-gated verbose logs (`NEXT_PUBLIC_CONVEX_DEBUG=1`, `AUTH_LOG_LEVEL=DEBUG`) plus Sentry capture over user-facing banners.
 - For UI behavior that needs test coverage (e.g., mobile nav slotting), extract a pure layout helper and test it directly instead of trying to mount Next client components.
+- For local Convex ops/backfills, use `bash scripts/convex.sh run ...` so `.env.local` self-hosted admin vars are loaded consistently.
 
 ## Patterns That Don't Work
 - Deriving env vars inside `convex deploy --cmd` shell strings — escaping hell, fragile, hard to debug. Instead, derive them in `next.config.ts` which runs at build time and can set `process.env` before Next.js compiles.
@@ -123,3 +124,5 @@
 | 2026-02-27 | user | "<a> cannot be a descendant of <a>" on leaderboard | Add `disableLink` prop to UserAvatar; use it when avatar is inside a Link (leaderboard rows).
 | 2026-02-27 | self | Wholesale page reload when navigating dashboard sections | Use route group `(dashboard)` with shared layout; auth + shell in layout, pages only render content. Layout persists across nav.
 | 2026-02-27 | self | Ran `npx convex import --env-file .env.production` intending to target a preview deployment, but the `prod:` deploy key in `.env.production` overrode `--preview-name` and imported into PRODUCTION, wiping auth tables | **NEVER use `.env.production` for preview operations.** The `CONVEX_DEPLOY_KEY` prefix (`prod:` vs `preview:`) determines the target and overrides all other flags. Always check the key prefix before running import/export. For preview deployments, use a separate preview deploy key.
+| 2026-02-28 | self | Tried `pnpm -F backend exec npx convex run ... --prod` without deployment context and got `No CONVEX_DEPLOYMENT set` | For prod one-off runs, pass `--env-file /Users/paulius/code/march-fit/.env.production` (absolute path) so Convex target is explicit and resolution is reliable across filtered workspace commands |
+| 2026-02-28 | self | Ran `rg` with incorrect directories (`packages/backend/app`, `apps/web/packages`) during quick scans | Keep ripgrep target paths exact; use `rg --files` first when uncertain about directory names |

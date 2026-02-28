@@ -30,6 +30,46 @@ async function scheduleSignupEmails(
   }
 }
 
+async function creditInviteAttributionOnPayment(
+  ctx: { db: any },
+  participation: {
+    invitedByUserId?: Id<"users">;
+    challengeId: Id<"challenges">;
+    userId: Id<"users">;
+  },
+  now: number,
+) {
+  if (!participation.invitedByUserId || participation.invitedByUserId === participation.userId) {
+    return;
+  }
+
+  const inviterParticipation = await ctx.db
+    .query("userChallenges")
+    .withIndex("userChallengeUnique", (q: any) =>
+      q.eq("userId", participation.invitedByUserId).eq("challengeId", participation.challengeId)
+    )
+    .first();
+
+  if (inviterParticipation) {
+    await ctx.db.patch(inviterParticipation._id, {
+      inviteCount: (inviterParticipation.inviteCount ?? 0) + 1,
+      updatedAt: now,
+    });
+  }
+
+  const challenge = await ctx.db.get(participation.challengeId);
+  await ctx.db.insert("notifications", {
+    userId: participation.invitedByUserId,
+    actorId: participation.userId,
+    type: "invite_accepted",
+    data: {
+      challengeId: participation.challengeId,
+      challengeName: challenge?.name ?? "Challenge",
+    },
+    createdAt: now,
+  });
+}
+
 /**
  * Clear a user's test payment data so they can re-test the payment flow.
  * Only works when the challenge payment config is in test mode.
@@ -124,9 +164,14 @@ export const prepareCheckout = internalMutation({
     stripeCheckoutSessionId: v.string(),
     amountInCents: v.number(),
     currency: v.string(),
+    invitedByUserId: v.optional(v.id("users")),
   },
   handler: async (ctx, args) => {
     const now = Date.now();
+    const invitedByUserId =
+      args.invitedByUserId && args.invitedByUserId !== args.userId
+        ? args.invitedByUserId
+        : undefined;
 
     // Check existing participation
     const existingParticipation = await ctx.db
@@ -154,6 +199,7 @@ export const prepareCheckout = internalMutation({
       await ctx.db.insert("userChallenges", {
         userId: args.userId,
         challengeId: args.challengeId,
+        invitedByUserId,
         joinedAt: now,
         totalPoints: 0,
         currentStreak: 0,
@@ -165,6 +211,9 @@ export const prepareCheckout = internalMutation({
     } else {
       // Update existing participation to pending
       await ctx.db.patch(existingParticipation._id, {
+        ...(invitedByUserId && !existingParticipation.invitedByUserId
+          ? { invitedByUserId }
+          : {}),
         paymentStatus: "pending",
         paymentReference: args.stripeCheckoutSessionId,
         updatedAt: now,
@@ -200,6 +249,11 @@ export const handlePaymentSuccess = internalMutation({
       return { success: false, error: "Payment record not found" };
     }
 
+    // Idempotency: Stripe can retry webhooks for the same session.
+    if (paymentRecord.status === "completed") {
+      return { success: true, alreadyCompleted: true };
+    }
+
     // Update payment record — use actual amount paid if provided (donation mode)
     await ctx.db.patch(paymentRecord._id, {
       status: "completed",
@@ -220,12 +274,18 @@ export const handlePaymentSuccess = internalMutation({
       .first();
 
     if (participation) {
+      const transitionedToPaid = participation.paymentStatus !== "paid";
+
       await ctx.db.patch(participation._id, {
         paymentStatus: "paid",
         paymentReceivedAt: now,
         paymentReference: args.stripePaymentIntentId || args.stripeCheckoutSessionId,
         updatedAt: now,
       });
+
+      if (transitionedToPaid) {
+        await creditInviteAttributionOnPayment(ctx, participation, now);
+      }
 
       // Update the payment record with userChallengeId if not set
       if (!paymentRecord.userChallengeId) {
@@ -343,12 +403,18 @@ export const completeVerification = internalMutation({
       .first();
 
     if (participation) {
+      const transitionedToPaid = participation.paymentStatus !== "paid";
+
       await ctx.db.patch(participation._id, {
         paymentStatus: "paid",
         paymentReceivedAt: now,
         paymentReference: args.stripePaymentIntentId || args.sessionId,
         updatedAt: now,
       });
+
+      if (transitionedToPaid) {
+        await creditInviteAttributionOnPayment(ctx, participation, now);
+      }
 
       // Trigger on_signup emails now that payment is confirmed
       await scheduleSignupEmails(ctx, args.challengeId, args.userId);
