@@ -123,7 +123,7 @@ export function InviteCard({ challengeId }: InviteCardProps) {
             </div>
             {/* Desktop: URL + icon buttons */}
             <div className="hidden sm:flex gap-2">
-              <div className="flex-1 truncate rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-muted-foreground">
+              <div className="flex-1 min-w-0 truncate rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-muted-foreground">
                 {inviteUrl}
               </div>
               <Button
