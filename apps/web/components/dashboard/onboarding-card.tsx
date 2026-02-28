@@ -500,7 +500,7 @@ function StravaStep({
     );
   }
 
-  const origin = process.env.NEXT_PUBLIC_APP_URL ?? "";
+  const origin = process.env.NEXT_PUBLIC_APP_URL ?? window.location.origin;
 
   return (
     <StravaConnectButton
@@ -537,7 +537,7 @@ function InviteStep({
 
   const code = inviteCode ?? existingCode;
 
-  const origin = process.env.NEXT_PUBLIC_APP_URL ?? "";
+  const origin = process.env.NEXT_PUBLIC_APP_URL ?? window.location.origin;
   const inviteUrl = code
     ? `${origin}/challenges/${challengeId}/invite/${code}`
     : null;
@@ -621,31 +621,57 @@ function InviteStep({
     <div className="space-y-3">
       {/* Invite link section */}
       {code ? (
-        <div className="flex gap-2">
-          <div className="flex-1 truncate rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-muted-foreground">
-            {inviteUrl}
+        <>
+          {/* Mobile: action buttons instead of overflowing URL text */}
+          <div className="flex gap-2 sm:hidden">
+            <Button
+              variant="secondary"
+              className="flex-1"
+              onClick={handleCopy}
+            >
+              {copied ? (
+                <Check className="mr-2 h-4 w-4 text-green-400" />
+              ) : (
+                <Copy className="mr-2 h-4 w-4" />
+              )}
+              {copied ? "Copied!" : "Copy invite link"}
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={handleShare}
+              title="Share link"
+            >
+              <Share2 className="h-4 w-4" />
+            </Button>
           </div>
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={handleCopy}
-            title="Copy link"
-          >
-            {copied ? (
-              <Check className="h-4 w-4 text-green-400" />
-            ) : (
-              <Copy className="h-4 w-4" />
-            )}
-          </Button>
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={handleShare}
-            title="Share link"
-          >
-            <Share2 className="h-4 w-4" />
-          </Button>
-        </div>
+          {/* Desktop: URL text + icon buttons */}
+          <div className="hidden sm:flex gap-2">
+            <div className="flex-1 min-w-0 truncate rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-sm text-muted-foreground">
+              {inviteUrl}
+            </div>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={handleCopy}
+              title="Copy link"
+            >
+              {copied ? (
+                <Check className="h-4 w-4 text-green-400" />
+              ) : (
+                <Copy className="h-4 w-4" />
+              )}
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={handleShare}
+              title="Share link"
+            >
+              <Share2 className="h-4 w-4" />
+            </Button>
+          </div>
+        </>
       ) : (
         <Button
           onClick={handleGenerateCode}
@@ -660,17 +686,18 @@ function InviteStep({
 
       {/* Email invite section */}
       <div className="space-y-2">
-        <div className="flex gap-2">
+        <div className="flex gap-2 min-w-0">
           <Input
             placeholder="friend@example.com, another@example.com"
             value={emails}
             onChange={(e) => setEmails(e.target.value)}
-            className="flex-1"
+            className="flex-1 min-w-0"
           />
           <Button
             onClick={handleSendEmails}
             disabled={sending || !emails.trim()}
             size="sm"
+            className="shrink-0"
           >
             {sending ? (
               <Loader2 className="mr-1 h-3 w-3 animate-spin" />
