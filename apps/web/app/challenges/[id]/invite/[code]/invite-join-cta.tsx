@@ -53,6 +53,7 @@ export function InviteJoinCta({
           challengeId: challengeId as Id<"challenges">,
           successUrl: `${window.location.origin}/challenges/${challengeId}/payment-success`,
           cancelUrl: window.location.href,
+          inviteCode,
         });
 
         if (result.url) {

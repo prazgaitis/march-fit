@@ -3,6 +3,7 @@
 import { action } from "../_generated/server";
 import { v } from "convex/values";
 import { internal, api } from "../_generated/api";
+import type { Id } from "../_generated/dataModel";
 import { decryptKey, createStripeClient } from "../lib/stripe";
 
 /**
@@ -91,6 +92,7 @@ export const createCheckoutSession = action({
     challengeId: v.id("challenges"),
     successUrl: v.string(),
     cancelUrl: v.string(),
+    inviteCode: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
@@ -151,6 +153,17 @@ export const createCheckoutSession = action({
     }
 
     const { userId, challengeName, challengeDescription, config } = checkoutData;
+    let invitedByUserId: Id<"users"> | undefined;
+
+    if (args.inviteCode) {
+      const invite = await ctx.runQuery(api.queries.challengeInvites.resolveInviteCode, {
+        code: args.inviteCode,
+      });
+
+      if (invite && invite.challengeId === args.challengeId && invite.inviter.id !== userId) {
+        invitedByUserId = invite.inviter.id as Id<"users">;
+      }
+    }
 
     // Get the appropriate keys
     const encryptedSecretKey = config.testMode
@@ -215,6 +228,7 @@ export const createCheckoutSession = action({
       metadata: {
         challengeId: args.challengeId,
         userId,
+        ...(args.inviteCode ? { inviteCode: args.inviteCode } : {}),
       },
     });
 
@@ -225,6 +239,7 @@ export const createCheckoutSession = action({
       stripeCheckoutSessionId: session.id,
       amountInCents: config.priceInCents,
       currency: config.currency,
+      invitedByUserId,
     });
 
     return {
