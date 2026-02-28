@@ -17,6 +17,7 @@ export function StravaConnectButton({
   return (
     <Link
       href={href}
+      prefetch={false}
       className={cn("inline-flex w-full items-center justify-center", className)}
       aria-label="Connect with Strava"
     >
