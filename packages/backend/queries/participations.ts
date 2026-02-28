@@ -716,3 +716,82 @@ export const getWeeklyCategoryLeaderboard = query({
     };
   },
 });
+
+/**
+ * Get users invited by a specific user in a challenge
+ */
+export const getInvitedUsers = query({
+  args: {
+    userId: v.id("users"),
+    challengeId: v.id("challenges"),
+  },
+  handler: async (ctx, args) => {
+    const invitedParticipations = await ctx.db
+      .query("userChallenges")
+      .withIndex("invitedByUserId", (q) => q.eq("invitedByUserId", args.userId))
+      .collect();
+
+    const filtered = invitedParticipations.filter(
+      (p) => p.challengeId === args.challengeId
+    );
+
+    const users = await Promise.all(
+      filtered.map(async (p) => {
+        const user = await ctx.db.get(p.userId);
+        if (!user) return null;
+        return {
+          id: user._id,
+          username: user.username,
+          name: user.name,
+          avatarUrl: user.avatarUrl,
+          joinedAt: p.joinedAt,
+        };
+      })
+    );
+
+    return users
+      .filter((u): u is NonNullable<typeof u> => u !== null)
+      .sort((a, b) => b.joinedAt - a.joinedAt);
+  },
+});
+
+/**
+ * Get invite leaderboard for a challenge (sorted by inviteCount)
+ */
+export const getInviteLeaderboard = query({
+  args: {
+    challengeId: v.id("challenges"),
+  },
+  handler: async (ctx, args) => {
+    const participations = await ctx.db
+      .query("userChallenges")
+      .withIndex("challengeId", (q) => q.eq("challengeId", args.challengeId))
+      .collect();
+
+    // Filter to users with at least 1 invite, sort by inviteCount descending
+    const withInvites = participations
+      .filter((p) => (p.inviteCount ?? 0) > 0)
+      .sort((a, b) => (b.inviteCount ?? 0) - (a.inviteCount ?? 0));
+
+    const entries = await Promise.all(
+      withInvites.map(async (participation, index) => {
+        const user = await ctx.db.get(participation.userId);
+        if (!user) return null;
+        return {
+          rank: index + 1,
+          user: {
+            id: user._id,
+            username: user.username,
+            name: user.name,
+            avatarUrl: user.avatarUrl,
+          },
+          inviteCount: participation.inviteCount ?? 0,
+        };
+      })
+    );
+
+    return entries.filter(
+      (e): e is NonNullable<typeof e> => e !== null
+    );
+  },
+});

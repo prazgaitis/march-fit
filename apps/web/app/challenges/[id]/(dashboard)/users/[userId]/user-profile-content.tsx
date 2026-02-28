@@ -14,6 +14,7 @@ import {
   Loader2,
   Medal,
   Mountain,
+  Send,
   Settings,
   Trophy,
   UserMinus,
@@ -56,6 +57,7 @@ export function UserProfileContent({
 }: UserProfileContentProps) {
   const [isTogglingFollow, setIsTogglingFollow] = useState(false);
   const [showPrDayModal, setShowPrDayModal] = useState(false);
+  const [showInvitedModal, setShowInvitedModal] = useState(false);
 
   const profileData = useQuery(api.queries.users.getProfile, {
     userId: profileUserId as Id<"users">,
@@ -86,6 +88,16 @@ export function UserProfileContent({
       ? {
           challengeId: challengeId as Id<"challenges">,
           userId: profileUserId as Id<"users">,
+        }
+      : "skip"
+  );
+
+  const invitedUsers = useQuery(
+    api.queries.participations.getInvitedUsers,
+    showInvitedModal
+      ? {
+          userId: profileUserId as Id<"users">,
+          challengeId: challengeId as Id<"challenges">,
         }
       : "skip"
   );
@@ -202,7 +214,7 @@ export function UserProfileContent({
 
               {/* Follower/Following Counts */}
               {followData && (
-                <div className="mt-3 flex justify-center gap-4 text-sm sm:justify-start">
+                <div className="mt-3 flex flex-wrap justify-center gap-4 text-sm sm:justify-start">
                   <span>
                     <strong>{followData.followersCount}</strong>{" "}
                     <span className="text-muted-foreground">
@@ -213,6 +225,18 @@ export function UserProfileContent({
                     <strong>{followData.followingCount}</strong>{" "}
                     <span className="text-muted-foreground">following</span>
                   </span>
+                  {participation && (participation.inviteCount ?? 0) > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setShowInvitedModal(true)}
+                      className="hover:underline"
+                    >
+                      <strong>{participation.inviteCount}</strong>{" "}
+                      <span className="text-muted-foreground">
+                        {participation.inviteCount === 1 ? "invite" : "invites"}
+                      </span>
+                    </button>
+                  )}
                 </div>
               )}
 
@@ -420,6 +444,62 @@ export function UserProfileContent({
           </Dialog>
         </>
       )}
+
+      {/* Invited Users Modal */}
+      <Dialog open={showInvitedModal} onOpenChange={setShowInvitedModal}>
+        <DialogContent className="max-h-[80vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Send className="h-5 w-5" />
+              Invited Members
+            </DialogTitle>
+            <DialogDescription>
+              People who joined using {followData?.isOwnProfile ? "your" : `${user.name ?? user.username}'s`} invite link
+            </DialogDescription>
+          </DialogHeader>
+          <div className="overflow-y-auto -mx-6 px-6">
+            {invitedUsers === undefined ? (
+              <div className="flex justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : invitedUsers.length === 0 ? (
+              <p className="py-8 text-center text-sm text-muted-foreground">
+                No invited members yet.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {invitedUsers.map((invitee: { id: string; username: string; name: string | null; avatarUrl: string | null; joinedAt: number }) => (
+                  <Link
+                    key={invitee.id}
+                    href={`/challenges/${challengeId}/users/${invitee.id}`}
+                    onClick={() => setShowInvitedModal(false)}
+                    className="flex items-center gap-3 rounded-lg border p-3 transition-colors hover:bg-muted/40"
+                  >
+                    <UserAvatar
+                      user={invitee}
+                      size="sm"
+                      disableLink
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">
+                        {invitee.name ?? invitee.username}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        @{invitee.username}
+                      </p>
+                    </div>
+                    <p className="text-xs text-muted-foreground whitespace-nowrap">
+                      {formatDistanceToNow(new Date(invitee.joinedAt), {
+                        addSuffix: true,
+                      })}
+                    </p>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Mini-Games */}
       <UserMiniGames challengeId={challengeId} userId={profileUserId} />

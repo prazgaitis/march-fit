@@ -231,6 +231,7 @@ export const getProfile = query({
             joinedAt: participation.joinedAt,
             rank,
             totalParticipants: allParticipations.length,
+            inviteCount: participation.inviteCount ?? 0,
           }
         : null,
       stats: {

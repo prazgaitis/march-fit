@@ -253,6 +253,7 @@ export default defineSchema({
     paymentReceivedAt: v.optional(v.number()),
     paymentReference: v.optional(v.string()),
     dismissedAnnouncementAt: v.optional(v.number()), // When user dismissed the announcement
+    inviteCount: v.optional(v.number()), // Number of people who joined via this user's invite
     updatedAt: v.number(),
   })
     .index("userId", ["userId"])

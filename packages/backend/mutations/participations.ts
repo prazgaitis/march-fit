@@ -175,6 +175,21 @@ export const join = mutation({
       updatedAt: now,
     });
 
+    // Increment the inviter's inviteCount on their userChallenge
+    if (invitedByUserId && invitedByUserId !== user._id) {
+      const inviterParticipation = await ctx.db
+        .query("userChallenges")
+        .withIndex("userChallengeUnique", (q) =>
+          q.eq("userId", invitedByUserId).eq("challengeId", args.challengeId)
+        )
+        .first();
+      if (inviterParticipation) {
+        await ctx.db.patch(inviterParticipation._id, {
+          inviteCount: (inviterParticipation.inviteCount ?? 0) + 1,
+        });
+      }
+    }
+
     // Notify the inviter that someone joined with their link
     if (invitedByUserId && invitedByUserId !== user._id) {
       await ctx.db.insert("notifications", {
