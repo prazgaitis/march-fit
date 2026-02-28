@@ -500,7 +500,7 @@ function StravaStep({
     );
   }
 
-  const origin = process.env.NEXT_PUBLIC_APP_URL ?? "";
+  const origin = process.env.NEXT_PUBLIC_APP_URL ?? window.location.origin;
 
   return (
     <StravaConnectButton
@@ -537,7 +537,7 @@ function InviteStep({
 
   const code = inviteCode ?? existingCode;
 
-  const origin = process.env.NEXT_PUBLIC_APP_URL ?? "";
+  const origin = process.env.NEXT_PUBLIC_APP_URL ?? window.location.origin;
   const inviteUrl = code
     ? `${origin}/challenges/${challengeId}/invite/${code}`
     : null;
