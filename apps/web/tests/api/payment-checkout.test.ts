@@ -108,6 +108,34 @@ describe("Payment checkout flow", () => {
       expect(participation!.paymentStatus).toBe("pending");
       expect(participation!.totalPoints).toBe(0);
     });
+
+    it("persists invitedByUserId for paid invite joins", async () => {
+      const inviterId = await createTestUser(t, {
+        email: "inviter@example.com",
+        username: "inviter",
+      });
+
+      await t.mutation(internal.mutations.payments.prepareCheckout, {
+        userId,
+        challengeId,
+        stripeCheckoutSessionId: "cs_test_invite_pending",
+        amountInCents: 3000,
+        currency: "usd",
+        invitedByUserId: inviterId,
+      });
+
+      const participation = await t.run(async (ctx: GenericMutationCtx<DataModel>) => {
+        return ctx.db
+          .query("userChallenges")
+          .withIndex("userChallengeUnique", (q) =>
+            q.eq("userId", userId).eq("challengeId", challengeId)
+          )
+          .first();
+      });
+
+      expect(participation).not.toBeNull();
+      expect(participation!.invitedByUserId).toBe(inviterId);
+    });
   });
 
   // ── handlePaymentSuccess ─────────────────────────────────────
@@ -179,6 +207,49 @@ describe("Payment checkout flow", () => {
           .first();
       });
       expect(paymentRecord!.amountInCents).toBe(7500);
+    });
+
+    it("credits inviter inviteCount and sends invite_accepted notification", async () => {
+      const inviterId = await createTestUser(t, {
+        email: "inviter-credit@example.com",
+        username: "inviter-credit",
+      });
+      await createTestParticipation(t, inviterId as string, challengeId as string, {
+        paymentStatus: "paid",
+        inviteCount: 0,
+      });
+      await createTestParticipation(t, userId as string, challengeId as string, {
+        paymentStatus: "pending",
+        invitedByUserId: inviterId,
+      });
+      await createTestPaymentRecord(t, userId as string, challengeId as string, {
+        stripeCheckoutSessionId: "cs_test_invite_credit",
+      });
+
+      const result = await t.mutation(internal.mutations.payments.handlePaymentSuccess, {
+        stripeCheckoutSessionId: "cs_test_invite_credit",
+      });
+      expect(result.success).toBe(true);
+
+      const inviterParticipation = await t.run(async (ctx: GenericMutationCtx<DataModel>) => {
+        return ctx.db
+          .query("userChallenges")
+          .withIndex("userChallengeUnique", (q) =>
+            q.eq("userId", inviterId).eq("challengeId", challengeId)
+          )
+          .first();
+      });
+      expect(inviterParticipation!.inviteCount).toBe(1);
+
+      const inviterNotifications = await t.run(async (ctx: GenericMutationCtx<DataModel>) => {
+        return ctx.db
+          .query("notifications")
+          .withIndex("userId", (q) => q.eq("userId", inviterId))
+          .collect();
+      });
+      const inviteAccepted = inviterNotifications.find((n) => n.type === "invite_accepted");
+      expect(inviteAccepted).toBeDefined();
+      expect(inviteAccepted!.actorId).toBe(userId);
     });
 
     it("returns error when payment record not found", async () => {
@@ -285,6 +356,40 @@ describe("Payment checkout flow", () => {
       );
       expect(result.success).toBe(true);
       expect(result.alreadyCompleted).toBe(true);
+    });
+
+    it("credits inviter inviteCount when verification completes payment", async () => {
+      const inviterId = await createTestUser(t, {
+        email: "inviter-verify@example.com",
+        username: "inviter-verify",
+      });
+      await createTestParticipation(t, inviterId as string, challengeId as string, {
+        paymentStatus: "paid",
+        inviteCount: 0,
+      });
+      await createTestParticipation(t, userId as string, challengeId as string, {
+        paymentStatus: "pending",
+        invitedByUserId: inviterId,
+      });
+      await createTestPaymentRecord(t, userId as string, challengeId as string, {
+        stripeCheckoutSessionId: "cs_test_verify_invite_credit",
+      });
+
+      await t.mutation(internal.mutations.payments.completeVerification, {
+        userId,
+        challengeId,
+        sessionId: "cs_test_verify_invite_credit",
+      });
+
+      const inviterParticipation = await t.run(async (ctx: GenericMutationCtx<DataModel>) => {
+        return ctx.db
+          .query("userChallenges")
+          .withIndex("userChallengeUnique", (q) =>
+            q.eq("userId", inviterId).eq("challengeId", challengeId)
+          )
+          .first();
+      });
+      expect(inviterParticipation!.inviteCount).toBe(1);
     });
 
     it("throws when payment record not found", async () => {
