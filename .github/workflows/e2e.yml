@@ -1,6 +1,8 @@
 name: E2E Tests
 
 on:
+  pull_request:
+    branches: [main, develop]
   schedule:
     # Run every night at 3:00 AM UTC
     - cron: "0 3 * * *"
@@ -52,8 +54,14 @@ jobs:
           E2E_CHALLENGE_ID: ${{ secrets.E2E_CHALLENGE_ID }}
           E2E_CHALLENGE_INVITE_CODE: ${{ secrets.E2E_CHALLENGE_INVITE_CODE }}
           E2E_USER_PASSWORD: ${{ secrets.E2E_USER_PASSWORD }}
-        # Use local binary directly — same reason as above
-        run: ./node_modules/.bin/playwright test
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            # Lightweight PR smoke suite (no challenge secrets required).
+            ./node_modules/.bin/playwright test tests/google-sign-in.spec.ts --grep "renders"
+          else
+            # Full scheduled/manual E2E suite.
+            ./node_modules/.bin/playwright test
+          fi
 
       - name: Upload test results
         uses: actions/upload-artifact@v4

@@ -17,7 +17,7 @@ This repository contains the full source (web app + backend). Contributions are 
 
 ## Tech Stack
 
-- **Frontend** — Next.js 15, React 19, Tailwind CSS, shadcn/ui
+- **Frontend** — Next.js 16, React 19, Tailwind CSS, shadcn/ui
 - **Backend** — [Convex](https://convex.dev) (serverless database + functions)
 - **Auth** — Better Auth with `@convex-dev/better-auth` adapter
 - **Monorepo** — pnpm workspaces + Turborepo
@@ -26,8 +26,8 @@ This repository contains the full source (web app + backend). Contributions are 
 
 ### Prerequisites
 
-- [Node.js](https://nodejs.org/) >= 18.18
-- [pnpm](https://pnpm.io/) >= 9
+- [Node.js](https://nodejs.org/) >= 20.9
+- [pnpm](https://pnpm.io/) >= 10
 
 ### Setup
 
