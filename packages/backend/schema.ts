@@ -649,6 +649,33 @@ export default defineSchema({
     .index("challengeUserCategory", ["challengeId", "userId", "categoryId"])
     .index("challengeCategory", ["challengeId", "categoryId"]),
 
+  // Weekly Category Points - pre-aggregated per-user per-week totals per category.
+  // Mirrors categoryPoints but scoped to a challenge week. Used by
+  // getWeeklyCategoryLeaderboard to avoid reading bloated activity documents.
+  weeklyCategoryPoints: defineTable({
+    challengeId: v.id("challenges"),
+    userId: v.id("users"),
+    categoryId: v.id("categories"),
+    weekNumber: v.number(),
+    totalPoints: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("challengeUserCategoryWeek", [
+      "challengeId",
+      "userId",
+      "categoryId",
+      "weekNumber",
+    ])
+    .index("weekCategory", ["challengeId", "weekNumber", "categoryId"]),
+
+  // Activity External Data - companion table for large external payloads
+  // (e.g. raw Strava API responses). Keeps the activities table lightweight
+  // so queries that scan many activities don't hit Convex's read-bytes limit.
+  activityExternalData: defineTable({
+    activityId: v.id("activities"),
+    externalData: v.any(),
+  }).index("activityId", ["activityId"]),
+
   // Email Sends - tracking sent emails
   emailSends: defineTable({
     emailSequenceId: v.id("emailSequences"),

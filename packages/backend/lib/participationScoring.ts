@@ -1,6 +1,7 @@
 import type { Id } from "../_generated/dataModel";
 import { notDeleted } from "./activityFilters";
 import { applyCategoryPointsDelta } from "./categoryPoints";
+import { applyWeeklyCategoryPointsDeltaFromDate } from "./weeklyCategoryPoints";
 import { aggregateDailyStreakPoints, computeStreak } from "./streak";
 
 export async function recomputeStreakForUserChallenge(
@@ -56,6 +57,10 @@ export async function applyParticipationScoreDeltaAndRecomputeStreak(
     now?: number;
     /** When provided, also increments the categoryPoints aggregation table. */
     categoryId?: Id<"categories">;
+    /** Pass alongside categoryId for weekly category aggregation. */
+    loggedDate?: number;
+    /** Pass alongside categoryId for weekly category aggregation. */
+    challengeStartDate?: string | number;
   }
 ) {
   const participation = await ctx.db
@@ -97,6 +102,22 @@ export async function applyParticipationScoreDeltaAndRecomputeStreak(
       pointsDelta: args.pointsDelta,
       now,
     });
+
+    // Also maintain weekly category aggregation when loggedDate is available.
+    if (
+      args.loggedDate !== undefined &&
+      args.challengeStartDate !== undefined
+    ) {
+      await applyWeeklyCategoryPointsDeltaFromDate(ctx, {
+        userId: args.userId,
+        challengeId: args.challengeId,
+        categoryId: args.categoryId,
+        loggedDate: args.loggedDate,
+        challengeStartDate: args.challengeStartDate,
+        pointsDelta: args.pointsDelta,
+        now,
+      });
+    }
   }
 
   return {

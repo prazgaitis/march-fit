@@ -26,6 +26,7 @@ import { reportLatencyIfExceeded } from "../lib/latencyMonitoring";
 import { applyParticipationScoreDeltaAndRecomputeStreak } from "../lib/participationScoring";
 import { insertActivity, patchActivity } from "../lib/activityWrites";
 import { applyCategoryPointsDelta } from "../lib/categoryPoints";
+import { applyWeeklyCategoryPointsDeltaFromDate } from "../lib/weeklyCategoryPoints";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -168,6 +169,8 @@ export const logActivityForUser = internalMutation({
       pointsDelta: pointsEarned,
       streakMinPoints: challenge.streakMinPoints,
       categoryId: activityType.categoryId,
+      loggedDate: loggedDateTs,
+      challengeStartDate: challenge.startDate,
     });
     const currentStreak = streakUpdate?.currentStreak ?? participation.currentStreak;
 
@@ -242,6 +245,8 @@ export const removeActivityForUser = internalMutation({
       streakMinPoints: challenge.streakMinPoints,
       now,
       categoryId: deletedApiActivityType?.categoryId,
+      loggedDate: activity.loggedDate,
+      challengeStartDate: challenge.startDate,
     });
 
       return { deleted: true };
@@ -681,12 +686,30 @@ export const adminEditActivityForUser = internalMutation({
         args.activityTypeId !== undefined &&
         args.activityTypeId !== activity.activityTypeId;
 
+      const newApiLoggedDate = (updates.loggedDate as number | undefined) ?? activity.loggedDate;
+      const apiDateChanged = newApiLoggedDate !== activity.loggedDate;
+      const apiWeeklyNeedsSwap = apiTypeChanged || apiDateChanged;
+
       if (apiTypeChanged) {
         const oldApiActivityType = await ctx.db.get(activity.activityTypeId);
         await applyCategoryPointsDelta(ctx, {
           userId: activity.userId,
           challengeId: activity.challengeId,
           categoryId: oldApiActivityType?.categoryId,
+          pointsDelta: -activity.pointsEarned,
+          now,
+        });
+      }
+      if (apiWeeklyNeedsSwap) {
+        const oldCatId = apiTypeChanged
+          ? (await ctx.db.get(activity.activityTypeId))?.categoryId
+          : (await ctx.db.get(activity.activityTypeId))?.categoryId;
+        await applyWeeklyCategoryPointsDeltaFromDate(ctx, {
+          userId: activity.userId,
+          challengeId: activity.challengeId,
+          categoryId: oldCatId,
+          loggedDate: activity.loggedDate,
+          challengeStartDate: challenge.startDate,
           pointsDelta: -activity.pointsEarned,
           now,
         });
@@ -703,6 +726,8 @@ export const adminEditActivityForUser = internalMutation({
         streakMinPoints: challenge.streakMinPoints,
         now,
         categoryId: apiTypeChanged ? undefined : effectiveApiActivityType?.categoryId,
+        loggedDate: apiWeeklyNeedsSwap ? undefined : newApiLoggedDate,
+        challengeStartDate: apiWeeklyNeedsSwap ? undefined : challenge.startDate,
       });
 
       if (apiTypeChanged) {
@@ -710,6 +735,17 @@ export const adminEditActivityForUser = internalMutation({
           userId: activity.userId,
           challengeId: activity.challengeId,
           categoryId: effectiveApiActivityType?.categoryId,
+          pointsDelta: newApiPointsEarned,
+          now,
+        });
+      }
+      if (apiWeeklyNeedsSwap) {
+        await applyWeeklyCategoryPointsDeltaFromDate(ctx, {
+          userId: activity.userId,
+          challengeId: activity.challengeId,
+          categoryId: effectiveApiActivityType?.categoryId,
+          loggedDate: newApiLoggedDate,
+          challengeStartDate: challenge.startDate,
           pointsDelta: newApiPointsEarned,
           now,
         });

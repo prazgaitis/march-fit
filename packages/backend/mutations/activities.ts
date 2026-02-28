@@ -16,6 +16,7 @@ import { reportLatencyIfExceeded } from "../lib/latencyMonitoring";
 import { applyParticipationScoreDeltaAndRecomputeStreak } from "../lib/participationScoring";
 import { insertActivity, patchActivity } from "../lib/activityWrites";
 import { applyCategoryPointsDelta } from "../lib/categoryPoints";
+import { applyWeeklyCategoryPointsDeltaFromDate } from "../lib/weeklyCategoryPoints";
 
 // Internal mutation for seeding
 export const create = internalMutation({
@@ -235,6 +236,8 @@ export const log = mutation({
       pointsDelta: pointsEarned,
       streakMinPoints: challenge.streakMinPoints,
       categoryId: activityType.categoryId,
+      loggedDate: loggedDateTs,
+      challengeStartDate: challenge.startDate,
     });
     const currentStreak = streakUpdate?.currentStreak ?? participation.currentStreak;
 
@@ -628,12 +631,30 @@ export const editActivity = mutation({
     const typeChanged =
       args.activityTypeId !== undefined &&
       args.activityTypeId !== activity.activityTypeId;
+    const dateChanged = newLoggedDateTs !== activity.loggedDate;
+    // Weekly aggregation needs a full swap when the week or category changes.
+    const weeklyNeedsSwap = typeChanged || dateChanged;
+
     if (typeChanged) {
       const oldActivityType = await ctx.db.get(activity.activityTypeId);
       await applyCategoryPointsDelta(ctx, {
         userId: user._id,
         challengeId: activity.challengeId,
         categoryId: oldActivityType?.categoryId,
+        pointsDelta: -oldPoints,
+        now,
+      });
+    }
+    if (weeklyNeedsSwap) {
+      const oldCatId = typeChanged
+        ? (await ctx.db.get(activity.activityTypeId))?.categoryId
+        : activityType.categoryId;
+      await applyWeeklyCategoryPointsDeltaFromDate(ctx, {
+        userId: user._id,
+        challengeId: activity.challengeId,
+        categoryId: oldCatId,
+        loggedDate: activity.loggedDate,
+        challengeStartDate: challenge.startDate,
         pointsDelta: -oldPoints,
         now,
       });
@@ -649,6 +670,9 @@ export const editActivity = mutation({
       now,
       // When type changed: new category gets +newPoints; when same: apply delta
       categoryId: typeChanged ? undefined : activityType.categoryId,
+      // Skip weekly in common path when a full swap is needed (handled explicitly).
+      loggedDate: weeklyNeedsSwap ? undefined : newLoggedDateTs,
+      challengeStartDate: weeklyNeedsSwap ? undefined : challenge.startDate,
     });
     // When type changed, apply the full new points to the new category
     if (typeChanged) {
@@ -656,6 +680,17 @@ export const editActivity = mutation({
         userId: user._id,
         challengeId: activity.challengeId,
         categoryId: activityType.categoryId,
+        pointsDelta: newPoints,
+        now,
+      });
+    }
+    if (weeklyNeedsSwap) {
+      await applyWeeklyCategoryPointsDeltaFromDate(ctx, {
+        userId: user._id,
+        challengeId: activity.challengeId,
+        categoryId: activityType.categoryId,
+        loggedDate: newLoggedDateTs,
+        challengeStartDate: challenge.startDate,
         pointsDelta: newPoints,
         now,
       });
@@ -729,6 +764,8 @@ export const remove = mutation({
       streakMinPoints: challenge.streakMinPoints,
       now,
       categoryId: deletedActivityType?.categoryId,
+      loggedDate: activity.loggedDate,
+      challengeStartDate: challenge.startDate,
     });
 
       return { deleted: true };
