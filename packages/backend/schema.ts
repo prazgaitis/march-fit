@@ -182,7 +182,8 @@ export default defineSchema({
     .index("challengeLoggedDate", ["challengeId", "loggedDate"])
     .index("externalUnique", ["userId", "challengeId", "externalId"])
     .index("by_user_challenge_date", ["userId", "challengeId", "loggedDate"])
-    .index("challengeFlagged", ["challengeId", "flagged"]),
+    .index("challengeFlagged", ["challengeId", "flagged"])
+    .index("sourceExternalId", ["source", "externalId"]),
 
   // Flags
   flags: defineTable({

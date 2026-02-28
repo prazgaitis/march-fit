@@ -315,14 +315,12 @@ export const deleteFromStrava = internalMutation({
   handler: async (ctx, args) => {
     const startedAt = Date.now();
     try {
-      // Find all activities with this external ID
+      // Find all activities with this external ID using the sourceExternalId index
+      // (avoids full table scan that hits Convex's 16MB read limit)
       const activities = await ctx.db
         .query("activities")
-        .filter((q) =>
-          q.and(
-            q.eq(q.field("source"), "strava"),
-            q.eq(q.field("externalId"), args.externalId)
-          )
+        .withIndex("sourceExternalId", (q) =>
+          q.eq("source", "strava").eq("externalId", args.externalId)
         )
         .collect();
 
