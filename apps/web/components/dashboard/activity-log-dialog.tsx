@@ -468,6 +468,11 @@ export function ActivityLogDialog({ challengeId, challengeStartDate, trigger }: 
         setUploadProgress(null);
       }
 
+      // Capture browser timezone and local time (no permissions needed)
+      const browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      const now = new Date();
+      const localTime = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+
       const result = await logActivity({
         challengeId: challengeId as Id<"challenges">,
         activityTypeId: form.activityTypeId as Id<"activityTypes">,
@@ -475,6 +480,8 @@ export function ActivityLogDialog({ challengeId, challengeStartDate, trigger }: 
         metrics,
         notes: !notesIsEmpty && form.notes && !isEditorContentEmpty(form.notes) ? form.notes : undefined,
         mediaIds,
+        timezone: browserTimezone,
+        localTime,
         source: "manual",
       });
 

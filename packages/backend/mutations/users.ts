@@ -216,6 +216,7 @@ export const updateUser = mutation({
     avatarUrl: v.optional(v.string()),
     gender: v.optional(v.union(v.literal("male"), v.literal("female"))),
     age: v.optional(v.number()),
+    location: v.optional(v.string()), // Self-entered location (e.g., "Chicago, IL")
   },
   handler: async (ctx, args) => {
     const { userId, ...updates } = args;

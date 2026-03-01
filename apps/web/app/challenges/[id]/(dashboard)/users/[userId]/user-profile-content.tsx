@@ -12,6 +12,7 @@ import {
   Calendar,
   Flame,
   Loader2,
+  MapPin,
   Medal,
   Mountain,
   Send,
@@ -170,6 +171,12 @@ export function UserProfileContent({
                     {user.name ?? user.username}
                   </h2>
                   <p className="text-muted-foreground">@{user.username}</p>
+                  {user.location && (
+                    <p className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
+                      <MapPin className="h-3.5 w-3.5" />
+                      {user.location}
+                    </p>
+                  )}
                 </div>
 
                 {/* Settings Button (own profile) or Follow Button */}

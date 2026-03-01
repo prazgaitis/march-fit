@@ -9,6 +9,7 @@ export interface UserAvatarUser {
   name: string | null;
   username: string;
   avatarUrl: string | null;
+  location?: string | null;
 }
 
 interface UserAvatarProps {

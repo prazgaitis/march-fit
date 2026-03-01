@@ -44,6 +44,7 @@
     "challenge:create:prod": "bash scripts/create-challenge.sh --prod",
     "challenge:delete": "bash scripts/delete-challenge.sh",
     "challenge:delete:prod": "bash scripts/delete-challenge.sh --prod",
+    "admin:sync-prod-to-local": "bash scripts/admin-sync-prod-to-local.sh",
     "e2e": "pnpm -F e2e test",
     "e2e:headed": "pnpm -F e2e test:headed",
     "prepare": "husky"

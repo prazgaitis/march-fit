@@ -94,6 +94,7 @@ export const getById = query({
         username: user.username,
         name: user.name,
         avatarUrl: user.avatarUrl,
+        location: user.location ?? null,
       },
       activityType: {
         id: activityType._id,
@@ -249,6 +250,7 @@ export const getChallengeFeed = query({
                 username: user.username,
                 name: user.name,
                 avatarUrl: user.avatarUrl,
+                location: user.location ?? null,
               }
             : null,
           activityType: activityType

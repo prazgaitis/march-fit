@@ -218,6 +218,7 @@ export const getProfile = query({
         username: user.username,
         name: user.name,
         avatarUrl: user.avatarUrl,
+        location: user.location ?? null,
         createdAt: user.createdAt,
       },
       challenge: {

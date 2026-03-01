@@ -9,7 +9,9 @@
  */
 
 import type * as actions_addMarch2026Categories from "../actions/addMarch2026Categories.js";
+import type * as actions_backfillActivityExternalData from "../actions/backfillActivityExternalData.js";
 import type * as actions_backfillCategoryPoints from "../actions/backfillCategoryPoints.js";
+import type * as actions_backfillWeeklyCategoryPoints from "../actions/backfillWeeklyCategoryPoints.js";
 import type * as actions_cleanup from "../actions/cleanup.js";
 import type * as actions_clear from "../actions/clear.js";
 import type * as actions_createChallengeFromConfig from "../actions/createChallengeFromConfig.js";
@@ -49,6 +51,8 @@ import type * as lib_scoring from "../lib/scoring.js";
 import type * as lib_strava from "../lib/strava.js";
 import type * as lib_streak from "../lib/streak.js";
 import type * as lib_stripe from "../lib/stripe.js";
+import type * as lib_weeklyCategoryPoints from "../lib/weeklyCategoryPoints.js";
+import type * as lib_weeklyPoints from "../lib/weeklyPoints.js";
 import type * as lib_weeks from "../lib/weeks.js";
 import type * as migrations from "../migrations.js";
 import type * as mutations_achievements from "../mutations/achievements.js";
@@ -57,7 +61,10 @@ import type * as mutations_activityTypes from "../mutations/activityTypes.js";
 import type * as mutations_admin from "../mutations/admin.js";
 import type * as mutations_apiKeys from "../mutations/apiKeys.js";
 import type * as mutations_apiMutations from "../mutations/apiMutations.js";
+import type * as mutations_backfillActivityExternalData from "../mutations/backfillActivityExternalData.js";
 import type * as mutations_backfillCategoryPoints from "../mutations/backfillCategoryPoints.js";
+import type * as mutations_backfillInviteCount from "../mutations/backfillInviteCount.js";
+import type * as mutations_backfillWeeklyCategoryPoints from "../mutations/backfillWeeklyCategoryPoints.js";
 import type * as mutations_categories from "../mutations/categories.js";
 import type * as mutations_challengeInvites from "../mutations/challengeInvites.js";
 import type * as mutations_challenges from "../mutations/challenges.js";
@@ -86,7 +93,9 @@ import type * as queries_activities from "../queries/activities.js";
 import type * as queries_activityTypes from "../queries/activityTypes.js";
 import type * as queries_admin from "../queries/admin.js";
 import type * as queries_apiKeys from "../queries/apiKeys.js";
+import type * as queries_backfillActivityExternalData from "../queries/backfillActivityExternalData.js";
 import type * as queries_backfillCategoryPoints from "../queries/backfillCategoryPoints.js";
+import type * as queries_backfillWeeklyCategoryPoints from "../queries/backfillWeeklyCategoryPoints.js";
 import type * as queries_categories from "../queries/categories.js";
 import type * as queries_challengeInvites from "../queries/challengeInvites.js";
 import type * as queries_challenges from "../queries/challenges.js";
@@ -122,7 +131,9 @@ import type {
  */
 declare const fullApi: ApiFromModules<{
   "actions/addMarch2026Categories": typeof actions_addMarch2026Categories;
+  "actions/backfillActivityExternalData": typeof actions_backfillActivityExternalData;
   "actions/backfillCategoryPoints": typeof actions_backfillCategoryPoints;
+  "actions/backfillWeeklyCategoryPoints": typeof actions_backfillWeeklyCategoryPoints;
   "actions/cleanup": typeof actions_cleanup;
   "actions/clear": typeof actions_clear;
   "actions/createChallengeFromConfig": typeof actions_createChallengeFromConfig;
@@ -162,6 +173,8 @@ declare const fullApi: ApiFromModules<{
   "lib/strava": typeof lib_strava;
   "lib/streak": typeof lib_streak;
   "lib/stripe": typeof lib_stripe;
+  "lib/weeklyCategoryPoints": typeof lib_weeklyCategoryPoints;
+  "lib/weeklyPoints": typeof lib_weeklyPoints;
   "lib/weeks": typeof lib_weeks;
   migrations: typeof migrations;
   "mutations/achievements": typeof mutations_achievements;
@@ -170,7 +183,10 @@ declare const fullApi: ApiFromModules<{
   "mutations/admin": typeof mutations_admin;
   "mutations/apiKeys": typeof mutations_apiKeys;
   "mutations/apiMutations": typeof mutations_apiMutations;
+  "mutations/backfillActivityExternalData": typeof mutations_backfillActivityExternalData;
   "mutations/backfillCategoryPoints": typeof mutations_backfillCategoryPoints;
+  "mutations/backfillInviteCount": typeof mutations_backfillInviteCount;
+  "mutations/backfillWeeklyCategoryPoints": typeof mutations_backfillWeeklyCategoryPoints;
   "mutations/categories": typeof mutations_categories;
   "mutations/challengeInvites": typeof mutations_challengeInvites;
   "mutations/challenges": typeof mutations_challenges;
@@ -199,7 +215,9 @@ declare const fullApi: ApiFromModules<{
   "queries/activityTypes": typeof queries_activityTypes;
   "queries/admin": typeof queries_admin;
   "queries/apiKeys": typeof queries_apiKeys;
+  "queries/backfillActivityExternalData": typeof queries_backfillActivityExternalData;
   "queries/backfillCategoryPoints": typeof queries_backfillCategoryPoints;
+  "queries/backfillWeeklyCategoryPoints": typeof queries_backfillWeeklyCategoryPoints;
   "queries/categories": typeof queries_categories;
   "queries/challengeInvites": typeof queries_challengeInvites;
   "queries/challenges": typeof queries_challenges;
