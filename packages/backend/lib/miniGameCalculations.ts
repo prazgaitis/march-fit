@@ -5,14 +5,14 @@
  * (previewStart/previewEnd) to guarantee identical results.
  */
 import type { Id } from "../_generated/dataModel";
+import type { QueryCtx } from "../_generated/server";
 import { notDeleted } from "./activityFilters";
 import { formatDateOnlyFromUtcMs } from "./dateOnly";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-/** Minimal read-only database context (works in both queries and mutations). */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type ReadCtx = { db: any };
+/** Read-only database context (works in both queries and mutations). */
+export type ReadCtx = Pick<QueryCtx, "db">;
 
 export type LeaderboardEntry = {
   userId: Id<"users">;
@@ -102,17 +102,14 @@ export async function getLeaderboard(
 ): Promise<LeaderboardEntry[]> {
   const participations = await ctx.db
     .query("userChallenges")
-    .withIndex("challengeId", (q: any) => q.eq("challengeId", challengeId))
+    .withIndex("challengeId", (q) => q.eq("challengeId", challengeId))
     .collect();
 
-  participations.sort(
-    (a: { totalPoints: number }, b: { totalPoints: number }) =>
-      b.totalPoints - a.totalPoints,
-  );
+  participations.sort((a, b) => b.totalPoints - a.totalPoints);
 
-  return participations.map((p: any) => ({
-    userId: p.userId as Id<"users">,
-    totalPoints: p.totalPoints as number,
+  return participations.map((p) => ({
+    userId: p.userId,
+    totalPoints: p.totalPoints,
   }));
 }
 
@@ -122,10 +119,10 @@ async function userSummary(ctx: ReadCtx, userId: Id<"users">) {
   const user = await ctx.db.get(userId);
   if (!user) return null;
   return {
-    id: user._id as Id<"users">,
-    username: user.username as string | undefined,
-    name: user.name as string | undefined,
-    avatarUrl: user.avatarUrl as string | undefined,
+    id: user._id,
+    username: user.username,
+    name: user.name,
+    avatarUrl: user.avatarUrl,
   };
 }
 
@@ -373,7 +370,7 @@ export async function calculateMaxDailyPoints(
 ): Promise<number> {
   const activities = await ctx.db
     .query("activities")
-    .withIndex("by_user_challenge_date", (q: any) =>
+    .withIndex("by_user_challenge_date", (q) =>
       q.eq("userId", userId).eq("challengeId", challengeId),
     )
     .filter(notDeleted)
@@ -405,7 +402,7 @@ export async function getPointsInPeriod(
 ): Promise<number> {
   const activities = await ctx.db
     .query("activities")
-    .withIndex("by_user_challenge_date", (q: any) =>
+    .withIndex("by_user_challenge_date", (q) =>
       q.eq("userId", userId).eq("challengeId", challengeId),
     )
     .filter(notDeleted)
@@ -413,12 +410,12 @@ export async function getPointsInPeriod(
 
   return activities
     .filter(
-      (a: { loggedDate: number; source: string }) =>
+      (a) =>
         a.loggedDate >= startDate &&
         a.loggedDate <= endDate &&
         a.source !== "mini_game",
     )
-    .reduce((sum: number, a: { pointsEarned: number }) => sum + a.pointsEarned, 0);
+    .reduce((sum, a) => sum + a.pointsEarned, 0);
 }
 
 /**
@@ -434,7 +431,7 @@ export async function getMaxDailyPointsInPeriod(
 ): Promise<number> {
   const activities = await ctx.db
     .query("activities")
-    .withIndex("by_user_challenge_date", (q: any) =>
+    .withIndex("by_user_challenge_date", (q) =>
       q.eq("userId", userId).eq("challengeId", challengeId),
     )
     .filter(notDeleted)
