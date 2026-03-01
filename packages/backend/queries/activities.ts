@@ -184,12 +184,50 @@ export const getChallengeFeed = query({
       }
     }
 
-    const activities = await ctx.db
-      .query("activities")
-      .withIndex("challengeId", (q) => q.eq("challengeId", args.challengeId))
-      .filter(notDeleted)
-      .order("desc")
-      .paginate(args.paginationOpts);
+    if (args.followingOnly && !currentUser) {
+      return {
+        page: [],
+        isDone: true,
+        continueCursor: "",
+      };
+    }
+
+    if (args.followingOnly && followingIds && followingIds.size === 0) {
+      return {
+        page: [],
+        isDone: true,
+        continueCursor: "",
+      };
+    }
+
+    const paginateActivities = async (cursor: string | null) =>
+      ctx.db
+        .query("activities")
+        .withIndex("challengeId", (q) => q.eq("challengeId", args.challengeId))
+        .filter(notDeleted)
+        .order("desc")
+        .paginate({
+          ...args.paginationOpts,
+          cursor,
+        });
+
+    let activities = await paginateActivities(args.paginationOpts.cursor);
+
+    if (args.followingOnly && followingIds) {
+      let skippedEmptyPages = 0;
+      const maxSkippedEmptyPages = 25;
+
+      while (
+        !activities.isDone &&
+        !activities.page.some((activity) =>
+          followingIds.has(activity.userId as string)
+        ) &&
+        skippedEmptyPages < maxSkippedEmptyPages
+      ) {
+        activities = await paginateActivities(activities.continueCursor);
+        skippedEmptyPages += 1;
+      }
+    }
 
     const page = await Promise.all(
       activities.page.map(async (activity) => {
