@@ -312,6 +312,15 @@ export const createFromStrava = internalMutation({
     });
 
       return activityId;
+    } catch (error: unknown) {
+      const stravaId = (args.stravaActivity as StravaActivity)?.id;
+      const stravaType = (args.stravaActivity as StravaActivity)?.sport_type;
+      const argsSize = JSON.stringify(args.stravaActivity).length;
+      console.error(
+        `createFromStrava FAILED: userId=${args.userId} challengeId=${args.challengeId} stravaId=${stravaId} stravaType=${stravaType} argsBytes=${argsSize}`,
+        error,
+      );
+      throw error;
     } finally {
       reportLatencyIfExceeded({
         operation: "mutations.stravaWebhook.createFromStrava",
