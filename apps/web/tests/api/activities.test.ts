@@ -2011,7 +2011,6 @@ describe('Activities Logic', () => {
       expect(feed.page[0].activity._id).toBe(activityId);
       expect(feed.page[0].activity.pointsEarned).toBe(10);
     });
-
     it('followingOnly skips empty pages so first response includes followed activity when available', async () => {
       const viewerEmail = "viewer-following-feed@example.com";
       const viewerId = await createTestUser(t, { email: viewerEmail });
@@ -2091,6 +2090,117 @@ describe('Activities Logic', () => {
 
       expect(feed.page).toHaveLength(1);
       expect(feed.page[0].activity._id).toBe(followedActivityId);
+    });
+
+    it('followingOnly pagination supports load-more without server errors', async () => {
+      const viewerEmail = "viewer-following-load-more@example.com";
+      const viewerId = await createTestUser(t, { email: viewerEmail });
+      const tWithViewer = t.withIdentity({
+        subject: "viewer-following-load-more",
+        email: viewerEmail,
+      });
+      const challengeId = await createTestChallenge(t, viewerId);
+      const followedUserId = await createTestUser(t, {
+        email: "followed-load-more@example.com",
+      });
+      const nonFollowedUserId = await createTestUser(t, {
+        email: "non-followed-load-more@example.com",
+      });
+
+      const activityTypeId = await t.run(async (ctx) => {
+        return await ctx.db.insert("activityTypes", {
+          challengeId,
+          name: "Run",
+          scoringConfig: { unit: "minutes", pointsPerUnit: 1, basePoints: 0 },
+          contributesToStreak: true,
+          isNegative: false,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+      });
+
+      await t.run(async (ctx) => {
+        await ctx.db.insert("follows", {
+          followerId: viewerId,
+          followingId: followedUserId,
+          createdAt: Date.now(),
+        });
+      });
+
+      const firstFollowedActivityId = await t.run(async (ctx) => {
+        return await insertTestActivity(ctx, {
+          userId: followedUserId,
+          challengeId,
+          activityTypeId,
+          loggedDate: dateOnlyToUtcMs("2024-01-15"),
+          metrics: { minutes: 20 },
+          source: "manual",
+          pointsEarned: 20,
+          flagged: false,
+          adminCommentVisibility: "internal",
+          resolutionStatus: "pending",
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+      });
+
+      await t.run(async (ctx) => {
+        for (let i = 0; i < 8; i += 1) {
+          await insertTestActivity(ctx, {
+            userId: nonFollowedUserId,
+            challengeId,
+            activityTypeId,
+            loggedDate: dateOnlyToUtcMs("2024-01-16"),
+            metrics: { minutes: 5 + i },
+            source: "manual",
+            pointsEarned: 5 + i,
+            flagged: false,
+            adminCommentVisibility: "internal",
+            resolutionStatus: "pending",
+            createdAt: Date.now(),
+            updatedAt: Date.now(),
+          });
+        }
+      });
+
+      const secondFollowedActivityId = await t.run(async (ctx) => {
+        return await insertTestActivity(ctx, {
+          userId: followedUserId,
+          challengeId,
+          activityTypeId,
+          loggedDate: dateOnlyToUtcMs("2024-01-14"),
+          metrics: { minutes: 10 },
+          source: "manual",
+          pointsEarned: 10,
+          flagged: false,
+          adminCommentVisibility: "internal",
+          resolutionStatus: "pending",
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+      });
+
+      const page1 = await tWithViewer.query(api.queries.activities.getChallengeFeed, {
+        challengeId,
+        followingOnly: true,
+        paginationOpts: { numItems: 1, cursor: null },
+      });
+      expect(page1.page).toHaveLength(1);
+      expect([firstFollowedActivityId, secondFollowedActivityId]).toContain(
+        page1.page[0].activity._id
+      );
+      expect(page1.isDone).toBe(false);
+
+      const page2 = await tWithViewer.query(api.queries.activities.getChallengeFeed, {
+        challengeId,
+        followingOnly: true,
+        paginationOpts: { numItems: 1, cursor: page1.continueCursor },
+      });
+      expect(page2.page).toHaveLength(1);
+      expect([firstFollowedActivityId, secondFollowedActivityId]).toContain(
+        page2.page[0].activity._id
+      );
+      expect(page2.page[0].activity._id).not.toBe(page1.page[0].activity._id);
     });
   });
 });
