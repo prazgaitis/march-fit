@@ -25,7 +25,7 @@ const RichTextEditor = dynamic(
   () => import('@/components/editor/rich-text-editor').then((mod) => ({ default: mod.RichTextEditor })),
   { ssr: false, loading: () => <div className="min-h-[120px] w-full animate-pulse rounded-md border border-input bg-background" /> }
 );
-import { useActivityNotification } from './challenge-realtime-context';
+import { useActivityNotification, useChallengeSummary } from './challenge-realtime-context';
 import { UserAvatar } from '@/components/user-avatar';
 import { UserChallengeDisplay } from '@/components/user-challenge-display';
 import { Button } from '@/components/ui/button';
@@ -60,6 +60,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/lib/utils';
 import { PointsDisplay } from '@/components/ui/points-display';
 import { captureAppException, captureAppMessage } from '@/lib/sentry';
+import { isLatestActivityVisibleInFeed } from '@/lib/feed-notification';
 
 interface BonusThreshold {
   metric: string;
@@ -119,9 +120,11 @@ export function ActivityFeed({
   initialLightweightMode = false,
 }: ActivityFeedProps) {
   const connectionState = useConvexConnectionState();
+  const { summary } = useChallengeSummary();
   const { hasNewActivity, acknowledgeActivity } = useActivityNotification();
   const { users: mentionUsers } = useMentionableUsers(challengeId);
   const [feedFilter, setFeedFilter] = useState<FeedFilter>('all');
+  const [hasLoadedFollowingFeed, setHasLoadedFollowingFeed] = useState(false);
   const [useHttpFallback, setUseHttpFallback] = useState(false);
   const [httpItems, setHttpItems] = useState<ActivityFeedItem[]>(initialItems);
   const [httpCursor, setHttpCursor] = useState<string | null>(null);
@@ -309,15 +312,46 @@ export function ActivityFeed({
     return httpItems;
   }, [feedFilter, httpItems, initialItems, liveDisplayResults, useHttpFallback]);
 
+  const latestActivityVisible = useMemo(
+    () =>
+      isLatestActivityVisibleInFeed(displayResults, summary.latestActivityId),
+    [displayResults, summary.latestActivityId],
+  );
+
+  useEffect(() => {
+    if (!hasNewActivity || !latestActivityVisible) {
+      return;
+    }
+
+    acknowledgeActivity();
+  }, [acknowledgeActivity, hasNewActivity, latestActivityVisible]);
+
+  const showRefreshPrompt =
+    feedFilter === 'all' && hasNewActivity && !latestActivityVisible;
+
   const effectiveIsLoading = useHttpFallback ? httpLoading : isLoading;
   const canLoadMore = useHttpFallback
     ? !httpIsDone && !httpLoading && httpCursor !== null
     : status === "CanLoadMore";
 
+  useEffect(() => {
+    if (feedFilter === "following" && !effectiveIsLoading) {
+      setHasLoadedFollowingFeed(true);
+    }
+  }, [effectiveIsLoading, feedFilter]);
+
+  const showFollowingInitialLoadingHint =
+    feedFilter === "following" &&
+    !hasLoadedFollowingFeed &&
+    effectiveIsLoading &&
+    (displayResults?.length ?? 0) === 0;
+
   const feedStatus = useMemo(() => {
     const hasInitialFeed = feedFilter === "all" && (displayResults?.length ?? 0) > 0;
     if (effectiveIsLoading && !hasInitialFeed) {
-      return "Loading recent activities...";
+      return feedFilter === "following"
+        ? "Loading activity from people you follow..."
+        : "Loading recent activities...";
     }
     return null;
   }, [displayResults, effectiveIsLoading, feedFilter]);
@@ -354,7 +388,7 @@ export function ActivityFeed({
         </div>
       </div>
 
-      {hasNewActivity && (
+      {showRefreshPrompt && (
         <Alert className="border-primary/30 bg-primary/10">
           <AlertTitle className="font-semibold">New activity!</AlertTitle>
           <AlertDescription className="flex items-center justify-between gap-2">
@@ -372,6 +406,12 @@ export function ActivityFeed({
         <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
           <Loader2 className="h-4 w-4 animate-spin" />
           {feedStatus}
+        </div>
+      )}
+
+      {showFollowingInitialLoadingHint && (
+        <div className="rounded-md border border-zinc-800 bg-zinc-950/60 px-3 py-2 text-xs text-zinc-400">
+          Gathering activities from people you follow...
         </div>
       )}
 
