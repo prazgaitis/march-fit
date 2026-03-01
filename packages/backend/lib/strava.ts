@@ -42,6 +42,12 @@ export interface StravaActivity {
   photo_count: number;
   private: boolean;
   flagged: boolean;
+  // Location data from detailed activity response
+  start_latlng?: [number, number] | null;
+  location_city?: string | null;
+  location_state?: string | null;
+  location_country?: string | null;
+  timezone?: string; // e.g., "(GMT-06:00) America/Chicago"
   // Photos from detailed activity response
   photos?: {
     primary?: {
@@ -54,6 +60,12 @@ export interface StravaActivity {
 export interface MappedActivityData {
   activityTypeId: Id<"activityTypes">;
   loggedDate: string;
+  localTime: string | null; // "HH:MM" from start_date_local
+  timezone: string | null; // IANA timezone extracted from Strava's timezone field
+  locationCity: string | null;
+  locationState: string | null;
+  locationCountry: string | null;
+  startLatlng: [number, number] | null;
   metrics: Record<string, unknown>;
   notes: string | null;
   imageUrl: string | null;
@@ -103,6 +115,25 @@ function extractStravaPhotos(stravaActivity: StravaActivity): {
   return { primaryUrl, allUrls };
 }
 
+/**
+ * Extract IANA timezone from Strava's timezone field.
+ * Strava returns e.g. "(GMT-06:00) America/Chicago" — we extract "America/Chicago".
+ */
+function extractStravaTimezone(stravaTz?: string): string | null {
+  if (!stravaTz) return null;
+  const match = stravaTz.match(/\)\s*(.+)$/);
+  return match ? match[1] : null;
+}
+
+/**
+ * Extract local time "HH:MM" from Strava's start_date_local ISO string.
+ */
+function extractLocalTime(startDateLocal?: string): string | null {
+  if (!startDateLocal) return null;
+  const match = startDateLocal.match(/T(\d{2}:\d{2})/);
+  return match ? match[1] : null;
+}
+
 export function mapStravaActivity(
   stravaActivity: StravaActivity,
   activityTypeId: Id<"activityTypes">,
@@ -116,9 +147,22 @@ export function mapStravaActivity(
   // Extract photo URLs from Strava activity
   const { primaryUrl, allUrls } = extractStravaPhotos(stravaActivity);
 
+  // Extract location & time context
+  const localTime = extractLocalTime(stravaActivity.start_date_local);
+  const timezone = extractStravaTimezone(stravaActivity.timezone);
+  const startLatlng = stravaActivity.start_latlng && stravaActivity.start_latlng.length === 2
+    ? stravaActivity.start_latlng
+    : null;
+
   return {
     activityTypeId,
     loggedDate,
+    localTime,
+    timezone,
+    locationCity: stravaActivity.location_city ?? null,
+    locationState: stravaActivity.location_state ?? null,
+    locationCountry: stravaActivity.location_country ?? null,
+    startLatlng,
     metrics,
     notes: null,
     imageUrl: primaryUrl,

@@ -2,10 +2,9 @@
 
 import { memo } from "react";
 import Link from "next/link";
-import { Trophy, Flame } from "lucide-react";
+import { Trophy } from "lucide-react";
 
-import { UserAvatar } from "@/components/user-avatar";
-import { PointsDisplay } from "@/components/ui/points-display";
+import { UserChallengeDisplay } from "@/components/user-challenge-display";
 import { cn } from "@/lib/utils";
 
 interface LeaderboardEntry {
@@ -15,6 +14,7 @@ interface LeaderboardEntry {
     name: string | null;
     username: string;
     avatarUrl: string | null;
+    location?: string | null;
   };
   totalPoints: number;
   currentStreak: number;
@@ -76,47 +76,28 @@ const LeaderboardEntryRow = memo(function LeaderboardEntryRow({
     >
       {getRankBadge(entry.rank)}
 
-      <UserAvatar
-        user={{
-          id: entry.user.id,
-          name: entry.user.name,
-          username: entry.user.username,
-          avatarUrl: entry.user.avatarUrl,
-        }}
+      <UserChallengeDisplay
+        user={entry.user}
         challengeId={challengeId}
         disableLink
         size="md"
+        show={{
+          name: true,
+          username: true,
+          location: true,
+          points: true,
+          streak: true,
+        }}
+        points={entry.totalPoints}
+        streak={entry.currentStreak}
+        highlight={false}
+        suffix={
+          isCurrentUser ? (
+            <span className="text-xs text-indigo-400">(You)</span>
+          ) : undefined
+        }
+        className="flex-1"
       />
-
-      <div className="flex-1 min-w-0">
-        <p className="font-medium text-white truncate">
-          {entry.user.name || entry.user.username}
-          {isCurrentUser && (
-            <span className="ml-2 text-xs text-indigo-400">(You)</span>
-          )}
-        </p>
-        <p className="text-sm text-zinc-500">@{entry.user.username}</p>
-      </div>
-
-      <div className="text-right">
-        <PointsDisplay
-          points={entry.totalPoints}
-          size="lg"
-          showSign={false}
-          showLabel={false}
-          className={cn("font-bold", entry.totalPoints >= 0 && "text-white")}
-        />
-        <p className="text-xs text-zinc-500">points</p>
-      </div>
-
-      {entry.currentStreak > 0 && (
-        <div className="flex items-center gap-1 rounded-full bg-orange-500/20 px-3 py-1">
-          <Flame className="h-4 w-4 text-orange-500" />
-          <span className="text-sm font-medium text-orange-500">
-            {entry.currentStreak}
-          </span>
-        </div>
-      )}
     </Link>
   );
 });

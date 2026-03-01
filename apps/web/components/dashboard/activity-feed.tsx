@@ -27,6 +27,7 @@ const RichTextEditor = dynamic(
 );
 import { useActivityNotification } from './challenge-realtime-context';
 import { UserAvatar, UserAvatarInline } from '@/components/user-avatar';
+import { UserChallengeDisplay } from '@/components/user-challenge-display';
 import { Button } from '@/components/ui/button';
 import {
   Card,
@@ -83,6 +84,7 @@ interface ActivityFeedItem {
     name: string | null;
     username: string;
     avatarUrl: string | null;
+    location?: string | null;
   };
   activityType: {
     id: string | null;
@@ -610,9 +612,11 @@ const ActivityCard = memo(function ActivityCard({
   return (
     <Card className="cursor-pointer overflow-hidden transition-colors hover:bg-muted/30" onClick={handleCardClick}>
       <CardHeader>
-        <UserAvatarInline
+        <UserChallengeDisplay
           user={item.user}
           challengeId={challengeId}
+          size="sm"
+          show={{ name: true, username: true, location: true }}
           suffix={
             <>
               <span aria-hidden="true">•</span>

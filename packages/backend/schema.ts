@@ -10,6 +10,7 @@ export default defineSchema({
     avatarUrl: v.optional(v.string()),
     gender: v.optional(v.union(v.literal("male"), v.literal("female"))),
     age: v.optional(v.number()),
+    location: v.optional(v.string()), // Self-entered location (e.g., "Chicago, IL")
     role: v.union(v.literal("user"), v.literal("admin")),
     createdAt: v.number(),
     updatedAt: v.number(),
@@ -161,6 +162,13 @@ export default defineSchema({
     resolutionNotes: v.optional(v.string()),
     resolvedAt: v.optional(v.number()),
     resolvedById: v.optional(v.id("users")),
+    // Local time & location context
+    localTime: v.optional(v.string()), // "HH:MM" from user's local clock or Strava start_date_local
+    timezone: v.optional(v.string()), // IANA timezone (e.g., "America/Chicago")
+    locationCity: v.optional(v.string()),
+    locationState: v.optional(v.string()),
+    locationCountry: v.optional(v.string()),
+    startLatlng: v.optional(v.array(v.number())), // [lat, lng] from Strava
     source: v.union(
       v.literal("manual"),
       v.literal("strava"),

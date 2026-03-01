@@ -30,6 +30,7 @@ interface SettingsContentProps {
     name?: string;
     email: string;
     avatarUrl?: string;
+    location?: string;
   };
   currentChallengeId: Id<"challenges">;
   allowGenderEdit?: boolean;
@@ -50,6 +51,7 @@ export function SettingsContent({
   // Form state
   const [name, setName] = useState(currentUser.name ?? "");
   const [avatarUrl, setAvatarUrl] = useState(currentUser.avatarUrl ?? "");
+  const [location, setLocation] = useState(currentUser.location ?? "");
   // Gender: "male" | "female" | "prefer_not" (maps to undefined/clear)
   const [gender, setGender] = useState<"male" | "female" | "prefer_not">(
     currentGender === "male" ? "male" : currentGender === "female" ? "female" : "prefer_not"
@@ -73,6 +75,7 @@ export function SettingsContent({
         userId: currentUser._id,
         name: name.trim() || undefined,
         avatarUrl: avatarUrl.trim() || undefined,
+        location: location.trim() || undefined,
         ...(allowGenderEdit
           ? { gender: gender === "prefer_not" ? undefined : gender }
           : {}),
@@ -130,6 +133,21 @@ export function SettingsContent({
               onChange={(e) => setName(e.target.value)}
               placeholder="Your name"
             />
+          </div>
+
+          {/* Location Field */}
+          <div className="space-y-2">
+            <Label htmlFor="location">Location</Label>
+            <Input
+              id="location"
+              type="text"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              placeholder="e.g., Chicago, IL"
+            />
+            <p className="text-xs text-muted-foreground">
+              Shown on your profile
+            </p>
           </div>
 
           {/* Gender Field (only shown when allowGenderEdit is enabled) */}

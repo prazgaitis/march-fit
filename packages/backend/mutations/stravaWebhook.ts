@@ -172,6 +172,12 @@ export const createFromStrava = internalMutation({
           pointsEarned,
           triggeredBonuses: triggeredBonuses.length > 0 ? triggeredBonuses : undefined,
           imageUrl: mappedActivity.imageUrl ?? existing.imageUrl,
+          localTime: mappedActivity.localTime ?? undefined,
+          timezone: mappedActivity.timezone ?? undefined,
+          locationCity: mappedActivity.locationCity ?? undefined,
+          locationState: mappedActivity.locationState ?? undefined,
+          locationCountry: mappedActivity.locationCountry ?? undefined,
+          startLatlng: mappedActivity.startLatlng ?? undefined,
           externalData: mappedActivity.externalData,
           deletedAt: undefined,
           deletedById: undefined,
@@ -200,6 +206,12 @@ export const createFromStrava = internalMutation({
         pointsEarned,
         triggeredBonuses: triggeredBonuses.length > 0 ? triggeredBonuses : undefined,
         imageUrl: mappedActivity.imageUrl ?? existing.imageUrl,
+        localTime: mappedActivity.localTime ?? undefined,
+        timezone: mappedActivity.timezone ?? undefined,
+        locationCity: mappedActivity.locationCity ?? undefined,
+        locationState: mappedActivity.locationState ?? undefined,
+        locationCountry: mappedActivity.locationCountry ?? undefined,
+        startLatlng: mappedActivity.startLatlng ?? undefined,
         externalData: mappedActivity.externalData,
         updatedAt: Date.now(),
       });
@@ -262,7 +274,7 @@ export const createFromStrava = internalMutation({
       return existing._id;
     }
 
-    // Create new activity (include Strava photo URL if available)
+    // Create new activity (include Strava photo URL and location data if available)
     const activityId = await insertActivity(ctx, {
       userId: args.userId,
       challengeId: args.challengeId,
@@ -271,6 +283,12 @@ export const createFromStrava = internalMutation({
       metrics: mappedActivity.metrics,
       notes: mappedActivity.notes ?? undefined,
       imageUrl: mappedActivity.imageUrl ?? undefined,
+      localTime: mappedActivity.localTime ?? undefined,
+      timezone: mappedActivity.timezone ?? undefined,
+      locationCity: mappedActivity.locationCity ?? undefined,
+      locationState: mappedActivity.locationState ?? undefined,
+      locationCountry: mappedActivity.locationCountry ?? undefined,
+      startLatlng: mappedActivity.startLatlng ?? undefined,
       source: "strava",
       externalId: mappedActivity.externalId,
       externalData: mappedActivity.externalData,

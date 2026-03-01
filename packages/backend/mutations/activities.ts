@@ -58,6 +58,13 @@ export const log = mutation({
     notes: v.optional(v.string()),
     imageUrl: v.optional(v.string()),
     mediaIds: v.optional(v.array(v.id("_storage"))),
+    // Local time & location context
+    localTime: v.optional(v.string()), // "HH:MM" from user's local clock
+    timezone: v.optional(v.string()), // IANA timezone (e.g., "America/Chicago")
+    locationCity: v.optional(v.string()),
+    locationState: v.optional(v.string()),
+    locationCountry: v.optional(v.string()),
+    startLatlng: v.optional(v.array(v.number())),
     source: v.union(
       v.literal("manual"),
       v.literal("strava"),
@@ -215,6 +222,12 @@ export const log = mutation({
       notes: args.notes,
       imageUrl: args.imageUrl,
       mediaIds: args.mediaIds,
+      localTime: args.localTime,
+      timezone: args.timezone,
+      locationCity: args.locationCity,
+      locationState: args.locationState,
+      locationCountry: args.locationCountry,
+      startLatlng: args.startLatlng,
       source: args.source,
       externalId: args.externalId,
       externalData: args.externalData,
