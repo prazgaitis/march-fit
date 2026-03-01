@@ -72,7 +72,7 @@ export interface MappedActivityData {
   stravaPhotoUrls: string[]; // All photo URLs extracted from Strava
   source: "strava";
   externalId: string;
-  externalData: StravaActivity;
+  externalData: Record<string, unknown>;
 }
 
 const SPORT_TYPE_MAPPING: Record<string, string[]> = {
@@ -134,6 +134,38 @@ function extractLocalTime(startDateLocal?: string): string | null {
   return match ? match[1] : null;
 }
 
+/**
+ * Strip large fields from a Strava API response before storing as externalData.
+ * Uses a whitelist so any new large fields Strava adds won't bloat storage.
+ * Reduces per-activity storage from 50-200KB to ~1-2KB.
+ */
+const STRAVA_KEEP_FIELDS = [
+  "id", "name", "type", "sport_type", "workout_type",
+  "start_date", "start_date_local", "timezone",
+  "elapsed_time", "moving_time",
+  "distance",
+  "average_speed", "max_speed",
+  "average_heartrate", "max_heartrate",
+  "total_elevation_gain",
+  "kudos_count", "achievement_count", "athlete_count",
+  "photo_count", "total_photo_count",
+  "photos",
+  "private", "flagged",
+  "trainer", "commute",
+] as const;
+
+function sanitizeStravaExternalData(
+  raw: Record<string, unknown>,
+): Record<string, unknown> {
+  const sanitized: Record<string, unknown> = {};
+  for (const key of STRAVA_KEEP_FIELDS) {
+    if (key in raw) {
+      sanitized[key] = raw[key];
+    }
+  }
+  return sanitized;
+}
+
 export function mapStravaActivity(
   stravaActivity: StravaActivity,
   activityTypeId: Id<"activityTypes">,
@@ -169,7 +201,9 @@ export function mapStravaActivity(
     stravaPhotoUrls: allUrls,
     source: "strava",
     externalId: stravaActivity.id.toString(),
-    externalData: stravaActivity,
+    externalData: sanitizeStravaExternalData(
+      stravaActivity as unknown as Record<string, unknown>,
+    ),
   };
 }
 
