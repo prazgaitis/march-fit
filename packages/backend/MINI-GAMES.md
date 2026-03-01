@@ -146,8 +146,10 @@ All endpoints require API key authentication (`Authorization: Bearer mf_...`).
 | `GET` | `/api/v1/mini-games/:id` | Get mini-game with participants | Any authenticated user |
 | `PATCH` | `/api/v1/mini-games/:id` | Update a draft mini-game | Challenge admin |
 | `DELETE` | `/api/v1/mini-games/:id` | Delete a draft mini-game | Challenge admin |
-| `POST` | `/api/v1/mini-games/:id/start` | Start a draft mini-game | Challenge admin |
-| `POST` | `/api/v1/mini-games/:id/end` | End an active mini-game | Challenge admin |
+| `GET` | `/api/v1/mini-games/:id/preview-start` | **Dry run:** Preview assignments before starting | Challenge admin |
+| `GET` | `/api/v1/mini-games/:id/preview-end` | **Dry run:** Preview scores before ending | Challenge admin |
+| `POST` | `/api/v1/mini-games/:id/start` | **Real run:** Start a draft mini-game (irreversible) | Challenge admin |
+| `POST` | `/api/v1/mini-games/:id/end` | **Real run:** End an active mini-game (irreversible) | Challenge admin |
 
 ### Create Mini-Game Request Body
 
@@ -178,6 +180,67 @@ All endpoints require API key authentication (`Authorization: Bearer mf_...`).
 
 All fields are optional. Only provided fields are updated.
 
+## Preview / Dry Run
+
+Both `start` and `end` are **irreversible** operations. Since participants may be in different time zones, admins should always preview the result before committing.
+
+### Preview Start (`GET /api/v1/mini-games/:id/preview-start`)
+
+Shows what assignments **would** be created if the game were started right now. The game must be in `draft` status. Returns:
+
+- **Partner Week:** Each participant with their proposed partner, rank, and points
+- **Hunt Week:** Each participant with their proposed prey and hunter, rank, and points
+- **PR Week:** Each participant with their current daily PR snapshot
+
+The response uses the exact same calculation logic as the real `start` mutation — the only difference is no records are created.
+
+**Example response:**
+```json
+{
+  "gameId": "...",
+  "type": "partner_week",
+  "status": "draft",
+  "config": { "bonusPercentage": 10 },
+  "assignments": [
+    { "userId": "...", "name": "Alice", "rank": 1, "points": 500, "partner": { "userId": "...", "name": "Bob" } },
+    { "userId": "...", "name": "Bob", "rank": 2, "points": 300, "partner": { "userId": "...", "name": "Alice" } }
+  ]
+}
+```
+
+### Preview End (`GET /api/v1/mini-games/:id/preview-end`)
+
+Shows what outcomes and bonus points **would** be awarded if the game were ended right now. The game must be in `active` status. Returns:
+
+- **Partner Week:** Each participant with their partner's earned points and the resulting bonus
+- **Hunt Week:** Each participant with rank changes, catch/caught status, and net bonus
+- **PR Week:** Each participant with initial PR, best day during game, hit/miss status, and bonus
+
+The response uses the exact same calculation logic as the real `end` mutation — the only difference is no points are awarded and no bonus activities are created.
+
+**Example response:**
+```json
+{
+  "gameId": "...",
+  "type": "hunt_week",
+  "status": "active",
+  "config": { "catchBonus": 75, "caughtPenalty": 25 },
+  "outcomes": [
+    { "userId": "...", "name": "Alice", "initialRank": 2, "currentRank": 1, "caughtPrey": true, "wasCaught": false, "bonusPoints": 75 }
+  ],
+  "totalBonusPoints": 75
+}
+```
+
+### Recommended Workflow
+
+1. Create a mini-game in `draft` status
+2. **Preview start** → review proposed assignments with stakeholders
+3. **Start** the game (locks in assignments, irreversible)
+4. Wait for the game period to complete
+5. **Preview end** → review proposed scores and bonuses
+6. **End** the game (awards points, irreversible)
+
 ## Convex Queries
 
 | Query | Description |
@@ -187,6 +250,8 @@ All fields are optional. Only provided fields are updated.
 | `queries.miniGames.getActive` | Active games only |
 | `queries.miniGames.getUserStatus` | Current user's live status in active games |
 | `queries.miniGames.getUserHistory` | User's completed games with outcomes |
+| `queries.miniGames.previewStart` | Dry run: preview assignments for a draft game |
+| `queries.miniGames.previewEnd` | Dry run: preview outcomes for an active game |
 
 ## Schema
 
@@ -227,5 +292,6 @@ All fields are optional. Only provided fields are updated.
 | `mutations/miniGames.ts` | Game creation, lifecycle, and outcome calculation |
 | `queries/miniGames.ts` | Real-time queries for game state and user status |
 | `mutations/apiMutations.ts` | Internal mutations for HTTP API (create/update/delete) |
+| `lib/miniGameCalculations.ts` | Shared read-only calculation logic for previews |
 | `httpApi.ts` | HTTP API route handlers |
 | `schema.ts` | Table definitions and indexes |

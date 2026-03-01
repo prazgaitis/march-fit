@@ -3,6 +3,15 @@ import { v } from "convex/values";
 import type { Id } from "../_generated/dataModel";
 import { notDeleted } from "../lib/activityFilters";
 import { formatDateOnlyFromUtcMs } from "../lib/dateOnly";
+import {
+  getLeaderboard,
+  previewPartnerWeekStart,
+  previewHuntWeekStart,
+  previewPrWeekStart,
+  previewPartnerWeekEnd,
+  previewHuntWeekEnd,
+  previewPrWeekEnd,
+} from "../lib/miniGameCalculations";
 
 /**
  * List all mini-games for a challenge
@@ -427,5 +436,157 @@ export const getUserHistory = query({
     return result
       .filter((item): item is NonNullable<typeof item> => item !== null)
       .sort((a, b) => b.miniGame.startsAt - a.miniGame.startsAt);
+  },
+});
+
+/**
+ * Preview what partner/prey/hunter assignments would look like if the game
+ * were started right now. Read-only — does not write any data.
+ *
+ * The preview uses the same leaderboard-sorting and assignment logic as the
+ * real `start` mutation so the result is guaranteed to match (assuming no
+ * leaderboard changes between preview and commit).
+ */
+export const previewStart = query({
+  args: {
+    miniGameId: v.id("miniGames"),
+  },
+  handler: async (ctx, args) => {
+    const miniGame = await ctx.db.get(args.miniGameId);
+    if (!miniGame) {
+      throw new Error("Mini-game not found");
+    }
+
+    if (miniGame.status !== "draft") {
+      throw new Error("Can only preview start for draft mini-games");
+    }
+
+    const leaderboard = await getLeaderboard(ctx, miniGame.challengeId);
+
+    if (leaderboard.length === 0) {
+      throw new Error("No participants in challenge");
+    }
+
+    if (miniGame.type === "partner_week") {
+      const assignments = await previewPartnerWeekStart(ctx, leaderboard);
+      return {
+        type: "partner_week" as const,
+        gameId: miniGame._id,
+        gameName: miniGame.name,
+        config: miniGame.config,
+        participantCount: leaderboard.length,
+        assignments,
+      };
+    } else if (miniGame.type === "hunt_week") {
+      const assignments = await previewHuntWeekStart(ctx, leaderboard);
+      return {
+        type: "hunt_week" as const,
+        gameId: miniGame._id,
+        gameName: miniGame.name,
+        config: miniGame.config,
+        participantCount: leaderboard.length,
+        assignments,
+      };
+    } else {
+      // pr_week
+      const assignments = await previewPrWeekStart(
+        ctx,
+        miniGame.challengeId,
+        leaderboard,
+        miniGame.startsAt,
+      );
+      return {
+        type: "pr_week" as const,
+        gameId: miniGame._id,
+        gameName: miniGame.name,
+        config: miniGame.config,
+        participantCount: leaderboard.length,
+        assignments,
+      };
+    }
+  },
+});
+
+/**
+ * Preview what scores/outcomes would look like if the game were ended right
+ * now. Read-only — does not write any data or award any points.
+ *
+ * The preview uses the same calculation logic as the real `end` mutation so
+ * the result is guaranteed to match (assuming no activity changes between
+ * preview and commit).
+ */
+export const previewEnd = query({
+  args: {
+    miniGameId: v.id("miniGames"),
+  },
+  handler: async (ctx, args) => {
+    const miniGame = await ctx.db.get(args.miniGameId);
+    if (!miniGame) {
+      throw new Error("Mini-game not found");
+    }
+
+    if (miniGame.status !== "active") {
+      throw new Error("Can only preview end for active mini-games");
+    }
+
+    const participants = await ctx.db
+      .query("miniGameParticipants")
+      .withIndex("miniGameId", (q: any) => q.eq("miniGameId", args.miniGameId))
+      .collect();
+
+    if (miniGame.type === "partner_week") {
+      const { outcomes, totalBonusPoints } = await previewPartnerWeekEnd(
+        ctx,
+        miniGame.challengeId,
+        miniGame.startsAt,
+        miniGame.endsAt,
+        miniGame.config,
+        participants,
+      );
+      return {
+        type: "partner_week" as const,
+        gameId: miniGame._id,
+        gameName: miniGame.name,
+        config: miniGame.config,
+        participantCount: participants.length,
+        totalBonusPoints,
+        outcomes,
+      };
+    } else if (miniGame.type === "hunt_week") {
+      const { outcomes, totalBonusPoints } = await previewHuntWeekEnd(
+        ctx,
+        miniGame.challengeId,
+        miniGame.config,
+        participants,
+      );
+      return {
+        type: "hunt_week" as const,
+        gameId: miniGame._id,
+        gameName: miniGame.name,
+        config: miniGame.config,
+        participantCount: participants.length,
+        totalBonusPoints,
+        outcomes,
+      };
+    } else {
+      // pr_week
+      const { outcomes, totalBonusPoints } = await previewPrWeekEnd(
+        ctx,
+        miniGame.challengeId,
+        miniGame.startsAt,
+        miniGame.endsAt,
+        miniGame.config,
+        participants,
+      );
+      return {
+        type: "pr_week" as const,
+        gameId: miniGame._id,
+        gameName: miniGame.name,
+        config: miniGame.config,
+        participantCount: participants.length,
+        totalBonusPoints,
+        outcomes,
+      };
+    }
   },
 });

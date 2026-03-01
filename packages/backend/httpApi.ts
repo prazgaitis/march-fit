@@ -1538,6 +1538,52 @@ async function handleEndMiniGame(
   }
 }
 
+async function handlePreviewStartMiniGame(
+  ctx: HttpCtx,
+  request: Request,
+  params: Record<string, string>
+): Promise<Response> {
+  const auth = await authenticateApiKey(ctx, request);
+  if (auth instanceof Response) return auth;
+
+  const miniGameId = params.id as Id<"miniGames">;
+
+  try {
+    const preview = await ctx.runQuery(
+      api.queries.miniGames.previewStart,
+      { miniGameId }
+    );
+    return jsonResponse({ preview });
+  } catch (err: any) {
+    const msg = err.message || "Failed to preview start";
+    const status = msg.includes("not found") ? 404 : 400;
+    return errorResponse(msg, status);
+  }
+}
+
+async function handlePreviewEndMiniGame(
+  ctx: HttpCtx,
+  request: Request,
+  params: Record<string, string>
+): Promise<Response> {
+  const auth = await authenticateApiKey(ctx, request);
+  if (auth instanceof Response) return auth;
+
+  const miniGameId = params.id as Id<"miniGames">;
+
+  try {
+    const preview = await ctx.runQuery(
+      api.queries.miniGames.previewEnd,
+      { miniGameId }
+    );
+    return jsonResponse({ preview });
+  } catch (err: any) {
+    const msg = err.message || "Failed to preview end";
+    const status = msg.includes("not found") ? 404 : 400;
+    return errorResponse(msg, status);
+  }
+}
+
 // ─── Router ──────────────────────────────────────────────────────────────────
 
 type RouteEntry = {
@@ -1735,6 +1781,16 @@ const routes: RouteEntry[] = [
   },
 
   // Mini-game management (single resource - longer paths first)
+  {
+    method: "GET",
+    pattern: "/api/v1/mini-games/:id/preview-start",
+    handler: handlePreviewStartMiniGame,
+  },
+  {
+    method: "GET",
+    pattern: "/api/v1/mini-games/:id/preview-end",
+    handler: handlePreviewEndMiniGame,
+  },
   {
     method: "POST",
     pattern: "/api/v1/mini-games/:id/start",

@@ -134,7 +134,8 @@ Weekly bonus challenges that run within a parent challenge. See `packages/backen
 
 **Key files:**
 - `packages/backend/mutations/miniGames.ts` — Game CRUD, lifecycle, outcome calculation
-- `packages/backend/queries/miniGames.ts` — Real-time queries
+- `packages/backend/queries/miniGames.ts` — Real-time queries + preview/dry-run
+- `packages/backend/lib/miniGameCalculations.ts` — Shared read-only calculation logic for previews
 - `packages/backend/mutations/apiMutations.ts` — Internal mutations for HTTP API
 - `packages/backend/httpApi.ts` — REST API endpoints (`/api/v1/challenges/:id/mini-games`, `/api/v1/mini-games/:id`)
 
@@ -144,8 +145,10 @@ Weekly bonus challenges that run within a parent challenge. See `packages/backen
 - `GET /api/v1/mini-games/:id` — Get game with participants
 - `PATCH /api/v1/mini-games/:id` — Update draft game
 - `DELETE /api/v1/mini-games/:id` — Delete draft game
-- `POST /api/v1/mini-games/:id/start` — Start game
-- `POST /api/v1/mini-games/:id/end` — End game
+- `GET /api/v1/mini-games/:id/preview-start` — **Dry run:** Preview assignments before starting
+- `GET /api/v1/mini-games/:id/preview-end` — **Dry run:** Preview scores before ending
+- `POST /api/v1/mini-games/:id/start` — **Real run:** Start game (irreversible)
+- `POST /api/v1/mini-games/:id/end` — **Real run:** End game (irreversible)
 
 **Important rules:**
 - Bonus activities use `source: "mini_game"` and are excluded from game calculations to prevent circular scoring
