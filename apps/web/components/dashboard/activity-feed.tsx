@@ -26,7 +26,7 @@ const RichTextEditor = dynamic(
   { ssr: false, loading: () => <div className="min-h-[120px] w-full animate-pulse rounded-md border border-input bg-background" /> }
 );
 import { useActivityNotification } from './challenge-realtime-context';
-import { UserAvatar, UserAvatarInline } from '@/components/user-avatar';
+import { UserAvatar } from '@/components/user-avatar';
 import { UserChallengeDisplay } from '@/components/user-challenge-display';
 import { Button } from '@/components/ui/button';
 import {
