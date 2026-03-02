@@ -18,6 +18,10 @@ export async function recomputeStreakForUserChallenge(
     .filter(notDeleted)
     .collect();
 
+  console.log(
+    `recomputeStreak: userId=${userId} challengeId=${challengeId} activities=${activities.length}`
+  );
+
   if (activities.length === 0) {
     return { currentStreak: 0, lastStreakDayTs: undefined, totalStreakBonus: 0 };
   }

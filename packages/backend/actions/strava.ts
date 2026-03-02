@@ -645,12 +645,14 @@ export const processStravaWebhook = internalAction({
     console.log("Fetching activity details from Strava:", body.object_id);
     const activity = await httpFetchStravaActivity(accessToken!, body.object_id);
 
+    const activityJsonSize = JSON.stringify(activity).length;
     console.log("Activity details:", {
       id: activity.id,
       name: activity.name,
       type: activity.type,
       sport_type: activity.sport_type,
       date: activity.start_date,
+      jsonBytes: activityJsonSize,
     });
 
     // Get user's challenge participations
@@ -694,20 +696,28 @@ export const processStravaWebhook = internalAction({
       console.log("Processing activity for challenge:", challenge._id);
 
       // Create/update activity
-      const result = await ctx.runMutation(
-        internal.mutations.stravaWebhook.createFromStrava,
-        {
-          userId: user._id,
-          challengeId: challenge._id,
-          stravaActivity: activity,
-        }
-      );
+      try {
+        const result = await ctx.runMutation(
+          internal.mutations.stravaWebhook.createFromStrava,
+          {
+            userId: user._id,
+            challengeId: challenge._id,
+            stravaActivity: activity,
+          }
+        );
 
-      if (result) {
-        processedChallenges++;
-        console.log("Successfully processed activity for challenge:", challenge._id);
-      } else {
-        console.log("No matching activity type for challenge:", challenge._id);
+        if (result) {
+          processedChallenges++;
+          console.log("Successfully processed activity for challenge:", challenge._id);
+        } else {
+          console.log("No matching activity type for challenge:", challenge._id);
+        }
+      } catch (error: unknown) {
+        console.error(
+          `createFromStrava failed: userId=${user._id} challengeId=${challenge._id} stravaActivityId=${activity.id} jsonBytes=${activityJsonSize}`,
+          error,
+        );
+        throw error;
       }
     }
 
