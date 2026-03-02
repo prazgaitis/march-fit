@@ -1,6 +1,6 @@
 import type { Id, Doc } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
-import { computeFeedScore, type ContentScoreInput, type EngagementScoreInput } from "./feedScoring";
+import { computeFeedScore, computeFeedRank, type ContentScoreInput, type EngagementScoreInput } from "./feedScoring";
 
 type Ctx = Pick<MutationCtx, "db">;
 
@@ -54,19 +54,21 @@ export async function recomputeFeedScore(
   const engagement = await getEngagementCounts(ctx, activityId);
   const score = computeFeedScore(content, engagement);
 
+  const rank = computeFeedRank(score, activity.createdAt);
+
   // Only write if the score actually changed to avoid unnecessary updates.
-  if (activity.feedScore !== score) {
-    await ctx.db.patch(activityId, { feedScore: score });
+  if (activity.feedScore !== score || activity.feedRank !== rank) {
+    await ctx.db.patch(activityId, { feedScore: score, feedRank: rank });
   }
 }
 
 /**
- * Compute the initial feed score for an activity being created.
+ * Compute the initial feed score and rank for an activity being created.
  * Avoids querying engagement counts (they're 0 at creation time).
  */
-export function computeInitialFeedScore(
-  fields: Pick<Doc<"activities">, "notes" | "mediaIds" | "pointsEarned" | "triggeredBonuses" | "flagged">,
-): number {
+export function computeInitialFeedScoreAndRank(
+  fields: Pick<Doc<"activities">, "notes" | "mediaIds" | "pointsEarned" | "triggeredBonuses" | "flagged" | "createdAt">,
+): { feedScore: number; feedRank: number } {
   const content: ContentScoreInput = {
     notesLength: fields.notes?.length ?? 0,
     mediaCount: fields.mediaIds?.length ?? 0,
@@ -74,5 +76,7 @@ export function computeInitialFeedScore(
     triggeredBonusCount: fields.triggeredBonuses?.length ?? 0,
     flagged: fields.flagged,
   };
-  return computeFeedScore(content, { likeCount: 0, commentCount: 0 });
+  const feedScore = computeFeedScore(content, { likeCount: 0, commentCount: 0 });
+  const feedRank = computeFeedRank(feedScore, fields.createdAt);
+  return { feedScore, feedRank };
 }

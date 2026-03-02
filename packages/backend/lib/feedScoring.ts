@@ -71,6 +71,32 @@ export function computeFeedScore(
   return computeContentScore(content) + computeEngagementScore(engagement);
 }
 
+// ── Time-bucketed feed rank (stored on activity) ────────────────
+//
+// dayBucket * 1000 + clamp(feedScore, 0, 999)
+//
+// This keeps today's posts always above yesterday's in index order,
+// while still ranking within a day by quality/engagement.
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+export function computeFeedRank(feedScore: number, createdAtMs: number): number {
+  const dayBucket = Math.floor(createdAtMs / MS_PER_DAY);
+  const clamped = Math.max(0, Math.min(999, Math.round(feedScore)));
+  return dayBucket * 1000 + clamped;
+}
+
+// ── Personalized rank (query time, per-viewer) ──────────────────
+
+export const FOLLOWING_BOOST = 15;
+
+export function computePersonalizedRank(
+  feedRank: number,
+  isFollowing: boolean,
+): number {
+  return feedRank + (isFollowing ? FOLLOWING_BOOST : 0);
+}
+
 // ── Time decay (applied at query time) ─────────────────────────
 
 export function computeTimeDecay(createdAtMs: number, nowMs: number): number {
@@ -79,8 +105,6 @@ export function computeTimeDecay(createdAtMs: number, nowMs: number): number {
 }
 
 // ── Final display score (query time) ───────────────────────────
-
-export const FOLLOWING_BOOST = 15;
 
 export function computeDisplayScore(
   feedScore: number,

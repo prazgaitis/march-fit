@@ -184,6 +184,8 @@ export default defineSchema({
     updatedAt: v.number(),
     // Algorithmic feed score (content + engagement, no personalization/decay)
     feedScore: v.optional(v.number()),
+    // Time-bucketed feed rank: dayBucket * 1000 + clamp(feedScore, 0, 999)
+    feedRank: v.optional(v.number()),
   })
     .index("userId", ["userId"])
     .index("challengeId", ["challengeId"])
@@ -194,7 +196,8 @@ export default defineSchema({
     .index("by_user_challenge_date", ["userId", "challengeId", "loggedDate"])
     .index("challengeFlagged", ["challengeId", "flagged"])
     .index("sourceExternalId", ["source", "externalId"])
-    .index("challengeFeedScore", ["challengeId", "feedScore"]),
+    .index("challengeFeedScore", ["challengeId", "feedScore"])
+    .index("challengeFeedRank", ["challengeId", "feedRank"]),
 
   // Flags
   flags: defineTable({
