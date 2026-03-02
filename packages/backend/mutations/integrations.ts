@@ -1,6 +1,6 @@
 import { internalMutation, mutation } from "../_generated/server";
 import { v } from "convex/values";
-import { getCurrentUser } from "../lib/ids";
+import { requireCurrentUser } from "../lib/ids";
 
 /**
  * Connect a Strava integration with full token data
@@ -14,10 +14,7 @@ export const connectStrava = mutation({
     athleteId: v.number(),
   },
   handler: async (ctx, args) => {
-    const user = await getCurrentUser(ctx);
-    if (!user) {
-      throw new Error("Not authenticated");
-    }
+    const user = await requireCurrentUser(ctx);
 
     // Check if integration already exists
     const existing = await ctx.db
@@ -84,10 +81,7 @@ export const connect = mutation({
     code: v.string(),
   },
   handler: async (ctx, args) => {
-    const user = await getCurrentUser(ctx);
-    if (!user) {
-      throw new Error("Not authenticated");
-    }
+    const user = await requireCurrentUser(ctx);
 
     // Check if integration already exists, if so update it
     const existing = await ctx.db
@@ -124,10 +118,7 @@ export const disconnect = mutation({
     integrationId: v.id("userIntegrations"),
   },
   handler: async (ctx, args) => {
-    const user = await getCurrentUser(ctx);
-    if (!user) {
-      throw new Error("Not authenticated");
-    }
+    const user = await requireCurrentUser(ctx);
 
     const integration = await ctx.db.get(args.integrationId);
     if (!integration) {

@@ -1,6 +1,6 @@
 import { mutation } from "../_generated/server";
 import { v } from "convex/values";
-import { getCurrentUser } from "../lib/ids";
+import { requireCurrentUser } from "../lib/ids";
 import { insertNotification } from "../lib/notifications";
 import { recomputeFeedScore } from "../lib/feedScore";
 
@@ -9,10 +9,7 @@ export const toggle = mutation({
     activityId: v.id("activities"),
   },
   handler: async (ctx, args) => {
-    const user = await getCurrentUser(ctx);
-    if (!user) {
-      throw new Error("Not authenticated");
-    }
+    const user = await requireCurrentUser(ctx);
 
     const existing = await ctx.db
       .query("likes")

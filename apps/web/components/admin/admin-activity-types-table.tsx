@@ -1,7 +1,7 @@
 "use client";
 
 import { Fragment, useState } from "react";
-import { useMutation } from "convex/react";
+import { useMutation } from "@/lib/convex-auth-react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
 import { Doc } from "@repo/backend/_generated/dataModel";

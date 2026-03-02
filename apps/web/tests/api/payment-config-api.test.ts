@@ -60,14 +60,14 @@ describe("Payment Config HTTP API — internal mutations/queries", () => {
 
   describe("Auth: 401 — unauthenticated (no API key / no Convex identity)", () => {
     it("savePaymentConfig public mutation rejects unauthenticated callers", async () => {
-      // Without a Convex identity the mutation calls getCurrentUser → null → throws
+      // Without a Convex identity the mutation throws a structured unauthenticated error.
       await expect(
         t.mutation(api.mutations.paymentConfig.savePaymentConfig, {
           challengeId,
           testMode: false,
           priceInCents: 3000,
         })
-      ).rejects.toThrow(/not authenticated/i);
+      ).rejects.toThrow(/unauthenticated|session has expired/i);
     });
   });
 

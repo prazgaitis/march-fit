@@ -1,6 +1,6 @@
 import { mutation } from "../_generated/server";
 import { v } from "convex/values";
-import { getCurrentUser } from "../lib/ids";
+import { requireCurrentUser } from "../lib/ids";
 import { resend } from "../lib/resend";
 import {
   DEFAULT_FROM_EMAIL,
@@ -26,10 +26,7 @@ export const getOrCreateInviteCode = mutation({
     challengeId: v.id("challenges"),
   },
   handler: async (ctx, args) => {
-    const user = await getCurrentUser(ctx);
-    if (!user) {
-      throw new Error("Not authenticated");
-    }
+    const user = await requireCurrentUser(ctx);
 
     // Check user is a participant
     const participation = await ctx.db
@@ -92,10 +89,7 @@ export const sendInviteEmails = mutation({
     origin: v.string(),
   },
   handler: async (ctx, args) => {
-    const user = await getCurrentUser(ctx);
-    if (!user) {
-      throw new Error("Not authenticated");
-    }
+    const user = await requireCurrentUser(ctx);
 
     // Cap at 10 emails per call
     const emails = args.emails.slice(0, 10);

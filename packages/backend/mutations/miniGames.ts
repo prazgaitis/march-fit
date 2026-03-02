@@ -1,7 +1,7 @@
 import { mutation, type MutationCtx } from "../_generated/server";
 import { v } from "convex/values";
 import type { Id } from "../_generated/dataModel";
-import { getCurrentUser } from "../lib/ids";
+import { requireCurrentUser } from "../lib/ids";
 import { dateOnlyToUtcMs, formatDateOnlyFromUtcMs } from "../lib/dateOnly";
 import { insertActivity } from "../lib/activityWrites";
 import { notDeleted } from "../lib/activityFilters";
@@ -11,10 +11,7 @@ async function requireChallengeAdmin(
   ctx: { db: any; auth: any },
   challengeId: Id<"challenges">,
 ) {
-  const user = await getCurrentUser(ctx as any);
-  if (!user) {
-    throw new Error("Not authenticated");
-  }
+  const user = await requireCurrentUser(ctx as any);
 
   const challenge = await ctx.db.get(challengeId);
   if (!challenge) {

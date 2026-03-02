@@ -2,7 +2,7 @@ import { mutation, internalMutation } from "../_generated/server";
 import { internal } from "../_generated/api";
 import { v } from "convex/values";
 import type { Id } from "../_generated/dataModel";
-import { getCurrentUser } from "../lib/ids";
+import { requireCurrentUser } from "../lib/ids";
 
 /**
  * Schedule on_signup emails if any enabled sequences exist for the challenge.
@@ -82,10 +82,7 @@ export const clearTestPayment = mutation({
   },
   handler: async (ctx, args) => {
     // Auth: require challenge admin
-    const currentUser = await getCurrentUser(ctx);
-    if (!currentUser) {
-      throw new Error("Not authenticated");
-    }
+    const currentUser = await requireCurrentUser(ctx);
 
     const challenge = await ctx.db.get(args.challengeId);
     if (!challenge) {

@@ -1,7 +1,7 @@
 "use client";
 
 import { use } from "react";
-import { usePaginatedQuery, useMutation } from "convex/react";
+import { usePaginatedQuery, useMutation } from "@/lib/convex-auth-react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
 import { Pin, Trash2, MessageSquare, ExternalLink } from "lucide-react";

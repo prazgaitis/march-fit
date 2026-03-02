@@ -2,7 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
-import { useMutation, useQuery } from "convex/react";
+import { useMutation, useQuery } from "@/lib/convex-auth-react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
 

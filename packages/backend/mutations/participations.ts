@@ -1,8 +1,8 @@
 import { internalMutation, mutation } from "../_generated/server";
 import { internal } from "../_generated/api";
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import type { Id } from "../_generated/dataModel";
-import { getCurrentUser } from "../lib/ids";
+import { getCurrentUser, requireCurrentUser } from "../lib/ids";
 import { isPaymentRequired } from "../lib/payments";
 
 // Helper to check if user is challenge admin (mirrors challenges.ts)
@@ -10,10 +10,7 @@ async function requireChallengeAdmin(
   ctx: { db: any; auth: any },
   challengeId: Id<"challenges">
 ) {
-  const user = await getCurrentUser(ctx as any);
-  if (!user) {
-    throw new Error("Not authenticated");
-  }
+  const user = await requireCurrentUser(ctx as any);
 
   const challenge = await ctx.db.get(challengeId);
   if (!challenge) {
@@ -76,7 +73,10 @@ export const join = mutation({
 
     if (!identity) {
       console.error("No identity found in Convex mutation");
-      throw new Error("Not authenticated. Please sign in to join challenges.");
+      throw new ConvexError({
+        code: "unauthenticated",
+        message: "Your session has expired. Please sign in again to continue.",
+      });
     }
 
     console.log("Identity found:", { subject: identity.subject, email: identity.email });

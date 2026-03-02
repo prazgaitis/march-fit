@@ -192,6 +192,7 @@ export const createAuth = (ctx: GenericCtx<DataModel>) => {
     plugins: [
       convex({
         authConfig,
+        jwt: { expirationSeconds: 60 * 60 }, // 60 min (default 15 min — reduces token-refresh race window 4x)
       }),
       lastLoginMethod(),
     ],

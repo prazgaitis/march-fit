@@ -1,7 +1,7 @@
 import { internalMutation, mutation } from "../_generated/server";
 import { v } from "convex/values";
-import { getCurrentUser } from "../lib/ids";
 import type { Id } from "../_generated/dataModel";
+import { requireCurrentUser } from "../lib/ids";
 
 const LIKE_AFFINITY_WEIGHT = 2;
 const COMMENT_AFFINITY_WEIGHT = 4;
@@ -20,10 +20,7 @@ export const follow = mutation({
     userId: v.id("users"), // The user to follow
   },
   handler: async (ctx, args) => {
-    const currentUser = await getCurrentUser(ctx);
-    if (!currentUser) {
-      throw new Error("Not authenticated");
-    }
+    const currentUser = await requireCurrentUser(ctx);
 
     // Can't follow yourself
     if (currentUser._id === args.userId) {
@@ -76,10 +73,7 @@ export const unfollow = mutation({
     userId: v.id("users"), // The user to unfollow
   },
   handler: async (ctx, args) => {
-    const currentUser = await getCurrentUser(ctx);
-    if (!currentUser) {
-      throw new Error("Not authenticated");
-    }
+    const currentUser = await requireCurrentUser(ctx);
 
     // Find the follow relationship
     const existingFollow = await ctx.db
@@ -108,10 +102,7 @@ export const toggle = mutation({
     userId: v.id("users"),
   },
   handler: async (ctx, args) => {
-    const currentUser = await getCurrentUser(ctx);
-    if (!currentUser) {
-      throw new Error("Not authenticated");
-    }
+    const currentUser = await requireCurrentUser(ctx);
 
     // Can't follow yourself
     if (currentUser._id === args.userId) {

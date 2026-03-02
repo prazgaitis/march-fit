@@ -1,6 +1,6 @@
 import { internalMutation, mutation } from "../_generated/server";
 import { v } from "convex/values";
-import { getCurrentUser } from "../lib/ids";
+import { requireCurrentUser } from "../lib/ids";
 import { extractMentionedUserIds } from "../lib/mentions";
 import { internal } from "../_generated/api";
 
@@ -16,10 +16,7 @@ export const create = mutation({
     parentPostId: v.optional(v.id("forumPosts")),
   },
   handler: async (ctx, args) => {
-    const user = await getCurrentUser(ctx);
-    if (!user) {
-      throw new Error("Not authenticated");
-    }
+    const user = await requireCurrentUser(ctx);
 
     if (!args.content.trim()) {
       throw new Error("Post content cannot be empty");
@@ -100,10 +97,7 @@ export const update = mutation({
     content: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const user = await getCurrentUser(ctx);
-    if (!user) {
-      throw new Error("Not authenticated");
-    }
+    const user = await requireCurrentUser(ctx);
 
     const post = await ctx.db.get(args.postId);
     if (!post || post.deletedAt) {
@@ -159,10 +153,7 @@ export const remove = mutation({
     postId: v.id("forumPosts"),
   },
   handler: async (ctx, args) => {
-    const user = await getCurrentUser(ctx);
-    if (!user) {
-      throw new Error("Not authenticated");
-    }
+    const user = await requireCurrentUser(ctx);
 
     const post = await ctx.db.get(args.postId);
     if (!post || post.deletedAt) {
@@ -207,10 +198,7 @@ export const toggleUpvote = mutation({
     postId: v.id("forumPosts"),
   },
   handler: async (ctx, args) => {
-    const user = await getCurrentUser(ctx);
-    if (!user) {
-      throw new Error("Not authenticated");
-    }
+    const user = await requireCurrentUser(ctx);
 
     const post = await ctx.db.get(args.postId);
     if (!post || post.deletedAt) {
@@ -261,10 +249,7 @@ export const togglePin = mutation({
     postId: v.id("forumPosts"),
   },
   handler: async (ctx, args) => {
-    const user = await getCurrentUser(ctx);
-    if (!user) {
-      throw new Error("Not authenticated");
-    }
+    const user = await requireCurrentUser(ctx);
 
     const post = await ctx.db.get(args.postId);
     if (!post || post.deletedAt) {

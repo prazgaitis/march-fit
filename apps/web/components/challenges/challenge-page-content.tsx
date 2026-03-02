@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useAction, useMutation, useQuery } from "convex/react";
+import { useAction, useMutation, useQuery } from "@/lib/convex-auth-react";
 import { api } from "@repo/backend";
 import type { Id, Doc } from "@repo/backend/_generated/dataModel";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,7 @@ import { dateOnlyToUtcMs, formatDateShortFromDateOnly } from "@/lib/date-only";
 import { ChallengeDetails } from "@/components/challenges/challenge-details";
 import { ParticipantsList } from "@/components/challenges/participants-list";
 import { InviteCard } from "@/components/dashboard/invite-card";
+import { isUnauthenticatedConvexError } from "@/lib/convex-auth-error";
 
 interface Challenge {
   id: string;
@@ -135,11 +136,12 @@ export function ChallengePageContent({
     } catch (error) {
       console.error("Failed to join challenge", error);
 
+      if (isUnauthenticatedConvexError(error)) {
+        router.push(`/sign-in?redirect_url=/challenges/${challenge.id}`);
+        return;
+      }
+
       if (error instanceof Error) {
-        if (error.message.includes("Not authenticated") || error.message.includes("User not found")) {
-          router.push(`/sign-in?redirect_url=/challenges/${challenge.id}`);
-          return;
-        }
         if (error.message.includes("Already joined")) {
           setJoinError("You've already joined this challenge.");
           setParticipating(true);

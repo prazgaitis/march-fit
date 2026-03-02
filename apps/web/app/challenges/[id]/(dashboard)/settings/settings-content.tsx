@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMutation, useQuery } from "convex/react";
+import { useMutation, useQuery } from "@/lib/convex-auth-react";
 import { api } from "@repo/backend";
 import type { Id, Doc } from "@repo/backend/_generated/dataModel";
 import { Loader2, User, List, Check, Shield, LogOut } from "lucide-react";

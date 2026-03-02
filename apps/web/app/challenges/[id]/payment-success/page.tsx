@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useParams, useSearchParams, useRouter } from "next/navigation";
-import { useAction } from "convex/react";
+import { useAction } from "@/lib/convex-auth-react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
 import { CheckCircle, Loader2, XCircle } from "lucide-react";

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useAction } from "convex/react";
+import { useAction } from "@/lib/convex-auth-react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
 import { format } from "date-fns";

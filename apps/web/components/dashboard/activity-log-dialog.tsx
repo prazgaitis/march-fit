@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, Calendar, Check, CheckCircle, ChevronsUpDown, CreditCard, ImagePlus, Loader2, Lock, PlusCircle, X, Zap } from "lucide-react";
-import { useAction, useMutation, useQuery } from "convex/react";
+import { useAction, useMutation, useQuery } from "@/lib/convex-auth-react";
 import { ConvexError } from "convex/values";
 import { api } from "@repo/backend";
 import type { Id, Doc } from "@repo/backend/_generated/dataModel";
