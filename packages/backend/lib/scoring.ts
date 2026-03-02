@@ -489,7 +489,7 @@ export async function calculateFinalActivityScore(
   return {
     basePoints,
     bonusPoints,
-    pointsEarned: applyActivityPointSign(basePoints + bonusPoints, activityType.isNegative),
+    pointsEarned: applyActivityPointSign(basePoints, activityType.isNegative) + bonusPoints,
     triggeredBonuses,
   };
 }
