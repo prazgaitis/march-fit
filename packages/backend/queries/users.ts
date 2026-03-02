@@ -518,37 +518,68 @@ export const getLedger = query({
       .sort(([a], [b]) => (b > a ? 1 : b < a ? -1 : 0))
       .map(([dayKey, { dateMs, activities: dayActivities }]) => {
         const streakCount = streakResult.dailyStreakCount.get(dateMs) ?? 0;
-        const activityPoints = dayActivities.reduce(
+        const activityEntries = dayActivities
+          .sort((a, b) => a.createdAt - b.createdAt)
+          .map((a) => {
+            const at = activityTypeMap.get(a.activityTypeId);
+            const isNegative = at?.isNegative ?? false;
+            const triggeredBonuses = a.triggeredBonuses as
+              | Array<{ description: string; bonusPoints: number }>
+              | undefined;
+            const unsignedBonusPoints = (triggeredBonuses ?? []).reduce(
+              (sum, bonus) =>
+                sum + (Number.isFinite(bonus.bonusPoints) ? bonus.bonusPoints : 0),
+              0
+            );
+            const bonusPoints = isNegative ? -Math.abs(unsignedBonusPoints) : unsignedBonusPoints;
+            const basePoints = a.pointsEarned - bonusPoints;
+
+            return {
+              id: a._id,
+              activityTypeName: at?.name ?? "Unknown",
+              isNegative,
+              pointsEarned: a.pointsEarned,
+              basePoints,
+              bonusPoints,
+              triggeredBonuses,
+              notes: a.notes,
+              metrics: a.metrics as Record<string, unknown> | undefined,
+            };
+          });
+        const activityPoints = activityEntries.reduce(
           (sum, a) => sum + a.pointsEarned,
+          0
+        );
+        const activityBasePoints = activityEntries.reduce(
+          (sum, a) => sum + a.basePoints,
+          0
+        );
+        const activityBonusPoints = activityEntries.reduce(
+          (sum, a) => sum + a.bonusPoints,
           0
         );
 
         return {
           date: dayKey,
           streakBonus: streakCount,
+          activityBasePoints,
+          activityBonusPoints,
           activityPoints,
           dayTotal: activityPoints + streakCount,
-          activities: dayActivities
-            .sort((a, b) => a.createdAt - b.createdAt)
-            .map((a) => {
-              const at = activityTypeMap.get(a.activityTypeId);
-              return {
-                id: a._id,
-                activityTypeName: at?.name ?? "Unknown",
-                isNegative: at?.isNegative ?? false,
-                pointsEarned: a.pointsEarned,
-                triggeredBonuses: a.triggeredBonuses as
-                  | Array<{ description: string; bonusPoints: number }>
-                  | undefined,
-                notes: a.notes,
-                metrics: a.metrics as Record<string, unknown> | undefined,
-              };
-            }),
+          activities: activityEntries,
         };
       });
 
     const totalActivityPoints = challengeActivities.reduce(
       (sum, a) => sum + a.pointsEarned,
+      0
+    );
+    const totalActivityBasePoints = days.reduce(
+      (sum, day) => sum + day.activityBasePoints,
+      0
+    );
+    const totalActivityBonusPoints = days.reduce(
+      (sum, day) => sum + day.activityBonusPoints,
       0
     );
     const totalStreakBonus = streakResult.totalStreakBonus;
@@ -558,6 +589,8 @@ export const getLedger = query({
       challenge: { id: challenge._id, name: challenge.name },
       totalPoints: participation.totalPoints,
       totalActivityPoints,
+      totalActivityBasePoints,
+      totalActivityBonusPoints,
       totalStreakBonus,
       streakMinPoints: challenge.streakMinPoints,
       days,

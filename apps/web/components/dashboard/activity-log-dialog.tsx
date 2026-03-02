@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, Calendar, Check, CheckCircle, ChevronsUpDown, CreditCard, ImagePlus, Loader2, Lock, PlusCircle, X, Zap } from "lucide-react";
 import { useAction, useMutation, useQuery } from "convex/react";
@@ -500,13 +501,24 @@ export function ActivityLogDialog({ challengeId, challengeStartDate, trigger }: 
       });
     } catch (error) {
       console.error(error);
-      const message =
-        error instanceof ConvexError
-          ? (error.data as string)
-          : error instanceof Error
-            ? error.message
-            : "Something went wrong";
-      setFormError(message);
+      if (
+        error instanceof ConvexError &&
+        typeof error.data === "object" &&
+        error.data !== null &&
+        (error.data as { code?: string }).code === "unauthenticated"
+      ) {
+        setFormError("session_expired");
+      } else {
+        const message =
+          error instanceof ConvexError
+            ? typeof error.data === "string"
+              ? error.data
+              : (error.data as { message?: string })?.message ?? "Something went wrong"
+            : error instanceof Error
+              ? error.message
+              : "Something went wrong";
+        setFormError(message);
+      }
       setUploadProgress(null);
     } finally {
       setSubmitting(false);
@@ -645,7 +657,18 @@ export function ActivityLogDialog({ challengeId, challengeStartDate, trigger }: 
 
             <form className="flex flex-1 flex-col overflow-hidden" onSubmit={handleSubmit}>
               <ResponsiveDialogBody className="space-y-4">
-                {formError ? (
+                {formError === "session_expired" ? (
+                  <Alert variant="destructive">
+                    <AlertTriangle className="h-4 w-4" />
+                    <AlertDescription>
+                      Your session has expired.{" "}
+                      <Link href="/sign-in" className="underline font-medium">
+                        Sign in again
+                      </Link>{" "}
+                      to continue logging activities.
+                    </AlertDescription>
+                  </Alert>
+                ) : formError ? (
                   <Alert variant="destructive">
                     <AlertTriangle className="h-4 w-4" />
                     <AlertDescription>{formError}</AlertDescription>

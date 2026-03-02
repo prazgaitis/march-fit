@@ -2,6 +2,7 @@ import { mutation } from "../_generated/server";
 import { v } from "convex/values";
 import { getCurrentUser } from "../lib/ids";
 import { insertNotification } from "../lib/notifications";
+import { recomputeFeedScore } from "../lib/feedScore";
 
 export const toggle = mutation({
   args: {
@@ -22,6 +23,7 @@ export const toggle = mutation({
 
     if (existing) {
       await ctx.db.delete(existing._id);
+      await recomputeFeedScore(ctx, args.activityId);
       return { liked: false };
     } else {
       const now = Date.now();
@@ -43,6 +45,7 @@ export const toggle = mutation({
         });
       }
 
+      await recomputeFeedScore(ctx, args.activityId);
       return { liked: true };
     }
   },

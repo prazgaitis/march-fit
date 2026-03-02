@@ -5,6 +5,7 @@ import {
   aggregateInsertActivity,
   aggregateReplaceActivity,
 } from "./activityPointsAggregate";
+import { computeInitialFeedScore } from "./feedScore";
 
 type MutationDbCtx = Pick<MutationCtx, "db" | "runMutation">;
 type ActivityInsert = Omit<Doc<"activities">, "_id" | "_creationTime">;
@@ -17,6 +18,11 @@ export async function insertActivity(
   ctx: MutationDbCtx,
   value: ActivityInsert,
 ) {
+  // Auto-compute feedScore when not explicitly provided by the caller.
+  if (value.feedScore === undefined) {
+    value = { ...value, feedScore: computeInitialFeedScore(value) };
+  }
+
   // Route externalData to the companion table to keep activity docs lightweight.
   const externalData = value.externalData;
   const insertValue = externalData !== undefined

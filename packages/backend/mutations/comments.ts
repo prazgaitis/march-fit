@@ -2,6 +2,7 @@ import { mutation } from "../_generated/server";
 import { v } from "convex/values";
 import { getCurrentUser } from "../lib/ids";
 import { insertNotification } from "../lib/notifications";
+import { recomputeFeedScore } from "../lib/feedScore";
 
 export const create = mutation({
   args: {
@@ -38,6 +39,9 @@ export const create = mutation({
         createdAt: now,
       });
     }
+
+    // Recompute feed score after new comment
+    await recomputeFeedScore(ctx, args.activityId);
 
     return commentId;
   },
