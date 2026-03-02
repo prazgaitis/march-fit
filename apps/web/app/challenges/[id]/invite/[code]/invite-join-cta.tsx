@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useAction, useMutation } from "convex/react";
+import { useAction, useMutation } from "@/lib/convex-auth-react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
 import { useRouter } from "next/navigation";
@@ -9,6 +9,7 @@ import Link from "next/link";
 import { CreditCard, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { isUnauthenticatedConvexError } from "@/lib/convex-auth-error";
 
 interface InviteJoinCtaProps {
   challengeId: string;
@@ -73,11 +74,13 @@ export function InviteJoinCta({
       router.push(`/challenges/${challengeId}/dashboard`);
     } catch (err) {
       console.error("Failed to join challenge", err);
+
+      if (isUnauthenticatedConvexError(err)) {
+        router.push(`/sign-up?redirect_url=/challenges/${routeChallengeId}/invite/${inviteCode}`);
+        return;
+      }
+
       if (err instanceof Error) {
-        if (err.message.includes("Not authenticated") || err.message.includes("User not found")) {
-          router.push(`/sign-up?redirect_url=/challenges/${routeChallengeId}/invite/${inviteCode}`);
-          return;
-        }
         if (err.message.includes("Already joined")) {
           router.push(`/challenges/${challengeId}/dashboard`);
           return;

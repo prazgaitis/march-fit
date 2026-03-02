@@ -1,6 +1,6 @@
 import { internalMutation, mutation } from "../_generated/server";
 import { v } from "convex/values";
-import { getCurrentUser } from "../lib/ids";
+import { requireCurrentUser } from "../lib/ids";
 import { generateApiKey } from "../lib/apiKey";
 
 /**
@@ -12,10 +12,7 @@ export const createKey = mutation({
     name: v.string(),
   },
   handler: async (ctx, args) => {
-    const user = await getCurrentUser(ctx);
-    if (!user) {
-      throw new Error("Not authenticated");
-    }
+    const user = await requireCurrentUser(ctx);
 
     // Limit to 10 active keys per user
     const existingKeys = await ctx.db
@@ -50,10 +47,7 @@ export const revokeKey = mutation({
     keyId: v.id("apiKeys"),
   },
   handler: async (ctx, args) => {
-    const user = await getCurrentUser(ctx);
-    if (!user) {
-      throw new Error("Not authenticated");
-    }
+    const user = await requireCurrentUser(ctx);
 
     const key = await ctx.db.get(args.keyId);
     if (!key) {

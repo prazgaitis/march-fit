@@ -168,7 +168,7 @@ describe("Forum Posts", () => {
           title: "No Auth",
           content: "Should fail",
         })
-      ).rejects.toThrow("Not authenticated");
+      ).rejects.toThrow(/unauthenticated|session has expired/i);
     });
   });
 

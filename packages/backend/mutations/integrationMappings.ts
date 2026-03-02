@@ -1,6 +1,6 @@
 import { mutation } from "../_generated/server";
 import { v } from "convex/values";
-import { getCurrentUser } from "../lib/ids";
+import { requireCurrentUser } from "../lib/ids";
 
 /**
  * Create or update an integration mapping
@@ -15,10 +15,7 @@ export const upsert = mutation({
   },
   handler: async (ctx, args) => {
     // Verify user has access to this challenge
-    const user = await getCurrentUser(ctx);
-    if (!user) {
-      throw new Error("Not authenticated");
-    }
+    const user = await requireCurrentUser(ctx);
 
     const challenge = await ctx.db.get(args.challengeId);
     if (!challenge) {
@@ -98,10 +95,7 @@ export const remove = mutation({
     }
 
     // Verify user has access
-    const user = await getCurrentUser(ctx);
-    if (!user) {
-      throw new Error("Not authenticated");
-    }
+    const user = await requireCurrentUser(ctx);
 
     const challenge = await ctx.db.get(mapping.challengeId);
     if (!challenge) {

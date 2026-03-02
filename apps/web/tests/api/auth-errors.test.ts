@@ -29,9 +29,19 @@ async function expectUnauthenticated(promise: Promise<unknown>) {
   } catch (err) {
     // convex-test wraps errors; ConvexError data is accessible via .data
     expect(err).toBeDefined();
-    const message = err instanceof Error ? err.message : String(err);
-    // The structured ConvexError message includes "session has expired"
-    expect(message).toMatch(/session has expired|unauthenticated/i);
+    const errorData =
+      typeof err === "object" && err !== null && "data" in err
+        ? (err as { data?: unknown }).data
+        : undefined;
+
+    const parsedErrorData =
+      typeof errorData === "string"
+        ? (JSON.parse(errorData) as Record<string, unknown>)
+        : errorData;
+
+    expect(parsedErrorData).toMatchObject({
+      code: "unauthenticated",
+    });
   }
 }
 

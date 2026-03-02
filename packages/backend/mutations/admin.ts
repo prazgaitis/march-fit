@@ -1,6 +1,6 @@
 import { internalMutation, mutation } from "../_generated/server";
 import { v } from "convex/values";
-import { getCurrentUser } from "../lib/ids";
+import { requireCurrentUser } from "../lib/ids";
 import type { Id } from "../_generated/dataModel";
 import { reportLatencyIfExceeded } from "../lib/latencyMonitoring";
 import { applyParticipationScoreDeltaAndRecomputeStreak } from "../lib/participationScoring";
@@ -13,10 +13,7 @@ async function requireChallengeAdminForActivity(
   ctx: { db: any; auth: any },
   activityId: Id<"activities">,
 ) {
-  const user = await getCurrentUser(ctx as any);
-  if (!user) {
-    throw new Error("Not authenticated");
-  }
+  const user = await requireCurrentUser(ctx as any);
 
   const activity = await ctx.db.get(activityId);
   if (!activity || activity.deletedAt) {

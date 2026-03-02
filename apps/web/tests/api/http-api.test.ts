@@ -76,7 +76,7 @@ describe("API Key Mutations", () => {
     it("should reject unauthenticated users", async () => {
       await expect(
         t.mutation(api.mutations.apiKeys.createKey, { name: "test" })
-      ).rejects.toThrow("Not authenticated");
+      ).rejects.toThrow(/unauthenticated|session has expired/i);
     });
 
     it("should enforce 10 key limit", async () => {
