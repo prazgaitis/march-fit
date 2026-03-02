@@ -1,7 +1,7 @@
 import { internalMutation, mutation } from "../_generated/server";
 import { ConvexError, v } from "convex/values";
 import { calculateFinalActivityScore } from "../lib/scoring";
-import { getCurrentUser } from "../lib/ids";
+import { requireCurrentUser } from "../lib/ids";
 import { isPaymentRequired } from "../lib/payments";
 import {
   dateOnlyToUtcMs,
@@ -77,10 +77,7 @@ export const log = mutation({
     const startedAt = Date.now();
     let resolvedUserId: string | undefined;
     try {
-      const user = await getCurrentUser(ctx);
-      if (!user) {
-        throw new Error("Not authenticated");
-      }
+      const user = await requireCurrentUser(ctx);
       resolvedUserId = String(user._id);
 
       // Validate participation
@@ -430,10 +427,7 @@ function getWeekStart(timestamp: number): number {
 export const generateUploadUrl = mutation({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new Error("Not authenticated");
-    }
+    await requireCurrentUser(ctx);
     return await ctx.storage.generateUploadUrl();
   },
 });
@@ -445,10 +439,7 @@ export const flagActivity = mutation({
     reason: v.string(),
   },
   handler: async (ctx, args) => {
-    const user = await getCurrentUser(ctx);
-    if (!user) {
-      throw new Error("Not authenticated");
-    }
+    const user = await requireCurrentUser(ctx);
 
     const activity = await ctx.db.get(args.activityId);
     if (!activity || activity.deletedAt) {
@@ -531,10 +522,7 @@ export const editActivity = mutation({
     let resolvedChallengeId: string | undefined;
     let resolvedUserId: string | undefined;
     try {
-      const user = await getCurrentUser(ctx);
-      if (!user) {
-        throw new Error("Not authenticated");
-      }
+      const user = await requireCurrentUser(ctx);
       resolvedUserId = String(user._id);
 
       const activity = await ctx.db.get(args.activityId);
@@ -734,10 +722,7 @@ export const remove = mutation({
     let resolvedChallengeId: string | undefined;
     let resolvedUserId: string | undefined;
     try {
-      const actor = await getCurrentUser(ctx);
-      if (!actor) {
-        throw new Error("Not authenticated");
-      }
+      const actor = await requireCurrentUser(ctx);
       const activity = await ctx.db.get(args.activityId);
       if (!activity) {
         throw new Error("Activity not found");
