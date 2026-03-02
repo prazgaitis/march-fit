@@ -3,6 +3,11 @@
 ## Corrections
 | Date | Source | What Went Wrong | What To Do Instead |
 |------|--------|----------------|-------------------|
+| 2026-03-01 | self | Started repo exploration before reading `.claude/napkin.md` again | Always run `cat .claude/napkin.md` as the very first command in a new session |
+| 2026-03-01 | self | CSV row typing was too narrow (`string | number`) and failed once boolean `isNegative` values were added | For CSV builders, include all emitted scalar types up front (`string | number | boolean`) or coerce before push |
+| 2026-03-01 | self | After `pnpm -F web add ...`, got `lockfile only installation` warning and later typecheck failed on missing workspace modules | Run `pnpm install` after filtered add commands when warned about lockfile-only state, then re-run checks |
+| 2026-03-01 | self | Added `useMemo` in `LedgerContent` after early loading/null returns, causing hook-order mismatch once data resolved | In client components with async query states, call hooks unconditionally before conditional returns; guard inside hook callback instead |
+| 2026-03-01 | self | Set `grid.attributes = ...` on `canvas-datagrid` instance and hit `Cannot assign to read only property 'attributes'` in browser | For `canvas-datagrid` web component path, configure columns via init args (`schema`) and avoid writing DOM `attributes` property |
 | 2026-02-27 | self | While patching `scripts/perf-test.mjs`, I left the old hardcoded sign-in `goto` line, causing duplicate navigation | Re-open the full file immediately after broad replacements to catch leftover lines before moving on |
 | 2026-02-27 | self | Imported `@repo/backend/lib/streak` from web tests; package doesn't export that subpath | In web tests, import non-exported backend internals via repo-relative paths (or export them explicitly first) |
 | 2026-02-27 | self | Ran `ls` before reading `.claude/napkin.md` at session start | Make the first command `cat .claude/napkin.md` before any other command, every session |
@@ -47,6 +52,7 @@
 - For production troubleshooting UX, do not add user-facing alerts for transient feed/connection issues; log to Sentry instead.
 
 ## Patterns That Work
+- In Next App Router root layout, avoid manual `<head>` blocks with `next/script`; keep scripts in `<body>` (or metadata APIs) to reduce head hydration mismatch risk.
 - For idea/research tasks, combine source reading with a quick scan of local CI/docs/testing files before proposing changes; recommendations become concrete and repo-specific.
 - For CI triage, `gh run view --log-failed <run-id>` plus a targeted local `pnpm -F web test --run <failing files>` quickly separates real assertion failures from suite-load/import failures.
 - For prod-to-local Convex refreshes, use `bash scripts/admin-sync-prod-to-local.sh` to avoid manual long-path command errors and keep destructive import behind a confirmation prompt.

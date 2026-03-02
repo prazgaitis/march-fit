@@ -4,7 +4,7 @@ import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
 
 import { getCurrentUser } from "@/lib/auth";
-import { ActivityTypesList } from "./activity-types-list";
+import { ActivityTypesPageContent } from "./activity-types-page-content";
 
 interface ActivityTypesPageProps {
   params: Promise<{ id: string }>;
@@ -35,7 +35,8 @@ export default async function ActivityTypesPage({ params }: ActivityTypesPagePro
       <p className="mb-6 text-zinc-500">
         Here are all the ways you can earn points in this challenge.
       </p>
-      <ActivityTypesList
+      <ActivityTypesPageContent
+        challengeId={challengeId}
         activityTypes={activityTypes}
         categoryMap={categoryMap}
         streakMinPoints={challenge.streakMinPoints}
