@@ -222,4 +222,31 @@ describe('Photo bonus daily cap', () => {
     expect(act2!.triggeredBonuses?.some((b) => b.metric === 'media')).toBeFalsy();
     expect(act3!.triggeredBonuses?.some((b) => b.metric === 'media')).toBeFalsy();
   });
+
+  it('photo bonus on negative (penalty) activity offsets rather than amplifies the penalty', async () => {
+    const userId = await createTestUser(t, { email: 'penalty@example.com' });
+    const tAuth = t.withIdentity({ subject: 'subject-penalty@example.com', email: 'penalty@example.com' });
+    const challengeId = await createTestChallenge(t, userId);
+    await createTestParticipation(t, userId, challengeId);
+    const penaltyTypeId = await createTestActivityType(t, challengeId, {
+      name: 'Overindulge',
+      scoringConfig: { type: 'unit_based', unit: 'count', pointsPerUnit: 10 },
+      isNegative: true,
+    });
+
+    const result = await tAuth.mutation(api.mutations.activities.log, {
+      challengeId: challengeId as Id<'challenges'>,
+      activityTypeId: penaltyTypeId as Id<'activityTypes'>,
+      loggedDate: '2024-03-01',
+      metrics: { count: 1 },
+      source: 'manual',
+      imageUrl: 'https://example.com/penalty-photo.jpg',
+    });
+
+    // Base: 1 * 10 = 10, negated to -10, then +1 media bonus = -9
+    expect(result.pointsEarned).toBe(-9);
+
+    const activity = await t.run(async (ctx) => ctx.db.get(result.id));
+    expect(activity!.triggeredBonuses?.some((b) => b.metric === 'media')).toBe(true);
+  });
 });
