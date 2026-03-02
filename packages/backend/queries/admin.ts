@@ -10,13 +10,13 @@ import {
 } from "../lib/feedScoring";
 import type { Id } from "../_generated/dataModel";
 
-async function requireChallengeAdmin(
+async function getChallengeAdminUser(
   ctx: QueryCtx,
   challengeId: Id<"challenges">,
 ) {
   const user = await getCurrentUser(ctx);
   if (!user) {
-    throw new Error("Not authorized - challenge admin required");
+    return null;
   }
 
   if (user.role === "admin") {
@@ -43,7 +43,7 @@ async function requireChallengeAdmin(
     return user;
   }
 
-  throw new Error("Not authorized - challenge admin required");
+  return null;
 }
 
 /**
@@ -398,7 +398,10 @@ export const getMonitoringDashboard = query({
     includeFeedDebug: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    const adminUser = await requireChallengeAdmin(ctx, args.challengeId);
+    const adminUser = await getChallengeAdminUser(ctx, args.challengeId);
+    if (!adminUser) {
+      return null;
+    }
     const feedLimit = Math.min(Math.max(args.feedLimit ?? 100, 10), 200);
     const includeFeedDebug = args.includeFeedDebug ?? true;
 

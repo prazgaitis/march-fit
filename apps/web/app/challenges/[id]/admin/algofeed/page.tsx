@@ -41,10 +41,18 @@ export default function AdminAlgorithmicFeedPage() {
     [pathname, router, searchParams],
   );
 
-  if (!monitoring) {
+  if (monitoring === undefined) {
     return (
       <div className="flex items-center justify-center py-20 text-zinc-500">
         Loading...
+      </div>
+    );
+  }
+
+  if (monitoring === null) {
+    return (
+      <div className="flex items-center justify-center py-20 text-zinc-500">
+        Authorizing admin access...
       </div>
     );
   }
