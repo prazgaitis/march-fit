@@ -8,6 +8,7 @@ import type { Id } from "@repo/backend/_generated/dataModel";
 import {
   Calendar,
   Gamepad2,
+  Loader2,
   Plus,
   Target,
   Users,
@@ -76,12 +77,15 @@ type MiniGameListItem = {
   participantCount: number;
 };
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 export default function MiniGamesAdminPage() {
   const params = useParams();
   const router = useRouter();
   const challengeId = params.id as string;
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isCreatingStandard, setIsCreatingStandard] = useState(false);
   const [newGame, setNewGame] = useState({
     type: "partner_week" as MiniGameType,
     name: "",
@@ -98,6 +102,92 @@ export default function MiniGamesAdminPage() {
   });
 
   const createMiniGame = useMutation(api.mutations.miniGames.create);
+
+  const handleCreateStandardMiniGames = async () => {
+    if (!challenge || !miniGames || isCreatingStandard) return;
+
+    const challengeStartMs = dateOnlyToUtcMs(challenge.startDate);
+    const challengeEndMs = dateOnlyToUtcMs(challenge.endDate);
+    const existingKeys = new Set(
+      miniGames.map((game: MiniGameListItem) => `${game.type}-${game.startsAt}-${game.endsAt}`)
+    );
+
+    const templates: Array<{
+      type: MiniGameType;
+      name: string;
+      startOffsetDays: number;
+      endOffsetDays: number;
+      config: Record<string, number>;
+    }> = [
+      {
+        type: "partner_week",
+        name: "Partner Week",
+        startOffsetDays: 7,
+        endOffsetDays: 13,
+        config: { bonusPercentage: 10 },
+      },
+      {
+        type: "hunt_week",
+        name: "Hunt Week",
+        startOffsetDays: 14,
+        endOffsetDays: 20,
+        config: { catchBonus: 75, caughtPenalty: 25 },
+      },
+      {
+        type: "pr_week",
+        name: "PR Week",
+        startOffsetDays: 21,
+        endOffsetDays: 27,
+        config: { prBonus: 100 },
+      },
+    ];
+
+    let created = 0;
+    let skippedExisting = 0;
+    let skippedOutsideWindow = 0;
+    let failed = 0;
+
+    setIsCreatingStandard(true);
+    try {
+      for (const template of templates) {
+        const startsAt = challengeStartMs + template.startOffsetDays * DAY_MS;
+        const endsAt = challengeStartMs + template.endOffsetDays * DAY_MS;
+
+        if (startsAt < challengeStartMs || endsAt > challengeEndMs || startsAt >= endsAt) {
+          skippedOutsideWindow += 1;
+          continue;
+        }
+
+        const key = `${template.type}-${startsAt}-${endsAt}`;
+        if (existingKeys.has(key)) {
+          skippedExisting += 1;
+          continue;
+        }
+
+        try {
+          await createMiniGame({
+            challengeId: challengeId as Id<"challenges">,
+            type: template.type,
+            name: template.name,
+            startsAt,
+            endsAt,
+            config: template.config,
+          });
+          existingKeys.add(key);
+          created += 1;
+        } catch (error) {
+          failed += 1;
+          console.error("Failed to create standard mini-game:", template.type, error);
+        }
+      }
+    } finally {
+      setIsCreatingStandard(false);
+    }
+
+    alert(
+      `Standard mini-games setup complete.\nCreated: ${created}\nSkipped (already exists): ${skippedExisting}\nSkipped (outside challenge window): ${skippedOutsideWindow}\nFailed: ${failed}`
+    );
+  };
 
   const handleCreate = async () => {
     if (!newGame.name || !newGame.startsAt || !newGame.endsAt) return;
@@ -151,25 +241,41 @@ export default function MiniGamesAdminPage() {
           {miniGames.length} mini-game{miniGames.length !== 1 ? "s" : ""}
         </div>
 
-        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
-          <DialogTrigger asChild>
-            <Button
-              size="sm"
-              className="h-7 bg-amber-500 px-3 text-xs text-black hover:bg-amber-400"
-              onClick={() => {
-                const defaults = getDefaultDates();
-                setNewGame((prev) => ({
-                  ...prev,
-                  startsAt: defaults.startsAt,
-                  endsAt: defaults.endsAt,
-                }));
-              }}
-            >
-              <Plus className="mr-1 h-3 w-3" />
-              New Mini-Game
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="border-zinc-800 bg-zinc-900">
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={handleCreateStandardMiniGames}
+            disabled={isCreatingStandard}
+            className="h-7 border border-zinc-700 px-3 text-xs text-zinc-200 hover:bg-zinc-800 disabled:opacity-70"
+          >
+            {isCreatingStandard ? (
+              <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+            ) : (
+              <Zap className="mr-1 h-3 w-3" />
+            )}
+            Add Standard Weeks
+          </Button>
+
+          <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+            <DialogTrigger asChild>
+              <Button
+                size="sm"
+                className="h-7 bg-amber-500 px-3 text-xs text-black hover:bg-amber-400"
+                onClick={() => {
+                  const defaults = getDefaultDates();
+                  setNewGame((prev) => ({
+                    ...prev,
+                    startsAt: defaults.startsAt,
+                    endsAt: defaults.endsAt,
+                  }));
+                }}
+              >
+                <Plus className="mr-1 h-3 w-3" />
+                New Mini-Game
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="border-zinc-800 bg-zinc-900">
             <DialogHeader>
               <DialogTitle className="text-zinc-100">Create Mini-Game</DialogTitle>
             </DialogHeader>
@@ -269,8 +375,9 @@ export default function MiniGamesAdminPage() {
                 </Button>
               </div>
             </div>
-          </DialogContent>
-        </Dialog>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
       {/* Games List */}

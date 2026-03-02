@@ -136,14 +136,14 @@ All endpoints require API key authentication (`Authorization: Bearer mf_...`).
 
 | Method | Path | Description | Auth |
 |--------|------|-------------|------|
-| `GET` | `/api/v1/challenges/:id/mini-games` | List all mini-games | Any authenticated user |
+| `GET` | `/api/v1/challenges/:id/mini-games` | List all mini-games | Challenge admin |
 | `POST` | `/api/v1/challenges/:id/mini-games` | Create a new mini-game | Challenge admin |
 
 ### Mini-game operations
 
 | Method | Path | Description | Auth |
 |--------|------|-------------|------|
-| `GET` | `/api/v1/mini-games/:id` | Get mini-game with participants | Any authenticated user |
+| `GET` | `/api/v1/mini-games/:id` | Get mini-game with participants | Challenge admin |
 | `PATCH` | `/api/v1/mini-games/:id` | Update a draft mini-game | Challenge admin |
 | `DELETE` | `/api/v1/mini-games/:id` | Delete a draft mini-game | Challenge admin |
 | `GET` | `/api/v1/mini-games/:id/preview-start` | **Dry run:** Preview assignments before starting | Challenge admin |

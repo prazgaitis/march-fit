@@ -1290,6 +1290,16 @@ async function handleListMiniGames(
   if (auth instanceof Response) return auth;
 
   const challengeId = params.id as Id<"challenges">;
+  const isAdmin = await checkChallengeAdmin(
+    ctx,
+    auth.user._id,
+    challengeId,
+    auth.user
+  );
+  if (!isAdmin) {
+    return errorResponse("Not authorized - challenge admin required", 403);
+  }
+
   const miniGames = await ctx.runQuery(api.queries.miniGames.list, {
     challengeId,
   });
@@ -1312,6 +1322,16 @@ async function handleGetMiniGame(
 
   if (!miniGame) {
     return errorResponse("Mini-game not found", 404);
+  }
+
+  const isAdmin = await checkChallengeAdmin(
+    ctx,
+    auth.user._id,
+    miniGame.challengeId as Id<"challenges">,
+    auth.user
+  );
+  if (!isAdmin) {
+    return errorResponse("Not authorized - challenge admin required", 403);
   }
 
   return jsonResponse({ miniGame });
@@ -1549,6 +1569,23 @@ async function handlePreviewStartMiniGame(
   const miniGameId = params.id as Id<"miniGames">;
 
   try {
+    const miniGame = await ctx.runQuery(api.queries.miniGames.getById, {
+      miniGameId,
+    });
+    if (!miniGame) {
+      return errorResponse("Mini-game not found", 404);
+    }
+
+    const isAdmin = await checkChallengeAdmin(
+      ctx,
+      auth.user._id,
+      miniGame.challengeId as Id<"challenges">,
+      auth.user
+    );
+    if (!isAdmin) {
+      return errorResponse("Not authorized - challenge admin required", 403);
+    }
+
     const preview = await ctx.runQuery(
       api.queries.miniGames.previewStart,
       { miniGameId }
@@ -1572,6 +1609,23 @@ async function handlePreviewEndMiniGame(
   const miniGameId = params.id as Id<"miniGames">;
 
   try {
+    const miniGame = await ctx.runQuery(api.queries.miniGames.getById, {
+      miniGameId,
+    });
+    if (!miniGame) {
+      return errorResponse("Mini-game not found", 404);
+    }
+
+    const isAdmin = await checkChallengeAdmin(
+      ctx,
+      auth.user._id,
+      miniGame.challengeId as Id<"challenges">,
+      auth.user
+    );
+    if (!isAdmin) {
+      return errorResponse("Not authorized - challenge admin required", 403);
+    }
+
     const preview = await ctx.runQuery(
       api.queries.miniGames.previewEnd,
       { miniGameId }

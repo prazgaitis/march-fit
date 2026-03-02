@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation } from "@/lib/convex-auth-react";
 import { api } from "@repo/backend";
@@ -9,6 +10,8 @@ import {
   ArrowLeft,
   Calendar,
   Check,
+  Eye,
+  Loader2,
   Play,
   Square,
   Target,
@@ -33,9 +36,56 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 
 type MiniGameType = "partner_week" | "hunt_week" | "pr_week";
 type MiniGameStatus = "draft" | "active" | "calculating" | "completed";
+type PreviewUser = { name?: string; username?: string } | null | undefined;
+
+type StartPreviewAssignment = {
+  rank?: number;
+  points?: number;
+  dailyPr?: number;
+  user?: PreviewUser;
+  partnerUser?: PreviewUser;
+  preyUser?: PreviewUser;
+  hunterUser?: PreviewUser;
+};
+
+type EndPreviewOutcome = {
+  bonusPoints?: number;
+  partnerWeekPoints?: number;
+  initialRank?: number;
+  currentRank?: number;
+  caughtPrey?: boolean;
+  wasCaught?: boolean;
+  initialPr?: number;
+  weekMaxPoints?: number;
+  hitPr?: boolean;
+  user?: PreviewUser;
+  partnerUser?: PreviewUser;
+  preyUser?: PreviewUser;
+  hunterUser?: PreviewUser;
+};
+
+type StartPreviewData = {
+  type: MiniGameType;
+  participantCount: number;
+  assignments: StartPreviewAssignment[];
+};
+
+type EndPreviewData = {
+  type: MiniGameType;
+  participantCount: number;
+  totalBonusPoints: number;
+  outcomes: EndPreviewOutcome[];
+};
 
 type MiniGameParticipant = {
   id: string;
@@ -91,18 +141,32 @@ export default function MiniGameDetailPage() {
   const router = useRouter();
   const challengeId = params.id as string;
   const gameId = params.gameId as string;
+  const miniGameId = gameId as Id<"miniGames">;
+  const [isStartPreviewOpen, setIsStartPreviewOpen] = useState(false);
+  const [isEndPreviewOpen, setIsEndPreviewOpen] = useState(false);
 
   const miniGame = useQuery(api.queries.miniGames.getById, {
-    miniGameId: gameId as Id<"miniGames">,
+    miniGameId,
   });
+  const startPreview = useQuery(
+    api.queries.miniGames.previewStart,
+    isStartPreviewOpen && miniGame?.status === "draft" ? { miniGameId } : "skip"
+  ) as StartPreviewData | undefined;
+  const endPreview = useQuery(
+    api.queries.miniGames.previewEnd,
+    isEndPreviewOpen && miniGame?.status === "active" ? { miniGameId } : "skip"
+  ) as EndPreviewData | undefined;
 
   const startMiniGame = useMutation(api.mutations.miniGames.start);
   const endMiniGame = useMutation(api.mutations.miniGames.end);
   const deleteMiniGame = useMutation(api.mutations.miniGames.remove);
 
+  const displayName = (user?: PreviewUser) =>
+    user?.name || user?.username || "Unknown";
+
   const handleStart = async () => {
     try {
-      await startMiniGame({ miniGameId: gameId as Id<"miniGames"> });
+      await startMiniGame({ miniGameId });
     } catch (error) {
       console.error("Failed to start mini-game:", error);
       alert(error instanceof Error ? error.message : "Failed to start mini-game");
@@ -111,7 +175,7 @@ export default function MiniGameDetailPage() {
 
   const handleEnd = async () => {
     try {
-      await endMiniGame({ miniGameId: gameId as Id<"miniGames"> });
+      await endMiniGame({ miniGameId });
     } catch (error) {
       console.error("Failed to end mini-game:", error);
       alert(error instanceof Error ? error.message : "Failed to end mini-game");
@@ -120,7 +184,7 @@ export default function MiniGameDetailPage() {
 
   const handleDelete = async () => {
     try {
-      await deleteMiniGame({ miniGameId: gameId as Id<"miniGames"> });
+      await deleteMiniGame({ miniGameId });
       router.push(`/challenges/${challengeId}/admin/mini-games`);
     } catch (error) {
       console.error("Failed to delete mini-game:", error);
@@ -178,7 +242,8 @@ export default function MiniGameDetailPage() {
           </div>
 
           {/* Actions */}
-          <div className="flex items-center gap-2">
+          <div className="flex flex-col items-end gap-1">
+            <div className="flex items-center gap-2">
             {miniGame.status === "draft" && (
               <>
                 <AlertDialog>
@@ -215,6 +280,88 @@ export default function MiniGameDetailPage() {
                     </AlertDialogFooter>
                   </AlertDialogContent>
                 </AlertDialog>
+
+                <Dialog open={isStartPreviewOpen} onOpenChange={setIsStartPreviewOpen}>
+                  <DialogTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 text-zinc-300 hover:bg-zinc-800"
+                    >
+                      <Eye className="mr-1 h-3 w-3" />
+                      Preview Start
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-h-[80vh] overflow-y-auto border-zinc-800 bg-zinc-900 sm:max-w-3xl">
+                    <DialogHeader>
+                      <DialogTitle className="text-zinc-100">Start Preview</DialogTitle>
+                    </DialogHeader>
+                    {!startPreview ? (
+                      <div className="flex items-center gap-2 py-6 text-sm text-zinc-400">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Loading preview...
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        <div className="text-xs text-zinc-500">
+                          {startPreview.participantCount} participant
+                          {startPreview.participantCount === 1 ? "" : "s"} will be assigned.
+                        </div>
+                        <div className="overflow-x-auto rounded border border-zinc-800">
+                          <table className="w-full text-left text-xs">
+                            <thead className="bg-zinc-800/70 text-zinc-400">
+                              <tr>
+                                <th className="px-2 py-1.5">Rank</th>
+                                <th className="px-2 py-1.5">User</th>
+                                <th className="px-2 py-1.5">Points</th>
+                                {startPreview.type === "partner_week" && (
+                                  <th className="px-2 py-1.5">Partner</th>
+                                )}
+                                {startPreview.type === "hunt_week" && (
+                                  <>
+                                    <th className="px-2 py-1.5">Prey</th>
+                                    <th className="px-2 py-1.5">Hunter</th>
+                                  </>
+                                )}
+                                {startPreview.type === "pr_week" && (
+                                  <th className="px-2 py-1.5">Starting PR</th>
+                                )}
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-zinc-800">
+                              {startPreview.assignments.map((row, index) => (
+                                <tr key={`${index}-${row.rank ?? 0}`} className="text-zinc-200">
+                                  <td className="px-2 py-1.5 font-mono text-zinc-400">
+                                    {row.rank ?? "-"}
+                                  </td>
+                                  <td className="px-2 py-1.5">{displayName(row.user)}</td>
+                                  <td className="px-2 py-1.5 font-mono">{row.points ?? 0}</td>
+                                  {startPreview.type === "partner_week" && (
+                                    <td className="px-2 py-1.5">{displayName(row.partnerUser)}</td>
+                                  )}
+                                  {startPreview.type === "hunt_week" && (
+                                    <>
+                                      <td className="px-2 py-1.5">{displayName(row.preyUser)}</td>
+                                      <td className="px-2 py-1.5">{displayName(row.hunterUser)}</td>
+                                    </>
+                                  )}
+                                  {startPreview.type === "pr_week" && (
+                                    <td className="px-2 py-1.5 font-mono">
+                                      {row.dailyPr ?? 0}
+                                    </td>
+                                  )}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                        <div className="text-xs text-zinc-500">
+                          This preview is read-only. Starting the game will lock these assignments.
+                        </div>
+                      </div>
+                    )}
+                  </DialogContent>
+                </Dialog>
 
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
@@ -253,39 +400,162 @@ export default function MiniGameDetailPage() {
             )}
 
             {miniGame.status === "active" && (
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button
-                    size="sm"
-                    className="h-8 bg-amber-500 text-black hover:bg-amber-400"
-                  >
-                    <Square className="mr-1 h-3 w-3" />
-                    End Game
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent className="border-zinc-800 bg-zinc-900">
-                  <AlertDialogHeader>
-                    <AlertDialogTitle className="text-zinc-100">
-                      End Mini-Game?
-                    </AlertDialogTitle>
-                    <AlertDialogDescription className="text-zinc-400">
-                      This will calculate outcomes and award bonus points to all
-                      participants. This action cannot be undone.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel className="border-zinc-700 bg-zinc-800 text-zinc-300 hover:bg-zinc-700">
-                      Cancel
-                    </AlertDialogCancel>
-                    <AlertDialogAction
-                      onClick={handleEnd}
-                      className="bg-amber-500 text-black hover:bg-amber-400"
+              <>
+                <Dialog open={isEndPreviewOpen} onOpenChange={setIsEndPreviewOpen}>
+                  <DialogTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 text-zinc-300 hover:bg-zinc-800"
                     >
+                      <Eye className="mr-1 h-3 w-3" />
+                      Preview End
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent className="max-h-[80vh] overflow-y-auto border-zinc-800 bg-zinc-900 sm:max-w-3xl">
+                    <DialogHeader>
+                      <DialogTitle className="text-zinc-100">End Preview</DialogTitle>
+                    </DialogHeader>
+                    {!endPreview ? (
+                      <div className="flex items-center gap-2 py-6 text-sm text-zinc-400">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Loading preview...
+                      </div>
+                    ) : (
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between text-xs text-zinc-500">
+                          <span>
+                            {endPreview.participantCount} participant
+                            {endPreview.participantCount === 1 ? "" : "s"} evaluated
+                          </span>
+                          <span className="font-mono text-zinc-300">
+                            Total Bonus:{" "}
+                            {endPreview.totalBonusPoints > 0 ? "+" : ""}
+                            {endPreview.totalBonusPoints}
+                          </span>
+                        </div>
+                        <div className="overflow-x-auto rounded border border-zinc-800">
+                          <table className="w-full text-left text-xs">
+                            <thead className="bg-zinc-800/70 text-zinc-400">
+                              <tr>
+                                <th className="px-2 py-1.5">User</th>
+                                {endPreview.type === "partner_week" && (
+                                  <>
+                                    <th className="px-2 py-1.5">Partner</th>
+                                    <th className="px-2 py-1.5">Partner Pts</th>
+                                  </>
+                                )}
+                                {endPreview.type === "hunt_week" && (
+                                  <>
+                                    <th className="px-2 py-1.5">Rank</th>
+                                    <th className="px-2 py-1.5">Caught</th>
+                                    <th className="px-2 py-1.5">Hunted</th>
+                                  </>
+                                )}
+                                {endPreview.type === "pr_week" && (
+                                  <>
+                                    <th className="px-2 py-1.5">Initial PR</th>
+                                    <th className="px-2 py-1.5">Week Max</th>
+                                    <th className="px-2 py-1.5">Hit PR</th>
+                                  </>
+                                )}
+                                <th className="px-2 py-1.5">Bonus</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-zinc-800">
+                              {endPreview.outcomes.map((row, index) => (
+                                <tr key={`${index}-${row.bonusPoints ?? 0}`} className="text-zinc-200">
+                                  <td className="px-2 py-1.5">{displayName(row.user)}</td>
+                                  {endPreview.type === "partner_week" && (
+                                    <>
+                                      <td className="px-2 py-1.5">{displayName(row.partnerUser)}</td>
+                                      <td className="px-2 py-1.5 font-mono">
+                                        {row.partnerWeekPoints ?? 0}
+                                      </td>
+                                    </>
+                                  )}
+                                  {endPreview.type === "hunt_week" && (
+                                    <>
+                                      <td className="px-2 py-1.5 font-mono">
+                                        {row.initialRank ?? "-"} → {row.currentRank ?? "-"}
+                                      </td>
+                                      <td className="px-2 py-1.5">
+                                        {row.caughtPrey ? "Yes" : "No"}
+                                      </td>
+                                      <td className="px-2 py-1.5">
+                                        {row.wasCaught ? "Yes" : "No"}
+                                      </td>
+                                    </>
+                                  )}
+                                  {endPreview.type === "pr_week" && (
+                                    <>
+                                      <td className="px-2 py-1.5 font-mono">{row.initialPr ?? 0}</td>
+                                      <td className="px-2 py-1.5 font-mono">{row.weekMaxPoints ?? 0}</td>
+                                      <td className="px-2 py-1.5">{row.hitPr ? "Yes" : "No"}</td>
+                                    </>
+                                  )}
+                                  <td className="px-2 py-1.5 font-mono">
+                                    {(row.bonusPoints ?? 0) > 0 ? "+" : ""}
+                                    {row.bonusPoints ?? 0}
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                        <div className="text-xs text-zinc-500">
+                          This preview is read-only. Ending the game will apply these bonus outcomes.
+                        </div>
+                      </div>
+                    )}
+                  </DialogContent>
+                </Dialog>
+
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      size="sm"
+                      className="h-8 bg-amber-500 text-black hover:bg-amber-400"
+                    >
+                      <Square className="mr-1 h-3 w-3" />
                       End Game
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent className="border-zinc-800 bg-zinc-900">
+                    <AlertDialogHeader>
+                      <AlertDialogTitle className="text-zinc-100">
+                        End Mini-Game?
+                      </AlertDialogTitle>
+                      <AlertDialogDescription className="text-zinc-400">
+                        This will calculate outcomes and award bonus points to all
+                        participants. This action cannot be undone.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel className="border-zinc-700 bg-zinc-800 text-zinc-300 hover:bg-zinc-700">
+                        Cancel
+                      </AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={handleEnd}
+                        className="bg-amber-500 text-black hover:bg-amber-400"
+                      >
+                        End Game
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </>
+            )}
+            </div>
+            {miniGame.status === "draft" && (
+              <div className="text-right text-[10px] text-zinc-500">
+                Preview Start shows proposed assignments without starting the game.
+              </div>
+            )}
+            {miniGame.status === "active" && (
+              <div className="text-right text-[10px] text-zinc-500">
+                Preview End shows projected bonuses without ending the game.
+              </div>
             )}
           </div>
         </div>
