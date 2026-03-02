@@ -79,12 +79,16 @@ export default function PaymentsAdminPage() {
   const toggleTestMode = useMutation(api.mutations.paymentConfig.toggleTestMode);
   const testConnection = useAction(api.actions.payments.testStripeConnection);
 
-  // Sync allowCustomAmount from paymentConfig when it loads
+  // Sync form state from server when paymentConfig loads
   useEffect(() => {
-    if (paymentConfig !== undefined) {
+    if (paymentConfig != null) {
       setFormData((prev) => ({
         ...prev,
-        allowCustomAmount: paymentConfig?.allowCustomAmount ?? false,
+        testMode: paymentConfig.testMode,
+        priceInDollars: (paymentConfig.priceInCents / 100).toString(),
+        allowCustomAmount: paymentConfig.allowCustomAmount ?? false,
+        stripePublishableKey: paymentConfig.stripePublishableKey ?? "",
+        stripeTestPublishableKey: paymentConfig.stripeTestPublishableKey ?? "",
       }));
     }
   }, [paymentConfig]);
@@ -103,7 +107,7 @@ export default function PaymentsAdminPage() {
         stripeTestPublishableKey: formData.stripeTestPublishableKey || undefined,
         stripeWebhookSecret: formData.stripeWebhookSecret || undefined,
         stripeTestWebhookSecret: formData.stripeTestWebhookSecret || undefined,
-        testMode: formData.testMode,
+        testMode: paymentConfig?.testMode ?? formData.testMode,
         priceInCents,
         allowCustomAmount: formData.allowCustomAmount,
       });
