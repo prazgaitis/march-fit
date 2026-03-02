@@ -1,7 +1,7 @@
 import { internalMutation, mutation } from "../_generated/server";
 import { ConvexError, v } from "convex/values";
 import { calculateFinalActivityScore } from "../lib/scoring";
-import { getCurrentUser } from "../lib/ids";
+import { requireCurrentUser } from "../lib/ids";
 import { isPaymentRequired } from "../lib/payments";
 import {
   dateOnlyToUtcMs,
@@ -77,10 +77,7 @@ export const log = mutation({
     const startedAt = Date.now();
     let resolvedUserId: string | undefined;
     try {
-      const user = await getCurrentUser(ctx);
-      if (!user) {
-        throw new Error("Not authenticated");
-      }
+      const user = await requireCurrentUser(ctx);
       resolvedUserId = String(user._id);
 
       // Validate participation
@@ -430,10 +427,7 @@ function getWeekStart(timestamp: number): number {
 export const generateUploadUrl = mutation({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) {
-      throw new Error("Not authenticated");
-    }
+    await requireCurrentUser(ctx);
     return await ctx.storage.generateUploadUrl();
   },
 });
@@ -445,10 +439,7 @@ export const flagActivity = mutation({
     reason: v.string(),
   },
   handler: async (ctx, args) => {
-    const user = await getCurrentUser(ctx);
-    if (!user) {
-      throw new Error("Not authenticated");
-    }
+    const user = await requireCurrentUser(ctx);
 
     const activity = await ctx.db.get(args.activityId);
     if (!activity || activity.deletedAt) {
@@ -525,16 +516,14 @@ export const editActivity = mutation({
     metrics: v.optional(v.any()),
     loggedDate: v.optional(v.string()), // ISO date string "YYYY-MM-DD"
     activityTypeId: v.optional(v.id("activityTypes")),
+    mediaIds: v.optional(v.array(v.id("_storage"))),
   },
   handler: async (ctx, args) => {
     const startedAt = Date.now();
     let resolvedChallengeId: string | undefined;
     let resolvedUserId: string | undefined;
     try {
-      const user = await getCurrentUser(ctx);
-      if (!user) {
-        throw new Error("Not authenticated");
-      }
+      const user = await requireCurrentUser(ctx);
       resolvedUserId = String(user._id);
 
       const activity = await ctx.db.get(args.activityId);
@@ -584,9 +573,9 @@ export const editActivity = mutation({
 
     const selectedOptionalBonuses = (metricsObj as Record<string, unknown>)["selectedBonuses"] as string[] | undefined;
 
-    // Keep media bonus if activity already has media, but respect the 1-per-day cap.
-    // Exclude this activity itself from the "already earned today" check since we're editing it.
-    const hasMedia = !!(activity.mediaIds && activity.mediaIds.length > 0) || !!activity.imageUrl;
+    // Determine effective media: use provided mediaIds if given, otherwise fall back to existing.
+    const effectiveMediaIds = args.mediaIds !== undefined ? args.mediaIds : activity.mediaIds;
+    const hasMedia = !!(effectiveMediaIds && effectiveMediaIds.length > 0) || !!activity.imageUrl;
     let alreadyEarnedPhotoBonusEdit = false;
     if (hasMedia) {
       const loggedDateStrEdit = formatDateOnlyFromUtcMs(newLoggedDateTs);
@@ -636,6 +625,7 @@ export const editActivity = mutation({
       loggedDate: newLoggedDateTs,
       pointsEarned: newPoints,
       triggeredBonuses: triggeredBonuses.length > 0 ? triggeredBonuses : undefined,
+      ...(args.mediaIds !== undefined ? { mediaIds: args.mediaIds } : {}),
       updatedAt: now,
     });
 
@@ -734,10 +724,7 @@ export const remove = mutation({
     let resolvedChallengeId: string | undefined;
     let resolvedUserId: string | undefined;
     try {
-      const actor = await getCurrentUser(ctx);
-      if (!actor) {
-        throw new Error("Not authenticated");
-      }
+      const actor = await requireCurrentUser(ctx);
       const activity = await ctx.db.get(args.activityId);
       if (!activity) {
         throw new Error("Activity not found");

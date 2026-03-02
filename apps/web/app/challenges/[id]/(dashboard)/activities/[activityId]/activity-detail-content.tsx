@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { formatDistanceToNow, format } from 'date-fns';
@@ -14,6 +14,7 @@ import {
   ChevronUp,
   Clock,
   Flag,
+  ImagePlus,
   Loader2,
   MessageCircle,
   MoreHorizontal,
@@ -23,6 +24,7 @@ import {
   ThumbsUp,
   Trophy,
   Trash2,
+  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -64,6 +66,15 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import {
+  ResponsiveDialog,
+  ResponsiveDialogBody,
+  ResponsiveDialogContent,
+  ResponsiveDialogDescription,
+  ResponsiveDialogFooter,
+  ResponsiveDialogHeader,
+  ResponsiveDialogTitle,
+} from '@/components/ui/responsive-dialog';
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -76,6 +87,27 @@ import { isEditorContentEmpty, type MentionableUser } from '@/lib/rich-text-util
 import { cn } from '@/lib/utils';
 import { formatPoints } from '@/lib/points';
 import { PointsDisplay } from '@/components/ui/points-display';
+
+interface MediaPreview {
+  file: File;
+  url: string;
+  type: 'image' | 'video';
+}
+
+interface ExistingMedia {
+  storageId: string;
+  url: string;
+  type: 'image' | 'video';
+}
+
+const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
+const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+const ACCEPTED_VIDEO_TYPES = ['video/mp4', 'video/quicktime', 'video/webm'];
+const ACCEPTED_TYPES = [...ACCEPTED_IMAGE_TYPES, ...ACCEPTED_VIDEO_TYPES];
+
+function isVideoUrl(url: string): boolean {
+  return url.includes('.mp4') || url.includes('.mov') || url.includes('.webm') || url.includes('video');
+}
 
 interface ActivityDetailContentProps {
   challengeId: string;
@@ -100,10 +132,15 @@ export function ActivityDetailContent({
   // Edit dialog state
   const [showEditDialog, setShowEditDialog] = useState(false);
   const [editNotes, setEditNotes] = useState('');
+  const [editNotesIsEmpty, setEditNotesIsEmpty] = useState(true);
   const [editLoggedDate, setEditLoggedDate] = useState('');
   const [editMetricValue, setEditMetricValue] = useState('');
   const [editActivityTypeId, setEditActivityTypeId] = useState('');
   const [editSubmitting, setEditSubmitting] = useState(false);
+  const [editExistingMedia, setEditExistingMedia] = useState<ExistingMedia[]>([]);
+  const [editNewMedia, setEditNewMedia] = useState<MediaPreview[]>([]);
+  const [editUploadProgress, setEditUploadProgress] = useState<string | null>(null);
+  const editFileInputRef = useRef<HTMLInputElement>(null);
 
   const activityData = useQuery(api.queries.activities.getById, {
     activityId: activityId as Id<'activities'>,
@@ -122,6 +159,40 @@ export function ActivityDetailContent({
   const flagActivity = useMutation(api.mutations.activities.flagActivity);
   const deleteActivity = useMutation(api.mutations.activities.remove);
   const editActivityMutation = useMutation(api.mutations.activities.editActivity);
+  const generateUploadUrl = useMutation(api.mutations.activities.generateUploadUrl);
+
+  const handleEditFileSelect = useCallback((files: FileList | null) => {
+    if (!files) return;
+
+    const newFiles: MediaPreview[] = [];
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      if (!ACCEPTED_TYPES.includes(file.type)) {
+        toast.error(`File "${file.name}" is not a supported format`);
+        continue;
+      }
+      if (file.size > MAX_FILE_SIZE) {
+        toast.error(`File "${file.name}" exceeds 50MB limit`);
+        continue;
+      }
+      const isVideo = ACCEPTED_VIDEO_TYPES.includes(file.type);
+      newFiles.push({ file, url: URL.createObjectURL(file), type: isVideo ? 'video' : 'image' });
+    }
+
+    setEditNewMedia((prev) => [...prev, ...newFiles].slice(0, 4 - editExistingMedia.length));
+  }, [editExistingMedia.length]);
+
+  const handleRemoveExistingMedia = useCallback((index: number) => {
+    setEditExistingMedia((prev) => prev.filter((_, i) => i !== index));
+  }, []);
+
+  const handleRemoveNewMedia = useCallback((index: number) => {
+    setEditNewMedia((prev) => {
+      const removed = prev[index];
+      if (removed) URL.revokeObjectURL(removed.url);
+      return prev.filter((_, i) => i !== index);
+    });
+  }, []);
 
   const handleToggleLike = async () => {
     setPendingLike(true);
@@ -200,11 +271,13 @@ export function ActivityDetailContent({
 
   const openEditDialog = () => {
     if (!activityData || activityData === null) return;
-    const { activity, activityType } = activityData as {
-      activity: { notes?: string; loggedDate: number; metrics?: Record<string, unknown>; pointsEarned: number };
+    const { activity, activityType, mediaUrls: existingUrls } = activityData as {
+      activity: { notes?: string; loggedDate: number; metrics?: Record<string, unknown>; pointsEarned: number; mediaIds?: string[] };
       activityType: { _id: string; scoringConfig: Record<string, unknown> };
+      mediaUrls?: string[];
     };
     setEditNotes(typeof activity.notes === 'string' ? activity.notes : '');
+    setEditNotesIsEmpty(!activity.notes || activity.notes.trim() === '');
     setEditLoggedDate(format(new Date(activity.loggedDate), 'yyyy-MM-dd'));
     setEditActivityTypeId(activityType._id);
     // Pre-populate metric value from existing metrics
@@ -213,6 +286,18 @@ export function ActivityDetailContent({
     const metrics = (activity.metrics ?? {}) as Record<string, unknown>;
     const metricVal = unit ? (metrics[unit] ?? '') : '';
     setEditMetricValue(String(metricVal));
+    // Pre-populate existing media
+    const mediaIds = activity.mediaIds ?? [];
+    const urls = existingUrls ?? [];
+    setEditExistingMedia(
+      urls.map((url: string, i: number) => ({
+        storageId: mediaIds[i] ?? '',
+        url,
+        type: isVideoUrl(url) ? 'video' as const : 'image' as const,
+      }))
+    );
+    setEditNewMedia([]);
+    setEditUploadProgress(null);
     setShowEditDialog(true);
   };
 
@@ -220,8 +305,9 @@ export function ActivityDetailContent({
     if (!activityData || activityData === null) return;
     setEditSubmitting(true);
     try {
-      const { activityType } = activityData as {
+      const { activityType, activity } = activityData as {
         activityType: { _id: string; scoringConfig: Record<string, unknown> };
+        activity: { mediaIds?: string[] };
       };
       const config = (activityType.scoringConfig ?? {}) as Record<string, unknown>;
       const unit = config['unit'] as string | undefined;
@@ -232,19 +318,57 @@ export function ActivityDetailContent({
         newMetrics = { [unit]: Number(editMetricValue) };
       }
 
+      // Upload new media files
+      const uploadedIds: Id<'_storage'>[] = [];
+      if (editNewMedia.length > 0) {
+        setEditUploadProgress(`Uploading ${editNewMedia.length} file(s)...`);
+        for (let i = 0; i < editNewMedia.length; i++) {
+          setEditUploadProgress(`Uploading file ${i + 1} of ${editNewMedia.length}...`);
+          const uploadUrl = await generateUploadUrl();
+          const response = await fetch(uploadUrl, {
+            method: 'POST',
+            headers: { 'Content-Type': editNewMedia[i].file.type },
+            body: editNewMedia[i].file,
+          });
+          if (!response.ok) throw new Error(`Failed to upload file ${i + 1}`);
+          const { storageId } = await response.json();
+          uploadedIds.push(storageId);
+        }
+        setEditUploadProgress(null);
+      }
+
+      // Build final mediaIds: kept existing + newly uploaded
+      const keptExistingIds = editExistingMedia
+        .map((m) => m.storageId)
+        .filter(Boolean) as Id<'_storage'>[];
+      const finalMediaIds = [...keptExistingIds, ...uploadedIds];
+
+      // Only send mediaIds if they actually changed
+      const originalIds = activity.mediaIds ?? [];
+      const mediaChanged =
+        finalMediaIds.length !== originalIds.length ||
+        finalMediaIds.some((id, i) => id !== originalIds[i]);
+
       const payload: Parameters<typeof editActivityMutation>[0] = {
         activityId: activityId as Id<'activities'>,
-        notes: editNotes,
+        notes: editNotesIsEmpty || isEditorContentEmpty(editNotes) ? '' : editNotes,
         loggedDate: editLoggedDate,
         ...(editActivityTypeId !== activityType._id ? { activityTypeId: editActivityTypeId as Id<'activityTypes'> } : {}),
         ...(newMetrics !== undefined ? { metrics: newMetrics } : {}),
+        ...(mediaChanged ? { mediaIds: finalMediaIds } : {}),
       };
 
       const result = await editActivityMutation(payload);
+
+      // Clean up new media preview URLs
+      editNewMedia.forEach((media) => URL.revokeObjectURL(media.url));
+      setEditNewMedia([]);
+
       toast.success(`Activity updated! ${formatPoints(result.pointsEarned, 1)} pts.`);
       setShowEditDialog(false);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to update activity');
+      setEditUploadProgress(null);
     } finally {
       setEditSubmitting(false);
     }
@@ -543,16 +667,16 @@ export function ActivityDetailContent({
                 </DropdownMenuItem>
               </DropdownMenuContent>
 
-              {/* Edit Activity Dialog */}
-              <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
-                <DialogContent className="sm:max-w-md">
-                  <DialogHeader>
-                    <DialogTitle>Edit Activity</DialogTitle>
-                    <DialogDescription>
+              {/* Edit Activity Dialog - ResponsiveDialog for mobile support */}
+              <ResponsiveDialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+                <ResponsiveDialogContent>
+                  <ResponsiveDialogHeader>
+                    <ResponsiveDialogTitle>Edit Activity</ResponsiveDialogTitle>
+                    <ResponsiveDialogDescription>
                       Update the details for this activity. Points will be recalculated automatically.
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="space-y-4">
+                    </ResponsiveDialogDescription>
+                  </ResponsiveDialogHeader>
+                  <ResponsiveDialogBody className="space-y-4">
                     {/* Activity Type */}
                     <div className="space-y-1">
                       <Label htmlFor="edit-activity-type">Activity Type</Label>
@@ -595,6 +719,7 @@ export function ActivityDetailContent({
                             type="number"
                             min="0"
                             step="any"
+                            inputMode="decimal"
                             value={editMetricValue}
                             onChange={(e) => setEditMetricValue(e.target.value)}
                             placeholder={`Enter ${unit}`}
@@ -603,39 +728,128 @@ export function ActivityDetailContent({
                       );
                     })()}
 
-                    {/* Notes */}
+                    {/* Notes - Rich Text Editor with mentions */}
                     <div className="space-y-1">
-                      <Label htmlFor="edit-notes">Notes</Label>
-                      <Textarea
-                        id="edit-notes"
+                      <Label>Notes</Label>
+                      <RichTextEditor
                         value={editNotes}
-                        onChange={(e) => setEditNotes(e.target.value)}
+                        onChange={setEditNotes}
+                        onIsEmptyChange={setEditNotesIsEmpty}
                         placeholder="Add notes about this activity..."
-                        rows={3}
+                        mentionOptions={mentionUsers}
                       />
                     </div>
-                  </div>
-                  <DialogFooter>
+
+                    {/* Media Upload Section */}
+                    <div className="space-y-2">
+                      <Label>Photos & Videos</Label>
+                      <input
+                        ref={editFileInputRef}
+                        type="file"
+                        accept={ACCEPTED_TYPES.join(',')}
+                        multiple
+                        className="hidden"
+                        onChange={(e) => {
+                          handleEditFileSelect(e.target.files);
+                          e.target.value = '';
+                        }}
+                      />
+
+                      {/* Media Preview Grid - existing + new */}
+                      {(editExistingMedia.length > 0 || editNewMedia.length > 0) && (
+                        <div className="grid grid-cols-2 gap-2">
+                          {editExistingMedia.map((media, index) => (
+                            <div
+                              key={`existing-${media.storageId}`}
+                              className="group relative aspect-square overflow-hidden rounded-lg border border-zinc-700 bg-zinc-900"
+                            >
+                              {media.type === 'video' ? (
+                                <video src={media.url} className="h-full w-full object-cover" muted />
+                              ) : (
+                                <img src={media.url} alt={`Media ${index + 1}`} className="h-full w-full object-cover" />
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveExistingMedia(index)}
+                                className="absolute right-1 top-1 rounded-full bg-black/70 p-1 text-white opacity-0 transition group-hover:opacity-100 sm:opacity-0 max-sm:opacity-100 hover:bg-black"
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
+                              {media.type === 'video' && (
+                                <div className="absolute bottom-1 left-1 rounded bg-black/70 px-1.5 py-0.5 text-xs text-white">Video</div>
+                              )}
+                            </div>
+                          ))}
+                          {editNewMedia.map((media, index) => (
+                            <div
+                              key={`new-${index}`}
+                              className="group relative aspect-square overflow-hidden rounded-lg border border-dashed border-zinc-600 bg-zinc-900"
+                            >
+                              {media.type === 'image' ? (
+                                <img src={media.url} alt={`New upload ${index + 1}`} className="h-full w-full object-cover" />
+                              ) : (
+                                <video src={media.url} className="h-full w-full object-cover" muted />
+                              )}
+                              <button
+                                type="button"
+                                onClick={() => handleRemoveNewMedia(index)}
+                                className="absolute right-1 top-1 rounded-full bg-black/70 p-1 text-white opacity-0 transition group-hover:opacity-100 sm:opacity-0 max-sm:opacity-100 hover:bg-black"
+                              >
+                                <X className="h-4 w-4" />
+                              </button>
+                              {media.type === 'video' && (
+                                <div className="absolute bottom-1 left-1 rounded bg-black/70 px-1.5 py-0.5 text-xs text-white">Video</div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Add Media Button */}
+                      {editExistingMedia.length + editNewMedia.length < 4 && (
+                        <button
+                          type="button"
+                          onClick={() => editFileInputRef.current?.click()}
+                          className="flex w-full items-center justify-center gap-2 rounded-lg border-2 border-dashed border-zinc-700 py-4 text-sm text-zinc-400 transition hover:border-zinc-500 hover:text-zinc-300"
+                        >
+                          <ImagePlus className="h-5 w-5" />
+                          <span>Add photos or videos</span>
+                        </button>
+                      )}
+                      <p className="text-xs text-muted-foreground">
+                        Up to 4 files. Max 50MB each. JPEG, PNG, GIF, WebP, MP4, MOV, WebM.
+                      </p>
+                    </div>
+
+                    {editUploadProgress && (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        {editUploadProgress}
+                      </div>
+                    )}
+                  </ResponsiveDialogBody>
+                  <ResponsiveDialogFooter>
                     <Button
                       variant="outline"
+                      className="w-full sm:w-auto"
                       onClick={() => setShowEditDialog(false)}
                       disabled={editSubmitting}
                     >
                       Cancel
                     </Button>
-                    <Button onClick={handleEditSubmit} disabled={editSubmitting}>
+                    <Button className="w-full sm:w-auto" onClick={handleEditSubmit} disabled={editSubmitting}>
                       {editSubmitting ? (
                         <>
                           <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Saving
+                          {editUploadProgress ? 'Uploading...' : 'Saving'}
                         </>
                       ) : (
                         'Save Changes'
                       )}
                     </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
+                  </ResponsiveDialogFooter>
+                </ResponsiveDialogContent>
+              </ResponsiveDialog>
             </DropdownMenu>
 
             <Dialog open={showFlagDialog} onOpenChange={setShowFlagDialog}>

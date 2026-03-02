@@ -1,5 +1,6 @@
 import { QueryCtx, MutationCtx } from "../_generated/server";
 import { Id, type TableNames } from "../_generated/dataModel";
+import { ConvexError } from "convex/values";
 
 /**
  * Helper function to get a document by Convex ID.
@@ -16,6 +17,7 @@ export async function getById<T extends TableNames>(
 /**
  * Get the current authenticated user from the identity.
  * Links Better Auth users to our users table via email.
+ * Returns null if not authenticated — use requireCurrentUser for mutations.
  */
 export async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
   const identity = await ctx.auth.getUserIdentity();
@@ -32,6 +34,34 @@ export async function getCurrentUser(ctx: QueryCtx | MutationCtx) {
   }
 
   return null;
+}
+
+/**
+ * Get the current authenticated user, throwing a ConvexError if not found.
+ * Use this in mutations where authentication is required.
+ * The structured error data lets clients detect session expiry and recover gracefully.
+ */
+export async function requireCurrentUser(ctx: QueryCtx | MutationCtx) {
+  const identity = await ctx.auth.getUserIdentity();
+  if (!identity) {
+    throw new ConvexError({
+      code: "unauthenticated",
+      message: "Your session has expired. Please sign in again to continue.",
+    });
+  }
+
+  if (identity.email) {
+    const user = await ctx.db
+      .query("users")
+      .withIndex("email", (q) => q.eq("email", identity.email as string))
+      .first();
+    if (user) return user;
+  }
+
+  throw new ConvexError({
+    code: "unauthenticated",
+    message: "Your session has expired. Please sign in again to continue.",
+  });
 }
 
 /**
