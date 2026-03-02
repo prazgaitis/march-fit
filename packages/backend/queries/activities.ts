@@ -173,7 +173,7 @@ export const getChallengeFeed = query({
       const follows = await ctx.db
         .query("follows")
         .withIndex("followerId", (q) => q.eq("followerId", currentUser._id))
-        .collect();
+        .take(1000);
       followingIds = new Set(follows.map((f) => f.followingId));
 
       if (authDebugEnabled) {
@@ -256,12 +256,12 @@ export const getChallengeFeed = query({
               ctx.db
                 .query("likes")
                 .withIndex("activityId", (q) => q.eq("activityId", activity._id))
-                .collect()
+                .take(500)
                 .then((likes) => likes.length),
               ctx.db
                 .query("comments")
                 .withIndex("activityId", (q) => q.eq("activityId", activity._id))
-                .collect()
+                .take(500)
                 .then((comments) => comments.length),
             ])
           : [0, 0];
