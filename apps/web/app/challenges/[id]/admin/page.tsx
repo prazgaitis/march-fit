@@ -55,6 +55,18 @@ export default function AdminOverviewPage() {
       }, 0),
     [monitoring?.hourlyCounts],
   );
+  const activityTypeCountMap = useMemo(
+    () =>
+      new Map<string, number>(
+        (monitoring?.activityTypeCounts ?? []).map(
+          (entry: { activityTypeId: string; count: number }) => [
+            entry.activityTypeId,
+            entry.count,
+          ],
+        ),
+      ),
+    [monitoring?.activityTypeCounts],
+  );
 
   if (!dashboardData || !monitoring) {
     return (
@@ -158,12 +170,17 @@ export default function AdminOverviewPage() {
         <AdminCard header={<SectionHeader size="md">Activity Types</SectionHeader>} padding="none">
           <div className="max-h-64 divide-y divide-zinc-800/50 overflow-y-auto">
             {activityTypes && activityTypes.length > 0 ? (
-              activityTypes.slice(0, 10).map((type: Doc<"activityTypes">) => (
+              activityTypes.map((type: Doc<"activityTypes">) => (
                 <div
                   key={type._id}
                   className="flex items-center justify-between px-3 py-2"
                 >
-                  <span className="text-sm text-zinc-200">{type.name}</span>
+                  <div>
+                    <span className="text-sm text-zinc-200">{type.name}</span>
+                    <div className="font-mono text-[10px] text-zinc-500">
+                      {activityTypeCountMap.get(type._id) ?? 0} logged
+                    </div>
+                  </div>
                   <div className="flex items-center gap-2 text-xs">
                     {type.isNegative ? (
                       <span className="text-red-400">PENALTY</span>
@@ -177,9 +194,6 @@ export default function AdminOverviewPage() {
               ))
             ) : (
               <div className="px-3 py-4 text-center text-xs text-zinc-600">No activity types configured</div>
-            )}
-            {activityTypes && activityTypes.length > 10 && (
-              <div className="px-3 py-2 text-center text-xs text-zinc-500">+{activityTypes.length - 10} more</div>
             )}
           </div>
         </AdminCard>

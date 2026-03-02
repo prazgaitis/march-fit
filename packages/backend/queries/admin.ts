@@ -421,15 +421,22 @@ export const getMonitoringDashboard = query({
       label: `${hour.toString().padStart(2, "0")}:00`,
       count: 0,
     }));
+    const activityTypeCountMap = new Map<string, number>();
 
     for (const activity of activities) {
       hourlyCounts[new Date(activity.createdAt).getUTCHours()].count += 1;
+      const key = activity.activityTypeId as string;
+      activityTypeCountMap.set(key, (activityTypeCountMap.get(key) ?? 0) + 1);
     }
+    const activityTypeCounts = Array.from(activityTypeCountMap.entries()).map(
+      ([activityTypeId, count]) => ({ activityTypeId, count }),
+    );
 
     if (!includeFeedDebug) {
       return {
         totalActivities: activities.length,
         hourlyCounts,
+        activityTypeCounts,
         feed: {
           viewer: {
             id: adminUser._id,
@@ -575,6 +582,7 @@ export const getMonitoringDashboard = query({
     return {
       totalActivities: activities.length,
       hourlyCounts,
+      activityTypeCounts,
       feed: {
         viewer: {
           id: viewAsUser._id,
