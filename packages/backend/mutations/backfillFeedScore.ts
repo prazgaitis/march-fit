@@ -31,12 +31,13 @@ export const backfillFeedScore = internalMutation({
 
     // Scan for activities that still need a feedScore.
     // Using .filter() + .take() ensures we don't load the whole table.
-    let baseQuery = ctx.db.query("activities");
-    if (args.challengeId) {
-      baseQuery = baseQuery.withIndex("challengeId", (q) =>
-        q.eq("challengeId", args.challengeId!),
-      );
-    }
+    const baseQuery = args.challengeId
+      ? ctx.db
+          .query("activities")
+          .withIndex("challengeId", (q) =>
+            q.eq("challengeId", args.challengeId!),
+          )
+      : ctx.db.query("activities");
     const batch = await baseQuery
       .filter((q) => q.eq(q.field("feedScore"), undefined))
       .take(batchSize);

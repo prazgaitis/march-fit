@@ -122,13 +122,21 @@ http.route({
           const session = unverifiedEvent.data.object as Stripe.Checkout.Session;
 
           if (session.payment_status === "paid") {
-            await ctx.runMutation(internal.mutations.payments.handlePaymentSuccess, {
+            const result = await ctx.runMutation(internal.mutations.payments.handlePaymentSuccess, {
               stripeCheckoutSessionId: session.id,
               stripePaymentIntentId: session.payment_intent as string | undefined,
               stripeCustomerId: session.customer as string | undefined,
               stripeCustomerEmail: session.customer_email || undefined,
               amountInCents: session.amount_total ?? undefined, // Actual amount paid (captures donation overpay)
+              // Pass metadata so the mutation can self-heal if DB records are missing
+              challengeId: session.metadata?.challengeId as any,
+              userId: session.metadata?.userId as any,
             });
+
+            if (result && !result.success) {
+              console.error("handlePaymentSuccess failed:", result.error);
+              return new Response("Payment processing failed", { status: 500 });
+            }
           }
           break;
         }
