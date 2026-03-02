@@ -3,15 +3,15 @@ import { v } from "convex/values";
 import { paginationOptsValidator } from "convex/server";
 import { getCurrentUser } from "../lib/ids";
 import { notDeleted } from "../lib/activityFilters";
-import { computeDisplayScore } from "../lib/feedScoring";
+import { computePersonalizedRank } from "../lib/feedScoring";
 
 /**
  * Algorithmic feed: activities ranked by content quality, engagement,
  * social relevance (following), and recency.
  *
- * Uses the `challengeFeedScore` index for efficient page fetches,
- * then applies per-viewer personalization + time decay and re-sorts
- * within each page.
+ * Uses the `challengeFeedRank` index for efficient page fetches
+ * (time-bucketed: today's posts always above yesterday's), then
+ * applies per-viewer following boost and re-sorts within each page.
  */
 export const getAlgorithmicFeed = query({
   args: {
@@ -24,7 +24,6 @@ export const getAlgorithmicFeed = query({
     const includeEngagementCounts = args.includeEngagementCounts ?? true;
     const includeMediaUrls = args.includeMediaUrls ?? true;
     const currentUser = await getCurrentUser(ctx);
-    const now = Date.now();
 
     // Load viewer's following set (cheap — typically < 200 rows).
     let followingIds: Set<string> | null = null;
@@ -36,13 +35,13 @@ export const getAlgorithmicFeed = query({
       followingIds = new Set(follows.map((f) => f.followingId));
     }
 
-    // Paginate by feedScore DESC via index.
-    // Activities without a feedScore (pre-backfill) have feedScore = undefined
+    // Paginate by feedRank DESC via index.
+    // Activities without a feedRank (pre-backfill) have feedRank = undefined
     // and won't appear in this index scan — that's intentional; the backfill
     // will fill them in and they'll start appearing.
     const activities = await ctx.db
       .query("activities")
-      .withIndex("challengeFeedScore", (q) =>
+      .withIndex("challengeFeedRank", (q) =>
         q.eq("challengeId", args.challengeId),
       )
       .filter(notDeleted)
@@ -103,11 +102,9 @@ export const getAlgorithmicFeed = query({
           ? followingIds.has(activity.userId as string)
           : false;
 
-        const displayScore = computeDisplayScore(
-          activity.feedScore ?? 1,
+        const displayScore = computePersonalizedRank(
+          activity.feedRank ?? 0,
           isFollowing,
-          activity.createdAt,
-          now,
         );
 
         return {

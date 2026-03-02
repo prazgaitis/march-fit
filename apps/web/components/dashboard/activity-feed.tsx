@@ -4,6 +4,7 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { formatDistanceToNow } from 'date-fns';
 import {
+  ArrowUp,
   Flag,
   Loader2,
   MessageCircle,
@@ -100,13 +101,66 @@ interface ActivityFeedItem {
   mediaUrls: string[];
 }
 
+interface AlgoFeedItem {
+  activity: {
+    _id: string;
+    notes: string | null;
+    pointsEarned: number;
+    loggedDate: number;
+    createdAt: number;
+    metrics?: Record<string, unknown>;
+    triggeredBonuses?: BonusThreshold[];
+    _creationTime: number;
+  };
+  user: {
+    id: string;
+    name: string | null;
+    username: string;
+    avatarUrl: string | null;
+    location?: string | null;
+  };
+  activityType: {
+    id: string | null;
+    name: string | null;
+    categoryId: string | null;
+    scoringConfig?: Record<string, unknown>;
+    isNegative?: boolean;
+  } | null;
+  likes: number;
+  comments: number;
+  likedByUser: boolean;
+  mediaUrls: string[];
+  displayScore: number;
+}
+
+function mapAlgoItem(item: AlgoFeedItem): ActivityFeedItem {
+  return {
+    activity: {
+      _id: item.activity._id,
+      notes: item.activity.notes,
+      pointsEarned: item.activity.pointsEarned,
+      loggedDate: item.activity.loggedDate,
+      createdAt: item.activity.createdAt,
+      metrics: item.activity.metrics,
+      triggeredBonuses: item.activity.triggeredBonuses,
+    },
+    user: item.user,
+    activityType: item.activityType,
+    likes: item.likes,
+    comments: item.comments,
+    likedByUser: item.likedByUser,
+    mediaUrls: item.mediaUrls,
+  };
+}
+
 interface ActivityFeedProps {
   challengeId: string;
   initialItems?: ActivityFeedItem[];
+  initialAlgoItems?: AlgoFeedItem[];
   initialLightweightMode?: boolean;
 }
 
-type FeedFilter = 'all' | 'following';
+type FeedFilter = 'for_you' | 'all' | 'following';
 
 interface FeedPageResponse {
   page: ActivityFeedItem[];
@@ -117,13 +171,14 @@ interface FeedPageResponse {
 export function ActivityFeed({
   challengeId,
   initialItems = [],
+  initialAlgoItems = [],
   initialLightweightMode = false,
 }: ActivityFeedProps) {
   const connectionState = useConvexConnectionState();
   const { summary } = useChallengeSummary();
   const { hasNewActivity, acknowledgeActivity } = useActivityNotification();
   const { users: mentionUsers } = useMentionableUsers(challengeId);
-  const [feedFilter, setFeedFilter] = useState<FeedFilter>('all');
+  const [feedFilter, setFeedFilter] = useState<FeedFilter>('for_you');
   const [hasLoadedFollowingFeed, setHasLoadedFollowingFeed] = useState(false);
   const [useHttpFallback, setUseHttpFallback] = useState(false);
   const [httpItems, setHttpItems] = useState<ActivityFeedItem[]>(initialItems);
@@ -148,12 +203,31 @@ export function ActivityFeed({
     isLoading,
   } = usePaginatedQuery(
     api.queries.activities.getChallengeFeed,
-    {
-      challengeId: challengeId as Id<"challenges">,
-      followingOnly: feedFilter === 'following',
-      includeEngagementCounts: !lightweightFeedMode,
-      includeMediaUrls: !lightweightFeedMode,
-    },
+    feedFilter === 'for_you'
+      ? "skip"
+      : {
+          challengeId: challengeId as Id<"challenges">,
+          followingOnly: feedFilter === 'following',
+          includeEngagementCounts: !lightweightFeedMode,
+          includeMediaUrls: !lightweightFeedMode,
+        },
+    { initialNumItems: 10 }
+  );
+
+  const {
+    results: algoResults,
+    status: algoStatus,
+    loadMore: algoLoadMore,
+    isLoading: algoIsLoading,
+  } = usePaginatedQuery(
+    api.queries.algorithmicFeed.getAlgorithmicFeed,
+    feedFilter === 'for_you'
+      ? {
+          challengeId: challengeId as Id<"challenges">,
+          includeEngagementCounts: !lightweightFeedMode,
+          includeMediaUrls: !lightweightFeedMode,
+        }
+      : "skip",
     { initialNumItems: 10 }
   );
 
@@ -270,6 +344,13 @@ export function ActivityFeed({
   }, [feedFilter, initialItems, loadHttpPage, useHttpFallback]);
 
   const handleLoadMore = () => {
+    if (feedFilter === 'for_you') {
+      if (algoStatus === "CanLoadMore") {
+        algoLoadMore(10);
+      }
+      return;
+    }
+
     if (useHttpFallback) {
       if (!httpLoading && !httpIsDone && httpCursor) {
         void loadHttpPage(httpCursor, true);
@@ -288,7 +369,18 @@ export function ActivityFeed({
     // effectively this just hides the alert.
   };
 
+  const algoDisplayResults = useMemo(() => {
+    if (feedFilter !== 'for_you') return [];
+    const mapped = (algoResults ?? []).map(mapAlgoItem);
+    if (mapped.length === 0) return initialAlgoItems.map(mapAlgoItem);
+    return mapped;
+  }, [algoResults, feedFilter, initialAlgoItems]);
+
   const liveDisplayResults = useMemo(() => {
+    if (feedFilter === 'for_you') {
+      return algoDisplayResults;
+    }
+
     if (feedFilter !== 'all') {
       return results;
     }
@@ -298,7 +390,7 @@ export function ActivityFeed({
     }
 
     return results;
-  }, [feedFilter, initialItems, results]);
+  }, [algoDisplayResults, feedFilter, initialItems, results]);
 
   const displayResults = useMemo(() => {
     if (!useHttpFallback) {
@@ -329,10 +421,17 @@ export function ActivityFeed({
   const showRefreshPrompt =
     feedFilter === 'all' && hasNewActivity && !latestActivityVisible;
 
-  const effectiveIsLoading = useHttpFallback ? httpLoading : isLoading;
-  const canLoadMore = useHttpFallback
-    ? !httpIsDone && !httpLoading && httpCursor !== null
-    : status === "CanLoadMore";
+  const showForYouNewBanner =
+    feedFilter === 'for_you' && hasNewActivity && !latestActivityVisible;
+
+  const effectiveIsLoading = feedFilter === 'for_you'
+    ? algoIsLoading
+    : useHttpFallback ? httpLoading : isLoading;
+  const canLoadMore = feedFilter === 'for_you'
+    ? algoStatus === "CanLoadMore"
+    : useHttpFallback
+      ? !httpIsDone && !httpLoading && httpCursor !== null
+      : status === "CanLoadMore";
 
   useEffect(() => {
     if (feedFilter === "following" && !effectiveIsLoading) {
@@ -347,11 +446,11 @@ export function ActivityFeed({
     (displayResults?.length ?? 0) === 0;
 
   const feedStatus = useMemo(() => {
-    const hasInitialFeed = feedFilter === "all" && (displayResults?.length ?? 0) > 0;
+    const hasInitialFeed = (feedFilter === "all" || feedFilter === "for_you") && (displayResults?.length ?? 0) > 0;
     if (effectiveIsLoading && !hasInitialFeed) {
-      return feedFilter === "following"
-        ? "Loading activity from people you follow..."
-        : "Loading recent activities...";
+      if (feedFilter === "following") return "Loading activity from people you follow...";
+      if (feedFilter === "for_you") return "Loading your personalized feed...";
+      return "Loading recent activities...";
     }
     return null;
   }, [displayResults, effectiveIsLoading, feedFilter]);
@@ -361,6 +460,18 @@ export function ActivityFeed({
       {/* Twitter-like Feed Filter Tabs */}
       <div className="sticky top-[env(safe-area-inset-top)] z-10 -mx-4 border-b border-zinc-800 bg-black/80 backdrop-blur">
         <div className="flex">
+          <button
+            onClick={() => setFeedFilter('for_you')}
+            className={cn(
+              'relative flex-1 py-4 text-center text-sm font-medium transition-colors hover:bg-zinc-900/50',
+              feedFilter === 'for_you' ? 'text-white' : 'text-zinc-500'
+            )}
+          >
+            For You
+            {feedFilter === 'for_you' && (
+              <div className="absolute bottom-0 left-1/2 h-1 w-16 -translate-x-1/2 rounded-full bg-indigo-500" />
+            )}
+          </button>
           <button
             onClick={() => setFeedFilter('all')}
             className={cn(
@@ -387,6 +498,21 @@ export function ActivityFeed({
           </button>
         </div>
       </div>
+
+      {showForYouNewBanner && (
+        <div className="fixed left-1/2 top-20 z-20 -translate-x-1/2">
+          <button
+            onClick={() => {
+              acknowledgeActivity();
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
+            className="flex items-center gap-1.5 rounded-full bg-indigo-500 px-4 py-2 text-sm font-medium text-white shadow-lg transition-transform hover:scale-105 active:scale-95"
+          >
+            <ArrowUp className="h-4 w-4" />
+            New activities
+          </button>
+        </div>
+      )}
 
       {showRefreshPrompt && (
         <Alert className="border-primary/30 bg-primary/10">
@@ -436,12 +562,18 @@ export function ActivityFeed({
         <Card className="border-dashed text-center">
           <CardHeader>
             <CardTitle>
-              {feedFilter === 'following' ? 'No activity from people you follow' : 'No activity yet'}
+              {feedFilter === 'following'
+                ? 'No activity from people you follow'
+                : feedFilter === 'for_you'
+                  ? 'No activity yet'
+                  : 'No activity yet'}
             </CardTitle>
             <CardDescription>
               {feedFilter === 'following'
                 ? 'Follow other participants to see their activities here.'
-                : 'Be the first to log a workout for this challenge.'}
+                : feedFilter === 'for_you'
+                  ? 'Activities will appear here once people start logging workouts.'
+                  : 'Be the first to log a workout for this challenge.'}
             </CardDescription>
           </CardHeader>
         </Card>

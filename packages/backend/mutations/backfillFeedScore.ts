@@ -1,6 +1,6 @@
 import { internalMutation } from "../_generated/server";
 import { v } from "convex/values";
-import { computeFeedScore, type ContentScoreInput, type EngagementScoreInput } from "../lib/feedScoring";
+import { computeFeedScore, computeFeedRank, type ContentScoreInput, type EngagementScoreInput } from "../lib/feedScoring";
 
 /**
  * Backfill feedScore on activities that don't have one yet.
@@ -29,7 +29,7 @@ export const backfillFeedScore = internalMutation({
     const batchSize = args.batchSize ?? 100;
     const dryRun = args.dryRun ?? false;
 
-    // Scan for activities that still need a feedScore.
+    // Scan for activities that still need a feedRank.
     // Using .filter() + .take() ensures we don't load the whole table.
     const baseQuery = args.challengeId
       ? ctx.db
@@ -39,7 +39,7 @@ export const backfillFeedScore = internalMutation({
           )
       : ctx.db.query("activities");
     const batch = await baseQuery
-      .filter((q) => q.eq(q.field("feedScore"), undefined))
+      .filter((q) => q.eq(q.field("feedRank"), undefined))
       .take(batchSize);
 
     let updated = 0;
@@ -68,8 +68,10 @@ export const backfillFeedScore = internalMutation({
       const engagement: EngagementScoreInput = { likeCount, commentCount };
       const score = computeFeedScore(content, engagement);
 
+      const rank = computeFeedRank(score, activity.createdAt);
+
       if (!dryRun) {
-        await ctx.db.patch(activity._id, { feedScore: score });
+        await ctx.db.patch(activity._id, { feedScore: score, feedRank: rank });
       }
       updated++;
     }
