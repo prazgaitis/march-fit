@@ -224,7 +224,7 @@ export const getFullLeaderboard = query({
 });
 
 /**
- * Get list of users for mentions (limited to 100 for now)
+ * Get list of users for mentions.
  */
 export const getMentionable = query({
   args: {
@@ -234,7 +234,7 @@ export const getMentionable = query({
     const participations = await ctx.db
       .query("userChallenges")
       .withIndex("challengeId", (q) => q.eq("challengeId", args.challengeId))
-      .take(100); // Limit to 100 for now to match previous behavior
+      .collect();
 
     const users = await Promise.all(
       participations.map(async (p) => {

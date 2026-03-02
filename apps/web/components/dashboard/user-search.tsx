@@ -3,10 +3,16 @@
 import { useState, useMemo } from "react";
 import Link from "next/link";
 import { Search } from "lucide-react";
+import { useQuery } from "convex/react";
+import { api } from "@repo/backend";
+import type { Id } from "@repo/backend/_generated/dataModel";
 
-import { useChallengeSummary } from "./challenge-realtime-context";
 import { Input } from "@/components/ui/input";
 import { UserAvatar } from "@/components/user-avatar";
+import {
+  filterLeaderboardUsers,
+  type SearchableLeaderboardEntry,
+} from "./user-search-filter";
 
 interface UserSearchProps {
   challengeId: string;
@@ -14,18 +20,13 @@ interface UserSearchProps {
 
 export function UserSearch({ challengeId }: UserSearchProps) {
   const [query, setQuery] = useState("");
-  const { summary } = useChallengeSummary();
+  const leaderboard = useQuery(api.queries.participations.getFullLeaderboard, {
+    challengeId: challengeId as Id<"challenges">,
+  }) as SearchableLeaderboardEntry[] | undefined;
 
   const filteredUsers = useMemo(() => {
-    if (!query.trim()) return [];
-
-    const lowerQuery = query.toLowerCase();
-    return summary.leaderboard.filter(
-      (entry) =>
-        entry.user.name?.toLowerCase().includes(lowerQuery) ||
-        entry.user.username?.toLowerCase().includes(lowerQuery)
-    );
-  }, [query, summary.leaderboard]);
+    return filterLeaderboardUsers(leaderboard, query);
+  }, [query, leaderboard]);
 
   return (
     <div className="relative">
@@ -49,9 +50,9 @@ export function UserSearch({ challengeId }: UserSearchProps) {
           ) : (
             <ul className="space-y-1">
               {filteredUsers.map((entry) => (
-                <li key={entry.participantId}>
+                <li key={entry.user.id}>
                   <Link
-                    href={`/challenges/${challengeId}/users/${entry.participantId}`}
+                    href={`/challenges/${challengeId}/users/${entry.user.id}`}
                     className="flex items-center gap-3 rounded-lg px-3 py-2 transition hover:bg-zinc-800"
                     onClick={() => setQuery("")}
                   >
