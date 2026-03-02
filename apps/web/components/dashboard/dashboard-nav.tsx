@@ -12,6 +12,7 @@ import {
   Bug,
 } from "lucide-react";
 
+import { NotificationBadge } from "./notification-badge";
 import { cn } from "@/lib/utils";
 
 interface DashboardNavProps {
@@ -91,7 +92,12 @@ export function DashboardNav({ challengeId, currentUserId, collapsed }: Dashboar
                   : "text-zinc-400 hover:bg-zinc-900 hover:text-white"
               )}
             >
-              <item.icon className={cn("h-6 w-6 flex-shrink-0", isActive && "text-white")} />
+              <div className="relative">
+                <item.icon className={cn("h-6 w-6 flex-shrink-0", isActive && "text-white")} />
+                {item.label === "Notifications" && (
+                  <NotificationBadge userId={currentUserId} />
+                )}
+              </div>
               {!collapsed && <span className="text-lg font-medium">{item.label}</span>}
             </Link>
           );

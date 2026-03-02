@@ -1,7 +1,11 @@
 "use client";
 
+import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
+import { useMutation } from "convex/react";
+import { api } from "@repo/backend";
+import type { Id } from "@repo/backend/_generated/dataModel";
 import { Heart, MessageCircle, MessageSquare, UserPlus, Trophy, Bell, Shield } from "lucide-react";
 
 import { UserAvatar } from "@/components/user-avatar";
@@ -24,6 +28,7 @@ interface Notification {
 interface NotificationsListProps {
   notifications: Notification[];
   challengeId: string;
+  userId: string;
 }
 
 function getNotificationIcon(type: string) {
@@ -100,7 +105,19 @@ function getNotificationLink(notification: Notification, challengeId: string) {
   return null;
 }
 
-export function NotificationsList({ notifications, challengeId }: NotificationsListProps) {
+export function NotificationsList({ notifications, challengeId, userId }: NotificationsListProps) {
+  const markAllAsRead = useMutation(api.mutations.notifications.markAllAsRead);
+  const markedRef = useRef(false);
+
+  useEffect(() => {
+    if (markedRef.current) return;
+    const hasUnread = notifications.some((n) => !n.readAt);
+    if (hasUnread) {
+      markedRef.current = true;
+      markAllAsRead({ userId: userId as Id<"users"> });
+    }
+  }, [notifications, markAllAsRead, userId]);
+
   if (notifications.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">

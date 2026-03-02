@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Menu, Plus } from "lucide-react";
@@ -8,6 +7,7 @@ import { Menu, Plus } from "lucide-react";
 import { ActivityLogDialogLazy as ActivityLogDialog } from "./activity-log-dialog-lazy";
 import { navItems } from "./dashboard-nav";
 import { buildMobileNavLayout } from "./mobile-nav-layout";
+import { NotificationBadge } from "./notification-badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,65 +24,13 @@ interface MobileNavProps {
 
 export function MobileNav({ challengeId, currentUserId, challengeStartDate }: MobileNavProps) {
   const pathname = usePathname();
-  const [isDimmed, setIsDimmed] = useState(false);
-  const lastScrollY = useRef(0);
-  const isTicking = useRef(false);
-
-  useEffect(() => {
-    const fadeThresholdPx = 12;
-    const minScrollBeforeFadePx = 56;
-
-    const handleScroll = () => {
-      if (isTicking.current) {
-        return;
-      }
-
-      isTicking.current = true;
-      requestAnimationFrame(() => {
-        const nextScrollY = window.scrollY;
-        const delta = nextScrollY - lastScrollY.current;
-
-        if (Math.abs(delta) >= fadeThresholdPx) {
-          if (delta > 0 && nextScrollY > minScrollBeforeFadePx) {
-            setIsDimmed(true);
-          } else if (delta < 0 || nextScrollY <= 0) {
-            setIsDimmed(false);
-          }
-        }
-
-        if (nextScrollY <= 0) {
-          setIsDimmed(false);
-        }
-
-        lastScrollY.current = nextScrollY;
-        isTicking.current = false;
-      });
-    };
-
-    lastScrollY.current = window.scrollY;
-    window.addEventListener("scroll", handleScroll, { passive: true });
-
-    return () => {
-      window.removeEventListener("scroll", handleScroll);
-    };
-  }, []);
-
-  useEffect(() => {
-    setIsDimmed(false);
-    lastScrollY.current = window.scrollY;
-  }, [pathname]);
 
   const { leftItems, rightItems, overflowItems } = buildMobileNavLayout(navItems);
   const menuActive = overflowItems.some((item) => pathname === item.href(challengeId, currentUserId));
 
   return (
     <nav
-      className={cn(
-        "fixed inset-x-0 bottom-0 z-50 transition-all duration-300 lg:hidden",
-        isDimmed
-          ? "border-t border-white/5 bg-zinc-950/35 opacity-45"
-          : "border-t border-white/10 bg-zinc-950/60 opacity-100 shadow-[0_-8px_24px_rgba(0,0,0,0.3)]"
-      )}
+      className="fixed inset-x-0 bottom-0 z-50 border-t border-white/10 bg-zinc-950 lg:hidden"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
       <div className="flex items-center justify-around px-2 py-2">
@@ -96,13 +44,18 @@ export function MobileNav({ challengeId, currentUserId, challengeStartDate }: Mo
               key={item.label}
               href={href}
               className={cn(
-                "flex flex-col items-center gap-1 rounded-lg px-4 py-2 transition-colors",
+                "relative flex flex-col items-center gap-1 rounded-lg px-4 py-2 transition-colors",
                 isActive
                   ? "text-white"
                   : "text-zinc-500 hover:text-zinc-300"
               )}
             >
-              <item.icon className="h-6 w-6" />
+              <div className="relative">
+                <item.icon className="h-6 w-6" />
+                {item.label === "Notifications" && (
+                  <NotificationBadge userId={currentUserId} />
+                )}
+              </div>
               <span className="text-[10px] font-medium">{item.label}</span>
             </Link>
           );
