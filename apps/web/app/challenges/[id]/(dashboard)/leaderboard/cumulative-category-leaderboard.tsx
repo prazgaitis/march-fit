@@ -33,6 +33,7 @@ interface CategoryData {
 interface CumulativeCategoryLeaderboardProps {
   challengeId: string;
   currentUserId: string;
+  searchQuery?: string;
 }
 
 const EntryRow = memo(function EntryRow({
@@ -50,7 +51,7 @@ const EntryRow = memo(function EntryRow({
     <Link
       href={`/challenges/${challengeId}/users/${entry.user.id}`}
       className={cn(
-        "flex items-center gap-3 rounded-xl p-3 transition",
+        "flex items-center gap-2 rounded-xl p-3 transition sm:gap-3",
         isCurrentUser
           ? "bg-indigo-500/10 ring-1 ring-indigo-500/30 hover:bg-indigo-500/20"
           : "bg-zinc-900/50 hover:bg-zinc-800/50"
@@ -153,9 +154,20 @@ function GenderColumn({
   );
 }
 
+function filterEntries(entries: CumulativeEntry[], query: string): CumulativeEntry[] {
+  if (!query.trim()) return entries;
+  const q = query.toLowerCase();
+  return entries.filter(
+    (e) =>
+      e.user.name?.toLowerCase().includes(q) ||
+      e.user.username.toLowerCase().includes(q)
+  );
+}
+
 export function CumulativeCategoryLeaderboard({
   challengeId,
   currentUserId,
+  searchQuery = "",
 }: CumulativeCategoryLeaderboardProps) {
   const data = useQuery(api.queries.participations.getCumulativeCategoryLeaderboard, {
     challengeId: challengeId as Id<"challenges">,
@@ -183,35 +195,42 @@ export function CumulativeCategoryLeaderboard({
 
   return (
     <div className="space-y-8">
-      {(data.categories as CategoryData[]).map((category) => (
-        <div key={category.category.id}>
-          <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-zinc-400">
-            {category.category.name}
-          </h3>
+      {(data.categories as CategoryData[]).map((category) => {
+        const filteredWomen = filterEntries(category.women, searchQuery);
+        const filteredMen = filterEntries(category.men, searchQuery);
+        if (searchQuery.trim() && filteredWomen.length === 0 && filteredMen.length === 0) {
+          return null;
+        }
+        return (
+          <div key={category.category.id}>
+            <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-zinc-400">
+              {category.category.name}
+            </h3>
 
-          {/* Two-column layout: Women's | Men's / Open */}
-          <div className="flex gap-4">
-            <GenderColumn
-              label="Women's"
-              symbol="♀"
-              symbolClass="text-pink-400"
-              entries={category.women}
-              challengeId={challengeId}
-              currentUserId={currentUserId}
-              emptyLabel="No entries in Women's"
-            />
-            <GenderColumn
-              label="Men's / Open"
-              symbol="♂"
-              symbolClass="text-blue-400"
-              entries={category.men}
-              challengeId={challengeId}
-              currentUserId={currentUserId}
-              emptyLabel="No entries in Men's/Open"
-            />
+            {/* Two-column on md+, stacked on mobile */}
+            <div className="flex flex-col gap-4 md:flex-row">
+              <GenderColumn
+                label="Women's"
+                symbol="♀"
+                symbolClass="text-pink-400"
+                entries={filteredWomen}
+                challengeId={challengeId}
+                currentUserId={currentUserId}
+                emptyLabel="No entries in Women's"
+              />
+              <GenderColumn
+                label="Men's / Open"
+                symbol="♂"
+                symbolClass="text-blue-400"
+                entries={filteredMen}
+                challengeId={challengeId}
+                currentUserId={currentUserId}
+                emptyLabel="No entries in Men's/Open"
+              />
+            </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

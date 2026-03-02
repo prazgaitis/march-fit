@@ -170,7 +170,7 @@ export function UserChallengeDisplay({
   return (
     <div
       className={cn(
-        'flex items-center gap-4',
+        'flex items-center gap-2 sm:gap-4',
         highlight && 'bg-indigo-500/10 ring-1 ring-indigo-500/30',
         className,
       )}

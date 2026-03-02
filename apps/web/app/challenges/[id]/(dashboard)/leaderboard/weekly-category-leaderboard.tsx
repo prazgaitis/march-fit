@@ -34,12 +34,14 @@ interface WeeklyCategoryLeaderboardProps {
   challengeId: string;
   currentUserId: string;
   initialWeek?: number;
+  searchQuery?: string;
 }
 
 export function WeeklyCategoryLeaderboard({
   challengeId,
   currentUserId,
   initialWeek,
+  searchQuery = "",
 }: WeeklyCategoryLeaderboardProps) {
   const [weekNumber, setWeekNumber] = useState(initialWeek ?? 1);
 
@@ -113,82 +115,93 @@ export function WeeklyCategoryLeaderboard({
           </p>
         </div>
       ) : (
-        (data.categories as CategoryLeaderboard[]).map((category) => (
-          <div key={category.category.id}>
-            <div className="mb-3">
-              <h3 className="text-sm font-semibold uppercase tracking-wider text-zinc-400">
-                {category.category.name}
-              </h3>
-            </div>
-            <div className="space-y-2">
-              {category.entries.map((entry: WeeklyLeaderboardEntry) => {
-                const isCurrentUser = entry.user.id === currentUserId;
+        (data.categories as CategoryLeaderboard[]).map((category) => {
+          const q = searchQuery.toLowerCase();
+          const filtered = q
+            ? category.entries.filter(
+                (e: WeeklyLeaderboardEntry) =>
+                  e.user.name?.toLowerCase().includes(q) ||
+                  e.user.username.toLowerCase().includes(q)
+              )
+            : category.entries;
+          if (q && filtered.length === 0) return null;
+          return (
+            <div key={category.category.id}>
+              <div className="mb-3">
+                <h3 className="text-sm font-semibold uppercase tracking-wider text-zinc-400">
+                  {category.category.name}
+                </h3>
+              </div>
+              <div className="space-y-2">
+                {filtered.map((entry: WeeklyLeaderboardEntry) => {
+                  const isCurrentUser = entry.user.id === currentUserId;
 
-                return (
-                  <Link
-                    key={entry.user.id}
-                    href={`/challenges/${challengeId}/users/${entry.user.id}`}
-                    className={cn(
-                      "flex items-center gap-4 rounded-xl p-3 transition",
-                      isCurrentUser
-                        ? "bg-indigo-500/10 ring-1 ring-indigo-500/30 hover:bg-indigo-500/20"
-                        : "bg-zinc-900/50 hover:bg-zinc-800/50"
-                    )}
-                  >
-                    <div className="flex h-7 w-7 items-center justify-center text-base font-bold text-zinc-500">
-                      {entry.rank <= 3 ? (
-                        <Trophy
-                          className={cn(
-                            "h-4 w-4",
-                            entry.rank === 1 && "text-amber-500",
-                            entry.rank === 2 && "text-zinc-400",
-                            entry.rank === 3 && "text-amber-700"
-                          )}
-                        />
-                      ) : (
-                        entry.rank
+                  return (
+                    <Link
+                      key={entry.user.id}
+                      href={`/challenges/${challengeId}/users/${entry.user.id}`}
+                      className={cn(
+                        "flex items-center gap-2 rounded-xl p-3 transition sm:gap-4",
+                        isCurrentUser
+                          ? "bg-indigo-500/10 ring-1 ring-indigo-500/30 hover:bg-indigo-500/20"
+                          : "bg-zinc-900/50 hover:bg-zinc-800/50"
                       )}
-                    </div>
-
-                    <UserAvatar
-                      user={{
-                        id: entry.user.id,
-                        name: entry.user.name,
-                        username: entry.user.username,
-                        avatarUrl: entry.user.avatarUrl,
-                      }}
-                      challengeId={challengeId}
-                      disableLink
-                      size="sm"
-                    />
-
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium text-white">
-                        {entry.user.name || entry.user.username}
-                        {isCurrentUser && (
-                          <span className="ml-2 text-xs text-indigo-400">
-                            (You)
-                          </span>
+                    >
+                      <div className="flex h-7 w-7 shrink-0 items-center justify-center text-base font-bold text-zinc-500">
+                        {entry.rank <= 3 ? (
+                          <Trophy
+                            className={cn(
+                              "h-4 w-4",
+                              entry.rank === 1 && "text-amber-500",
+                              entry.rank === 2 && "text-zinc-400",
+                              entry.rank === 3 && "text-amber-700"
+                            )}
+                          />
+                        ) : (
+                          entry.rank
                         )}
-                      </p>
-                    </div>
+                      </div>
 
-                    <div className="text-right">
-                      <PointsDisplay
-                        points={entry.weeklyPoints}
+                      <UserAvatar
+                        user={{
+                          id: entry.user.id,
+                          name: entry.user.name,
+                          username: entry.user.username,
+                          avatarUrl: entry.user.avatarUrl,
+                        }}
+                        challengeId={challengeId}
+                        disableLink
                         size="sm"
-                        showSign={false}
-                        showLabel={false}
-                        className={cn("font-bold", entry.weeklyPoints >= 0 && "text-white")}
                       />
-                      <p className="text-xs text-zinc-500">pts</p>
-                    </div>
-                  </Link>
-                );
-              })}
+
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-white">
+                          {entry.user.name || entry.user.username}
+                          {isCurrentUser && (
+                            <span className="ml-2 text-xs text-indigo-400">
+                              (You)
+                            </span>
+                          )}
+                        </p>
+                      </div>
+
+                      <div className="shrink-0 text-right">
+                        <PointsDisplay
+                          points={entry.weeklyPoints}
+                          size="sm"
+                          showSign={false}
+                          showLabel={false}
+                          className={cn("font-bold", entry.weeklyPoints >= 0 && "text-white")}
+                        />
+                        <p className="text-xs text-zinc-500">pts</p>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        ))
+          );
+        })
       )}
     </div>
   );

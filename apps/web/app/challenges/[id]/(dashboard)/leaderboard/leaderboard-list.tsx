@@ -68,7 +68,7 @@ const LeaderboardEntryRow = memo(function LeaderboardEntryRow({
     <Link
       href={`/challenges/${challengeId}/users/${entry.user.id}`}
       className={cn(
-        "flex items-center gap-4 rounded-xl p-4 transition",
+        "flex items-center gap-2 rounded-xl p-3 transition sm:gap-4 sm:p-4",
         isCurrentUser
           ? "bg-indigo-500/10 ring-1 ring-indigo-500/30 hover:bg-indigo-500/20"
           : "bg-zinc-900/50 hover:bg-zinc-800/50"
