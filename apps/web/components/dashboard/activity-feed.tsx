@@ -737,7 +737,7 @@ const ActivityCard = memo(function ActivityCard({
 
         <ActivityStats item={item} />
       </CardContent>
-      <CardFooter className="flex flex-wrap items-center gap-2" onClick={(e) => e.stopPropagation()}>
+      <CardFooter className="flex items-center gap-1 sm:gap-2" onClick={(e) => e.stopPropagation()}>
         <Button
           variant={item.likedByUser ? 'default' : 'outline'}
           size="sm"
@@ -745,20 +745,20 @@ const ActivityCard = memo(function ActivityCard({
           onClick={handleToggleLike}
         >
           <ThumbsUp
-            className={cn('mr-2 h-4 w-4', item.likedByUser && 'fill-current')}
+            className={cn('h-4 w-4 sm:mr-2', item.likedByUser && 'fill-current')}
           />
-          {showEngagementCounts ? item.likes : 'Like'}
+          {showEngagementCounts ? item.likes : <span className="hidden sm:inline">Like</span>}
         </Button>
         <Button
           variant={showComments ? 'default' : 'outline'}
           size="sm"
           onClick={() => setShowComments((prev) => !prev)}
         >
-          <MessageCircle className="mr-2 h-4 w-4" />
-          {showEngagementCounts ? item.comments : 'Comment'}
+          <MessageCircle className="h-4 w-4 sm:mr-2" />
+          {showEngagementCounts ? item.comments : <span className="hidden sm:inline">Comment</span>}
         </Button>
         <Button variant="ghost" size="sm" onClick={handleShare}>
-          <Share2 className="mr-2 h-4 w-4" /> Share
+          <Share2 className="h-4 w-4 sm:mr-2" /> <span className="hidden sm:inline">Share</span>
         </Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -1013,11 +1013,6 @@ function ActivityComments({
                 </div>
                 )}
 
-                {!loadingComments && comments?.length === 0 && (
-                <p className="text-center text-sm text-muted-foreground">
-                    No comments yet. Start the conversation!
-                </p>
-                )}
             </div>
         </div>
     );
