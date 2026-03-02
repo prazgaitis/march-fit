@@ -525,6 +525,7 @@ export const editActivity = mutation({
     metrics: v.optional(v.any()),
     loggedDate: v.optional(v.string()), // ISO date string "YYYY-MM-DD"
     activityTypeId: v.optional(v.id("activityTypes")),
+    mediaIds: v.optional(v.array(v.id("_storage"))),
   },
   handler: async (ctx, args) => {
     const startedAt = Date.now();
@@ -584,9 +585,9 @@ export const editActivity = mutation({
 
     const selectedOptionalBonuses = (metricsObj as Record<string, unknown>)["selectedBonuses"] as string[] | undefined;
 
-    // Keep media bonus if activity already has media, but respect the 1-per-day cap.
-    // Exclude this activity itself from the "already earned today" check since we're editing it.
-    const hasMedia = !!(activity.mediaIds && activity.mediaIds.length > 0) || !!activity.imageUrl;
+    // Determine effective media: use provided mediaIds if given, otherwise fall back to existing.
+    const effectiveMediaIds = args.mediaIds !== undefined ? args.mediaIds : activity.mediaIds;
+    const hasMedia = !!(effectiveMediaIds && effectiveMediaIds.length > 0) || !!activity.imageUrl;
     let alreadyEarnedPhotoBonusEdit = false;
     if (hasMedia) {
       const loggedDateStrEdit = formatDateOnlyFromUtcMs(newLoggedDateTs);
@@ -636,6 +637,7 @@ export const editActivity = mutation({
       loggedDate: newLoggedDateTs,
       pointsEarned: newPoints,
       triggeredBonuses: triggeredBonuses.length > 0 ? triggeredBonuses : undefined,
+      ...(args.mediaIds !== undefined ? { mediaIds: args.mediaIds } : {}),
       updatedAt: now,
     });
 
