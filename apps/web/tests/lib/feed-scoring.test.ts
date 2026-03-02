@@ -6,6 +6,8 @@ import {
   computeTimeDecay,
   computeDisplayScore,
   FOLLOWING_BOOST,
+  computeAffinityBoost,
+  MAX_AFFINITY_BOOST,
   type ContentScoreInput,
   type EngagementScoreInput,
 } from "../../../../packages/backend/lib/feedScoring";
@@ -188,5 +190,33 @@ describe("computeDisplayScore", () => {
     const highUnfollowed = computeDisplayScore(20, false, now, now);
     // 10 + 15 = 25 > 20
     expect(lowFollowed).toBeGreaterThan(highUnfollowed);
+  });
+
+  it("applies affinity boost in addition to follow boost", () => {
+    const withAffinity = computeDisplayScore(30, false, now, now, 50);
+    expect(withAffinity).toBeCloseTo(30 + computeAffinityBoost(50), 5);
+
+    const withBoth = computeDisplayScore(30, true, now, now, 80);
+    expect(withBoth).toBeCloseTo(
+      30 + FOLLOWING_BOOST + computeAffinityBoost(80),
+      5,
+    );
+  });
+});
+
+describe("computeAffinityBoost", () => {
+  it("returns 0 for non-positive affinity", () => {
+    expect(computeAffinityBoost(0)).toBe(0);
+    expect(computeAffinityBoost(-5)).toBe(0);
+  });
+
+  it("scales linearly up to the max cap", () => {
+    expect(computeAffinityBoost(25)).toBeCloseTo(MAX_AFFINITY_BOOST * 0.25, 5);
+    expect(computeAffinityBoost(50)).toBeCloseTo(MAX_AFFINITY_BOOST * 0.5, 5);
+  });
+
+  it("caps boost at MAX_AFFINITY_BOOST", () => {
+    expect(computeAffinityBoost(100)).toBe(MAX_AFFINITY_BOOST);
+    expect(computeAffinityBoost(1000)).toBe(MAX_AFFINITY_BOOST);
   });
 });

@@ -234,7 +234,8 @@ export default defineSchema({
   })
     .index("activityId", ["activityId"])
     .index("userId", ["userId"])
-    .index("activityUserUnique", ["activityId", "userId"]),
+    .index("activityUserUnique", ["activityId", "userId"])
+    .index("createdAt", ["createdAt"]),
 
   // Comments
   comments: defineTable({
@@ -245,7 +246,28 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index("activityId", ["activityId"])
-    .index("userId", ["userId"]),
+    .index("userId", ["userId"])
+    .index("createdAt", ["createdAt"]),
+
+  // Challenge-scoped user affinity graph for feed personalization.
+  userAffinities: defineTable({
+    challengeId: v.id("challenges"),
+    viewerUserId: v.id("users"),
+    authorUserId: v.id("users"),
+    score: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("challengeViewer", ["challengeId", "viewerUserId"])
+    .index("challengeViewerScore", ["challengeId", "viewerUserId", "score"])
+    .index("challengeViewerAuthor", ["challengeId", "viewerUserId", "authorUserId"]),
+
+  // Global watermarks for cron-based affinity processing.
+  affinityProcessingState: defineTable({
+    scope: v.literal("global"),
+    lastLikesAt: v.number(),
+    lastCommentsAt: v.number(),
+    updatedAt: v.number(),
+  }).index("scope", ["scope"]),
 
   // User Challenges (Participations)
   userChallenges: defineTable({

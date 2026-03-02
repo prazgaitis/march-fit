@@ -172,3 +172,79 @@ export const getProfileFollowData = query({
     };
   },
 });
+
+/**
+ * Suggest users to follow within a challenge based on challenge-scoped affinity.
+ * Excludes self and already-followed users.
+ */
+export const getSuggestions = query({
+  args: {
+    challengeId: v.id("challenges"),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const currentUser = await getCurrentUser(ctx);
+    if (!currentUser) {
+      return [];
+    }
+
+    const limit = Math.min(Math.max(args.limit ?? 10, 1), 50);
+
+    const [participations, follows, affinities] = await Promise.all([
+      ctx.db
+        .query("userChallenges")
+        .withIndex("challengeId", (q) => q.eq("challengeId", args.challengeId))
+        .collect(),
+      ctx.db
+        .query("follows")
+        .withIndex("followerId", (q) => q.eq("followerId", currentUser._id))
+        .collect(),
+      ctx.db
+        .query("userAffinities")
+        .withIndex("challengeViewerScore", (q) =>
+          q
+            .eq("challengeId", args.challengeId)
+            .eq("viewerUserId", currentUser._id),
+        )
+        .order("desc")
+        .take(limit * 5),
+    ]);
+
+    const participantIds = new Set(participations.map((p) => p.userId));
+    if (!participantIds.has(currentUser._id)) {
+      return [];
+    }
+
+    const alreadyFollowing = new Set(follows.map((follow) => follow.followingId));
+
+    const suggestions: Array<{
+      id: string;
+      username: string;
+      name: string | null;
+      avatarUrl: string | null;
+      affinityScore: number;
+    }> = [];
+
+    for (const affinity of affinities) {
+      if (suggestions.length >= limit) break;
+      const authorId = affinity.authorUserId;
+      if (authorId === currentUser._id) continue;
+      if (alreadyFollowing.has(authorId)) continue;
+      if (!participantIds.has(authorId)) continue;
+      if (affinity.score <= 0) continue;
+
+      const user = await ctx.db.get(authorId);
+      if (!user) continue;
+
+      suggestions.push({
+        id: user._id,
+        username: user.username,
+        name: user.name ?? null,
+        avatarUrl: user.avatarUrl ?? null,
+        affinityScore: affinity.score,
+      });
+    }
+
+    return suggestions;
+  },
+});

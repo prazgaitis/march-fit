@@ -3,7 +3,11 @@ import { v } from "convex/values";
 import { paginationOptsValidator } from "convex/server";
 import { getCurrentUser } from "../lib/ids";
 import { notDeleted } from "../lib/activityFilters";
-import { computePersonalizedRank } from "../lib/feedScoring";
+import {
+  FOLLOWING_BOOST,
+  computeAffinityBoost,
+  computePersonalizedRank,
+} from "../lib/feedScoring";
 
 /**
  * Algorithmic feed: activities ranked by content quality, engagement,
@@ -27,12 +31,26 @@ export const getAlgorithmicFeed = query({
 
     // Load viewer's following set (cheap — typically < 200 rows).
     let followingIds: Set<string> | null = null;
+    let affinityByAuthor: Map<string, number> | null = null;
     if (currentUser) {
-      const follows = await ctx.db
-        .query("follows")
-        .withIndex("followerId", (q) => q.eq("followerId", currentUser._id))
-        .collect();
+      const [follows, affinities] = await Promise.all([
+        ctx.db
+          .query("follows")
+          .withIndex("followerId", (q) => q.eq("followerId", currentUser._id))
+          .collect(),
+        ctx.db
+          .query("userAffinities")
+          .withIndex("challengeViewer", (q) =>
+            q
+              .eq("challengeId", args.challengeId)
+              .eq("viewerUserId", currentUser._id),
+          )
+          .collect(),
+      ]);
       followingIds = new Set(follows.map((f) => f.followingId));
+      affinityByAuthor = new Map(
+        affinities.map((affinity) => [affinity.authorUserId as string, affinity.score]),
+      );
     }
 
     // Paginate by feedRank DESC via index.
@@ -101,10 +119,14 @@ export const getAlgorithmicFeed = query({
         const isFollowing = followingIds
           ? followingIds.has(activity.userId as string)
           : false;
+        const affinityScore = affinityByAuthor
+          ? affinityByAuthor.get(activity.userId as string) ?? 0
+          : 0;
 
         const displayScore = computePersonalizedRank(
           activity.feedRank ?? 0,
           isFollowing,
+          affinityScore,
         );
 
         return {
@@ -128,6 +150,9 @@ export const getAlgorithmicFeed = query({
           likedByUser: userLike !== null,
           mediaUrls,
           displayScore,
+          affinityScore,
+          affinityBoost: computeAffinityBoost(affinityScore),
+          followingBoost: isFollowing ? FOLLOWING_BOOST : 0,
         };
       }),
     );

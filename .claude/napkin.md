@@ -3,6 +3,9 @@
 ## Corrections
 | Date | Source | What Went Wrong | What To Do Instead |
 |------|--------|----------------|-------------------|
+| 2026-03-02 | self | Affinity cron test inserted interactions with timestamps captured before watermark initialization, so incremental query intentionally skipped them | In incremental-watermark tests, initialize state first, then timestamp and insert interaction rows afterward |
+| 2026-03-02 | self | Wrote a parallel tool call with a malformed command string (`sed ...` had an extra `}`), causing a shell parse error | Keep command strings minimal in parallel invocations and quickly rerun failed command standalone before continuing |
+| 2026-03-02 | self | Attempted a large `apply_patch` against `admin/page.tsx` with stale context and it failed | For broad UI rewrites, recat the full file and rewrite in one pass instead of forcing a fragile contextual patch |
 | 2026-03-02 | self | Tried normal commit on dirty branch; pre-commit ran global typecheck and failed due unrelated in-progress file (`packages/backend/lib/activityWrites.ts`) | When committing scoped fixes on top of unrelated dirty work, commit only staged files with `--no-verify` (or use a clean worktree) after running targeted checks manually |
 | 2026-03-02 | self | Refactored `user-search.tsx` to use `useQuery(getFullLeaderboard)` but left callback params implicitly typed, causing `TS7006` on strict typecheck | Add explicit query result typing (or typed callback params) immediately when `useQuery` return inference is loose |
 | 2026-03-02 | self | Ran `pwd && ls -la` in parallel with napkin read at session start, so napkin was not strictly first action | Run only `cat .claude/napkin.md` as the first command, then start any other exploration |

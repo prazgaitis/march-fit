@@ -26,6 +26,7 @@ import type * as actions_setup2026ActivityTypes from "../actions/setup2026Activi
 import type * as actions_setup2026Challenges from "../actions/setup2026Challenges.js";
 import type * as actions_strava from "../actions/strava.js";
 import type * as auth from "../auth.js";
+import type * as crons from "../crons.js";
 import type * as http from "../http.js";
 import type * as httpApi from "../httpApi.js";
 import type * as index from "../index.js";
@@ -152,6 +153,7 @@ declare const fullApi: ApiFromModules<{
   "actions/setup2026Challenges": typeof actions_setup2026Challenges;
   "actions/strava": typeof actions_strava;
   auth: typeof auth;
+  crons: typeof crons;
   http: typeof http;
   httpApi: typeof httpApi;
   index: typeof index;

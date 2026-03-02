@@ -1,9 +1,10 @@
 "use client";
 
+import { useMemo } from "react";
 import { useParams } from "next/navigation";
 import { useQuery } from "convex/react";
 import { api } from "@repo/backend";
-import type { Id, Doc } from "@repo/backend/_generated/dataModel";
+import type { Doc, Id } from "@repo/backend/_generated/dataModel";
 import { dateOnlyToUtcMs, formatDateShortFromDateOnly } from "@/lib/date-only";
 import {
   Activity,
@@ -41,7 +42,21 @@ export default function AdminOverviewPage() {
     challengeId: challengeId as Id<"challenges">,
   });
 
-  if (!dashboardData) {
+  const monitoring = useQuery(api.queries.admin.getMonitoringDashboard, {
+    challengeId: challengeId as Id<"challenges">,
+    feedLimit: 10,
+    includeFeedDebug: false,
+  });
+
+  const maxBucketCount = useMemo(
+    () =>
+      (monitoring?.hourlyCounts ?? []).reduce((max: number, bucket: { count: number }) => {
+        return Math.max(max, bucket.count);
+      }, 0),
+    [monitoring?.hourlyCounts],
+  );
+
+  if (!dashboardData || !monitoring) {
     return (
       <div className="flex items-center justify-center py-20 text-zinc-500">
         Loading...
@@ -51,7 +66,6 @@ export default function AdminOverviewPage() {
 
   const { challenge, stats, leaderboard } = dashboardData;
 
-  // Calculate some admin-specific metrics
   const topPerformers = leaderboard.slice(0, 5);
   const avgPoints = leaderboard.length > 0
     ? leaderboard.reduce((sum: number, p: LeaderboardEntry) => sum + p.totalPoints, 0) / leaderboard.length
@@ -65,47 +79,15 @@ export default function AdminOverviewPage() {
 
   return (
     <div className="space-y-4">
-      {/* Stats Grid - Bloomberg style */}
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-        <StatCard
-          label="PARTICIPANTS"
-          value={stats.totalParticipants}
-          icon={Users}
-          color="emerald"
-        />
-        <StatCard
-          label="ACTIVITIES"
-          value={stats.totalActivities}
-          icon={Activity}
-          color="blue"
-        />
-        <StatCard
-          label="TOTAL POINTS"
-          value={Math.round(stats.totalPoints)}
-          icon={TrendingUp}
-          color="amber"
-        />
-        <StatCard
-          label="AVG POINTS"
-          value={avgPoints.toFixed(1)}
-          icon={Zap}
-          color="purple"
-        />
-        <StatCard
-          label="ACTIVITY TYPES"
-          value={activityTypes?.length ?? 0}
-          icon={Flag}
-          color="cyan"
-        />
-        <StatCard
-          label="DAYS ELAPSED"
-          value={`${daysElapsed}/${totalDays}`}
-          icon={AlertTriangle}
-          color="zinc"
-        />
+        <StatCard label="PARTICIPANTS" value={stats.totalParticipants} icon={Users} color="emerald" />
+        <StatCard label="ACTIVITIES" value={stats.totalActivities} icon={Activity} color="blue" />
+        <StatCard label="TOTAL POINTS" value={Math.round(stats.totalPoints)} icon={TrendingUp} color="amber" />
+        <StatCard label="AVG POINTS" value={avgPoints.toFixed(1)} icon={Zap} color="purple" />
+        <StatCard label="ACTIVITY TYPES" value={activityTypes?.length ?? 0} icon={Flag} color="cyan" />
+        <StatCard label="DAYS ELAPSED" value={`${daysElapsed}/${totalDays}`} icon={AlertTriangle} color="zinc" />
       </div>
 
-      {/* Progress Bar */}
       <AdminCard padding="sm">
         <div className="mb-2 flex items-center justify-between text-xs">
           <span className="text-zinc-500">Challenge Progress</span>
@@ -123,9 +105,32 @@ export default function AdminOverviewPage() {
         </div>
       </AdminCard>
 
-      {/* Two Column Layout */}
+      <AdminCard header={<SectionHeader size="md">Activity Volume by Created Hour (UTC)</SectionHeader>} padding="sm">
+        <div className="mb-2 flex items-center justify-between text-xs text-zinc-500">
+          <span>{monitoring.totalActivities} non-deleted activities</span>
+          <span className="font-mono">UTC hours</span>
+        </div>
+        <div className="flex h-44 items-end gap-1 rounded border border-zinc-800/80 bg-zinc-900/40 p-2">
+          {monitoring.hourlyCounts.map((bucket: (typeof monitoring.hourlyCounts)[number], index: number) => {
+            const heightPct =
+              maxBucketCount > 0 ? (bucket.count / maxBucketCount) * 100 : 0;
+            return (
+              <div key={bucket.hour} className="flex min-w-0 flex-1 flex-col items-center justify-end gap-1">
+                <div
+                  title={`${bucket.label} UTC: ${bucket.count} activities`}
+                  className="w-full rounded-sm bg-amber-500/70 transition-colors hover:bg-amber-400"
+                  style={{ height: `${heightPct}%`, minHeight: bucket.count > 0 ? 2 : 0 }}
+                />
+                <span className="font-mono text-[9px] text-zinc-600">
+                  {index % 3 === 0 ? bucket.label.slice(0, 2) : ""}
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </AdminCard>
+
       <div className="grid gap-4 lg:grid-cols-2">
-        {/* Leaderboard Panel */}
         <AdminCard header={<SectionHeader size="md">Top Performers</SectionHeader>} padding="none">
           <div className="divide-y divide-zinc-800/50">
             {topPerformers.length > 0 ? (
@@ -135,32 +140,21 @@ export default function AdminOverviewPage() {
                   className="flex items-center justify-between px-3 py-2"
                 >
                   <div className="flex items-center gap-3">
-                    <span className="w-5 font-mono text-xs text-zinc-600">
-                      {index + 1}.
-                    </span>
-                    <span className="text-sm text-zinc-200">
-                      {entry.user.name || entry.user.username}
-                    </span>
+                    <span className="w-5 font-mono text-xs text-zinc-600">{index + 1}.</span>
+                    <span className="text-sm text-zinc-200">{entry.user.name || entry.user.username}</span>
                   </div>
                   <div className="flex items-center gap-4 font-mono text-xs">
-                    <span className="text-emerald-400">
-                      {entry.totalPoints.toFixed(1)} pts
-                    </span>
-                    <span className="text-zinc-500">
-                      {entry.currentStreak}d streak
-                    </span>
+                    <span className="text-emerald-400">{entry.totalPoints.toFixed(1)} pts</span>
+                    <span className="text-zinc-500">{entry.currentStreak}d streak</span>
                   </div>
                 </div>
               ))
             ) : (
-              <div className="px-3 py-4 text-center text-xs text-zinc-600">
-                No participants yet
-              </div>
+              <div className="px-3 py-4 text-center text-xs text-zinc-600">No participants yet</div>
             )}
           </div>
         </AdminCard>
 
-        {/* Activity Types Panel */}
         <AdminCard header={<SectionHeader size="md">Activity Types</SectionHeader>} padding="none">
           <div className="max-h-64 divide-y divide-zinc-800/50 overflow-y-auto">
             {activityTypes && activityTypes.length > 0 ? (
@@ -182,14 +176,10 @@ export default function AdminOverviewPage() {
                 </div>
               ))
             ) : (
-              <div className="px-3 py-4 text-center text-xs text-zinc-600">
-                No activity types configured
-              </div>
+              <div className="px-3 py-4 text-center text-xs text-zinc-600">No activity types configured</div>
             )}
             {activityTypes && activityTypes.length > 10 && (
-              <div className="px-3 py-2 text-center text-xs text-zinc-500">
-                +{activityTypes.length - 10} more
-              </div>
+              <div className="px-3 py-2 text-center text-xs text-zinc-500">+{activityTypes.length - 10} more</div>
             )}
           </div>
         </AdminCard>

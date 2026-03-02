@@ -89,12 +89,21 @@ export function computeFeedRank(feedScore: number, createdAtMs: number): number 
 // ── Personalized rank (query time, per-viewer) ──────────────────
 
 export const FOLLOWING_BOOST = 15;
+export const MAX_AFFINITY_BOOST = 20;
+export const MAX_AFFINITY_SCORE = 100;
+
+export function computeAffinityBoost(affinityScore: number): number {
+  if (affinityScore <= 0) return 0;
+  const clampedScore = Math.min(MAX_AFFINITY_SCORE, affinityScore);
+  return (clampedScore / MAX_AFFINITY_SCORE) * MAX_AFFINITY_BOOST;
+}
 
 export function computePersonalizedRank(
   feedRank: number,
   isFollowing: boolean,
+  affinityScore: number = 0,
 ): number {
-  return feedRank + (isFollowing ? FOLLOWING_BOOST : 0);
+  return feedRank + (isFollowing ? FOLLOWING_BOOST : 0) + computeAffinityBoost(affinityScore);
 }
 
 // ── Time decay (applied at query time) ─────────────────────────
@@ -111,7 +120,9 @@ export function computeDisplayScore(
   isFollowing: boolean,
   createdAtMs: number,
   nowMs: number,
+  affinityScore: number = 0,
 ): number {
-  const personalized = feedScore + (isFollowing ? FOLLOWING_BOOST : 0);
+  const personalized =
+    feedScore + (isFollowing ? FOLLOWING_BOOST : 0) + computeAffinityBoost(affinityScore);
   return personalized * computeTimeDecay(createdAtMs, nowMs);
 }

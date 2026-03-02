@@ -1,7 +1,50 @@
-import { query, internalQuery } from "../_generated/server";
+import { query, internalQuery, type QueryCtx } from "../_generated/server";
 import { v } from "convex/values";
 import { coerceDateOnlyToString, dateOnlyToUtcMs } from "../lib/dateOnly";
 import { notDeleted } from "../lib/activityFilters";
+import { getCurrentUser } from "../lib/ids";
+import {
+  FOLLOWING_BOOST,
+  computeAffinityBoost,
+  computePersonalizedRank,
+} from "../lib/feedScoring";
+import type { Id } from "../_generated/dataModel";
+
+async function requireChallengeAdmin(
+  ctx: QueryCtx,
+  challengeId: Id<"challenges">,
+) {
+  const user = await getCurrentUser(ctx);
+  if (!user) {
+    throw new Error("Not authorized - challenge admin required");
+  }
+
+  if (user.role === "admin") {
+    return user;
+  }
+
+  const challenge = await ctx.db.get(challengeId);
+  if (!challenge) {
+    throw new Error("Challenge not found");
+  }
+
+  if (challenge.creatorId === user._id) {
+    return user;
+  }
+
+  const participation = await ctx.db
+    .query("userChallenges")
+    .withIndex("userChallengeUnique", (q) =>
+      q.eq("userId", user._id).eq("challengeId", challengeId)
+    )
+    .first();
+
+  if (participation?.role === "admin") {
+    return user;
+  }
+
+  throw new Error("Not authorized - challenge admin required");
+}
 
 /**
  * List all users (for debugging)
@@ -338,6 +381,213 @@ export const listChallengePayments = query({
     );
 
     return result.filter((item) => item.participant !== null);
+  },
+});
+
+/**
+ * Admin monitoring dashboard analytics:
+ * - Created-at (UTC) hourly distribution for activities
+ * - Feed debug rows with explicit score/rank/personalization details
+ * - "View as" support to inspect personalization effects for another participant
+ */
+export const getMonitoringDashboard = query({
+  args: {
+    challengeId: v.id("challenges"),
+    viewAsUserId: v.optional(v.id("users")),
+    feedLimit: v.optional(v.number()),
+    includeFeedDebug: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const adminUser = await requireChallengeAdmin(ctx, args.challengeId);
+    const feedLimit = Math.min(Math.max(args.feedLimit ?? 100, 10), 200);
+    const includeFeedDebug = args.includeFeedDebug ?? true;
+
+    const [activities, participations] = await Promise.all([
+      ctx.db
+        .query("activities")
+        .withIndex("challengeId", (q) => q.eq("challengeId", args.challengeId))
+        .filter(notDeleted)
+        .collect(),
+      includeFeedDebug
+        ? ctx.db
+            .query("userChallenges")
+            .withIndex("challengeId", (q) => q.eq("challengeId", args.challengeId))
+            .collect()
+        : Promise.resolve([]),
+    ]);
+
+    const hourlyCounts = Array.from({ length: 24 }, (_, hour) => ({
+      hour,
+      label: `${hour.toString().padStart(2, "0")}:00`,
+      count: 0,
+    }));
+
+    for (const activity of activities) {
+      hourlyCounts[new Date(activity.createdAt).getUTCHours()].count += 1;
+    }
+
+    if (!includeFeedDebug) {
+      return {
+        totalActivities: activities.length,
+        hourlyCounts,
+        feed: {
+          viewer: {
+            id: adminUser._id,
+            username: adminUser.username,
+            name: adminUser.name ?? null,
+            email: adminUser.email,
+            isCurrentAdmin: true,
+          },
+          followingCount: 0,
+          rows: [],
+        },
+        viewAsCandidates: [],
+      };
+    }
+
+    const participantIds = new Set(participations.map((p) => p.userId));
+
+    const viewerId = args.viewAsUserId ?? adminUser._id;
+    const viewAsUser = await ctx.db.get(viewerId);
+    if (!viewAsUser) {
+      throw new Error("Selected view-as user not found");
+    }
+
+    if (viewerId !== adminUser._id && !participantIds.has(viewerId)) {
+      throw new Error("Selected view-as user is not a challenge participant");
+    }
+
+    const [followingRows, affinityRows] = await Promise.all([
+      ctx.db
+        .query("follows")
+        .withIndex("followerId", (q) => q.eq("followerId", viewerId))
+        .collect(),
+      ctx.db
+        .query("userAffinities")
+        .withIndex("challengeViewer", (q) =>
+          q.eq("challengeId", args.challengeId).eq("viewerUserId", viewerId),
+        )
+        .collect(),
+    ]);
+    const followingIds = new Set(followingRows.map((row) => row.followingId));
+    const affinityByAuthor = new Map(
+      affinityRows.map((row) => [row.authorUserId as string, row.score]),
+    );
+
+    const userMap = new Map(
+      (
+        await Promise.all(
+          participations.map(async (participation) => {
+            const user = await ctx.db.get(participation.userId);
+            if (!user) return null;
+            return [
+              user._id,
+              {
+                id: user._id,
+                username: user.username,
+                name: user.name ?? null,
+                email: user.email,
+              },
+            ] as const;
+          }),
+        )
+      ).filter((entry): entry is readonly [Id<"users">, { id: Id<"users">; username: string; name: string | null; email: string }] => entry !== null),
+    );
+
+    const activityTypeIds = new Set(activities.map((activity) => activity.activityTypeId));
+    const activityTypeMap = new Map(
+      (
+        await Promise.all(
+          Array.from(activityTypeIds).map(async (activityTypeId) => {
+            const activityType = await ctx.db.get(activityTypeId);
+            if (!activityType) return null;
+            return [activityType._id, { id: activityType._id, name: activityType.name }] as const;
+          }),
+        )
+      ).filter((entry): entry is readonly [Id<"activityTypes">, { id: Id<"activityTypes">; name: string }] => entry !== null),
+    );
+
+    const feedRows = [...activities]
+      .filter((activity) => typeof activity.feedRank === "number")
+      .sort((a, b) => (b.feedRank ?? 0) - (a.feedRank ?? 0))
+      .slice(0, feedLimit)
+      .map((activity) => {
+        const actor = userMap.get(activity.userId);
+        if (!actor) {
+          return null;
+        }
+
+        const type = activityTypeMap.get(activity.activityTypeId);
+        const isFollowing = followingIds.has(activity.userId);
+        const affinityScore = affinityByAuthor.get(activity.userId as string) ?? 0;
+        const affinityBoostApplied = computeAffinityBoost(affinityScore);
+        const feedRank = activity.feedRank ?? 0;
+        const personalizedRank = computePersonalizedRank(
+          feedRank,
+          isFollowing,
+          affinityScore,
+        );
+        const feedScore = activity.feedScore ?? 0;
+        const dayBucket = Math.floor(activity.createdAt / (24 * 60 * 60 * 1000));
+        const rankInDayBucket = feedRank - dayBucket * 1000;
+
+        return {
+          activityId: activity._id,
+          createdAt: activity.createdAt,
+          loggedDate: activity.loggedDate,
+          pointsEarned: activity.pointsEarned,
+          source: activity.source,
+          user: actor,
+          activityType: type ?? null,
+          debug: {
+            feedScore,
+            feedRank,
+            personalizedRank,
+            followingBoostApplied: isFollowing ? FOLLOWING_BOOST : 0,
+            affinityScore,
+            affinityBoostApplied,
+            totalBoostApplied:
+              (isFollowing ? FOLLOWING_BOOST : 0) + affinityBoostApplied,
+            isFollowingAuthor: isFollowing,
+            dayBucket,
+            rankInDayBucket,
+          },
+        };
+      })
+      .filter((row): row is NonNullable<typeof row> => row !== null);
+
+    const viewAsCandidates = [...userMap.values()];
+    if (!viewAsCandidates.some((candidate) => candidate.id === adminUser._id)) {
+      viewAsCandidates.push({
+        id: adminUser._id,
+        username: adminUser.username,
+        name: adminUser.name ?? null,
+        email: adminUser.email,
+      });
+    }
+
+    viewAsCandidates.sort((a, b) => {
+      const aDisplay = (a.name ?? a.username).toLowerCase();
+      const bDisplay = (b.name ?? b.username).toLowerCase();
+      return aDisplay.localeCompare(bDisplay);
+    });
+
+    return {
+      totalActivities: activities.length,
+      hourlyCounts,
+      feed: {
+        viewer: {
+          id: viewAsUser._id,
+          username: viewAsUser.username,
+          name: viewAsUser.name ?? null,
+          email: viewAsUser.email,
+          isCurrentAdmin: viewAsUser._id === adminUser._id,
+        },
+        followingCount: followingIds.size,
+        rows: feedRows,
+      },
+      viewAsCandidates,
+    };
   },
 });
 
