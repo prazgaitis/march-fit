@@ -60,21 +60,6 @@ export default async function RootLayout({
   return (
     <ConvexProviderWrapper initialToken={token ?? null}>
       <html lang="en">
-      <head>
-        {enableDevCursorScripts && (
-          <Script
-            src="//unpkg.com/react-grab/dist/index.global.js"
-            crossOrigin="anonymous"
-            strategy="lazyOnload"
-          />
-        )}
-        {enableDevCursorScripts && (
-          <Script
-            src="//unpkg.com/@react-grab/cursor/dist/client.global.js"
-            strategy="lazyOnload"
-          />
-        )}
-      </head>
         <body
           className={`${geistSans.variable} ${geistMono.variable} bg-black text-white antialiased`}
         >
@@ -86,6 +71,19 @@ export default async function RootLayout({
           <Toaster />
           <Analytics />
           <SpeedInsights />
+          {enableDevCursorScripts && (
+            <Script
+              src="//unpkg.com/react-grab/dist/index.global.js"
+              crossOrigin="anonymous"
+              strategy="lazyOnload"
+            />
+          )}
+          {enableDevCursorScripts && (
+            <Script
+              src="//unpkg.com/@react-grab/cursor/dist/client.global.js"
+              strategy="lazyOnload"
+            />
+          )}
         </body>
       </html>
     </ConvexProviderWrapper>

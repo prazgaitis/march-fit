@@ -27,7 +27,7 @@ export default async function LedgerPage({ params }: LedgerPageProps) {
   if (!challenge) notFound();
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-6">
+    <div className="w-full max-w-none px-0 py-0">
       <LedgerContent
         challengeId={challenge._id}
         profileUserId={profileUserId}
