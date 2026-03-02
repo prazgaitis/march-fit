@@ -17,6 +17,7 @@ import { applyParticipationScoreDeltaAndRecomputeStreak } from "../lib/participa
 import { insertActivity, patchActivity } from "../lib/activityWrites";
 import { applyCategoryPointsDelta } from "../lib/categoryPoints";
 import { applyWeeklyCategoryPointsDeltaFromDate } from "../lib/weeklyCategoryPoints";
+import { recomputeFeedScore } from "../lib/feedScore";
 
 // Internal mutation for seeding
 export const create = internalMutation({
@@ -209,7 +210,7 @@ export const log = mutation({
     const pointsEarned = score.pointsEarned;
     const triggeredBonuses = score.triggeredBonuses;
 
-    // Create activity
+    // Create activity (feedScore auto-computed by insertActivity)
     const activityId = await insertActivity(ctx, {
       userId: user._id,
       challengeId: args.challengeId,
@@ -491,6 +492,8 @@ export const flagActivity = mutation({
         resolutionStatus: "pending",
         updatedAt: now,
       });
+      // Recompute feed score (flag penalty)
+      await recomputeFeedScore(ctx, args.activityId);
     }
 
     // Add history entry
@@ -628,6 +631,9 @@ export const editActivity = mutation({
       ...(args.mediaIds !== undefined ? { mediaIds: args.mediaIds } : {}),
       updatedAt: now,
     });
+
+    // Recompute algorithmic feed score after content change
+    await recomputeFeedScore(ctx, args.activityId);
 
     // When the activity type changed, the category may have changed too.
     // Unapply old category points first; new category is handled via categoryId below.

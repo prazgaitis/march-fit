@@ -232,25 +232,73 @@ export const handlePaymentSuccess = internalMutation({
     stripeCustomerId: v.optional(v.string()),
     stripeCustomerEmail: v.optional(v.string()),
     amountInCents: v.optional(v.number()), // Actual amount paid (may exceed minimum in donation mode)
+    // Metadata from Stripe session — used to self-heal if prepareCheckout never ran
+    challengeId: v.optional(v.id("challenges")),
+    userId: v.optional(v.id("users")),
   },
   handler: async (ctx, args) => {
     const now = Date.now();
 
     // Find the payment record
-    const paymentRecord = await ctx.db
+    let paymentRecord = await ctx.db
       .query("paymentRecords")
       .withIndex("stripeCheckoutSessionId", (q) =>
         q.eq("stripeCheckoutSessionId", args.stripeCheckoutSessionId)
       )
       .first();
 
+    // Self-heal: if no payment record exists but we have metadata, create one
     if (!paymentRecord) {
-      console.error("Payment record not found for session:", args.stripeCheckoutSessionId);
-      return { success: false, error: "Payment record not found" };
+      if (!args.challengeId || !args.userId) {
+        console.error("Payment record not found and no metadata to self-heal for session:", args.stripeCheckoutSessionId);
+        return { success: false, error: "Payment record not found" };
+      }
+
+      console.warn("Self-healing: creating missing payment record for session:", args.stripeCheckoutSessionId);
+      const paymentRecordId = await ctx.db.insert("paymentRecords", {
+        challengeId: args.challengeId,
+        userId: args.userId,
+        stripeCheckoutSessionId: args.stripeCheckoutSessionId,
+        stripePaymentIntentId: args.stripePaymentIntentId,
+        stripeCustomerId: args.stripeCustomerId,
+        stripeCustomerEmail: args.stripeCustomerEmail,
+        amountInCents: args.amountInCents ?? 0,
+        currency: "usd",
+        status: "completed",
+        completedAt: now,
+        createdAt: now,
+        updatedAt: now,
+      });
+      paymentRecord = (await ctx.db.get(paymentRecordId))!;
     }
 
     // Idempotency: Stripe can retry webhooks for the same session.
     if (paymentRecord.status === "completed") {
+      // Even if already completed, ensure participation exists (covers partial self-heal)
+      const existingParticipation = await ctx.db
+        .query("userChallenges")
+        .withIndex("userChallengeUnique", (q) =>
+          q.eq("userId", paymentRecord.userId).eq("challengeId", paymentRecord.challengeId)
+        )
+        .first();
+
+      if (!existingParticipation) {
+        console.warn("Self-healing: creating missing participation for already-completed payment:", args.stripeCheckoutSessionId);
+        await ctx.db.insert("userChallenges", {
+          userId: paymentRecord.userId,
+          challengeId: paymentRecord.challengeId,
+          joinedAt: now,
+          totalPoints: 0,
+          currentStreak: 0,
+          modifierFactor: 1,
+          paymentStatus: "paid",
+          paymentReceivedAt: now,
+          paymentReference: args.stripePaymentIntentId || args.stripeCheckoutSessionId,
+          updatedAt: now,
+        });
+        await scheduleSignupEmails(ctx, paymentRecord.challengeId, paymentRecord.userId);
+      }
+
       return { success: true, alreadyCompleted: true };
     }
 
@@ -266,7 +314,7 @@ export const handlePaymentSuccess = internalMutation({
     });
 
     // Find and update user challenge participation
-    const participation = await ctx.db
+    let participation = await ctx.db
       .query("userChallenges")
       .withIndex("userChallengeUnique", (q) =>
         q.eq("userId", paymentRecord.userId).eq("challengeId", paymentRecord.challengeId)
@@ -295,6 +343,27 @@ export const handlePaymentSuccess = internalMutation({
       }
 
       // Trigger on_signup emails now that payment is confirmed
+      await scheduleSignupEmails(ctx, paymentRecord.challengeId, paymentRecord.userId);
+    } else {
+      // Self-heal: create missing participation record
+      console.warn("Self-healing: creating missing participation for session:", args.stripeCheckoutSessionId);
+      const participationId = await ctx.db.insert("userChallenges", {
+        userId: paymentRecord.userId,
+        challengeId: paymentRecord.challengeId,
+        joinedAt: now,
+        totalPoints: 0,
+        currentStreak: 0,
+        modifierFactor: 1,
+        paymentStatus: "paid",
+        paymentReceivedAt: now,
+        paymentReference: args.stripePaymentIntentId || args.stripeCheckoutSessionId,
+        updatedAt: now,
+      });
+
+      await ctx.db.patch(paymentRecord._id, {
+        userChallengeId: participationId,
+      });
+
       await scheduleSignupEmails(ctx, paymentRecord.challengeId, paymentRecord.userId);
     }
 
@@ -417,6 +486,27 @@ export const completeVerification = internalMutation({
       }
 
       // Trigger on_signup emails now that payment is confirmed
+      await scheduleSignupEmails(ctx, args.challengeId, args.userId);
+    } else {
+      // Self-heal: create missing participation record
+      console.warn("Self-healing: creating missing participation in completeVerification for session:", args.sessionId);
+      const participationId = await ctx.db.insert("userChallenges", {
+        userId: args.userId,
+        challengeId: args.challengeId,
+        joinedAt: now,
+        totalPoints: 0,
+        currentStreak: 0,
+        modifierFactor: 1,
+        paymentStatus: "paid",
+        paymentReceivedAt: now,
+        paymentReference: args.stripePaymentIntentId || args.sessionId,
+        updatedAt: now,
+      });
+
+      await ctx.db.patch(paymentRecord._id, {
+        userChallengeId: participationId,
+      });
+
       await scheduleSignupEmails(ctx, args.challengeId, args.userId);
     }
 

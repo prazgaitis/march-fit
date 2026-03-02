@@ -182,6 +182,8 @@ export default defineSchema({
     deletedReason: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
+    // Algorithmic feed score (content + engagement, no personalization/decay)
+    feedScore: v.optional(v.number()),
   })
     .index("userId", ["userId"])
     .index("challengeId", ["challengeId"])
@@ -191,7 +193,8 @@ export default defineSchema({
     .index("externalUnique", ["userId", "challengeId", "externalId"])
     .index("by_user_challenge_date", ["userId", "challengeId", "loggedDate"])
     .index("challengeFlagged", ["challengeId", "flagged"])
-    .index("sourceExternalId", ["source", "externalId"]),
+    .index("sourceExternalId", ["source", "externalId"])
+    .index("challengeFeedScore", ["challengeId", "feedScore"]),
 
   // Flags
   flags: defineTable({
