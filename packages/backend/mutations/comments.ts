@@ -1,6 +1,6 @@
 import { mutation } from "../_generated/server";
 import { v } from "convex/values";
-import { getCurrentUser } from "../lib/ids";
+import { requireCurrentUser } from "../lib/ids";
 import { insertNotification } from "../lib/notifications";
 import { recomputeFeedScore } from "../lib/feedScore";
 
@@ -10,10 +10,7 @@ export const create = mutation({
     content: v.string(),
   },
   handler: async (ctx, args) => {
-    const user = await getCurrentUser(ctx);
-    if (!user) {
-      throw new Error("Not authenticated");
-    }
+    const user = await requireCurrentUser(ctx);
 
     if (!args.content.trim()) {
         throw new Error("Comment cannot be empty");

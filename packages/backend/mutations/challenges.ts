@@ -1,7 +1,7 @@
 import { internalMutation, mutation } from "../_generated/server";
 import { v } from "convex/values";
 import type { Id } from "../_generated/dataModel";
-import { getCurrentUser } from "../lib/ids";
+import { requireCurrentUser } from "../lib/ids";
 import { dateOnlyToUtcMs } from "../lib/dateOnly";
 
 // Helper to check if user is challenge admin
@@ -9,10 +9,7 @@ async function requireChallengeAdmin(
   ctx: { db: any; auth: any },
   challengeId: Id<"challenges">
 ) {
-  const user = await getCurrentUser(ctx as any);
-  if (!user) {
-    throw new Error("Not authenticated");
-  }
+  const user = await requireCurrentUser(ctx as any);
 
   const challenge = await ctx.db.get(challengeId);
   if (!challenge) {
@@ -74,10 +71,7 @@ export const createChallenge = mutation({
     visibility: v.optional(v.union(v.literal("public"), v.literal("private"))),
   },
   handler: async (ctx, args) => {
-    const user = await getCurrentUser(ctx);
-    if (!user) {
-      throw new Error("Not authenticated");
-    }
+    const user = await requireCurrentUser(ctx);
 
     const startDateMs = dateOnlyToUtcMs(args.startDate);
     const endDateMs = dateOnlyToUtcMs(args.endDate);
@@ -237,10 +231,7 @@ export const dismissAnnouncement = mutation({
     challengeId: v.id("challenges"),
   },
   handler: async (ctx, args) => {
-    const user = await getCurrentUser(ctx);
-    if (!user) {
-      throw new Error("Not authenticated");
-    }
+    const user = await requireCurrentUser(ctx);
 
     // Find user's participation
     const participation = await ctx.db
