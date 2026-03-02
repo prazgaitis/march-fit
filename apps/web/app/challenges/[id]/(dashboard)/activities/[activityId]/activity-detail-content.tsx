@@ -298,7 +298,7 @@ export function ActivityDetailContent({
   const metrics = activity.metrics as Record<string, unknown> | undefined;
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-6">
+    <div className="mx-auto max-w-2xl px-4 py-6 pb-8">
       {/* Header */}
       <div className="mb-6 flex items-center gap-4">
         <Button variant="ghost" size="icon" asChild>
@@ -339,9 +339,9 @@ export function ActivityDetailContent({
               className="flex-1"
             />
             {activityType.isNegative ? (
-              <Badge variant="destructive">Penalty</Badge>
+              <Badge variant="destructive" className="shrink-0">Penalty</Badge>
             ) : (
-              <Badge variant="secondary">{activityType.name}</Badge>
+              <Badge variant="secondary" className="hidden sm:inline-flex shrink-0">{activityType.name}</Badge>
             )}
           </CardHeader>
 
