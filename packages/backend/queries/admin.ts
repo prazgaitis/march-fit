@@ -561,7 +561,14 @@ export const getMonitoringDashboard = query({
           },
         };
       })
-      .filter((row): row is NonNullable<typeof row> => row !== null);
+      .filter((row): row is NonNullable<typeof row> => row !== null)
+      // Match "For You" display ordering (personalized score first).
+      .sort((a, b) => {
+        if (b.debug.personalizedRank !== a.debug.personalizedRank) {
+          return b.debug.personalizedRank - a.debug.personalizedRank;
+        }
+        return b.debug.feedRank - a.debug.feedRank;
+      });
 
     const viewAsCandidates = [...userMap.values()];
     if (!viewAsCandidates.some((candidate) => candidate.id === adminUser._id)) {
