@@ -34,7 +34,7 @@ async function getEngagementCounts(
       .query("comments")
       .withIndex("activityId", (q) => q.eq("activityId", activityId))
       .collect()
-      .then((rows) => rows.length),
+      .then((rows) => rows.filter(r => !r.parentType || r.parentType === "activity").length),
   ]);
   return { likeCount: likes, commentCount: comments };
 }

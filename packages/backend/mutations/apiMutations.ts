@@ -431,6 +431,7 @@ export const resolveFlagForUser = internalMutation({
 
 /**
  * Add admin comment on behalf of an admin (API key authenticated).
+ * Now inserts into generalized comments table.
  */
 export const addAdminCommentForUser = internalMutation({
   args: {
@@ -444,6 +445,19 @@ export const addAdminCommentForUser = internalMutation({
     if (!activity || activity.deletedAt) throw new Error("Activity not found");
 
     const now = Date.now();
+
+    // Insert into generalized comments table
+    await ctx.db.insert("comments", {
+      parentType: "flagged_activity",
+      activityId: args.activityId,
+      userId: args.userId,
+      content: args.comment,
+      visibility: args.visibility,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    // Keep legacy field for backward compat
     await patchActivity(ctx, args.activityId, {
       adminComment: args.comment,
       adminCommentVisibility: args.visibility,
@@ -459,7 +473,7 @@ export const addAdminCommentForUser = internalMutation({
     });
 
     if (args.visibility === "participant") {
-      await ctx.db.insert("notifications", {
+      await insertNotification(ctx, {
         userId: activity.userId,
         actorId: args.userId,
         type: "admin_comment",
@@ -626,9 +640,22 @@ export const updateFeedbackForUser = internalMutation({
 
     if (args.adminResponse !== undefined) {
       const trimmed = args.adminResponse.trim();
+      // Keep legacy fields for backward compat
       patch.adminResponse = trimmed.length > 0 ? trimmed : undefined;
       patch.respondedAt = trimmed.length > 0 ? now : undefined;
       patch.respondedById = trimmed.length > 0 ? args.userId : undefined;
+
+      // Also create a comment in the generalized comments table
+      if (trimmed.length > 0) {
+        await ctx.db.insert("comments", {
+          parentType: "feedback",
+          feedbackId: args.feedbackId,
+          userId: args.userId,
+          content: trimmed,
+          createdAt: now,
+          updatedAt: now,
+        });
+      }
     }
 
     await ctx.db.patch(feedback._id, patch);
@@ -647,7 +674,7 @@ export const updateFeedbackForUser = internalMutation({
         await insertNotification(ctx, {
           userId: feedback.userId,
           actorId: args.userId,
-          type: "feedback_response",
+          type: isNewResponse ? "feedback_comment" : "feedback_response",
           data: {
             feedbackId: feedback._id,
             challengeId: feedback.challengeId,
@@ -660,6 +687,128 @@ export const updateFeedbackForUser = internalMutation({
     }
 
     return { success: true };
+  },
+});
+
+/**
+ * Create a comment on a feedback item on behalf of a user (API key authenticated).
+ * Reporter and admins can comment.
+ */
+export const createFeedbackCommentForUser = internalMutation({
+  args: {
+    userId: v.id("users"),
+    feedbackId: v.id("feedback"),
+    content: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const user = await ctx.db.get(args.userId);
+    if (!user) throw new Error("User not found");
+
+    const content = args.content.trim();
+    if (!content) throw new Error("Comment cannot be empty");
+
+    const feedback = await ctx.db.get(args.feedbackId);
+    if (!feedback) throw new Error("Feedback not found");
+
+    // Allow the reporter or any challenge admin
+    const isReporter = feedback.userId === args.userId;
+    if (!isReporter) {
+      const challenge = await ctx.db.get(feedback.challengeId);
+      if (!challenge) throw new Error("Challenge not found");
+
+      const isGlobalAdmin = user.role === "admin";
+      const isCreator = challenge.creatorId === user._id;
+      let isChallengeAdmin = false;
+      if (!isGlobalAdmin && !isCreator) {
+        const participation = await ctx.db
+          .query("userChallenges")
+          .withIndex("userChallengeUnique", (q) =>
+            q.eq("userId", args.userId).eq("challengeId", feedback.challengeId)
+          )
+          .first();
+        isChallengeAdmin = participation?.role === "admin";
+      }
+      if (!isGlobalAdmin && !isCreator && !isChallengeAdmin) {
+        throw new Error("Not authorized - must be reporter or challenge admin");
+      }
+    }
+
+    const now = Date.now();
+    const commentId = await ctx.db.insert("comments", {
+      parentType: "feedback",
+      feedbackId: args.feedbackId,
+      userId: args.userId,
+      content,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    // Notify the other party
+    const notifyUserId = isReporter ? undefined : feedback.userId;
+    if (notifyUserId && notifyUserId !== args.userId) {
+      await insertNotification(ctx, {
+        userId: notifyUserId,
+        actorId: args.userId,
+        type: "feedback_comment",
+        data: {
+          feedbackId: args.feedbackId,
+          challengeId: feedback.challengeId,
+          title: feedback.title ?? feedback.description.slice(0, 60),
+        },
+        createdAt: now,
+      });
+    }
+
+    return { id: commentId };
+  },
+});
+
+/**
+ * Toggle like on a comment on behalf of a user (API key authenticated).
+ */
+export const toggleCommentLikeForUser = internalMutation({
+  args: {
+    userId: v.id("users"),
+    commentId: v.id("comments"),
+  },
+  handler: async (ctx, args) => {
+    const user = await ctx.db.get(args.userId);
+    if (!user) throw new Error("User not found");
+
+    const comment = await ctx.db.get(args.commentId);
+    if (!comment) throw new Error("Comment not found");
+
+    const existing = await ctx.db
+      .query("commentLikes")
+      .withIndex("commentUserUnique", (q) =>
+        q.eq("commentId", args.commentId).eq("userId", args.userId)
+      )
+      .first();
+
+    if (existing) {
+      await ctx.db.delete(existing._id);
+      return { liked: false };
+    } else {
+      const now = Date.now();
+      await ctx.db.insert("commentLikes", {
+        commentId: args.commentId,
+        userId: args.userId,
+        createdAt: now,
+      });
+
+      // Notify comment author (skip self-likes)
+      if (comment.userId !== args.userId) {
+        await insertNotification(ctx, {
+          userId: comment.userId,
+          actorId: args.userId,
+          type: "comment_like",
+          data: { commentId: args.commentId },
+          createdAt: now,
+        });
+      }
+
+      return { liked: true };
+    }
   },
 });
 

@@ -14,6 +14,7 @@ import {
   ChevronUp,
   Clock,
   Flag,
+  Heart,
   ImagePlus,
   Loader2,
   MessageCircle,
@@ -1128,6 +1129,7 @@ function ActivityComments({
   );
 
   const createComment = useMutation(api.mutations.comments.create);
+  const toggleCommentLike = useMutation(api.mutations.commentLikes.toggle);
 
   const handleSubmitComment = async () => {
     if (!commentInput || commentIsEmpty || isEditorContentEmpty(commentInput))
@@ -1193,46 +1195,48 @@ function ActivityComments({
       </div>
 
       <div className="space-y-4">
-        {comments?.map(
-          (entry: {
-            comment: { _id: string; createdAt: number; content: string };
-            author: {
-              id: string;
-              name: string;
-              username: string;
-              avatarUrl: string | null;
-            };
-          }) => (
-            <div key={entry.comment._id} className="flex gap-3">
-              <UserAvatar
-                user={{
-                  id: entry.author.id,
-                  name: entry.author.name,
-                  username: entry.author.username,
-                  avatarUrl: entry.author.avatarUrl,
-                }}
-                challengeId={challengeId}
-                size="md"
+        {comments?.map((entry: { comment: { id: string; createdAt: string; content: string }; author: { id: string; name: string; username: string; avatarUrl: string | null }; likeCount: number; likedByMe: boolean }) => (
+          <div key={entry.comment.id} className="flex gap-3">
+            <UserAvatar
+              user={{
+                id: entry.author.id,
+                name: entry.author.name,
+                username: entry.author.username,
+                avatarUrl: entry.author.avatarUrl,
+              }}
+              challengeId={challengeId}
+              size="md"
+            />
+            <div className="flex-1 rounded-lg bg-muted/50 p-4">
+              <div className="flex items-center justify-between">
+                <p className="font-semibold">
+                  {entry.author.name ?? entry.author.username}
+                </p>
+                <span className="text-xs text-muted-foreground">
+                  {formatDistanceToNow(new Date(entry.comment.createdAt), {
+                    addSuffix: true,
+                  })}
+                </span>
+              </div>
+              <RichTextViewer
+                content={entry.comment.content}
+                className="mt-2 text-sm text-muted-foreground"
               />
-              <div className="flex-1 rounded-lg bg-muted/50 p-4">
-                <div className="flex items-center justify-between">
-                  <p className="font-semibold">
-                    {entry.author.name ?? entry.author.username}
-                  </p>
-                  <span className="text-xs text-muted-foreground">
-                    {formatDistanceToNow(new Date(entry.comment.createdAt), {
-                      addSuffix: true,
-                    })}
-                  </span>
-                </div>
-                <RichTextViewer
-                  content={entry.comment.content}
-                  className="mt-2 text-sm text-muted-foreground"
-                />
+              <div className="mt-2 flex items-center gap-1">
+                <button
+                  type="button"
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                  onClick={() => toggleCommentLike({ commentId: entry.comment.id as Id<'comments'> })}
+                >
+                  <Heart
+                    className={`h-3.5 w-3.5 ${entry.likedByMe ? 'fill-red-500 text-red-500' : ''}`}
+                  />
+                  {entry.likeCount > 0 && <span>{entry.likeCount}</span>}
+                </button>
               </div>
             </div>
-          ),
-        )}
+          </div>
+        ))}
 
         {loadingComments && (
           <div className="flex items-center justify-center gap-2 py-4 text-sm text-muted-foreground">

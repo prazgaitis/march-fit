@@ -233,6 +233,8 @@ export const recomputeAffinitiesFromInteractions = internalMutation({
     }
 
     for (const comment of comments) {
+      if (!comment.activityId) continue;
+      if (comment.parentType === "flagged_activity") continue;
       let activity = activityCache.get(comment.activityId as Id<"activities">);
       if (activity === undefined) {
         activity = (await ctx.db.get(

@@ -511,6 +511,69 @@ const mcpHandler = createMcpHandler(
     );
 
     server.registerTool(
+      "add_feedback_comment",
+      {
+        title: "Add Feedback Comment",
+        description:
+          "Add a comment to a feedback item. Reporter and challenge admins can comment.",
+        inputSchema: {
+          feedbackId: z.string().min(1),
+          content: z.string().min(1),
+        },
+      },
+      async ({ feedbackId, content }) => {
+        const token = requireApiToken();
+        const data = await apiRequest(
+          token,
+          `/feedback/${feedbackId}/comments`,
+          { method: "POST", body: { content } }
+        );
+        return asTextResult(data);
+      }
+    );
+
+    server.registerTool(
+      "list_feedback_comments",
+      {
+        title: "List Feedback Comments",
+        description:
+          "List comments on a feedback item.",
+        inputSchema: {
+          feedbackId: z.string().min(1),
+        },
+      },
+      async ({ feedbackId }) => {
+        const token = requireApiToken();
+        const data = await apiRequest(
+          token,
+          `/feedback/${feedbackId}/comments`
+        );
+        return asTextResult(data);
+      }
+    );
+
+    server.registerTool(
+      "toggle_comment_like",
+      {
+        title: "Toggle Comment Like",
+        description:
+          "Like or unlike a comment.",
+        inputSchema: {
+          commentId: z.string().min(1),
+        },
+      },
+      async ({ commentId }) => {
+        const token = requireApiToken();
+        const data = await apiRequest(
+          token,
+          `/comments/${commentId}/like`,
+          { method: "POST" }
+        );
+        return asTextResult(data);
+      }
+    );
+
+    server.registerTool(
       "create_activity_type",
       {
         title: "Create Activity Type",

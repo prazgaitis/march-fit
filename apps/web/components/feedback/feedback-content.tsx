@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useMutation, useQuery } from "@/lib/convex-auth-react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
-import { CheckCircle2, Circle, Wrench } from "lucide-react";
+import { CheckCircle2, Circle, Heart, MessageSquare, Send, Wrench } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 import { Button } from "@/components/ui/button";
@@ -203,24 +203,7 @@ export function FeedbackContent({ challengeId }: FeedbackContentProps) {
                     <p className="mt-1 whitespace-pre-wrap text-sm text-zinc-300">
                       {item.description}
                     </p>
-                    {item.adminResponse ? (
-                      <div className="mt-3 rounded-md border border-emerald-500/30 bg-emerald-500/10 p-3">
-                        <p className="text-[11px] font-medium uppercase tracking-wide text-emerald-300">
-                          Admin response
-                        </p>
-                        <p className="mt-1 whitespace-pre-wrap text-sm text-emerald-100">
-                          {item.adminResponse}
-                        </p>
-                        {item.respondedAt ? (
-                          <p className="mt-2 text-xs text-emerald-200/80">
-                            Responded {formatDistanceToNow(new Date(item.respondedAt), { addSuffix: true })}
-                            {item.respondedBy
-                              ? ` by ${item.respondedBy.name || item.respondedBy.username}`
-                              : ""}
-                          </p>
-                        ) : null}
-                      </div>
-                    ) : null}
+                    <FeedbackCommentThread feedbackId={item.id} />
                     <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-zinc-500">
                       {item.reporter ? (
                         <UserAvatar
@@ -263,6 +246,125 @@ export function FeedbackContent({ challengeId }: FeedbackContentProps) {
           })}
         </div>
       )}
+    </div>
+  );
+}
+
+type CommentEntry = {
+  comment: {
+    id: string;
+    content: string;
+    createdAt: string;
+  };
+  author: {
+    id: string;
+    name: string | null;
+    username: string;
+    avatarUrl: string | null;
+  };
+  likeCount: number;
+  likedByMe: boolean;
+};
+
+function FeedbackCommentThread({ feedbackId }: { feedbackId: string }) {
+  const [commentText, setCommentText] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const comments = useQuery(api.queries.comments.getByFeedbackId, {
+    feedbackId: feedbackId as Id<"feedback">,
+  }) as CommentEntry[] | undefined;
+
+  const createComment = useMutation(api.mutations.comments.createOnFeedback);
+  const toggleLike = useMutation(api.mutations.commentLikes.toggle);
+
+  const handleSubmit = async () => {
+    if (!commentText.trim() || isSubmitting) return;
+    setIsSubmitting(true);
+    try {
+      await createComment({
+        feedbackId: feedbackId as Id<"feedback">,
+        content: commentText.trim(),
+      });
+      setCommentText("");
+    } catch (error) {
+      console.error("Failed to post comment:", error);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  if (!comments) return null;
+
+  return (
+    <div className="mt-3 space-y-2">
+      {comments.length > 0 && (
+        <div className="space-y-2">
+          {comments.map((entry) => (
+            <div
+              key={entry.comment.id}
+              className="rounded-md border border-zinc-700/50 bg-zinc-800/50 p-3"
+            >
+              <div className="flex items-center gap-2 text-xs text-zinc-400">
+                <UserAvatar
+                  user={entry.author}
+                  size="sm"
+                  showName
+                  disableLink
+                  className="text-xs"
+                />
+                <span>
+                  {formatDistanceToNow(new Date(entry.comment.createdAt), {
+                    addSuffix: true,
+                  })}
+                </span>
+              </div>
+              <p className="mt-1 whitespace-pre-wrap text-sm text-zinc-200">
+                {entry.comment.content}
+              </p>
+              <div className="mt-1 flex items-center gap-1">
+                <button
+                  type="button"
+                  className="flex items-center gap-1 text-xs text-zinc-500 hover:text-zinc-300 transition-colors"
+                  onClick={() =>
+                    toggleLike({
+                      commentId: entry.comment.id as Id<"comments">,
+                    })
+                  }
+                >
+                  <Heart
+                    className={`h-3 w-3 ${entry.likedByMe ? "fill-red-500 text-red-500" : ""}`}
+                  />
+                  {entry.likeCount > 0 && <span>{entry.likeCount}</span>}
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="flex items-center gap-2">
+        <Input
+          value={commentText}
+          onChange={(e) => setCommentText(e.target.value)}
+          placeholder="Reply..."
+          className="border-zinc-700 bg-zinc-900 text-zinc-100 text-sm h-8"
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              handleSubmit();
+            }
+          }}
+        />
+        <Button
+          size="sm"
+          variant="ghost"
+          disabled={isSubmitting || !commentText.trim()}
+          onClick={handleSubmit}
+          className="h-8 px-2"
+        >
+          <Send className="h-4 w-4" />
+        </Button>
+      </div>
     </div>
   );
 }

@@ -7,6 +7,7 @@ import type { Id } from "@repo/backend/_generated/dataModel";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { FlaggedActivityActions } from "@/components/admin/flagged-activity-actions";
+import { FlaggedActivityComments } from "./flagged-activity-comments";
 import { fetchAuthQuery } from "@/lib/server-auth";
 
 interface FlaggedActivityDetailPageProps {
@@ -93,14 +94,7 @@ export default async function FlaggedActivityDetailPage({
               {detail.activity.flaggedReason ?? "No reason provided"}
             </p>
           </div>
-          <div>
-            <h3 className="text-sm font-medium text-muted-foreground">
-              Admin Comment
-            </h3>
-            <p className="text-base">
-              {detail.activity.adminComment ?? "No admin comment recorded yet."}
-            </p>
-          </div>
+          <FlaggedActivityComments activityId={detail.activity.id} />
           <FlaggedActivityActions
             activityId={detail.activity.id}
             challengeId={detail.activity.challengeId as string}

@@ -169,7 +169,18 @@ export const addAdminComment = mutation({
 
     const now = Date.now();
 
-    // Update activity with admin comment
+    // Insert into generalized comments table
+    await ctx.db.insert("comments", {
+      parentType: "flagged_activity",
+      activityId: args.activityId,
+      userId: user._id,
+      content: args.comment,
+      visibility: args.visibility,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    // Keep legacy field for backward compat
     await patchActivity(ctx, args.activityId, {
       adminComment: args.comment,
       adminCommentVisibility: args.visibility,
