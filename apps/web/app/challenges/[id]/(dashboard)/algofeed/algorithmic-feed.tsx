@@ -1,36 +1,32 @@
-'use client';
+"use client";
 
-import { useCallback, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
-import { formatDistanceToNow } from 'date-fns';
-import { Loader2, ThumbsUp, MessageCircle, Zap } from 'lucide-react';
-import { useMutation, usePaginatedQuery } from 'convex/react';
-import { api } from '@repo/backend';
-import type { Id } from '@repo/backend/_generated/dataModel';
+import { useCallback, useMemo } from "react";
+import { useRouter } from "next/navigation";
+import { formatDistanceToNow } from "date-fns";
+import { Loader2, ThumbsUp, MessageCircle, Zap } from "lucide-react";
+import { useMutation, usePaginatedQuery } from "convex/react";
+import { api } from "@repo/backend";
+import type { Id } from "@repo/backend/_generated/dataModel";
 
-import { UserChallengeDisplay } from '@/components/user-challenge-display';
-import { RichTextViewer } from '@/components/editor/rich-text-viewer';
-import { Button } from '@/components/ui/button';
+import { UserChallengeDisplay } from "@/components/user-challenge-display";
+import { RichTextViewer } from "@/components/editor/rich-text-viewer";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
   CardFooter,
   CardHeader,
-} from '@/components/ui/card';
-import { PointsDisplay } from '@/components/ui/points-display';
-import { cn } from '@/lib/utils';
+} from "@/components/ui/card";
+import { PointsDisplay } from "@/components/ui/points-display";
+import { MediaGallery } from "@/components/media-gallery";
+import { cn } from "@/lib/utils";
 
 interface AlgorithmicFeedProps {
   challengeId: string;
 }
 
 export function AlgorithmicFeed({ challengeId }: AlgorithmicFeedProps) {
-  const {
-    results,
-    status,
-    loadMore,
-    isLoading,
-  } = usePaginatedQuery(
+  const { results, status, loadMore, isLoading } = usePaginatedQuery(
     api.queries.algorithmicFeed.getAlgorithmicFeed,
     {
       challengeId: challengeId as Id<"challenges">,
@@ -41,7 +37,7 @@ export function AlgorithmicFeed({ challengeId }: AlgorithmicFeedProps) {
   );
 
   const handleLoadMore = useCallback(() => {
-    if (status === 'CanLoadMore') {
+    if (status === "CanLoadMore") {
       loadMore(15);
     }
   }, [loadMore, status]);
@@ -70,7 +66,13 @@ export function AlgorithmicFeed({ challengeId }: AlgorithmicFeedProps) {
   return (
     <div className="space-y-4">
       {results
-        .filter((item): item is NonNullable<typeof item> & { user: NonNullable<(typeof item)['user']> } => item?.user != null)
+        .filter(
+          (
+            item,
+          ): item is NonNullable<typeof item> & {
+            user: NonNullable<(typeof item)["user"]>;
+          } => item?.user != null,
+        )
         .map((item) => (
           <AlgoFeedCard
             key={item.activity._id}
@@ -79,7 +81,7 @@ export function AlgorithmicFeed({ challengeId }: AlgorithmicFeedProps) {
           />
         ))}
 
-      {status === 'CanLoadMore' && (
+      {status === "CanLoadMore" && (
         <div className="flex justify-center">
           <Button variant="outline" size="sm" onClick={handleLoadMore}>
             Load more
@@ -143,8 +145,8 @@ function AlgoFeedCard({
   const handleCardClick = (e: React.MouseEvent) => {
     const target = e.target as HTMLElement;
     if (
-      target.closest('button') ||
-      target.closest('a') ||
+      target.closest("button") ||
+      target.closest("a") ||
       target.closest('[role="button"]')
     ) {
       return;
@@ -156,7 +158,7 @@ function AlgoFeedCard({
     try {
       await toggleLike({ activityId: item.activity._id as Id<"activities"> });
     } catch (error) {
-      console.error('Failed to toggle like', error);
+      console.error("Failed to toggle like", error);
     }
   }, [item.activity._id, toggleLike]);
 
@@ -198,7 +200,7 @@ function AlgoFeedCard({
       <CardContent className="space-y-4">
         <div>
           <p className="text-sm font-semibold text-primary">
-            {item.activityType?.name ?? 'Activity'}
+            {item.activityType?.name ?? "Activity"}
           </p>
           {item.activity.notes ? (
             <RichTextViewer
@@ -209,35 +211,7 @@ function AlgoFeedCard({
         </div>
 
         {/* Media Gallery */}
-        {item.mediaUrls && item.mediaUrls.length > 0 && (
-          <div
-            className={cn(
-              'grid gap-2',
-              item.mediaUrls.length === 1 && 'grid-cols-1',
-              item.mediaUrls.length === 2 && 'grid-cols-2',
-              item.mediaUrls.length >= 3 && 'grid-cols-2',
-            )}
-          >
-            {item.mediaUrls.slice(0, 4).map((url, index) => (
-              <div
-                key={index}
-                className={cn(
-                  'relative overflow-hidden rounded-lg bg-zinc-900',
-                  item.mediaUrls.length === 1
-                    ? 'aspect-video'
-                    : 'aspect-square',
-                )}
-              >
-                <img
-                  src={url}
-                  alt={`Activity media ${index + 1}`}
-                  className="h-full w-full object-cover"
-                  loading="lazy"
-                />
-              </div>
-            ))}
-          </div>
-        )}
+        <MediaGallery urls={item.mediaUrls} variant="feed" />
 
         {/* Stats */}
         <div className="rounded-lg bg-muted px-4 py-3 text-sm">
@@ -273,15 +247,12 @@ function AlgoFeedCard({
         onClick={(e) => e.stopPropagation()}
       >
         <Button
-          variant={item.likedByUser ? 'default' : 'outline'}
+          variant={item.likedByUser ? "default" : "outline"}
           size="sm"
           onClick={handleToggleLike}
         >
           <ThumbsUp
-            className={cn(
-              'mr-2 h-4 w-4',
-              item.likedByUser && 'fill-current',
-            )}
+            className={cn("mr-2 h-4 w-4", item.likedByUser && "fill-current")}
           />
           {item.likes}
         </Button>

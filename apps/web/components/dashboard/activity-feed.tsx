@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useRouter } from 'next/navigation';
-import { formatDistanceToNow } from 'date-fns';
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { formatDistanceToNow } from "date-fns";
 import {
   ArrowUp,
   Flag,
@@ -13,23 +13,38 @@ import {
   Share2,
   ThumbsUp,
   Zap,
-} from 'lucide-react';
-import { useConvexConnectionState, useMutation, usePaginatedQuery } from 'convex/react';
-import { api } from '@repo/backend';
-import type { Id } from '@repo/backend/_generated/dataModel';
-import { ConvexError } from 'convex/values';
+} from "lucide-react";
+import {
+  useConvexConnectionState,
+  useMutation,
+  usePaginatedQuery,
+} from "convex/react";
+import { api } from "@repo/backend";
+import type { Id } from "@repo/backend/_generated/dataModel";
+import { ConvexError } from "convex/values";
 
-import dynamic from 'next/dynamic';
-import { RichTextViewer } from '@/components/editor/rich-text-viewer';
+import dynamic from "next/dynamic";
+import { RichTextViewer } from "@/components/editor/rich-text-viewer";
 
 const RichTextEditor = dynamic(
-  () => import('@/components/editor/rich-text-editor').then((mod) => ({ default: mod.RichTextEditor })),
-  { ssr: false, loading: () => <div className="min-h-[120px] w-full animate-pulse rounded-md border border-input bg-background" /> }
+  () =>
+    import("@/components/editor/rich-text-editor").then((mod) => ({
+      default: mod.RichTextEditor,
+    })),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="min-h-[120px] w-full animate-pulse rounded-md border border-input bg-background" />
+    ),
+  },
 );
-import { useActivityNotification, useChallengeSummary } from './challenge-realtime-context';
-import { UserAvatar } from '@/components/user-avatar';
-import { UserChallengeDisplay } from '@/components/user-challenge-display';
-import { Button } from '@/components/ui/button';
+import {
+  useActivityNotification,
+  useChallengeSummary,
+} from "./challenge-realtime-context";
+import { UserAvatar } from "@/components/user-avatar";
+import { UserChallengeDisplay } from "@/components/user-challenge-display";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -37,10 +52,13 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
-import { useMentionableUsers } from '@/hooks/use-mentionable-users';
-import { isEditorContentEmpty, type MentionableUser } from '@/lib/rich-text-utils';
+} from "@/components/ui/card";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { useMentionableUsers } from "@/hooks/use-mentionable-users";
+import {
+  isEditorContentEmpty,
+  type MentionableUser,
+} from "@/lib/rich-text-utils";
 import {
   Dialog,
   DialogContent,
@@ -48,20 +66,21 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from '@/components/ui/dialog';
+} from "@/components/ui/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu';
-import { Label } from '@/components/ui/label';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Textarea } from '@/components/ui/textarea';
-import { cn } from '@/lib/utils';
-import { PointsDisplay } from '@/components/ui/points-display';
-import { captureAppException, captureAppMessage } from '@/lib/sentry';
-import { isLatestActivityVisibleInFeed } from '@/lib/feed-notification';
+} from "@/components/ui/dropdown-menu";
+import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { Textarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
+import { PointsDisplay } from "@/components/ui/points-display";
+import { MediaGallery } from "@/components/media-gallery";
+import { captureAppException, captureAppMessage } from "@/lib/sentry";
+import { isLatestActivityVisibleInFeed } from "@/lib/feed-notification";
 
 interface BonusThreshold {
   metric: string;
@@ -160,7 +179,7 @@ interface ActivityFeedProps {
   initialLightweightMode?: boolean;
 }
 
-type FeedFilter = 'for_you' | 'all' | 'following';
+type FeedFilter = "for_you" | "all" | "following";
 
 interface FeedPageResponse {
   page: ActivityFeedItem[];
@@ -178,7 +197,7 @@ export function ActivityFeed({
   const { summary } = useChallengeSummary();
   const { hasNewActivity, acknowledgeActivity } = useActivityNotification();
   const { users: mentionUsers } = useMentionableUsers(challengeId);
-  const [feedFilter, setFeedFilter] = useState<FeedFilter>('for_you');
+  const [feedFilter, setFeedFilter] = useState<FeedFilter>("for_you");
   const [hasLoadedFollowingFeed, setHasLoadedFollowingFeed] = useState(false);
   const [useHttpFallback, setUseHttpFallback] = useState(false);
   const [httpItems, setHttpItems] = useState<ActivityFeedItem[]>(initialItems);
@@ -187,7 +206,7 @@ export function ActivityFeed({
   const [httpLoading, setHttpLoading] = useState(false);
   const httpRequestIdRef = useRef(0);
   const isMobileClient = useMemo(() => {
-    if (typeof navigator === 'undefined') {
+    if (typeof navigator === "undefined") {
       return false;
     }
     return /Android|iPhone|iPad|iPod|Mobile|CriOS|FxiOS/i.test(
@@ -196,22 +215,17 @@ export function ActivityFeed({
   }, []);
   const lightweightFeedMode = initialLightweightMode || isMobileClient;
 
-  const {
-    results,
-    status,
-    loadMore,
-    isLoading,
-  } = usePaginatedQuery(
+  const { results, status, loadMore, isLoading } = usePaginatedQuery(
     api.queries.activities.getChallengeFeed,
-    feedFilter === 'for_you'
+    feedFilter === "for_you"
       ? "skip"
       : {
           challengeId: challengeId as Id<"challenges">,
-          followingOnly: feedFilter === 'following',
+          followingOnly: feedFilter === "following",
           includeEngagementCounts: !lightweightFeedMode,
-          includeMediaUrls: !lightweightFeedMode,
+          includeMediaUrls: true,
         },
-    { initialNumItems: 10 }
+    { initialNumItems: 10 },
   );
 
   const {
@@ -221,71 +235,74 @@ export function ActivityFeed({
     isLoading: algoIsLoading,
   } = usePaginatedQuery(
     api.queries.algorithmicFeed.getAlgorithmicFeed,
-    feedFilter === 'for_you'
+    feedFilter === "for_you"
       ? {
           challengeId: challengeId as Id<"challenges">,
           includeEngagementCounts: !lightweightFeedMode,
-          includeMediaUrls: !lightweightFeedMode,
+          includeMediaUrls: true,
         }
       : "skip",
-    { initialNumItems: 10 }
+    { initialNumItems: 10 },
   );
 
-  const loadHttpPage = useCallback(async (cursor: string | null, append: boolean) => {
-    const requestId = ++httpRequestIdRef.current;
-    setHttpLoading(true);
+  const loadHttpPage = useCallback(
+    async (cursor: string | null, append: boolean) => {
+      const requestId = ++httpRequestIdRef.current;
+      setHttpLoading(true);
 
-    try {
-      const response = await fetch(`/api/challenges/${challengeId}/feed`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-        body: JSON.stringify({
-          followingOnly: feedFilter === "following",
-          includeEngagementCounts: !lightweightFeedMode,
-          includeMediaUrls: !lightweightFeedMode,
-          cursor,
-          numItems: 10,
-        }),
-      });
+      try {
+        const response = await fetch(`/api/challenges/${challengeId}/feed`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+          body: JSON.stringify({
+            followingOnly: feedFilter === "following",
+            includeEngagementCounts: !lightweightFeedMode,
+            includeMediaUrls: true,
+            cursor,
+            numItems: 10,
+          }),
+        });
 
-      if (!response.ok) {
-        throw new Error(`Feed request failed with status ${response.status}`);
-      }
+        if (!response.ok) {
+          throw new Error(`Feed request failed with status ${response.status}`);
+        }
 
-      const data = (await response.json()) as FeedPageResponse;
-      if (requestId !== httpRequestIdRef.current) {
-        return;
-      }
+        const data = (await response.json()) as FeedPageResponse;
+        if (requestId !== httpRequestIdRef.current) {
+          return;
+        }
 
-      setHttpItems((prev) => (append ? [...prev, ...data.page] : data.page));
-      setHttpIsDone(data.isDone);
-      setHttpCursor(data.isDone ? null : (data.continueCursor ?? null));
-    } catch (error) {
-      if (requestId !== httpRequestIdRef.current) {
-        return;
+        setHttpItems((prev) => (append ? [...prev, ...data.page] : data.page));
+        setHttpIsDone(data.isDone);
+        setHttpCursor(data.isDone ? null : (data.continueCursor ?? null));
+      } catch (error) {
+        if (requestId !== httpRequestIdRef.current) {
+          return;
+        }
+        console.error("Failed to load feed over HTTP fallback", error);
+        captureAppException(error, {
+          area: "activity-feed",
+          challengeId,
+          tags: {
+            transport: "http-fallback",
+            feedFilter,
+            platform: isMobileClient ? "mobile" : "desktop",
+          },
+          extra: {
+            lightweightFeedMode,
+          },
+        });
+      } finally {
+        if (requestId === httpRequestIdRef.current) {
+          setHttpLoading(false);
+        }
       }
-      console.error("Failed to load feed over HTTP fallback", error);
-      captureAppException(error, {
-        area: "activity-feed",
-        challengeId,
-        tags: {
-          transport: "http-fallback",
-          feedFilter,
-          platform: isMobileClient ? "mobile" : "desktop",
-        },
-        extra: {
-          lightweightFeedMode,
-        },
-      });
-    } finally {
-      if (requestId === httpRequestIdRef.current) {
-        setHttpLoading(false);
-      }
-    }
-  }, [challengeId, feedFilter, isMobileClient, lightweightFeedMode]);
+    },
+    [challengeId, feedFilter, isMobileClient, lightweightFeedMode],
+  );
 
   useEffect(() => {
     if (useHttpFallback) {
@@ -294,25 +311,31 @@ export function ActivityFeed({
     if (!isLoading) {
       return;
     }
-    if (connectionState.isWebSocketConnected || connectionState.hasEverConnected) {
+    if (
+      connectionState.isWebSocketConnected ||
+      connectionState.hasEverConnected
+    ) {
       return;
     }
 
     const timeoutId = window.setTimeout(() => {
-      captureAppMessage("Convex websocket not ready; enabling HTTP feed fallback", {
-        area: "activity-feed",
-        level: "warning",
-        challengeId,
-        tags: {
-          feedFilter,
-          platform: isMobileClient ? "mobile" : "desktop",
+      captureAppMessage(
+        "Convex websocket not ready; enabling HTTP feed fallback",
+        {
+          area: "activity-feed",
+          level: "warning",
+          challengeId,
+          tags: {
+            feedFilter,
+            platform: isMobileClient ? "mobile" : "desktop",
+          },
+          extra: {
+            hasEverConnected: connectionState.hasEverConnected,
+            isWebSocketConnected: connectionState.isWebSocketConnected,
+            connectionRetries: connectionState.connectionRetries,
+          },
         },
-        extra: {
-          hasEverConnected: connectionState.hasEverConnected,
-          isWebSocketConnected: connectionState.isWebSocketConnected,
-          connectionRetries: connectionState.connectionRetries,
-        },
-      });
+      );
       setUseHttpFallback(true);
     }, 6000);
 
@@ -344,7 +367,7 @@ export function ActivityFeed({
   }, [feedFilter, initialItems, loadHttpPage, useHttpFallback]);
 
   const handleLoadMore = () => {
-    if (feedFilter === 'for_you') {
+    if (feedFilter === "for_you") {
       if (algoStatus === "CanLoadMore") {
         algoLoadMore(10);
       }
@@ -370,18 +393,18 @@ export function ActivityFeed({
   };
 
   const algoDisplayResults = useMemo(() => {
-    if (feedFilter !== 'for_you') return [];
+    if (feedFilter !== "for_you") return [];
     const mapped = (algoResults ?? []).map(mapAlgoItem);
     if (mapped.length === 0) return initialAlgoItems.map(mapAlgoItem);
     return mapped;
   }, [algoResults, feedFilter, initialAlgoItems]);
 
   const liveDisplayResults = useMemo(() => {
-    if (feedFilter === 'for_you') {
+    if (feedFilter === "for_you") {
       return algoDisplayResults;
     }
 
-    if (feedFilter !== 'all') {
+    if (feedFilter !== "all") {
       return results;
     }
 
@@ -402,7 +425,13 @@ export function ActivityFeed({
     }
 
     return httpItems;
-  }, [feedFilter, httpItems, initialItems, liveDisplayResults, useHttpFallback]);
+  }, [
+    feedFilter,
+    httpItems,
+    initialItems,
+    liveDisplayResults,
+    useHttpFallback,
+  ]);
 
   const latestActivityVisible = useMemo(
     () =>
@@ -419,19 +448,23 @@ export function ActivityFeed({
   }, [acknowledgeActivity, hasNewActivity, latestActivityVisible]);
 
   const showRefreshPrompt =
-    feedFilter === 'all' && hasNewActivity && !latestActivityVisible;
+    feedFilter === "all" && hasNewActivity && !latestActivityVisible;
 
   const showForYouNewBanner =
-    feedFilter === 'for_you' && hasNewActivity && !latestActivityVisible;
+    feedFilter === "for_you" && hasNewActivity && !latestActivityVisible;
 
-  const effectiveIsLoading = feedFilter === 'for_you'
-    ? algoIsLoading
-    : useHttpFallback ? httpLoading : isLoading;
-  const canLoadMore = feedFilter === 'for_you'
-    ? algoStatus === "CanLoadMore"
-    : useHttpFallback
-      ? !httpIsDone && !httpLoading && httpCursor !== null
-      : status === "CanLoadMore";
+  const effectiveIsLoading =
+    feedFilter === "for_you"
+      ? algoIsLoading
+      : useHttpFallback
+        ? httpLoading
+        : isLoading;
+  const canLoadMore =
+    feedFilter === "for_you"
+      ? algoStatus === "CanLoadMore"
+      : useHttpFallback
+        ? !httpIsDone && !httpLoading && httpCursor !== null
+        : status === "CanLoadMore";
 
   useEffect(() => {
     if (feedFilter === "following" && !effectiveIsLoading) {
@@ -446,9 +479,12 @@ export function ActivityFeed({
     (displayResults?.length ?? 0) === 0;
 
   const feedStatus = useMemo(() => {
-    const hasInitialFeed = (feedFilter === "all" || feedFilter === "for_you") && (displayResults?.length ?? 0) > 0;
+    const hasInitialFeed =
+      (feedFilter === "all" || feedFilter === "for_you") &&
+      (displayResults?.length ?? 0) > 0;
     if (effectiveIsLoading && !hasInitialFeed) {
-      if (feedFilter === "following") return "Loading activity from people you follow...";
+      if (feedFilter === "following")
+        return "Loading activity from people you follow...";
       if (feedFilter === "for_you") return "Loading your personalized feed...";
       return "Loading recent activities...";
     }
@@ -461,38 +497,38 @@ export function ActivityFeed({
       <div className="sticky top-[env(safe-area-inset-top)] z-10 -mx-4 border-b border-zinc-800 bg-black/80 backdrop-blur">
         <div className="flex">
           <button
-            onClick={() => setFeedFilter('for_you')}
+            onClick={() => setFeedFilter("for_you")}
             className={cn(
-              'relative flex-1 py-4 text-center text-sm font-medium transition-colors hover:bg-zinc-900/50',
-              feedFilter === 'for_you' ? 'text-white' : 'text-zinc-500'
+              "relative flex-1 py-4 text-center text-sm font-medium transition-colors hover:bg-zinc-900/50",
+              feedFilter === "for_you" ? "text-white" : "text-zinc-500",
             )}
           >
             For You
-            {feedFilter === 'for_you' && (
+            {feedFilter === "for_you" && (
               <div className="absolute bottom-0 left-1/2 h-1 w-16 -translate-x-1/2 rounded-full bg-indigo-500" />
             )}
           </button>
           <button
-            onClick={() => setFeedFilter('all')}
+            onClick={() => setFeedFilter("all")}
             className={cn(
-              'relative flex-1 py-4 text-center text-sm font-medium transition-colors hover:bg-zinc-900/50',
-              feedFilter === 'all' ? 'text-white' : 'text-zinc-500'
+              "relative flex-1 py-4 text-center text-sm font-medium transition-colors hover:bg-zinc-900/50",
+              feedFilter === "all" ? "text-white" : "text-zinc-500",
             )}
           >
             All
-            {feedFilter === 'all' && (
+            {feedFilter === "all" && (
               <div className="absolute bottom-0 left-1/2 h-1 w-16 -translate-x-1/2 rounded-full bg-indigo-500" />
             )}
           </button>
           <button
-            onClick={() => setFeedFilter('following')}
+            onClick={() => setFeedFilter("following")}
             className={cn(
-              'relative flex-1 py-4 text-center text-sm font-medium transition-colors hover:bg-zinc-900/50',
-              feedFilter === 'following' ? 'text-white' : 'text-zinc-500'
+              "relative flex-1 py-4 text-center text-sm font-medium transition-colors hover:bg-zinc-900/50",
+              feedFilter === "following" ? "text-white" : "text-zinc-500",
             )}
           >
             Following
-            {feedFilter === 'following' && (
+            {feedFilter === "following" && (
               <div className="absolute bottom-0 left-1/2 h-1 w-16 -translate-x-1/2 rounded-full bg-indigo-500" />
             )}
           </button>
@@ -504,7 +540,7 @@ export function ActivityFeed({
           <button
             onClick={() => {
               acknowledgeActivity();
-              window.scrollTo({ top: 0, behavior: 'smooth' });
+              window.scrollTo({ top: 0, behavior: "smooth" });
             }}
             className="flex items-center gap-1.5 rounded-full bg-indigo-500 px-4 py-2 text-sm font-medium text-white shadow-lg transition-transform hover:scale-105 active:scale-95"
           >
@@ -541,39 +577,47 @@ export function ActivityFeed({
         </div>
       )}
 
-      {displayResults?.filter((item): item is NonNullable<typeof item> & { user: NonNullable<(typeof item)['user']> } => item.user !== null).map((item) => (
-        <ActivityCard
-          key={item.activity._id}
-          challengeId={challengeId}
-          showEngagementCounts={!lightweightFeedMode}
-          item={{
+      {displayResults
+        ?.filter(
+          (
+            item,
+          ): item is NonNullable<typeof item> & {
+            user: NonNullable<(typeof item)["user"]>;
+          } => item.user !== null,
+        )
+        .map((item) => (
+          <ActivityCard
+            key={item.activity._id}
+            challengeId={challengeId}
+            showEngagementCounts={!lightweightFeedMode}
+            item={{
               ...item,
               activity: {
-                  ...item.activity,
-                  id: item.activity._id,
+                ...item.activity,
+                id: item.activity._id,
               },
               mediaUrls: item.mediaUrls ?? [],
-          }}
-          mentionOptions={mentionUsers}
-        />
-      ))}
+            }}
+            mentionOptions={mentionUsers}
+          />
+        ))}
 
       {!effectiveIsLoading && (displayResults?.length ?? 0) === 0 && (
         <Card className="border-dashed text-center">
           <CardHeader>
             <CardTitle>
-              {feedFilter === 'following'
-                ? 'No activity from people you follow'
-                : feedFilter === 'for_you'
-                  ? 'No activity yet'
-                  : 'No activity yet'}
+              {feedFilter === "following"
+                ? "No activity from people you follow"
+                : feedFilter === "for_you"
+                  ? "No activity yet"
+                  : "No activity yet"}
             </CardTitle>
             <CardDescription>
-              {feedFilter === 'following'
-                ? 'Follow other participants to see their activities here.'
-                : feedFilter === 'for_you'
-                  ? 'Activities will appear here once people start logging workouts.'
-                  : 'Be the first to log a workout for this challenge.'}
+              {feedFilter === "following"
+                ? "Follow other participants to see their activities here."
+                : feedFilter === "for_you"
+                  ? "Activities will appear here once people start logging workouts."
+                  : "Be the first to log a workout for this challenge."}
             </CardDescription>
           </CardHeader>
         </Card>
@@ -581,7 +625,11 @@ export function ActivityFeed({
 
       {canLoadMore && (
         <div className="flex justify-center">
-          <Button variant="outline" onClick={handleLoadMore} disabled={effectiveIsLoading}>
+          <Button
+            variant="outline"
+            onClick={handleLoadMore}
+            disabled={effectiveIsLoading}
+          >
             {effectiveIsLoading ? "Loading..." : "Load more"}
           </Button>
         </div>
@@ -591,7 +639,10 @@ export function ActivityFeed({
 }
 
 // Helper to format metric values with units
-function formatMetricValue(metrics: Record<string, unknown> | undefined, scoringConfig: Record<string, unknown> | undefined): string | null {
+function formatMetricValue(
+  metrics: Record<string, unknown> | undefined,
+  scoringConfig: Record<string, unknown> | undefined,
+): string | null {
   if (!metrics || !scoringConfig) return null;
 
   const unit = scoringConfig.unit as string | undefined;
@@ -605,18 +656,19 @@ function formatMetricValue(metrics: Record<string, unknown> | undefined, scoring
 
   // Format based on unit type
   const unitLabels: Record<string, string> = {
-    miles: 'mi',
-    kilometers: 'km',
-    km: 'km',
-    minutes: 'min',
-    hours: 'hr',
-    drinks: 'drinks',
-    completion: '',
-    completions: '',
+    miles: "mi",
+    kilometers: "km",
+    km: "km",
+    minutes: "min",
+    hours: "hr",
+    drinks: "drinks",
+    completion: "",
+    completions: "",
   };
 
   const label = unitLabels[unit] || unit;
-  const formatted = numValue % 1 === 0 ? numValue.toString() : numValue.toFixed(1);
+  const formatted =
+    numValue % 1 === 0 ? numValue.toString() : numValue.toFixed(1);
 
   return label ? `${formatted} ${label}` : formatted;
 }
@@ -624,10 +676,11 @@ function formatMetricValue(metrics: Record<string, unknown> | undefined, scoring
 function ActivityStats({ item }: { item: ActivityFeedItem }) {
   const metricDisplay = formatMetricValue(
     item.activity.metrics,
-    item.activityType?.scoringConfig
+    item.activityType?.scoringConfig,
   );
 
-  const hasBonuses = item.activity.triggeredBonuses && item.activity.triggeredBonuses.length > 0;
+  const hasBonuses =
+    item.activity.triggeredBonuses && item.activity.triggeredBonuses.length > 0;
   const bonusTotal = hasBonuses
     ? item.activity.triggeredBonuses!.reduce((sum, b) => sum + b.bonusPoints, 0)
     : 0;
@@ -636,7 +689,9 @@ function ActivityStats({ item }: { item: ActivityFeedItem }) {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           {metricDisplay && (
-            <span className="font-semibold text-foreground">{metricDisplay}</span>
+            <span className="font-semibold text-foreground">
+              {metricDisplay}
+            </span>
           )}
           <PointsDisplay
             points={item.activity.pointsEarned}
@@ -694,8 +749,8 @@ const ActivityCard = memo(function ActivityCard({
   const [isLiking, setIsLiking] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const [showFlagDialog, setShowFlagDialog] = useState(false);
-  const [flagCategory, setFlagCategory] = useState('');
-  const [flagReason, setFlagReason] = useState('');
+  const [flagCategory, setFlagCategory] = useState("");
+  const [flagReason, setFlagReason] = useState("");
   const [flagSubmitting, setFlagSubmitting] = useState(false);
   const [flagError, setFlagError] = useState<string | null>(null);
   const [flagSuccess, setFlagSuccess] = useState(false);
@@ -720,11 +775,11 @@ const ActivityCard = memo(function ActivityCard({
     // Don't navigate if clicking on interactive elements
     const target = e.target as HTMLElement;
     if (
-      target.closest('button') ||
-      target.closest('a') ||
+      target.closest("button") ||
+      target.closest("a") ||
       target.closest('[role="button"]') ||
-      target.closest('textarea') ||
-      target.closest('input')
+      target.closest("textarea") ||
+      target.closest("input")
     ) {
       return;
     }
@@ -733,31 +788,35 @@ const ActivityCard = memo(function ActivityCard({
 
   const handleFlagSubmit = async () => {
     if (!flagCategory) return;
-    if (flagCategory === 'other' && !flagReason.trim()) return;
+    if (flagCategory === "other" && !flagReason.trim()) return;
     setFlagSubmitting(true);
     setFlagError(null);
     const categoryLabel =
-      flagCategory === 'incorrect_type'
-        ? 'Logged as incorrect type'
-        : flagCategory === 'impossible'
-          ? 'Seems like an impossible feat of athleticism'
-          : '';
-    const reason = flagCategory === 'other'
-      ? flagReason.trim()
-      : flagReason.trim()
-        ? `${categoryLabel}: ${flagReason.trim()}`
-        : categoryLabel;
+      flagCategory === "incorrect_type"
+        ? "Logged as incorrect type"
+        : flagCategory === "impossible"
+          ? "Seems like an impossible feat of athleticism"
+          : "";
+    const reason =
+      flagCategory === "other"
+        ? flagReason.trim()
+        : flagReason.trim()
+          ? `${categoryLabel}: ${flagReason.trim()}`
+          : categoryLabel;
     try {
       await flagActivity({
         activityId: activityId as Id<"activities">,
         reason,
       });
       setFlagSuccess(true);
-      setFlagReason('');
+      setFlagReason("");
     } catch (err) {
       setFlagError(
-        err instanceof ConvexError ? (err.data as string) :
-        err instanceof Error ? err.message : 'Failed to report activity'
+        err instanceof ConvexError
+          ? (err.data as string)
+          : err instanceof Error
+            ? err.message
+            : "Failed to report activity",
       );
     } finally {
       setFlagSubmitting(false);
@@ -770,19 +829,22 @@ const ActivityCard = memo(function ActivityCard({
     try {
       if (navigator.share) {
         await navigator.share({
-          title: 'Check out this activity',
+          title: "Check out this activity",
           url,
         });
       } else if (navigator.clipboard) {
         await navigator.clipboard.writeText(url);
       }
     } catch (error) {
-      console.error('Share failed', error);
+      console.error("Share failed", error);
     }
   };
 
   return (
-    <Card className="cursor-pointer overflow-hidden transition-colors hover:bg-muted/30" onClick={handleCardClick}>
+    <Card
+      className="cursor-pointer overflow-hidden transition-colors hover:bg-muted/30"
+      onClick={handleCardClick}
+    >
       <CardHeader>
         <UserChallengeDisplay
           user={item.user}
@@ -804,7 +866,7 @@ const ActivityCard = memo(function ActivityCard({
       <CardContent className="space-y-4">
         <div>
           <p className="text-sm font-semibold text-primary">
-            {item.activityType?.name ?? 'Activity'}
+            {item.activityType?.name ?? "Activity"}
           </p>
           {item.activity.notes ? (
             <RichTextViewer
@@ -815,82 +877,47 @@ const ActivityCard = memo(function ActivityCard({
         </div>
 
         {/* Media Gallery */}
-        {item.mediaUrls && item.mediaUrls.length > 0 && (
-          <div
-            className={cn(
-              'grid gap-2',
-              item.mediaUrls.length === 1 && 'grid-cols-1',
-              item.mediaUrls.length === 2 && 'grid-cols-2',
-              item.mediaUrls.length >= 3 && 'grid-cols-2'
-            )}
-          >
-            {item.mediaUrls.slice(0, 4).map((url, index) => {
-              const isVideo = url.includes('.mp4') || url.includes('.mov') || url.includes('.webm') || url.includes('video');
-              const isLastWithMore = index === 3 && item.mediaUrls.length > 4;
-
-              return (
-                <div
-                  key={index}
-                  className={cn(
-                    'relative overflow-hidden rounded-lg bg-zinc-900',
-                    item.mediaUrls.length === 1
-                      ? 'aspect-video'
-                      : 'aspect-square',
-                    item.mediaUrls.length === 3 && index === 0 && 'row-span-2'
-                  )}
-                >
-                  {isVideo ? (
-                    <video
-                      src={url}
-                      className="h-full w-full object-cover"
-                      controls
-                      preload="metadata"
-                    />
-                  ) : (
-                    <img
-                      src={url}
-                      alt={`Activity media ${index + 1}`}
-                      className="h-full w-full object-cover"
-                      loading="lazy"
-                    />
-                  )}
-                  {isLastWithMore && (
-                    <div className="absolute inset-0 flex items-center justify-center bg-black/60">
-                      <span className="text-lg font-semibold text-white">
-                        +{item.mediaUrls.length - 4}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
+        <MediaGallery urls={item.mediaUrls} variant="feed" />
 
         <ActivityStats item={item} />
       </CardContent>
-      <CardFooter className="flex items-center gap-1 sm:gap-2" onClick={(e) => e.stopPropagation()}>
+      <CardFooter
+        className="flex items-center gap-1 sm:gap-2"
+        onClick={(e) => e.stopPropagation()}
+      >
         <Button
-          variant={item.likedByUser ? 'default' : 'outline'}
+          variant={item.likedByUser ? "default" : "outline"}
           size="sm"
           disabled={isLiking}
           onClick={handleToggleLike}
         >
           <ThumbsUp
-            className={cn('h-4 w-4 sm:mr-2', item.likedByUser && 'fill-current')}
+            className={cn(
+              "h-4 w-4 sm:mr-2",
+              item.likedByUser && "fill-current",
+            )}
           />
-          {showEngagementCounts ? item.likes : <span className="hidden sm:inline">Like</span>}
+          {showEngagementCounts ? (
+            item.likes
+          ) : (
+            <span className="hidden sm:inline">Like</span>
+          )}
         </Button>
         <Button
-          variant={showComments ? 'default' : 'outline'}
+          variant={showComments ? "default" : "outline"}
           size="sm"
           onClick={() => setShowComments((prev) => !prev)}
         >
           <MessageCircle className="h-4 w-4 sm:mr-2" />
-          {showEngagementCounts ? item.comments : <span className="hidden sm:inline">Comment</span>}
+          {showEngagementCounts ? (
+            item.comments
+          ) : (
+            <span className="hidden sm:inline">Comment</span>
+          )}
         </Button>
         <Button variant="ghost" size="sm" onClick={handleShare}>
-          <Share2 className="h-4 w-4 sm:mr-2" /> <span className="hidden sm:inline">Share</span>
+          <Share2 className="h-4 w-4 sm:mr-2" />{" "}
+          <span className="hidden sm:inline">Share</span>
         </Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
@@ -904,8 +931,8 @@ const ActivityCard = memo(function ActivityCard({
               onClick={() => {
                 setFlagSuccess(false);
                 setFlagError(null);
-                setFlagCategory('');
-                setFlagReason('');
+                setFlagCategory("");
+                setFlagReason("");
                 setShowFlagDialog(true);
               }}
               className="text-destructive focus:text-destructive"
@@ -921,8 +948,8 @@ const ActivityCard = memo(function ActivityCard({
             <DialogHeader>
               <DialogTitle>Report Activity</DialogTitle>
               <DialogDescription>
-                Flag this activity for admin review. Please describe why you think
-                this activity should be reviewed.
+                Flag this activity for admin review. Please describe why you
+                think this activity should be reviewed.
               </DialogDescription>
             </DialogHeader>
             {flagSuccess ? (
@@ -933,14 +960,27 @@ const ActivityCard = memo(function ActivityCard({
               </div>
             ) : (
               <div className="space-y-4">
-                <RadioGroup value={flagCategory} onValueChange={setFlagCategory}>
+                <RadioGroup
+                  value={flagCategory}
+                  onValueChange={setFlagCategory}
+                >
                   <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="incorrect_type" id="feed-flag-incorrect" />
-                    <Label htmlFor="feed-flag-incorrect">Logged as incorrect type</Label>
+                    <RadioGroupItem
+                      value="incorrect_type"
+                      id="feed-flag-incorrect"
+                    />
+                    <Label htmlFor="feed-flag-incorrect">
+                      Logged as incorrect type
+                    </Label>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="impossible" id="feed-flag-impossible" />
-                    <Label htmlFor="feed-flag-impossible">Seems like an impossible feat of athleticism</Label>
+                    <RadioGroupItem
+                      value="impossible"
+                      id="feed-flag-impossible"
+                    />
+                    <Label htmlFor="feed-flag-impossible">
+                      Seems like an impossible feat of athleticism
+                    </Label>
                   </div>
                   <div className="flex items-center space-x-2">
                     <RadioGroupItem value="other" id="feed-flag-other" />
@@ -978,7 +1018,11 @@ const ActivityCard = memo(function ActivityCard({
                   <Button
                     variant="destructive"
                     onClick={handleFlagSubmit}
-                    disabled={flagSubmitting || !flagCategory || (flagCategory === 'other' && !flagReason.trim())}
+                    disabled={
+                      flagSubmitting ||
+                      !flagCategory ||
+                      (flagCategory === "other" && !flagReason.trim())
+                    }
                   >
                     {flagSubmitting ? (
                       <>
@@ -986,7 +1030,7 @@ const ActivityCard = memo(function ActivityCard({
                         Submitting
                       </>
                     ) : (
-                      'Submit Report'
+                      "Submit Report"
                     )}
                   </Button>
                 </>
@@ -997,12 +1041,15 @@ const ActivityCard = memo(function ActivityCard({
       </CardFooter>
 
       {showComments && (
-        <CardContent className="border-t bg-muted/40" onClick={(e) => e.stopPropagation()}>
-           <ActivityComments
-              activityId={activityId}
-              challengeId={challengeId}
-              mentionOptions={mentionOptions}
-            />
+        <CardContent
+          className="border-t bg-muted/40"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <ActivityComments
+            activityId={activityId}
+            challengeId={challengeId}
+            mentionOptions={mentionOptions}
+          />
         </CardContent>
       )}
     </Card>
@@ -1010,142 +1057,156 @@ const ActivityCard = memo(function ActivityCard({
 });
 
 function ActivityComments({
-    activityId,
-    challengeId,
-    mentionOptions
+  activityId,
+  challengeId,
+  mentionOptions,
 }: {
-    activityId: string;
-    challengeId: string;
-    mentionOptions: MentionableUser[];
+  activityId: string;
+  challengeId: string;
+  mentionOptions: MentionableUser[];
 }) {
-    const [commentInput, setCommentInput] = useState('');
-    const [commentIsEmpty, setCommentIsEmpty] = useState(true);
-    const [submittingComment, setSubmittingComment] = useState(false);
-    const [commentError, setCommentError] = useState<string | null>(null);
+  const [commentInput, setCommentInput] = useState("");
+  const [commentIsEmpty, setCommentIsEmpty] = useState(true);
+  const [submittingComment, setSubmittingComment] = useState(false);
+  const [commentError, setCommentError] = useState<string | null>(null);
 
-    const {
-        results: comments,
-        status: commentsStatus,
-        loadMore: loadMoreComments,
-        isLoading: loadingComments
-    } = usePaginatedQuery(
-        api.queries.comments.getByActivityId,
-        { activityId: activityId as Id<"activities"> },
-        { initialNumItems: 5 }
-    );
+  const {
+    results: comments,
+    status: commentsStatus,
+    loadMore: loadMoreComments,
+    isLoading: loadingComments,
+  } = usePaginatedQuery(
+    api.queries.comments.getByActivityId,
+    { activityId: activityId as Id<"activities"> },
+    { initialNumItems: 5 },
+  );
 
-    const createComment = useMutation(api.mutations.comments.create);
+  const createComment = useMutation(api.mutations.comments.create);
 
-    const handleSubmitComment = async () => {
-        if (!commentInput || commentIsEmpty || isEditorContentEmpty(commentInput)) return;
+  const handleSubmitComment = async () => {
+    if (!commentInput || commentIsEmpty || isEditorContentEmpty(commentInput))
+      return;
 
-        try {
-            setSubmittingComment(true);
-            setCommentError(null);
-            
-            await createComment({
-                activityId: activityId as Id<"activities">,
-                content: commentInput
-            });
+    try {
+      setSubmittingComment(true);
+      setCommentError(null);
 
-            setCommentInput('');
-            setCommentIsEmpty(true);
-        } catch (err) {
-            console.error(err);
-            setCommentError(
-                err instanceof Error ? err.message : 'Unable to post comment',
-            );
-        } finally {
-            setSubmittingComment(false);
-        }
-    };
+      await createComment({
+        activityId: activityId as Id<"activities">,
+        content: commentInput,
+      });
 
-    return (
-        <div className="space-y-4">
-            <div className="space-y-2">
-                <RichTextEditor
-                value={commentInput}
-                onChange={setCommentInput}
-                onIsEmptyChange={setCommentIsEmpty}
-                placeholder="Leave an encouraging note"
-                disabled={submittingComment}
-                mentionOptions={mentionOptions}
-                />
-                <div className="flex items-center justify-between text-xs text-muted-foreground">
-                {commentError ? <span className="text-destructive">{commentError}</span> : <span>Cheer on your teammates!</span>}
-                <Button
-                    size="sm"
-                    disabled={
-                    submittingComment ||
-                    commentIsEmpty ||
-                    isEditorContentEmpty(commentInput)
-                    }
-                    onClick={handleSubmitComment}
-                >
-                    {submittingComment ? (
-                    <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Posting
-                    </>
-                    ) : (
-                    'Comment'
-                    )}
-                </Button>
-                </div>
-            </div>
+      setCommentInput("");
+      setCommentIsEmpty(true);
+    } catch (err) {
+      console.error(err);
+      setCommentError(
+        err instanceof Error ? err.message : "Unable to post comment",
+      );
+    } finally {
+      setSubmittingComment(false);
+    }
+  };
 
-            <div className="space-y-3">
-                {comments?.map((entry: { comment: { id: string; createdAt: number; content: string }; author: { id: string; name: string; username: string; avatarUrl: string | null } }) => (
-                <div key={entry.comment.id} className="flex gap-3">
-                    <UserAvatar
-                      user={{
-                        id: entry.author.id,
-                        name: entry.author.name,
-                        username: entry.author.username,
-                        avatarUrl: entry.author.avatarUrl,
-                      }}
-                      challengeId={challengeId}
-                      size="sm"
-                    />
-                    <div className="flex-1 rounded-lg bg-background p-3 shadow-sm">
-                      <div className="flex items-center justify-between">
-                        <p className="text-sm font-semibold">
-                          {entry.author.name ?? entry.author.username}
-                        </p>
-                        <span className="text-xs text-muted-foreground">
-                          {formatDistanceToNow(new Date(entry.comment.createdAt), {
-                            addSuffix: true,
-                          })}
-                        </span>
-                      </div>
-                      <RichTextViewer
-                        content={entry.comment.content}
-                        className="mt-1 text-sm text-muted-foreground"
-                      />
-                    </div>
-                </div>
-                ))}
-
-                {loadingComments && (
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    Loading comments…
-                </div>
-                )}
-
-                {commentsStatus === "CanLoadMore" && !loadingComments && (
-                <div className="flex justify-center">
-                    <Button
-                    variant="link"
-                    size="sm"
-                    onClick={() => loadMoreComments(5)}
-                    >
-                    Load more replies
-                    </Button>
-                </div>
-                )}
-
-            </div>
+  return (
+    <div className="space-y-4">
+      <div className="space-y-2">
+        <RichTextEditor
+          value={commentInput}
+          onChange={setCommentInput}
+          onIsEmptyChange={setCommentIsEmpty}
+          placeholder="Leave an encouraging note"
+          disabled={submittingComment}
+          mentionOptions={mentionOptions}
+        />
+        <div className="flex items-center justify-between text-xs text-muted-foreground">
+          {commentError ? (
+            <span className="text-destructive">{commentError}</span>
+          ) : (
+            <span>Cheer on your teammates!</span>
+          )}
+          <Button
+            size="sm"
+            disabled={
+              submittingComment ||
+              commentIsEmpty ||
+              isEditorContentEmpty(commentInput)
+            }
+            onClick={handleSubmitComment}
+          >
+            {submittingComment ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Posting
+              </>
+            ) : (
+              "Comment"
+            )}
+          </Button>
         </div>
-    );
+      </div>
+
+      <div className="space-y-3">
+        {comments?.map(
+          (entry: {
+            comment: { id: string; createdAt: number; content: string };
+            author: {
+              id: string;
+              name: string;
+              username: string;
+              avatarUrl: string | null;
+            };
+          }) => (
+            <div key={entry.comment.id} className="flex gap-3">
+              <UserAvatar
+                user={{
+                  id: entry.author.id,
+                  name: entry.author.name,
+                  username: entry.author.username,
+                  avatarUrl: entry.author.avatarUrl,
+                }}
+                challengeId={challengeId}
+                size="sm"
+              />
+              <div className="flex-1 rounded-lg bg-background p-3 shadow-sm">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold">
+                    {entry.author.name ?? entry.author.username}
+                  </p>
+                  <span className="text-xs text-muted-foreground">
+                    {formatDistanceToNow(new Date(entry.comment.createdAt), {
+                      addSuffix: true,
+                    })}
+                  </span>
+                </div>
+                <RichTextViewer
+                  content={entry.comment.content}
+                  className="mt-1 text-sm text-muted-foreground"
+                />
+              </div>
+            </div>
+          ),
+        )}
+
+        {loadingComments && (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            Loading comments…
+          </div>
+        )}
+
+        {commentsStatus === "CanLoadMore" && !loadingComments && (
+          <div className="flex justify-center">
+            <Button
+              variant="link"
+              size="sm"
+              onClick={() => loadMoreComments(5)}
+            >
+              Load more replies
+            </Button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
 }

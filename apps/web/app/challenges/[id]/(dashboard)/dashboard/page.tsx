@@ -87,28 +87,34 @@ async function DashboardContent({ challengeSlug }: { challengeSlug: string }) {
 
   const [challenge, initialFeed, initialAlgoFeed] = await Promise.all([
     convex.query(api.queries.challenges.getById, { challengeId }),
-    fetchAuthQuery<InitialFeedResponse>(api.queries.activities.getChallengeFeed, {
-      challengeId,
-      followingOnly: false,
-      includeEngagementCounts: !isMobileRequest,
-      includeMediaUrls: !isMobileRequest,
-      paginationOpts: {
-        numItems: 10,
-        cursor: null,
+    fetchAuthQuery<InitialFeedResponse>(
+      api.queries.activities.getChallengeFeed,
+      {
+        challengeId,
+        followingOnly: false,
+        includeEngagementCounts: !isMobileRequest,
+        includeMediaUrls: true,
+        paginationOpts: {
+          numItems: 10,
+          cursor: null,
+        },
       },
-    }).catch((error) => {
+    ).catch((error) => {
       console.error("[perf] dashboard initial feed preload failed", error);
       return { page: [] };
     }),
-    fetchAuthQuery<InitialFeedResponse>(api.queries.algorithmicFeed.getAlgorithmicFeed, {
-      challengeId,
-      includeEngagementCounts: !isMobileRequest,
-      includeMediaUrls: !isMobileRequest,
-      paginationOpts: {
-        numItems: 10,
-        cursor: null,
+    fetchAuthQuery<InitialFeedResponse>(
+      api.queries.algorithmicFeed.getAlgorithmicFeed,
+      {
+        challengeId,
+        includeEngagementCounts: !isMobileRequest,
+        includeMediaUrls: true,
+        paginationOpts: {
+          numItems: 10,
+          cursor: null,
+        },
       },
-    }).catch((error) => {
+    ).catch((error) => {
       console.error("[perf] dashboard algo feed preload failed", error);
       return { page: [] };
     }),
