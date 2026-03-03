@@ -73,17 +73,31 @@ export function computeFeedScore(
 
 // ── Time-bucketed feed rank (stored on activity) ────────────────
 //
-// dayBucket * 1000 + clamp(feedScore, 0, 999)
+// dayBucket * FEED_RANK_BUCKET_SPAN + clamp(feedScore, 0, FEED_RANK_MAX_WITHIN_BUCKET)
 //
 // This keeps today's posts always above yesterday's in index order,
 // while still ranking within a day by quality/engagement.
 
-const MS_PER_DAY = 24 * 60 * 60 * 1000;
+export const FEED_BUCKET_DURATION_MS = 24 * 60 * 60 * 1000;
+export const FEED_RANK_BUCKET_SPAN = 100;
+export const FEED_RANK_MAX_WITHIN_BUCKET = FEED_RANK_BUCKET_SPAN - 1;
+
+export function getFeedDayBucket(createdAtMs: number): number {
+  return Math.floor(createdAtMs / FEED_BUCKET_DURATION_MS);
+}
+
+export function clampFeedRankWithinBucket(feedScore: number): number {
+  return Math.max(0, Math.min(FEED_RANK_MAX_WITHIN_BUCKET, Math.round(feedScore)));
+}
+
+export function getRankInFeedBucket(feedRank: number, createdAtMs: number): number {
+  return feedRank - getFeedDayBucket(createdAtMs) * FEED_RANK_BUCKET_SPAN;
+}
 
 export function computeFeedRank(feedScore: number, createdAtMs: number): number {
-  const dayBucket = Math.floor(createdAtMs / MS_PER_DAY);
-  const clamped = Math.max(0, Math.min(999, Math.round(feedScore)));
-  return dayBucket * 1000 + clamped;
+  const dayBucket = getFeedDayBucket(createdAtMs);
+  const clamped = clampFeedRankWithinBucket(feedScore);
+  return dayBucket * FEED_RANK_BUCKET_SPAN + clamped;
 }
 
 // ── Personalized rank (query time, per-viewer) ──────────────────

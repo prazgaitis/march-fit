@@ -6,6 +6,8 @@ import { getCurrentUser } from "../lib/ids";
 import {
   FOLLOWING_BOOST,
   computeAffinityBoost,
+  getFeedDayBucket,
+  getRankInFeedBucket,
   computePersonalizedRank,
 } from "../lib/feedScoring";
 import type { Id } from "../_generated/dataModel";
@@ -538,8 +540,8 @@ export const getMonitoringDashboard = query({
           affinityScore,
         );
         const feedScore = activity.feedScore ?? 0;
-        const dayBucket = Math.floor(activity.createdAt / (24 * 60 * 60 * 1000));
-        const rankInDayBucket = feedRank - dayBucket * 1000;
+        const dayBucket = getFeedDayBucket(activity.createdAt);
+        const rankInDayBucket = getRankInFeedBucket(feedRank, activity.createdAt);
 
         return {
           activityId: activity._id,

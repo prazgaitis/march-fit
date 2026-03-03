@@ -184,7 +184,7 @@ export default defineSchema({
     updatedAt: v.number(),
     // Algorithmic feed score (content + engagement, no personalization/decay)
     feedScore: v.optional(v.number()),
-    // Time-bucketed feed rank: dayBucket * 1000 + clamp(feedScore, 0, 999)
+    // Time-bucketed feed rank: dayBucket * 100 + clamp(feedScore, 0, 99)
     feedRank: v.optional(v.number()),
   })
     .index("userId", ["userId"])

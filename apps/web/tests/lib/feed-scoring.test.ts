@@ -3,9 +3,14 @@ import {
   computeContentScore,
   computeEngagementScore,
   computeFeedScore,
+  computeFeedRank,
+  computePersonalizedRank,
+  getRankInFeedBucket,
   computeTimeDecay,
   computeDisplayScore,
   FOLLOWING_BOOST,
+  FEED_RANK_BUCKET_SPAN,
+  FEED_RANK_MAX_WITHIN_BUCKET,
   computeAffinityBoost,
   MAX_AFFINITY_BOOST,
   type ContentScoreInput,
@@ -130,6 +135,43 @@ describe("computeFeedScore", () => {
     expect(computeFeedScore(content, engagement)).toBe(
       computeContentScore(content) + computeEngagementScore(engagement),
     );
+  });
+});
+
+describe("computeFeedRank", () => {
+  const DAY_MS = 24 * 60 * 60 * 1000;
+
+  it("clamps rank contribution to the bucket max", () => {
+    const rank = computeFeedRank(10_000, 0);
+    expect(rank).toBe(FEED_RANK_MAX_WITHIN_BUCKET);
+  });
+
+  it("uses a softer day-boundary step for cross-bucket ranking", () => {
+    const justBeforeNextDay = DAY_MS - 1;
+    const nextDayStart = DAY_MS;
+
+    const oldStrong = computeFeedRank(FEED_RANK_MAX_WITHIN_BUCKET, justBeforeNextDay);
+    const newWeak = computeFeedRank(0, nextDayStart);
+
+    expect(newWeak - oldStrong).toBe(1);
+    expect(newWeak).toBe(FEED_RANK_BUCKET_SPAN);
+    expect(getRankInFeedBucket(oldStrong, justBeforeNextDay)).toBe(
+      FEED_RANK_MAX_WITHIN_BUCKET,
+    );
+    expect(getRankInFeedBucket(newWeak, nextDayStart)).toBe(0);
+  });
+
+  it("allows strong social signals to buoy older posts across a boundary", () => {
+    const prevDay = DAY_MS - 1;
+    const nextDay = DAY_MS;
+
+    const olderBaseRank = computeFeedRank(FEED_RANK_MAX_WITHIN_BUCKET, prevDay);
+    const newerBaseRank = computeFeedRank(0, nextDay);
+
+    const olderWithSocial = computePersonalizedRank(olderBaseRank, true, 100);
+    const newerWithoutSocial = computePersonalizedRank(newerBaseRank, false, 0);
+
+    expect(olderWithSocial).toBeGreaterThan(newerWithoutSocial);
   });
 });
 
