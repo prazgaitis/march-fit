@@ -3,6 +3,7 @@
 ## Corrections
 | Date | Source | What Went Wrong | What To Do Instead |
 |------|--------|----------------|-------------------|
+| 2026-03-03 | self | Assumed feed-rank formula change would visibly affect existing data immediately | Existing activities keep old persisted `feedRank`; run a forced recompute migration/backfill when rank math changes |
 | 2026-03-02 | self | Affinity cron test inserted interactions with timestamps captured before watermark initialization, so incremental query intentionally skipped them | In incremental-watermark tests, initialize state first, then timestamp and insert interaction rows afterward |
 | 2026-03-02 | self | Wrote a parallel tool call with a malformed command string (`sed ...` had an extra `}`), causing a shell parse error | Keep command strings minimal in parallel invocations and quickly rerun failed command standalone before continuing |
 | 2026-03-02 | self | Attempted a large `apply_patch` against `admin/page.tsx` with stale context and it failed | For broad UI rewrites, recat the full file and rewrite in one pass instead of forcing a fragile contextual patch |
