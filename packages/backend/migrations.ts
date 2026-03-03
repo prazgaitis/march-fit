@@ -98,6 +98,16 @@ export const backfillActivityPointsAggregate = migrations.define({
   },
 });
 
+// Backfill parentType on existing comments (all existing comments are activity comments)
+export const backfillCommentParentType = migrations.define({
+  table: "comments",
+  migrateOne: async (ctx, comment) => {
+    if (!comment.parentType) {
+      await ctx.db.patch(comment._id, { parentType: "activity" });
+    }
+  },
+});
+
 export const run = migrations.runner();
 
 export const runAll = action({
@@ -115,6 +125,9 @@ export const runAll = action({
 
       // Activity points aggregate backfill
       internal.migrations.backfillActivityPointsAggregate,
+
+      // Backfill parentType on existing comments (2026-03)
+      internal.migrations.backfillCommentParentType,
     ];
 
     await migrations.runSerially(ctx, migrationsList);

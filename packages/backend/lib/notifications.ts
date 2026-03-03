@@ -13,7 +13,7 @@ import type { Id } from "../_generated/dataModel";
 const ROLLUP_WINDOW_MS = 60 * 60 * 1000;
 
 /** Notification types that should be deduped within the rollup window. */
-const ROLLUP_TYPES = new Set(["like", "comment"]);
+const ROLLUP_TYPES = new Set(["like", "comment", "comment_like", "feedback_comment"]);
 
 type Ctx = { db: any };
 

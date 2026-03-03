@@ -777,6 +777,83 @@ async function handleAddAdminComment(
   }
 }
 
+async function handleCreateFeedbackComment(
+  ctx: HttpCtx,
+  request: Request,
+  params: Record<string, string>
+): Promise<Response> {
+  const auth = await authenticateApiKey(ctx, request);
+  if (auth instanceof Response) return auth;
+
+  const feedbackId = params.id as Id<"feedback">;
+  const body = await parseJsonBody(request);
+  if (body instanceof Response) return body;
+
+  const { content } = body;
+  if (!content || typeof content !== "string" || !content.trim()) {
+    return errorResponse("Missing required field: content", 400);
+  }
+
+  try {
+    const result = await ctx.runMutation(
+      internal.mutations.apiMutations.createFeedbackCommentForUser,
+      {
+        userId: auth.user._id,
+        feedbackId,
+        content,
+      }
+    );
+    return jsonResponse(result, 201);
+  } catch (err: any) {
+    return errorResponse(err.message || "Failed to create comment", 400);
+  }
+}
+
+async function handleListFeedbackComments(
+  ctx: HttpCtx,
+  request: Request,
+  params: Record<string, string>
+): Promise<Response> {
+  const auth = await authenticateApiKey(ctx, request);
+  if (auth instanceof Response) return auth;
+
+  const feedbackId = params.id as Id<"feedback">;
+
+  try {
+    const comments = await ctx.runQuery(
+      api.queries.comments.getByFeedbackId,
+      { feedbackId }
+    );
+    return jsonResponse(comments);
+  } catch (err: any) {
+    return errorResponse(err.message || "Failed to list comments", 400);
+  }
+}
+
+async function handleToggleCommentLike(
+  ctx: HttpCtx,
+  request: Request,
+  params: Record<string, string>
+): Promise<Response> {
+  const auth = await authenticateApiKey(ctx, request);
+  if (auth instanceof Response) return auth;
+
+  const commentId = params.id as Id<"comments">;
+
+  try {
+    const result = await ctx.runMutation(
+      internal.mutations.apiMutations.toggleCommentLikeForUser,
+      {
+        userId: auth.user._id,
+        commentId,
+      }
+    );
+    return jsonResponse(result);
+  } catch (err: any) {
+    return errorResponse(err.message || "Failed to toggle comment like", 400);
+  }
+}
+
 async function handleAdminEditActivity(
   ctx: HttpCtx,
   request: Request,
@@ -1960,6 +2037,23 @@ const routes: RouteEntry[] = [
     method: "PATCH",
     pattern: "/api/v1/feedback/:id",
     handler: handleUpdateFeedbackForAdmin,
+  },
+  // Feedback comments
+  {
+    method: "POST",
+    pattern: "/api/v1/feedback/:id/comments",
+    handler: handleCreateFeedbackComment,
+  },
+  {
+    method: "GET",
+    pattern: "/api/v1/feedback/:id/comments",
+    handler: handleListFeedbackComments,
+  },
+  // Comment likes
+  {
+    method: "POST",
+    pattern: "/api/v1/comments/:id/like",
+    handler: handleToggleCommentLike,
   },
 
   // Mini-game management (single resource - longer paths first)

@@ -237,17 +237,36 @@ export default defineSchema({
     .index("activityUserUnique", ["activityId", "userId"])
     .index("createdAt", ["createdAt"]),
 
-  // Comments
+  // Comments (polymorphic — activity, feedback, or flagged_activity)
   comments: defineTable({
-    activityId: v.id("activities"),
+    parentType: v.optional(v.union(
+      v.literal("activity"),
+      v.literal("feedback"),
+      v.literal("flagged_activity"),
+    )),
+    activityId: v.optional(v.id("activities")),
+    feedbackId: v.optional(v.id("feedback")),
     userId: v.id("users"),
     content: v.string(),
+    // Only for flagged_activity comments
+    visibility: v.optional(v.union(v.literal("internal"), v.literal("participant"))),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
-    .index("activityId", ["activityId"])
+    .index("activityId", ["activityId", "createdAt"])
+    .index("feedbackId", ["feedbackId", "createdAt"])
     .index("userId", ["userId"])
     .index("createdAt", ["createdAt"]),
+
+  // Comment Likes
+  commentLikes: defineTable({
+    commentId: v.id("comments"),
+    userId: v.id("users"),
+    createdAt: v.number(),
+  })
+    .index("commentId", ["commentId"])
+    .index("userId", ["userId"])
+    .index("commentUserUnique", ["commentId", "userId"]),
 
   // Challenge feedback / bug reports
   feedback: defineTable({

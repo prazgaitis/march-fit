@@ -85,6 +85,7 @@ import type * as mutations_integrationMappings from "../mutations/integrationMap
 import type * as mutations_integrations from "../mutations/integrations.js";
 import type * as mutations_likes from "../mutations/likes.js";
 import type * as mutations_miniGames from "../mutations/miniGames.js";
+import type * as mutations_notifications from "../mutations/notifications.js";
 import type * as mutations_participations from "../mutations/participations.js";
 import type * as mutations_paymentConfig from "../mutations/paymentConfig.js";
 import type * as mutations_payments from "../mutations/payments.js";
@@ -215,6 +216,7 @@ declare const fullApi: ApiFromModules<{
   "mutations/integrations": typeof mutations_integrations;
   "mutations/likes": typeof mutations_likes;
   "mutations/miniGames": typeof mutations_miniGames;
+  "mutations/notifications": typeof mutations_notifications;
   "mutations/participations": typeof mutations_participations;
   "mutations/paymentConfig": typeof mutations_paymentConfig;
   "mutations/payments": typeof mutations_payments;

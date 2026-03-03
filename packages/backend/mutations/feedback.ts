@@ -166,9 +166,22 @@ export const updateByAdmin = mutation({
 
     if (args.adminResponse !== undefined) {
       const trimmed = args.adminResponse.trim();
+      // Keep legacy fields for backward compat
       patch.adminResponse = trimmed.length > 0 ? trimmed : undefined;
       patch.respondedAt = trimmed.length > 0 ? now : undefined;
       patch.respondedById = trimmed.length > 0 ? user._id : undefined;
+
+      // Also create a comment in the generalized comments table
+      if (trimmed.length > 0) {
+        await ctx.db.insert("comments", {
+          parentType: "feedback",
+          feedbackId: args.feedbackId,
+          userId: user._id,
+          content: trimmed,
+          createdAt: now,
+          updatedAt: now,
+        });
+      }
     }
 
     await ctx.db.patch(entry._id, patch);
@@ -187,7 +200,7 @@ export const updateByAdmin = mutation({
         await insertNotification(ctx, {
           userId: entry.userId,
           actorId: user._id,
-          type: "feedback_response",
+          type: isNewResponse ? "feedback_comment" : "feedback_response",
           data: {
             feedbackId: entry._id,
             challengeId: entry.challengeId,
