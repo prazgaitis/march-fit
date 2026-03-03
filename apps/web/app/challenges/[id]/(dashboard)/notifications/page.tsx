@@ -32,6 +32,7 @@ export default async function NotificationsPage({ params }: NotificationsPagePro
       <NotificationsList
         notifications={notifications}
         challengeId={challenge._id}
+        userId={user._id}
       />
     </div>
   );
