@@ -1,6 +1,13 @@
 "use client";
 
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import {
+  memo,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { useRouter } from "next/navigation";
 import { formatDistanceToNow } from "date-fns";
 import {
@@ -205,6 +212,9 @@ export function ActivityFeed({
   const [httpIsDone, setHttpIsDone] = useState(false);
   const [httpLoading, setHttpLoading] = useState(false);
   const httpRequestIdRef = useRef(0);
+  // Track the top algo feed item to detect when "For You" content changes
+  const lastSeenAlgoTopIdRef = useRef<string | null>(null);
+  const [hasNewAlgoContent, setHasNewAlgoContent] = useState(false);
   const isMobileClient = useMemo(() => {
     if (typeof navigator === "undefined") {
       return false;
@@ -399,6 +409,20 @@ export function ActivityFeed({
     return mapped;
   }, [algoResults, feedFilter, initialAlgoItems]);
 
+  // Detect when the top item in the algo feed changes (for "For You" notifications)
+  const algoTopId = algoDisplayResults[0]?.activity?._id ?? null;
+  useEffect(() => {
+    if (!algoTopId) return;
+    // Initialize on first load
+    if (lastSeenAlgoTopIdRef.current === null) {
+      lastSeenAlgoTopIdRef.current = algoTopId;
+      return;
+    }
+    if (algoTopId !== lastSeenAlgoTopIdRef.current) {
+      setHasNewAlgoContent(true);
+    }
+  }, [algoTopId]);
+
   const liveDisplayResults = useMemo(() => {
     if (feedFilter === "for_you") {
       return algoDisplayResults;
@@ -451,7 +475,7 @@ export function ActivityFeed({
     feedFilter === "all" && hasNewActivity && !latestActivityVisible;
 
   const showForYouNewBanner =
-    feedFilter === "for_you" && hasNewActivity && !latestActivityVisible;
+    feedFilter === "for_you" && hasNewAlgoContent;
 
   const effectiveIsLoading =
     feedFilter === "for_you"
@@ -539,7 +563,8 @@ export function ActivityFeed({
         <div className="fixed left-1/2 top-20 z-20 -translate-x-1/2">
           <button
             onClick={() => {
-              acknowledgeActivity();
+              setHasNewAlgoContent(false);
+              lastSeenAlgoTopIdRef.current = algoTopId;
               window.scrollTo({ top: 0, behavior: "smooth" });
             }}
             className="flex items-center gap-1.5 rounded-full bg-indigo-500 px-4 py-2 text-sm font-medium text-white shadow-lg transition-transform hover:scale-105 active:scale-95"
