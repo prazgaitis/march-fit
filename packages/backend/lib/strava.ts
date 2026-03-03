@@ -88,7 +88,7 @@ const SPORT_TYPE_MAPPING: Record<string, string[]> = {
   Yoga: ["Yoga"],
   Rowing: ["Rowing"],
   "Hi-Intensity Cardio": ["CrossFit", "Elliptical", "Workout"],
-  "Lo-Intensity Cardio": ["Elliptical", "Walk", "Hike", "Golf"],
+  "Lo-Intensity Cardio": ["Elliptical", "Walk", "Hike", "Golf", "WeightTraining"],
 };
 
 /**
