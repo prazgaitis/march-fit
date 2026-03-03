@@ -75,6 +75,12 @@ export default async function ChallengeAdminLayout({
       ],
     },
     {
+      label: "Support",
+      items: [
+        { href: `${base}/feedback`, label: "Feedback", segment: "feedback" },
+      ],
+    },
+    {
       label: "People",
       items: [
         { href: `${base}/participants`, label: "Participants", segment: "participants" },

@@ -284,6 +284,10 @@ Commands:
   mf forum upvote --post <postId>
   mf forum pin --post <postId>
 
+  mf feedback create --type <bug|question|idea|other> --description <text> [--title <title>] [--challenge <challengeId>]
+  mf feedback list [--challenge <challengeId>]
+  mf feedback update --feedback <feedbackId> [--status <open|fixed>] [--response <text>]
+
 Notes:
   - Config profiles are stored at ~/.config/mf/configs/<name>.json (or XDG/APPDATA equivalent)
   - Active config is tracked in ~/.config/mf/active-config
@@ -1010,6 +1014,144 @@ async function run() {
     throw new Error(
       "Unknown forum command. Use: list, get, create, update, delete, upvote, pin"
     );
+  }
+
+  if (command === "feedback") {
+    if (subcommand === "create") {
+      const { values } = parseSubcommandArgs(rest, {
+        type: { type: "string" },
+        title: { type: "string" },
+        description: { type: "string" },
+        challenge: { type: "string" },
+        "api-key": { type: "string" },
+        "base-url": { type: "string" },
+      });
+
+      if (!values.type || !["bug", "question", "idea", "other"].includes(values.type)) {
+        throw new Error("--type must be one of: bug, question, idea, other");
+      }
+      if (!values.description) {
+        throw new Error("--description is required");
+      }
+
+      const { challengeId, source: challengeSource } = resolveChallengeId(values, config);
+      requireChallengeId(challengeId);
+      const { apiKey, source: apiKeySource } = resolveApiKey(values, config);
+      const { baseUrl, source: baseUrlSource } = resolveBaseUrl(values, config);
+
+      printVerboseRequestInfo({
+        verbose,
+        profile: resolvedConfigName,
+        baseUrl,
+        baseUrlSource,
+        apiKey,
+        apiKeySource,
+        challengeId,
+        challengeSource,
+        operations: [`POST /challenges/${challengeId}/feedback`],
+      });
+
+      const data = await apiRequest({
+        baseUrl,
+        apiKey,
+        method: "POST",
+        path: `/challenges/${challengeId}/feedback`,
+        body: {
+          type: values.type,
+          title: values.title,
+          description: values.description,
+        },
+      });
+
+      console.log(JSON.stringify(data, null, 2));
+      return;
+    }
+
+    if (subcommand === "list") {
+      const { values } = parseSubcommandArgs(rest, {
+        challenge: { type: "string" },
+        "api-key": { type: "string" },
+        "base-url": { type: "string" },
+      });
+
+      const { challengeId, source: challengeSource } = resolveChallengeId(values, config);
+      requireChallengeId(challengeId);
+      const { apiKey, source: apiKeySource } = resolveApiKey(values, config);
+      const { baseUrl, source: baseUrlSource } = resolveBaseUrl(values, config);
+
+      printVerboseRequestInfo({
+        verbose,
+        profile: resolvedConfigName,
+        baseUrl,
+        baseUrlSource,
+        apiKey,
+        apiKeySource,
+        challengeId,
+        challengeSource,
+        operations: [`GET /challenges/${challengeId}/feedback`],
+      });
+
+      const data = await apiRequest({
+        baseUrl,
+        apiKey,
+        path: `/challenges/${challengeId}/feedback`,
+      });
+
+      console.log(JSON.stringify(data, null, 2));
+      return;
+    }
+
+    if (subcommand === "update") {
+      const { values } = parseSubcommandArgs(rest, {
+        feedback: { type: "string" },
+        status: { type: "string" },
+        response: { type: "string" },
+        "api-key": { type: "string" },
+        "base-url": { type: "string" },
+      });
+
+      if (!values.feedback) {
+        throw new Error("--feedback is required");
+      }
+      if (
+        values.status !== undefined &&
+        !["open", "fixed"].includes(values.status)
+      ) {
+        throw new Error("--status must be 'open' or 'fixed'");
+      }
+      if (values.status === undefined && values.response === undefined) {
+        throw new Error("Provide at least one of --status or --response");
+      }
+
+      const { apiKey, source: apiKeySource } = resolveApiKey(values, config);
+      const { baseUrl, source: baseUrlSource } = resolveBaseUrl(values, config);
+
+      printVerboseRequestInfo({
+        verbose,
+        profile: resolvedConfigName,
+        baseUrl,
+        baseUrlSource,
+        apiKey,
+        apiKeySource,
+        operations: [`PATCH /feedback/${values.feedback}`],
+      });
+
+      const data = await apiRequest({
+        baseUrl,
+        apiKey,
+        method: "PATCH",
+        path: `/feedback/${values.feedback}`,
+        body: {
+          status: values.status,
+          adminResponse: values.response,
+        },
+      });
+
+      console.log(JSON.stringify(data, null, 2));
+      return;
+    }
+
+    throw new Error("Unknown feedback command. Use: create, list, update");
   }
 
   throw new Error("Unknown command. Run `mf --help`.");

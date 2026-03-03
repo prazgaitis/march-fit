@@ -13,6 +13,7 @@ describe("buildMobileNavLayout", () => {
     expect(layout.rightItems.map((item) => item.label)).toEqual(["Forum"]);
     expect(layout.overflowItems.map((item) => item.label)).toEqual([
       "Leaderboard",
+      "Feedback",
       "Earning Points",
       "Profile",
     ]);
