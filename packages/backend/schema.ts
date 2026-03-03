@@ -254,6 +254,7 @@ export default defineSchema({
     updatedAt: v.number(),
   })
     .index("activityId", ["activityId", "createdAt"])
+    .index("activityIdByType", ["activityId", "parentType", "createdAt"])
     .index("feedbackId", ["feedbackId", "createdAt"])
     .index("userId", ["userId"])
     .index("createdAt", ["createdAt"]),
