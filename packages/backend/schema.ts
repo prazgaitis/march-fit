@@ -249,6 +249,31 @@ export default defineSchema({
     .index("userId", ["userId"])
     .index("createdAt", ["createdAt"]),
 
+  // Challenge feedback / bug reports
+  feedback: defineTable({
+    challengeId: v.id("challenges"),
+    userId: v.id("users"),
+    type: v.union(
+      v.literal("bug"),
+      v.literal("question"),
+      v.literal("idea"),
+      v.literal("other")
+    ),
+    title: v.optional(v.string()),
+    description: v.string(),
+    status: v.union(v.literal("open"), v.literal("fixed")),
+    adminResponse: v.optional(v.string()),
+    respondedAt: v.optional(v.number()),
+    respondedById: v.optional(v.id("users")),
+    fixedAt: v.optional(v.number()),
+    fixedById: v.optional(v.id("users")),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("challengeId", ["challengeId"])
+    .index("challengeStatus", ["challengeId", "status"])
+    .index("userId", ["userId"]),
+
   // Challenge-scoped user affinity graph for feed personalization.
   userAffinities: defineTable({
     challengeId: v.id("challenges"),

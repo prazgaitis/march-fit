@@ -737,6 +737,68 @@ const mcpHandler = createMcpHandler(
     );
 
     server.registerTool(
+      "create_feedback",
+      {
+        title: "Create Feedback",
+        description:
+          "Submit challenge feedback as a participant (bug, question, idea, or other).",
+        inputSchema: {
+          challengeId: z.string().min(1),
+          type: z.enum(["bug", "question", "idea", "other"]),
+          title: z.string().optional(),
+          description: z.string().min(1),
+        },
+      },
+      async ({ challengeId, type, title, description }) => {
+        const token = requireApiToken();
+        const data = await apiRequest(token, `/challenges/${challengeId}/feedback`, {
+          method: "POST",
+          body: { type, title, description },
+        });
+        return asTextResult(data);
+      }
+    );
+
+    server.registerTool(
+      "list_feedback",
+      {
+        title: "List Feedback",
+        description:
+          "List challenge feedback reports for moderation. Requires challenge admin role.",
+        inputSchema: {
+          challengeId: z.string().min(1),
+        },
+      },
+      async ({ challengeId }) => {
+        const token = requireApiToken();
+        const data = await apiRequest(token, `/challenges/${challengeId}/feedback`);
+        return asTextResult(data);
+      }
+    );
+
+    server.registerTool(
+      "update_feedback",
+      {
+        title: "Update Feedback",
+        description:
+          "Respond to feedback and/or change status (open/fixed). Requires challenge admin role.",
+        inputSchema: {
+          feedbackId: z.string().min(1),
+          status: z.enum(["open", "fixed"]).optional(),
+          adminResponse: z.string().optional(),
+        },
+      },
+      async ({ feedbackId, status, adminResponse }) => {
+        const token = requireApiToken();
+        const data = await apiRequest(token, `/feedback/${feedbackId}`, {
+          method: "PATCH",
+          body: { status, adminResponse },
+        });
+        return asTextResult(data);
+      }
+    );
+
+    server.registerTool(
       "admin_edit_activity",
       {
         title: "Admin Edit Activity",

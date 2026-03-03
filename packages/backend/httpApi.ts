@@ -483,6 +483,119 @@ async function handleListParticipants(
   return jsonResponse({ participants });
 }
 
+async function handleCreateFeedback(
+  ctx: HttpCtx,
+  request: Request,
+  params: Record<string, string>
+): Promise<Response> {
+  const auth = await authenticateApiKey(ctx, request);
+  if (auth instanceof Response) return auth;
+
+  const challengeId = params.id as Id<"challenges">;
+  const body = await parseJsonBody(request);
+  if (body instanceof Response) return body;
+
+  const { type, title, description } = body;
+  const validTypes = ["bug", "question", "idea", "other"];
+  if (!type || !validTypes.includes(type)) {
+    return errorResponse(
+      "Missing or invalid field: type (must be 'bug', 'question', 'idea', or 'other')",
+      400
+    );
+  }
+  if (!description || typeof description !== "string") {
+    return errorResponse("Missing required field: description", 400);
+  }
+
+  try {
+    const result = await ctx.runMutation(
+      internal.mutations.apiMutations.createFeedbackForUser,
+      {
+        userId: auth.user._id,
+        challengeId,
+        type,
+        title,
+        description,
+      }
+    );
+    return jsonResponse(result, 201);
+  } catch (err: any) {
+    return errorResponse(err.message || "Failed to create feedback", 400);
+  }
+}
+
+async function handleListFeedbackForAdmin(
+  ctx: HttpCtx,
+  request: Request,
+  params: Record<string, string>
+): Promise<Response> {
+  const auth = await authenticateApiKey(ctx, request);
+  if (auth instanceof Response) return auth;
+
+  const challengeId = params.id as Id<"challenges">;
+  const isAdmin = await checkChallengeAdmin(
+    ctx,
+    auth.user._id,
+    challengeId,
+    auth.user
+  );
+  if (!isAdmin) {
+    return errorResponse("Not authorized - challenge admin required", 403);
+  }
+
+  const feedback = await ctx.runQuery(
+    internal.queries.feedback.listByChallengeInternal,
+    { challengeId }
+  );
+
+  return jsonResponse(feedback);
+}
+
+async function handleUpdateFeedbackForAdmin(
+  ctx: HttpCtx,
+  request: Request,
+  params: Record<string, string>
+): Promise<Response> {
+  const auth = await authenticateApiKey(ctx, request);
+  if (auth instanceof Response) return auth;
+
+  const feedbackId = params.id as Id<"feedback">;
+  const feedback = await ctx.runQuery(internal.queries.feedback.getByIdInternal, {
+    feedbackId,
+  });
+  if (!feedback) {
+    return errorResponse("Feedback not found", 404);
+  }
+
+  const isAdmin = await checkChallengeAdmin(
+    ctx,
+    auth.user._id,
+    feedback.challengeId as Id<"challenges">,
+    auth.user
+  );
+  if (!isAdmin) {
+    return errorResponse("Not authorized - challenge admin required", 403);
+  }
+
+  const body = await parseJsonBody(request);
+  if (body instanceof Response) return body;
+
+  try {
+    const result = await ctx.runMutation(
+      internal.mutations.apiMutations.updateFeedbackForUser,
+      {
+        userId: auth.user._id,
+        feedbackId,
+        status: body.status,
+        adminResponse: body.adminResponse,
+      }
+    );
+    return jsonResponse(result);
+  } catch (err: any) {
+    return errorResponse(err.message || "Failed to update feedback", 400);
+  }
+}
+
 async function handleSetAnnouncement(
   ctx: HttpCtx,
   request: Request,
@@ -1715,6 +1828,16 @@ const routes: RouteEntry[] = [
     handler: handleListParticipants,
   },
   {
+    method: "POST",
+    pattern: "/api/v1/challenges/:id/feedback",
+    handler: handleCreateFeedback,
+  },
+  {
+    method: "GET",
+    pattern: "/api/v1/challenges/:id/feedback",
+    handler: handleListFeedbackForAdmin,
+  },
+  {
     method: "PATCH",
     pattern: "/api/v1/challenges/:id/participants/:userId",
     handler: handleUpdateParticipantRole,
@@ -1832,6 +1955,11 @@ const routes: RouteEntry[] = [
     method: "DELETE",
     pattern: "/api/v1/forum-posts/:id",
     handler: handleDeleteForumPost,
+  },
+  {
+    method: "PATCH",
+    pattern: "/api/v1/feedback/:id",
+    handler: handleUpdateFeedbackForAdmin,
   },
 
   // Mini-game management (single resource - longer paths first)

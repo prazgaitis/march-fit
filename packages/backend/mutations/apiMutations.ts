@@ -527,6 +527,113 @@ export const updateParticipantRoleForUser = internalMutation({
 });
 
 /**
+ * Create a feedback report on behalf of a participant (API key authenticated).
+ */
+export const createFeedbackForUser = internalMutation({
+  args: {
+    userId: v.id("users"),
+    challengeId: v.id("challenges"),
+    type: v.union(
+      v.literal("bug"),
+      v.literal("question"),
+      v.literal("idea"),
+      v.literal("other")
+    ),
+    title: v.optional(v.string()),
+    description: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const user = await ctx.db.get(args.userId);
+    if (!user) throw new Error("User not found");
+
+    const challenge = await ctx.db.get(args.challengeId);
+    if (!challenge) throw new Error("Challenge not found");
+
+    if (challenge.creatorId !== user._id && user.role !== "admin") {
+      const participation = await ctx.db
+        .query("userChallenges")
+        .withIndex("userChallengeUnique", (q) =>
+          q.eq("userId", args.userId).eq("challengeId", args.challengeId)
+        )
+        .first();
+      if (!participation) {
+        throw new Error("Must be a challenge participant");
+      }
+    }
+
+    const description = args.description.trim();
+    if (!description) throw new Error("Description is required");
+    const title = args.title?.trim();
+    const now = Date.now();
+
+    const feedbackId = await ctx.db.insert("feedback", {
+      challengeId: args.challengeId,
+      userId: args.userId,
+      type: args.type,
+      title: title && title.length > 0 ? title : undefined,
+      description,
+      status: "open",
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    return { id: feedbackId };
+  },
+});
+
+/**
+ * Update a feedback report as challenge admin (API key authenticated).
+ */
+export const updateFeedbackForUser = internalMutation({
+  args: {
+    userId: v.id("users"),
+    feedbackId: v.id("feedback"),
+    status: v.optional(v.union(v.literal("open"), v.literal("fixed"))),
+    adminResponse: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const feedback = await ctx.db.get(args.feedbackId);
+    if (!feedback) throw new Error("Feedback not found");
+
+    if (args.status === undefined && args.adminResponse === undefined) {
+      throw new Error("At least one field is required: status or adminResponse");
+    }
+
+    const now = Date.now();
+    const patch: {
+      updatedAt: number;
+      status?: "open" | "fixed";
+      fixedAt?: number;
+      fixedById?: Id<"users">;
+      adminResponse?: string;
+      respondedAt?: number;
+      respondedById?: Id<"users">;
+    } = { updatedAt: now };
+
+    if (args.status !== undefined) {
+      patch.status = args.status;
+      if (args.status === "fixed") {
+        patch.fixedAt = now;
+        patch.fixedById = args.userId;
+      } else {
+        patch.fixedAt = undefined;
+        patch.fixedById = undefined;
+      }
+    }
+
+    if (args.adminResponse !== undefined) {
+      const trimmed = args.adminResponse.trim();
+      patch.adminResponse = trimmed.length > 0 ? trimmed : undefined;
+      patch.respondedAt = trimmed.length > 0 ? now : undefined;
+      patch.respondedById = trimmed.length > 0 ? args.userId : undefined;
+    }
+
+    await ctx.db.patch(feedback._id, patch);
+    return { success: true };
+  },
+});
+
+/**
  * Create an activity type for a challenge (API key authenticated, admin only).
  */
 export const createActivityTypeForUser = internalMutation({
