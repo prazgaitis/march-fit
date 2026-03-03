@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { requireCurrentUser } from "../lib/ids";
+import { insertNotification } from "../lib/notifications";
 
 async function assertParticipant(
   ctx: MutationCtx,
@@ -171,6 +172,33 @@ export const updateByAdmin = mutation({
     }
 
     await ctx.db.patch(entry._id, patch);
+
+    // Notify the reporter if someone else is responding or marking fixed
+    const reporterIsActor = entry.userId === user._id;
+    if (!reporterIsActor) {
+      const isNewResponse =
+        args.adminResponse !== undefined &&
+        args.adminResponse.trim().length > 0 &&
+        args.adminResponse.trim() !== entry.adminResponse;
+      const isMarkedFixed =
+        args.status === "fixed" && entry.status !== "fixed";
+
+      if (isNewResponse || isMarkedFixed) {
+        await insertNotification(ctx, {
+          userId: entry.userId,
+          actorId: user._id,
+          type: "feedback_response",
+          data: {
+            feedbackId: entry._id,
+            challengeId: entry.challengeId,
+            title: entry.title ?? entry.description.slice(0, 60),
+            event: isMarkedFixed ? "fixed" : "reply",
+          },
+          createdAt: now,
+        });
+      }
+    }
+
     return { success: true };
   },
 });

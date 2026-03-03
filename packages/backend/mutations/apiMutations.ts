@@ -27,6 +27,7 @@ import { applyParticipationScoreDeltaAndRecomputeStreak } from "../lib/participa
 import { insertActivity, patchActivity } from "../lib/activityWrites";
 import { applyCategoryPointsDelta } from "../lib/categoryPoints";
 import { applyWeeklyCategoryPointsDeltaFromDate } from "../lib/weeklyCategoryPoints";
+import { insertNotification } from "../lib/notifications";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -631,6 +632,33 @@ export const updateFeedbackForUser = internalMutation({
     }
 
     await ctx.db.patch(feedback._id, patch);
+
+    // Notify the reporter if someone else is responding or marking fixed
+    const reporterIsActor = feedback.userId === args.userId;
+    if (!reporterIsActor) {
+      const isNewResponse =
+        args.adminResponse !== undefined &&
+        args.adminResponse.trim().length > 0 &&
+        args.adminResponse.trim() !== feedback.adminResponse;
+      const isMarkedFixed =
+        args.status === "fixed" && feedback.status !== "fixed";
+
+      if (isNewResponse || isMarkedFixed) {
+        await insertNotification(ctx, {
+          userId: feedback.userId,
+          actorId: args.userId,
+          type: "feedback_response",
+          data: {
+            feedbackId: feedback._id,
+            challengeId: feedback.challengeId,
+            title: feedback.title ?? feedback.description.slice(0, 60),
+            event: isMarkedFixed ? "fixed" : "reply",
+          },
+          createdAt: now,
+        });
+      }
+    }
+
     return { success: true };
   },
 });

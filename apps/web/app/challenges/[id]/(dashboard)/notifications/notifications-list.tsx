@@ -50,6 +50,8 @@ function getNotificationIcon(type: string) {
     case "admin_comment":
     case "admin_edit":
       return <Shield className="h-4 w-4 text-amber-500" />;
+    case "feedback_response":
+      return <MessageSquare className="h-4 w-4 text-emerald-500" />;
     default:
       return <Bell className="h-4 w-4 text-zinc-400" />;
   }
@@ -82,12 +84,24 @@ function getNotificationMessage(notification: Notification) {
       return "An admin left a comment on your activity";
     case "admin_edit":
       return "An admin updated your activity";
+    case "feedback_response": {
+      const title = notification.data?.title as string | undefined;
+      const event = notification.data?.event as string | undefined;
+      const label = title ? `"${title}"` : "your feedback";
+      return event === "fixed"
+        ? `${actorName} marked ${label} as fixed`
+        : `${actorName} replied to ${label}`;
+    }
     default:
       return `${actorName} interacted with you`;
   }
 }
 
 function getNotificationLink(notification: Notification, challengeId: string) {
+  if (notification.type === "feedback_response") {
+    const cId = notification.data?.challengeId ?? challengeId;
+    return `/challenges/${cId}/feedback`;
+  }
   if (notification.type === "forum_mention" && notification.data?.postId) {
     const cId = notification.data.challengeId ?? challengeId;
     return `/challenges/${cId}/forum/${notification.data.postId}`;
