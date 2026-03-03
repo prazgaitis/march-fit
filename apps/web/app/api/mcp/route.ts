@@ -379,6 +379,7 @@ const mcpHandler = createMcpHandler(
           durationDays: z.number().int().optional(),
           streakMinPoints: z.number().optional(),
           announcement: z.string().nullable().optional(),
+          allowGenderEdit: z.boolean().optional().describe("Allow participants to edit their gender in challenge settings."),
         },
       },
       async ({ challengeId, ...updates }) => {
@@ -386,7 +387,7 @@ const mcpHandler = createMcpHandler(
         const data = await apiRequest(
           token,
           `/challenges/${challengeId}`,
-          { method: "PUT", body: updates }
+          { method: "PATCH", body: updates }
         );
         return asTextResult(data);
       }

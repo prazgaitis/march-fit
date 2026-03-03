@@ -267,6 +267,7 @@ Commands:
 
   mf me [--api-key <key>] [--base-url <url>]
   mf challenges list [--api-key <key>] [--base-url <url>] [--limit <n>] [--offset <n>]
+  mf challenges update [--challenge <challengeId>] [--name <name>] [--description <text>] [--start-date <yyyy-mm-dd>] [--end-date <yyyy-mm-dd>] [--streak-min-points <n>] [--visibility <public|private>] [--allow-gender-edit <true|false>] [--api-key <key>] [--base-url <url>]
 
   mf activities list [--challenge <challengeId>] [--api-key <key>] [--base-url <url>] [--limit <n>] [--cursor <cursor>]
   mf activities log --activity-type <id> --date <yyyy-mm-dd> [--metrics <json>] [--notes <text>] [--source <source>] [--challenge <challengeId>] [--api-key <key>] [--base-url <url>]
@@ -605,6 +606,73 @@ async function run() {
         limit: values.limit,
         offset: values.offset,
       },
+    });
+    console.log(JSON.stringify(data, null, 2));
+    return;
+  }
+
+  if (command === "challenges" && subcommand === "update") {
+    const { values } = parseSubcommandArgs(rest, {
+      challenge: { type: "string" },
+      name: { type: "string" },
+      description: { type: "string" },
+      "start-date": { type: "string" },
+      "end-date": { type: "string" },
+      "streak-min-points": { type: "string" },
+      visibility: { type: "string" },
+      "allow-gender-edit": { type: "string" },
+      "api-key": { type: "string" },
+      "base-url": { type: "string" },
+    });
+
+    const { challengeId, source: challengeSource } = resolveChallengeId(values, config);
+    requireChallengeId(challengeId);
+
+    const { apiKey, source: apiKeySource } = resolveApiKey(values, config);
+    const { baseUrl, source: baseUrlSource } = resolveBaseUrl(values, config);
+
+    const body = {};
+    if (values.name !== undefined) body.name = values.name;
+    if (values.description !== undefined) body.description = values.description;
+    if (values["start-date"] !== undefined) body.startDate = values["start-date"];
+    if (values["end-date"] !== undefined) body.endDate = values["end-date"];
+    if (values["streak-min-points"] !== undefined) body.streakMinPoints = Number(values["streak-min-points"]);
+    if (values.visibility !== undefined) {
+      if (!["public", "private"].includes(values.visibility)) {
+        throw new Error("--visibility must be 'public' or 'private'");
+      }
+      body.visibility = values.visibility;
+    }
+    if (values["allow-gender-edit"] !== undefined) {
+      const val = values["allow-gender-edit"].toLowerCase();
+      if (val !== "true" && val !== "false") {
+        throw new Error("--allow-gender-edit must be 'true' or 'false'");
+      }
+      body.allowGenderEdit = val === "true";
+    }
+
+    if (Object.keys(body).length === 0) {
+      throw new Error("Nothing to update. Provide at least one field to change.");
+    }
+
+    printVerboseRequestInfo({
+      verbose,
+      profile: resolvedConfigName,
+      baseUrl,
+      baseUrlSource,
+      apiKey,
+      apiKeySource,
+      challengeId,
+      challengeSource,
+      operations: [`PATCH /challenges/${challengeId}`],
+    });
+
+    const data = await apiRequest({
+      baseUrl,
+      apiKey,
+      path: `/challenges/${challengeId}`,
+      method: "PATCH",
+      body,
     });
     console.log(JSON.stringify(data, null, 2));
     return;

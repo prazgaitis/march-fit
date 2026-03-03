@@ -336,6 +336,7 @@ export const updateChallengeForUser = internalMutation({
     welcomeMessage: v.optional(v.string()),
     announcement: v.optional(v.string()),
     visibility: v.optional(v.union(v.literal("public"), v.literal("private"))),
+    allowGenderEdit: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const { userId, challengeId, ...updates } = args;
@@ -377,6 +378,7 @@ export const updateChallengeForUser = internalMutation({
     if (updates.welcomeVideoUrl !== undefined) updateData.welcomeVideoUrl = updates.welcomeVideoUrl;
     if (updates.welcomeMessage !== undefined) updateData.welcomeMessage = updates.welcomeMessage;
     if (updates.visibility !== undefined) updateData.visibility = updates.visibility;
+    if (updates.allowGenderEdit !== undefined) updateData.allowGenderEdit = updates.allowGenderEdit;
 
     if (updates.announcement !== undefined) {
       updateData.announcement = updates.announcement;
