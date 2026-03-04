@@ -551,6 +551,7 @@ export const testStravaConnection = action({
     activities: Array<{
       stravaActivity: StravaActivity;
       scoring: ScoringPreview;
+      alreadyImported: boolean;
     }>;
     tokenRefreshed: boolean;
   }> => {
@@ -613,9 +614,24 @@ export const testStravaConnection = action({
       { challengeId: args.challengeId },
     );
 
-    const results = stravaActivities.map((stravaActivity: StravaActivity) => ({
+    // Check which activities are already imported into this challenge
+    const existingChecks = await Promise.all(
+      stravaActivities.map((a: StravaActivity) =>
+        ctx.runQuery(
+          internal.mutations.stravaWebhook.getExistingActivity,
+          {
+            userId: user._id,
+            challengeId: args.challengeId,
+            externalId: String(a.id),
+          },
+        ),
+      ),
+    );
+
+    const results = stravaActivities.map((stravaActivity: StravaActivity, i: number) => ({
       stravaActivity,
       scoring: calculateScoringPreview(stravaActivity, scoringData),
+      alreadyImported: existingChecks[i] !== null,
     }));
 
     return { activities: results, tokenRefreshed };
