@@ -228,7 +228,7 @@ describe("findPotentialDuplicates", () => {
     expect(result.size).toBe(0);
   });
 
-  it("does not flag duplicate when activity types differ", () => {
+  it("flags duplicate even when activity types differ (user may have logged wrong type)", () => {
     const stravaActivities = [
       makeStravaCheck({
         activityTypeId: "activityType_abc",
@@ -243,7 +243,8 @@ describe("findPotentialDuplicates", () => {
     ];
 
     const result = findPotentialDuplicates(stravaActivities, manualActivities);
-    expect(result.size).toBe(0);
+    expect(result.size).toBe(1);
+    expect(result.get(0)!.confidence).toBe("high");
   });
 
   it("does not flag duplicate when metrics are very different", () => {
@@ -262,7 +263,7 @@ describe("findPotentialDuplicates", () => {
     expect(result.size).toBe(0);
   });
 
-  it("skips strava activities with no activityTypeId", () => {
+  it("flags duplicate even when strava activity has no activityTypeId (unmapped)", () => {
     const stravaActivities = [
       makeStravaCheck({
         activityTypeId: null,
@@ -276,7 +277,8 @@ describe("findPotentialDuplicates", () => {
     ];
 
     const result = findPotentialDuplicates(stravaActivities, manualActivities);
-    expect(result.size).toBe(0);
+    expect(result.size).toBe(1);
+    expect(result.get(0)!.confidence).toBe("high");
   });
 
   it("ignores non-manual activities", () => {
