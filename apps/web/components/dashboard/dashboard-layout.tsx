@@ -132,7 +132,7 @@ export function DashboardLayout({
       {/* Main Content */}
       <main
         ref={mainRef}
-        className="min-h-0 flex-1 scrollbar-hide pt-[env(safe-area-inset-top)] pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:overflow-y-auto lg:overscroll-contain lg:pt-0 lg:pb-0"
+        className="min-h-0 min-w-0 flex-1 overflow-x-hidden scrollbar-hide pt-[env(safe-area-inset-top)] pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:overflow-y-auto lg:overscroll-contain lg:pt-0 lg:pb-0"
       >
         <PaymentRequiredBanner challengeId={challenge.id} />
         <AnnouncementBanner challengeId={challenge.id} />

@@ -75,6 +75,7 @@ import type * as mutations_challengeInvites from "../mutations/challengeInvites.
 import type * as mutations_challenges from "../mutations/challenges.js";
 import type * as mutations_cleanup from "../mutations/cleanup.js";
 import type * as mutations_clear from "../mutations/clear.js";
+import type * as mutations_commentLikes from "../mutations/commentLikes.js";
 import type * as mutations_comments from "../mutations/comments.js";
 import type * as mutations_emailSequences from "../mutations/emailSequences.js";
 import type * as mutations_feedback from "../mutations/feedback.js";
@@ -206,6 +207,7 @@ declare const fullApi: ApiFromModules<{
   "mutations/challenges": typeof mutations_challenges;
   "mutations/cleanup": typeof mutations_cleanup;
   "mutations/clear": typeof mutations_clear;
+  "mutations/commentLikes": typeof mutations_commentLikes;
   "mutations/comments": typeof mutations_comments;
   "mutations/emailSequences": typeof mutations_emailSequences;
   "mutations/feedback": typeof mutations_feedback;
