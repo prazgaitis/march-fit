@@ -3,6 +3,26 @@ import { v } from "convex/values";
 import { getCurrentUser } from "../lib/ids";
 
 /**
+ * Get the list of user IDs the current user is following
+ */
+export const getFollowingIds = query({
+  args: {},
+  handler: async (ctx) => {
+    const currentUser = await getCurrentUser(ctx);
+    if (!currentUser) {
+      return [];
+    }
+
+    const follows = await ctx.db
+      .query("follows")
+      .withIndex("followerId", (q) => q.eq("followerId", currentUser._id))
+      .collect();
+
+    return follows.map((f) => f.followingId);
+  },
+});
+
+/**
  * Check if the current user is following a specific user
  */
 export const isFollowing = query({

@@ -1,10 +1,14 @@
 "use client";
 
-import { memo } from "react";
+import { memo, useCallback, useState } from "react";
 import Link from "next/link";
-import { Trophy } from "lucide-react";
+import { Flame, Loader2, MapPin, Trophy, UserCheck, UserPlus } from "lucide-react";
+import { useMutation, useQuery } from "convex/react";
+import { api } from "@repo/backend";
+import type { Id } from "@repo/backend/_generated/dataModel";
 
-import { UserChallengeDisplay } from "@/components/user-challenge-display";
+import { PointsDisplay } from "@/components/ui/points-display";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 interface LeaderboardEntry {
@@ -55,20 +59,67 @@ function getRankBadge(rank: number) {
   );
 }
 
+const FollowButton = memo(function FollowButton({
+  userId,
+  isFollowing,
+}: {
+  userId: string;
+  isFollowing: boolean;
+}) {
+  const [isToggling, setIsToggling] = useState(false);
+  const toggleFollow = useMutation(api.mutations.follows.toggle);
+
+  const handleClick = useCallback(
+    async (e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (isToggling) return;
+      setIsToggling(true);
+      try {
+        await toggleFollow({ userId: userId as Id<"users"> });
+      } catch (error) {
+        console.error("Failed to toggle follow:", error);
+      } finally {
+        setIsToggling(false);
+      }
+    },
+    [isToggling, toggleFollow, userId],
+  );
+
+  return (
+    <Button
+      variant="ghost"
+      size="icon"
+      className="h-8 w-8 shrink-0"
+      onClick={handleClick}
+    >
+      {isToggling ? (
+        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+      ) : isFollowing ? (
+        <UserCheck className="h-4 w-4 text-blue-400" />
+      ) : (
+        <UserPlus className="h-4 w-4 text-muted-foreground" />
+      )}
+    </Button>
+  );
+});
+
 const LeaderboardEntryRow = memo(function LeaderboardEntryRow({
   entry,
   challengeId,
   isCurrentUser,
+  isFollowing,
 }: {
   entry: LeaderboardEntry;
   challengeId: string;
   isCurrentUser: boolean;
+  isFollowing: boolean;
 }) {
   return (
     <Link
       href={`/challenges/${challengeId}/users/${entry.user.id}`}
       className={cn(
-        "flex items-center gap-2 rounded-xl p-3 transition sm:gap-4 sm:p-4",
+        "flex min-w-0 items-center gap-2 rounded-xl p-3 transition sm:gap-4 sm:p-4",
         isCurrentUser
           ? "bg-indigo-500/10 ring-1 ring-indigo-500/30 hover:bg-indigo-500/20"
           : "bg-zinc-900/50 hover:bg-zinc-800/50"
@@ -76,33 +127,54 @@ const LeaderboardEntryRow = memo(function LeaderboardEntryRow({
     >
       {getRankBadge(entry.rank)}
 
-      <UserChallengeDisplay
-        user={entry.user}
-        challengeId={challengeId}
-        disableLink
-        size="md"
-        show={{
-          name: true,
-          username: true,
-          location: true,
-          points: true,
-          streak: true,
-        }}
-        points={entry.totalPoints}
-        streak={entry.currentStreak}
-        highlight={false}
-        suffix={
-          isCurrentUser ? (
+      <div className="min-w-0 flex-1">
+        {/* Top row: name + points + follow */}
+        <div className="flex items-center gap-2">
+          <span className="truncate text-base font-semibold text-white">
+            {entry.user.name || entry.user.username}
+          </span>
+          <div className="ml-auto flex shrink-0 items-center gap-1">
+            <PointsDisplay
+              points={entry.totalPoints}
+              size="lg"
+              showSign={false}
+              showLabel={false}
+              className={cn("font-bold", entry.totalPoints >= 0 && "text-white")}
+            />
+            {!isCurrentUser && (
+              <FollowButton userId={entry.user.id} isFollowing={isFollowing} />
+            )}
+          </div>
+        </div>
+        {/* Bottom row: username, location, streak, (You) */}
+        <div className="flex flex-wrap items-center gap-x-2 text-sm text-muted-foreground">
+          {entry.user.location ? (
+            <span className="flex items-center gap-1 text-xs">
+              <MapPin className="h-3 w-3" />
+              {entry.user.location}
+            </span>
+          ) : (
+            <span>@{entry.user.username}</span>
+          )}
+          {entry.currentStreak > 0 && (
+            <span className="inline-flex items-center gap-0.5 text-xs text-orange-500">
+              <Flame className="h-3 w-3" />
+              {entry.currentStreak}
+            </span>
+          )}
+          {isCurrentUser && (
             <span className="text-xs text-indigo-400">(You)</span>
-          ) : undefined
-        }
-        className="flex-1"
-      />
+          )}
+        </div>
+      </div>
     </Link>
   );
 });
 
 export function LeaderboardList({ entries, challengeId, currentUserId }: LeaderboardListProps) {
+  const followingIds = useQuery(api.queries.follows.getFollowingIds);
+  const followingSet = new Set(followingIds ?? []);
+
   if (entries.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
@@ -123,6 +195,7 @@ export function LeaderboardList({ entries, challengeId, currentUserId }: Leaderb
           entry={entry}
           challengeId={challengeId}
           isCurrentUser={entry.user.id === currentUserId}
+          isFollowing={followingSet.has(entry.user.id as Id<"users">)}
         />
       ))}
     </div>
