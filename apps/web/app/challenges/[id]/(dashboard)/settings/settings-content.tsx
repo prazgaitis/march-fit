@@ -22,6 +22,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
+import {
+  formatDateOnlyFromUtcMs,
+  formatDateShortFromDateOnly,
+} from "@/lib/date-only";
 
 interface SettingsContentProps {
   currentUser: {
@@ -54,13 +58,20 @@ export function SettingsContent({
   const [location, setLocation] = useState(currentUser.location ?? "");
   // Gender: "male" | "female" | "prefer_not" (maps to undefined/clear)
   const [gender, setGender] = useState<"male" | "female" | "prefer_not">(
-    currentGender === "male" ? "male" : currentGender === "female" ? "female" : "prefer_not"
+    currentGender === "male"
+      ? "male"
+      : currentGender === "female"
+        ? "female"
+        : "prefer_not",
   );
 
   // Fetch user's challenges
-  const userChallenges = useQuery(api.queries.participations.getUserChallenges, {
-    userId: currentUser._id,
-  });
+  const userChallenges = useQuery(
+    api.queries.participations.getUserChallenges,
+    {
+      userId: currentUser._id,
+    },
+  );
 
   const updateUser = useMutation(api.mutations.users.updateUser);
 
@@ -101,9 +112,7 @@ export function SettingsContent({
             <User className="h-5 w-5" />
             Profile Information
           </CardTitle>
-          <CardDescription>
-            Update your profile details
-          </CardDescription>
+          <CardDescription>Update your profile details</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           {/* Avatar Preview */}
@@ -177,8 +186,8 @@ export function SettingsContent({
                 ))}
               </div>
               <p className="text-xs text-muted-foreground">
-                ℹ️ If you don&apos;t set a gender, you&apos;ll be placed in the Men&apos;s/Open
-                category for prize tracking.
+                ℹ️ If you don&apos;t set a gender, you&apos;ll be placed in the
+                Men&apos;s/Open category for prize tracking.
               </p>
             </div>
           )}
@@ -215,7 +224,9 @@ export function SettingsContent({
               )}
             </Button>
             {updateSuccess && (
-              <p className="text-sm text-green-600">Profile updated successfully!</p>
+              <p className="text-sm text-green-600">
+                Profile updated successfully!
+              </p>
             )}
             {updateError && (
               <p className="text-sm text-red-600">{updateError}</p>
@@ -226,7 +237,6 @@ export function SettingsContent({
 
       {/* Account Security */}
       <AccountSecurityCard email={currentUser.email} />
-
 
       {/* Challenge Switcher */}
       <Card>
@@ -261,13 +271,20 @@ export function SettingsContent({
                     <div>
                       <p className="font-medium">{challenge.name}</p>
                       <p className="text-sm text-muted-foreground">
-                        {new Date(challenge.startDate).toLocaleDateString()} -{" "}
-                        {new Date(challenge.endDate).toLocaleDateString()}
+                        {formatDateShortFromDateOnly(
+                          typeof challenge.startDate === "number"
+                            ? formatDateOnlyFromUtcMs(challenge.startDate)
+                            : challenge.startDate,
+                        )}{" "}
+                        -{" "}
+                        {formatDateShortFromDateOnly(
+                          typeof challenge.endDate === "number"
+                            ? formatDateOnlyFromUtcMs(challenge.endDate)
+                            : challenge.endDate,
+                        )}
                       </p>
                     </div>
-                    {isCurrent && (
-                      <Check className="h-5 w-5 text-primary" />
-                    )}
+                    {isCurrent && <Check className="h-5 w-5 text-primary" />}
                   </Link>
                 );
               })}
@@ -366,7 +383,9 @@ function AccountSecurityCard({ email }: { email: string }) {
           <Shield className="h-5 w-5" />
           Account Security
         </CardTitle>
-        <CardDescription>Manage your password and login methods</CardDescription>
+        <CardDescription>
+          Manage your password and login methods
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         {sent ? (
@@ -462,7 +481,9 @@ function AccountSecurityCard({ email }: { email: string }) {
         )}
 
         {changeSuccess && (
-          <p className="text-sm text-green-600">Password changed successfully!</p>
+          <p className="text-sm text-green-600">
+            Password changed successfully!
+          </p>
         )}
       </CardContent>
     </Card>

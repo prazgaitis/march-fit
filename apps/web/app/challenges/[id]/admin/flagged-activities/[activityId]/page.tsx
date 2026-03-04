@@ -1,5 +1,9 @@
 import { notFound } from "next/navigation";
 import { format, formatDistanceToNow } from "date-fns";
+import {
+  formatDateOnlyFromUtcMs,
+  formatDateShortFromDateOnly,
+} from "@/lib/date-only";
 import { getConvexClient } from "@/lib/convex-server";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
@@ -36,15 +40,21 @@ export default async function FlaggedActivityDetailPage({
   const convex = getConvexClient();
   const { activityId } = await params;
 
-  const detail = await convex.query(api.queries.admin.getFlaggedActivityDetail, {
-    activityId: activityId as Id<"activities">,
-  });
+  const detail = await convex.query(
+    api.queries.admin.getFlaggedActivityDetail,
+    {
+      activityId: activityId as Id<"activities">,
+    },
+  );
 
   if (!detail) {
     notFound();
   }
 
-  const adminStatus = await fetchAuthQuery<{ isAdmin: boolean; reason: "global_admin" | "creator" | "challenge_admin" | null }>(api.queries.participations.isUserChallengeAdmin, {
+  const adminStatus = await fetchAuthQuery<{
+    isAdmin: boolean;
+    reason: "global_admin" | "creator" | "challenge_admin" | null;
+  }>(api.queries.participations.isUserChallengeAdmin, {
     challengeId: detail.activity.challengeId as Id<"challenges">,
   });
 
@@ -59,7 +69,10 @@ export default async function FlaggedActivityDetailPage({
           <CardTitle>Flagged Activity</CardTitle>
           <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
             <span>
-              Logged on {format(new Date(detail.activity.loggedDate), "PPpp")}
+              Logged on{" "}
+              {formatDateShortFromDateOnly(
+                formatDateOnlyFromUtcMs(detail.activity.loggedDate),
+              )}
             </span>
             <Badge
               variant={
@@ -81,7 +94,8 @@ export default async function FlaggedActivityDetailPage({
               {detail.participant.name ?? "Unknown"}
               {detail.participant.email && (
                 <span className="text-sm text-muted-foreground">
-                  {" "}({detail.participant.email})
+                  {" "}
+                  ({detail.participant.email})
                 </span>
               )}
             </p>
@@ -131,9 +145,11 @@ export default async function FlaggedActivityDetailPage({
                     </span>
                   </div>
                   <p className="text-sm text-muted-foreground">
-                    {entry.entry.actionType === "comment" && entry.entry.payload &&
+                    {entry.entry.actionType === "comment" &&
+                      entry.entry.payload &&
                       `Added admin comment: ${entry.entry.payload.comment}`}
-                    {entry.entry.actionType === "resolution" && entry.entry.payload &&
+                    {entry.entry.actionType === "resolution" &&
+                      entry.entry.payload &&
                       `Updated status to ${entry.entry.payload.status}`}
                     {entry.entry.actionType === "edit" &&
                       "Edited activity details"}

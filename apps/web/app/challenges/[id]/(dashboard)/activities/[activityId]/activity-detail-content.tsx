@@ -4,6 +4,10 @@ import { useState, useRef, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { formatDistanceToNow, format } from "date-fns";
+import {
+  formatDateOnlyFromUtcMs,
+  formatDateShortFromDateOnly,
+} from "@/lib/date-only";
 import { useMutation, useQuery, usePaginatedQuery } from "convex/react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
@@ -332,7 +336,7 @@ export function ActivityDetailContent({
     };
     setEditNotes(typeof activity.notes === "string" ? activity.notes : "");
     setEditNotesIsEmpty(!activity.notes || activity.notes.trim() === "");
-    setEditLoggedDate(format(new Date(activity.loggedDate), "yyyy-MM-dd"));
+    setEditLoggedDate(formatDateOnlyFromUtcMs(activity.loggedDate));
     setEditActivityTypeId(activityType._id);
     // Pre-populate metric value from existing metrics
     const config = activityType.scoringConfig ?? {};
@@ -581,7 +585,9 @@ export function ActivityDetailContent({
                 <Calendar className="h-5 w-5 text-blue-500" />
                 <div>
                   <p className="text-lg font-semibold">
-                    {format(new Date(activity.loggedDate), "MMM d, yyyy")}
+                    {formatDateShortFromDateOnly(
+                      formatDateOnlyFromUtcMs(activity.loggedDate),
+                    )}
                   </p>
                   <p className="text-sm text-muted-foreground">Activity date</p>
                 </div>
@@ -1195,48 +1201,64 @@ function ActivityComments({
       </div>
 
       <div className="space-y-4">
-        {comments?.map((entry: { comment: { id: string; createdAt: string; content: string }; author: { id: string; name: string; username: string; avatarUrl: string | null }; likeCount: number; likedByMe: boolean }) => (
-          <div key={entry.comment.id} className="flex gap-3">
-            <UserAvatar
-              user={{
-                id: entry.author.id,
-                name: entry.author.name,
-                username: entry.author.username,
-                avatarUrl: entry.author.avatarUrl,
-              }}
-              challengeId={challengeId}
-              size="md"
-            />
-            <div className="flex-1 rounded-lg bg-muted/50 p-4">
-              <div className="flex items-center justify-between">
-                <p className="font-semibold">
-                  {entry.author.name ?? entry.author.username}
-                </p>
-                <span className="text-xs text-muted-foreground">
-                  {formatDistanceToNow(new Date(entry.comment.createdAt), {
-                    addSuffix: true,
-                  })}
-                </span>
-              </div>
-              <RichTextViewer
-                content={entry.comment.content}
-                className="mt-2 text-sm text-muted-foreground"
+        {comments?.map(
+          (entry: {
+            comment: { id: string; createdAt: string; content: string };
+            author: {
+              id: string;
+              name: string;
+              username: string;
+              avatarUrl: string | null;
+            };
+            likeCount: number;
+            likedByMe: boolean;
+          }) => (
+            <div key={entry.comment.id} className="flex gap-3">
+              <UserAvatar
+                user={{
+                  id: entry.author.id,
+                  name: entry.author.name,
+                  username: entry.author.username,
+                  avatarUrl: entry.author.avatarUrl,
+                }}
+                challengeId={challengeId}
+                size="md"
               />
-              <div className="mt-2 flex items-center gap-1">
-                <button
-                  type="button"
-                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-                  onClick={() => toggleCommentLike({ commentId: entry.comment.id as Id<'comments'> })}
-                >
-                  <Heart
-                    className={`h-3.5 w-3.5 ${entry.likedByMe ? 'fill-red-500 text-red-500' : ''}`}
-                  />
-                  {entry.likeCount > 0 && <span>{entry.likeCount}</span>}
-                </button>
+              <div className="flex-1 rounded-lg bg-muted/50 p-4">
+                <div className="flex items-center justify-between">
+                  <p className="font-semibold">
+                    {entry.author.name ?? entry.author.username}
+                  </p>
+                  <span className="text-xs text-muted-foreground">
+                    {formatDistanceToNow(new Date(entry.comment.createdAt), {
+                      addSuffix: true,
+                    })}
+                  </span>
+                </div>
+                <RichTextViewer
+                  content={entry.comment.content}
+                  className="mt-2 text-sm text-muted-foreground"
+                />
+                <div className="mt-2 flex items-center gap-1">
+                  <button
+                    type="button"
+                    className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+                    onClick={() =>
+                      toggleCommentLike({
+                        commentId: entry.comment.id as Id<"comments">,
+                      })
+                    }
+                  >
+                    <Heart
+                      className={`h-3.5 w-3.5 ${entry.likedByMe ? "fill-red-500 text-red-500" : ""}`}
+                    />
+                    {entry.likeCount > 0 && <span>{entry.likeCount}</span>}
+                  </button>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          ),
+        )}
 
         {loadingComments && (
           <div className="flex items-center justify-center gap-2 py-4 text-sm text-muted-foreground">
