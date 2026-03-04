@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { formatDistanceToNow, format } from "date-fns";
+import { formatMonthDayFromUtcMs } from "@/lib/date-only";
 import { useMutation, useQuery } from "@/lib/convex-auth-react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
@@ -73,7 +74,7 @@ export function UserProfileContent({
     api.queries.integrations.getByUser,
     followData?.isOwnProfile
       ? { userId: profileUserId as Id<"users"> }
-      : "skip"
+      : "skip",
   );
 
   // Achievements — own profile gets full progress; other profiles get earned-only list
@@ -81,7 +82,7 @@ export function UserProfileContent({
     api.queries.achievements.getUserProgress,
     followData?.isOwnProfile
       ? { challengeId: challengeId as Id<"challenges"> }
-      : "skip"
+      : "skip",
   );
   const theirEarnedAchievements = useQuery(
     api.queries.achievements.getEarnedByUser,
@@ -90,7 +91,7 @@ export function UserProfileContent({
           challengeId: challengeId as Id<"challenges">,
           userId: profileUserId as Id<"users">,
         }
-      : "skip"
+      : "skip",
   );
 
   const invitedUsers = useQuery(
@@ -100,7 +101,7 @@ export function UserProfileContent({
           userId: profileUserId as Id<"users">,
           challengeId: challengeId as Id<"challenges">,
         }
-      : "skip"
+      : "skip",
   );
 
   const toggleFollow = useMutation(api.mutations.follows.toggle);
@@ -148,10 +149,14 @@ export function UserProfileContent({
   const { user, challenge, participation, stats, streakCalendar } = profileData;
   const prDay = stats.prDay;
   const hasStrava = integrations?.some(
-    (integration: { service: string; revoked: boolean; accessToken?: string }) =>
+    (integration: {
+      service: string;
+      revoked: boolean;
+      accessToken?: string;
+    }) =>
       integration.service === "strava" &&
       integration.revoked === false &&
-      integration.accessToken
+      integration.accessToken,
   );
   const showStravaCard = followData?.isOwnProfile && integrations && !hasStrava;
   const profilePath = `/challenges/${challengeId}/users/${profileUserId}`;
@@ -180,8 +185,8 @@ export function UserProfileContent({
                 </div>
 
                 {/* Settings Button (own profile) or Follow Button */}
-                {followData && (
-                  followData.isOwnProfile ? (
+                {followData &&
+                  (followData.isOwnProfile ? (
                     <Button
                       variant="outline"
                       size="sm"
@@ -215,8 +220,7 @@ export function UserProfileContent({
                         </>
                       )}
                     </Button>
-                  )
-                )}
+                  ))}
               </div>
 
               {/* Follower/Following Counts */}
@@ -225,7 +229,9 @@ export function UserProfileContent({
                   <span>
                     <strong>{followData.followersCount}</strong>{" "}
                     <span className="text-muted-foreground">
-                      {followData.followersCount === 1 ? "follower" : "followers"}
+                      {followData.followersCount === 1
+                        ? "follower"
+                        : "followers"}
                     </span>
                   </span>
                   <span>
@@ -259,10 +265,9 @@ export function UserProfileContent({
                       className={cn(
                         participation.rank === 1 &&
                           "bg-yellow-500 text-yellow-950",
-                        participation.rank === 2 &&
-                          "bg-gray-400 text-gray-950",
+                        participation.rank === 2 && "bg-gray-400 text-gray-950",
                         participation.rank === 3 &&
-                          "bg-amber-600 text-amber-950"
+                          "bg-amber-600 text-amber-950",
                       )}
                     >
                       <Medal className="mr-1 h-3 w-3" />
@@ -286,12 +291,18 @@ export function UserProfileContent({
         <Card className="p-4">
           <div className="flex items-center gap-4">
             <div className="min-w-0 flex-1">
-              <CardTitle className="text-sm font-medium">Connect Strava</CardTitle>
+              <CardTitle className="text-sm font-medium">
+                Connect Strava
+              </CardTitle>
               <CardDescription className="text-xs">
                 Auto-import workouts for this challenge.
               </CardDescription>
             </div>
-            <StravaConnectButton successUrl={profilePath} errorUrl={errorUrl} className="w-auto shrink-0" />
+            <StravaConnectButton
+              successUrl={profilePath}
+              errorUrl={errorUrl}
+              className="w-auto shrink-0"
+            />
           </div>
         </Card>
       )}
@@ -383,11 +394,13 @@ export function UserProfileContent({
             }}
             className={cn(
               "w-full text-left",
-              prDay ? "cursor-pointer" : "cursor-default"
+              prDay ? "cursor-pointer" : "cursor-default",
             )}
             disabled={!prDay}
           >
-            <Card className={cn(prDay && "transition-colors hover:bg-muted/40")}>
+            <Card
+              className={cn(prDay && "transition-colors hover:bg-muted/40")}
+            >
               <CardContent className="flex items-center justify-between gap-3 pt-6">
                 <div className="flex items-center gap-3">
                   <div className="rounded-full bg-violet-500/10 p-3">
@@ -397,10 +410,15 @@ export function UserProfileContent({
                     <p className="text-sm text-muted-foreground">PR Day</p>
                     {prDay ? (
                       <p className="font-semibold">
-                        {format(new Date(`${prDay.date}T00:00:00Z`), "MMMM d, yyyy")}
+                        {format(
+                          new Date(`${prDay.date}T00:00:00Z`),
+                          "MMMM d, yyyy",
+                        )}
                       </p>
                     ) : (
-                      <p className="font-semibold text-muted-foreground">Not set yet</p>
+                      <p className="font-semibold text-muted-foreground">
+                        Not set yet
+                      </p>
                     )}
                   </div>
                 </div>
@@ -424,27 +442,36 @@ export function UserProfileContent({
 
               {prDay && (
                 <div className="space-y-2">
-                  {prDay.activities.map((activity: { id: string; activityTypeName: string; pointsEarned: number; createdAt: number }) => (
-                    <Link
-                      key={activity.id}
-                      href={`/challenges/${challengeId}/activities/${activity.id}`}
-                      className="flex items-center justify-between rounded-lg border p-3 transition-colors hover:bg-muted/40"
-                      onClick={() => setShowPrDayModal(false)}
-                    >
-                      <div>
-                        <p className="font-medium">{activity.activityTypeName}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {formatDistanceToNow(new Date(activity.createdAt), {
-                            addSuffix: true,
-                          })}
+                  {prDay.activities.map(
+                    (activity: {
+                      id: string;
+                      activityTypeName: string;
+                      pointsEarned: number;
+                      createdAt: number;
+                    }) => (
+                      <Link
+                        key={activity.id}
+                        href={`/challenges/${challengeId}/activities/${activity.id}`}
+                        className="flex items-center justify-between rounded-lg border p-3 transition-colors hover:bg-muted/40"
+                        onClick={() => setShowPrDayModal(false)}
+                      >
+                        <div>
+                          <p className="font-medium">
+                            {activity.activityTypeName}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {formatDistanceToNow(new Date(activity.createdAt), {
+                              addSuffix: true,
+                            })}
+                          </p>
+                        </div>
+                        <p className="font-semibold text-primary">
+                          {activity.pointsEarned >= 0 ? "+" : ""}
+                          {activity.pointsEarned.toFixed(0)} pts
                         </p>
-                      </div>
-                      <p className="font-semibold text-primary">
-                        {activity.pointsEarned >= 0 ? "+" : ""}
-                        {activity.pointsEarned.toFixed(0)} pts
-                      </p>
-                    </Link>
-                  ))}
+                      </Link>
+                    ),
+                  )}
                 </div>
               )}
             </DialogContent>
@@ -461,7 +488,11 @@ export function UserProfileContent({
               Invited Members
             </DialogTitle>
             <DialogDescription>
-              People who joined using {followData?.isOwnProfile ? "your" : `${user.name ?? user.username}'s`} invite link
+              People who joined using{" "}
+              {followData?.isOwnProfile
+                ? "your"
+                : `${user.name ?? user.username}'s`}{" "}
+              invite link
             </DialogDescription>
           </DialogHeader>
           <div className="overflow-y-auto -mx-6 px-6">
@@ -475,33 +506,37 @@ export function UserProfileContent({
               </p>
             ) : (
               <div className="space-y-2">
-                {invitedUsers.map((invitee: { id: string; username: string; name: string | null; avatarUrl: string | null; joinedAt: number }) => (
-                  <Link
-                    key={invitee.id}
-                    href={`/challenges/${challengeId}/users/${invitee.id}`}
-                    onClick={() => setShowInvitedModal(false)}
-                    className="flex items-center gap-3 rounded-lg border p-3 transition-colors hover:bg-muted/40"
-                  >
-                    <UserAvatar
-                      user={invitee}
-                      size="sm"
-                      disableLink
-                    />
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">
-                        {invitee.name ?? invitee.username}
+                {invitedUsers.map(
+                  (invitee: {
+                    id: string;
+                    username: string;
+                    name: string | null;
+                    avatarUrl: string | null;
+                    joinedAt: number;
+                  }) => (
+                    <Link
+                      key={invitee.id}
+                      href={`/challenges/${challengeId}/users/${invitee.id}`}
+                      onClick={() => setShowInvitedModal(false)}
+                      className="flex items-center gap-3 rounded-lg border p-3 transition-colors hover:bg-muted/40"
+                    >
+                      <UserAvatar user={invitee} size="sm" disableLink />
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate">
+                          {invitee.name ?? invitee.username}
+                        </p>
+                        <p className="text-sm text-muted-foreground">
+                          @{invitee.username}
+                        </p>
+                      </div>
+                      <p className="text-xs text-muted-foreground whitespace-nowrap">
+                        {formatDistanceToNow(new Date(invitee.joinedAt), {
+                          addSuffix: true,
+                        })}
                       </p>
-                      <p className="text-sm text-muted-foreground">
-                        @{invitee.username}
-                      </p>
-                    </div>
-                    <p className="text-xs text-muted-foreground whitespace-nowrap">
-                      {formatDistanceToNow(new Date(invitee.joinedAt), {
-                        addSuffix: true,
-                      })}
-                    </p>
-                  </Link>
-                ))}
+                    </Link>
+                  ),
+                )}
               </div>
             )}
           </div>
@@ -529,7 +564,8 @@ export function UserProfileContent({
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <Calendar className="h-4 w-4" />
               <span>
-                Joined {format(new Date(participation.joinedAt), "MMMM d, yyyy")}
+                Joined{" "}
+                {format(new Date(participation.joinedAt), "MMMM d, yyyy")}
               </span>
             </div>
           </CardContent>
@@ -540,34 +576,46 @@ export function UserProfileContent({
       <Card>
         <CardHeader>
           <CardTitle className="text-lg">Recent Activities</CardTitle>
-          <CardDescription>Latest activities in {challenge.name}</CardDescription>
+          <CardDescription>
+            Latest activities in {challenge.name}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {stats.recentActivities.length > 0 ? (
             <div className="space-y-3">
-              {stats.recentActivities.map((activity: { _id: string; activityTypeName: string; loggedDate: number; pointsEarned: number; createdAt: number; isNegative?: boolean }) => (
-                <Link
-                  key={activity._id}
-                  href={`/challenges/${challengeId}/activities/${activity._id}`}
-                  className="flex items-center justify-between rounded-lg border bg-muted/30 p-4 transition-colors hover:bg-muted/50"
-                >
-                  <div className="flex-1">
-                    <p className="font-medium">{activity.activityTypeName}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {formatDistanceToNow(new Date(activity.createdAt), {
-                        addSuffix: true,
-                      })}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <PointsDisplay
-                      points={activity.pointsEarned}
-                      isNegative={activity.isNegative}
-                      size="base"
-                    />
-                  </div>
-                </Link>
-              ))}
+              {stats.recentActivities.map(
+                (activity: {
+                  _id: string;
+                  activityTypeName: string;
+                  loggedDate: number;
+                  pointsEarned: number;
+                  createdAt: number;
+                  isNegative?: boolean;
+                }) => (
+                  <Link
+                    key={activity._id}
+                    href={`/challenges/${challengeId}/activities/${activity._id}`}
+                    className="flex items-center justify-between rounded-lg border bg-muted/30 p-4 transition-colors hover:bg-muted/50"
+                  >
+                    <div className="flex-1">
+                      <p className="font-medium">{activity.activityTypeName}</p>
+                      <p className="text-sm text-muted-foreground">
+                        {formatMonthDayFromUtcMs(activity.loggedDate)} ·{" "}
+                        {formatDistanceToNow(new Date(activity.createdAt), {
+                          addSuffix: true,
+                        })}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <PointsDisplay
+                        points={activity.pointsEarned}
+                        isNegative={activity.isNegative}
+                        size="base"
+                      />
+                    </div>
+                  </Link>
+                ),
+              )}
             </div>
           ) : (
             <p className="py-8 text-center text-sm text-muted-foreground">
@@ -620,10 +668,9 @@ type EarnedItem = {
 /** Format progress fraction into a human-readable label. */
 function formatProgress(item: OwnProgressItem): string {
   const { criteriaType, currentCount, requiredCount } = item;
-  const current =
-    Number.isInteger(currentCount)
-      ? currentCount
-      : currentCount.toFixed(1);
+  const current = Number.isInteger(currentCount)
+    ? currentCount
+    : currentCount.toFixed(1);
   switch (criteriaType) {
     case "cumulative":
       return `${current} / ${requiredCount}`;
@@ -704,7 +751,7 @@ function AchievementsSection({
   const earned = allProgress.filter((a) => a.isEarned);
   // Hide once_per_challenge achievements that are already earned from the "still available" list
   const available = allProgress.filter(
-    (a) => !a.isEarned && !(a.frequency === "once_per_challenge" && a.isEarned)
+    (a) => !a.isEarned && !(a.frequency === "once_per_challenge" && a.isEarned),
   );
 
   const hasEarned = earned.length > 0;
@@ -763,12 +810,15 @@ function AchievementsSection({
             )}
             <div className="space-y-2">
               {available.map((item) => {
-                const pct = item.requiredCount > 0
-                  ? Math.min(
-                      100,
-                      Math.round((item.currentCount / item.requiredCount) * 100)
-                    )
-                  : 0;
+                const pct =
+                  item.requiredCount > 0
+                    ? Math.min(
+                        100,
+                        Math.round(
+                          (item.currentCount / item.requiredCount) * 100,
+                        ),
+                      )
+                    : 0;
                 return (
                   <div
                     key={item.achievementId}
