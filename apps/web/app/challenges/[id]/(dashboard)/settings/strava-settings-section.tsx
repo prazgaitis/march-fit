@@ -18,7 +18,6 @@ import {
   Download,
   Link2,
   Loader2,
-  Map,
   RefreshCw,
   Trophy,
   Unplug,
@@ -349,13 +348,17 @@ export function StravaSettingsSection({
                   const isImporting = importing.has(stravaActivity.id);
                   const canImport =
                     scoring.mappingSource !== "none" && !isImported && !isImporting;
+                  const hasDuplicate = potentialDuplicate && !isImported;
+                  const dateStr = stravaActivity.start_date_local
+                    ? format(new Date(stravaActivity.start_date_local), "MMM d, h:mm a")
+                    : format(new Date(stravaActivity.start_date), "MMM d, h:mm a");
 
                   return (
                     <div
                       key={stravaActivity.id}
                       className={cn(
-                        "rounded-lg border p-3",
-                        potentialDuplicate && !isImported
+                        "rounded-lg border px-3 py-2",
+                        hasDuplicate
                           ? "border-amber-500/30 bg-amber-500/5"
                           : scoring.mappingSource === "none"
                             ? "border-zinc-800 bg-zinc-900/50"
@@ -364,38 +367,53 @@ export function StravaSettingsSection({
                               : "border-zinc-700 bg-zinc-900",
                       )}
                     >
-                      {/* Header row */}
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0 flex-1 space-y-1">
-                          <p className="truncate text-sm font-medium text-zinc-200">
-                            {stravaActivity.name}
-                          </p>
-                          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-500">
-                            <span className="flex items-center gap-1">
-                              <Clock className="h-3 w-3" />
-                              {stravaActivity.start_date_local
-                                ? format(
-                                    new Date(stravaActivity.start_date_local),
-                                    "MMM d, yyyy h:mm a",
-                                  )
-                                : format(
-                                    new Date(stravaActivity.start_date),
-                                    "MMM d, yyyy h:mm a",
-                                  )}
-                            </span>
-                            <Badge variant="secondary" className="text-[10px]">
+                      {/* Primary row: name + metrics | points + action */}
+                      <div className="flex items-center gap-3">
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2">
+                            <p className="truncate text-sm font-medium text-zinc-200">
+                              {stravaActivity.name}
+                            </p>
+                            {hasDuplicate && (
+                              <Copy className="h-3 w-3 shrink-0 text-amber-400" />
+                            )}
+                          </div>
+                          <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-zinc-500">
+                            <span>{dateStr}</span>
+                            <span className="text-zinc-700">·</span>
+                            <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
                               {stravaActivity.sport_type}
                             </Badge>
+                            {stravaActivity.distance != null && stravaActivity.distance > 0 && (
+                              <>
+                                <span className="text-zinc-700">·</span>
+                                <span>{((scoring.metrics.distance_miles as number) || 0).toFixed(1)} mi</span>
+                              </>
+                            )}
+                            <span className="text-zinc-700">·</span>
+                            <span>{scoring.metrics.minutes as number} min</span>
+                            {scoring.mappingSource !== "none" && scoring.activityTypeName && (
+                              <>
+                                <span className="text-zinc-700">·</span>
+                                <span className="text-zinc-500">{scoring.activityTypeName}</span>
+                              </>
+                            )}
+                            {scoring.mappingSource === "none" && (
+                              <>
+                                <span className="text-zinc-700">·</span>
+                                <span className="text-zinc-600">No mapping</span>
+                              </>
+                            )}
                           </div>
                         </div>
 
                         {/* Points + action */}
-                        <div className="flex shrink-0 flex-col items-end gap-1.5">
+                        <div className="flex shrink-0 items-center gap-2">
                           {scoring.mappingSource !== "none" && (
                             <div className="text-right">
                               <span
                                 className={cn(
-                                  "text-lg font-bold leading-none",
+                                  "text-sm font-bold",
                                   scoring.bonusPoints > 0
                                     ? "text-amber-400"
                                     : "text-emerald-400",
@@ -403,12 +421,12 @@ export function StravaSettingsSection({
                               >
                                 {scoring.totalPoints.toFixed(1)}
                               </span>
-                              <span className="ml-1 text-xs text-zinc-500">pts</span>
+                              <span className="ml-0.5 text-[10px] text-zinc-500">pts</span>
                             </div>
                           )}
                           {isImported ? (
-                            <Badge className="border-emerald-500/50 bg-emerald-500/20 text-emerald-400 text-xs whitespace-nowrap">
-                              <Check className="mr-1 h-3 w-3" />
+                            <Badge className="border-emerald-500/50 bg-emerald-500/20 text-emerald-400 text-[10px] whitespace-nowrap px-1.5 py-0.5">
+                              <Check className="mr-0.5 h-3 w-3" />
                               Synced
                             </Badge>
                           ) : (
@@ -417,7 +435,7 @@ export function StravaSettingsSection({
                               size="sm"
                               disabled={!canImport}
                               onClick={() => handleImport(stravaActivity)}
-                              className="h-7 gap-1 px-2 text-xs"
+                              className="h-6 gap-1 px-2 text-[10px]"
                             >
                               {isImporting ? (
                                 <Loader2 className="h-3 w-3 animate-spin" />
@@ -430,53 +448,13 @@ export function StravaSettingsSection({
                         </div>
                       </div>
 
-                      {/* Metrics row */}
-                      <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-zinc-400">
-                        {stravaActivity.distance != null &&
-                          stravaActivity.distance > 0 && (
-                            <span className="flex items-center gap-1">
-                              <Map className="h-3 w-3" />
-                              {(
-                                (scoring.metrics.distance_miles as number) || 0
-                              ).toFixed(2)}{" "}
-                              mi
-                            </span>
-                          )}
-                        <span className="flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          {scoring.metrics.minutes as number} min
-                        </span>
-                        {scoring.mappingSource !== "none" && scoring.activityTypeName && (
-                          <Badge variant="outline" className="text-[10px]">
-                            {scoring.activityTypeName}
-                          </Badge>
-                        )}
-                        {scoring.mappingSource === "none" && (
-                          <span className="text-zinc-600">No mapping configured</span>
-                        )}
-                      </div>
-
-                      {/* Potential duplicate warning */}
-                      {potentialDuplicate && !isImported && (
-                        <div className="mt-2 flex items-start gap-1.5 rounded-md bg-amber-500/10 px-2 py-1.5 text-xs text-amber-400">
-                          <Copy className="mt-0.5 h-3 w-3 shrink-0" />
-                          <div>
-                            <span className="font-medium">
-                              Possible duplicate
-                              {potentialDuplicate.confidence === "high" ? "" : " (low confidence)"}
-                            </span>
-                            <span className="text-amber-400/70"> — {potentialDuplicate.reason}</span>
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Triggered bonuses */}
+                      {/* Triggered bonuses - compact inline */}
                       {scoring.triggeredBonuses.length > 0 && (
-                        <div className="mt-2 flex flex-wrap gap-1.5">
+                        <div className="mt-1 flex flex-wrap gap-1">
                           {scoring.triggeredBonuses.map((bonus, idx) => (
                             <span
                               key={idx}
-                              className="flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] text-amber-400"
+                              className="flex items-center gap-0.5 rounded-full bg-amber-500/10 px-1.5 py-0 text-[10px] text-amber-400"
                             >
                               <Trophy className="h-2.5 w-2.5" />
                               {bonus.description} (+{bonus.bonusPoints})
@@ -485,11 +463,21 @@ export function StravaSettingsSection({
                         </div>
                       )}
 
+                      {/* Duplicate warning - compact */}
+                      {hasDuplicate && (
+                        <div className="mt-1 flex items-center gap-1 text-[10px] text-amber-400/80">
+                          <span className="font-medium">
+                            Possible duplicate{potentialDuplicate.confidence === "high" ? "" : " (low confidence)"}
+                          </span>
+                          <span className="text-amber-400/60">— {potentialDuplicate.reason}</span>
+                        </div>
+                      )}
+
                       {/* Expandable details */}
                       <button
                         type="button"
                         onClick={() => toggleExpanded(stravaActivity.id)}
-                        className="mt-2 flex items-center gap-1 text-[10px] text-zinc-600 hover:text-zinc-400"
+                        className="mt-1 flex items-center gap-1 text-[10px] text-zinc-600 hover:text-zinc-400"
                       >
                         Details
                         {expandedIds.has(stravaActivity.id) ? (
@@ -499,7 +487,7 @@ export function StravaSettingsSection({
                         )}
                       </button>
                       {expandedIds.has(stravaActivity.id) && (
-                        <div className="mt-2 space-y-1.5 border-t border-zinc-800 pt-2 text-xs text-zinc-500">
+                        <div className="mt-1.5 space-y-1 border-t border-zinc-800 pt-1.5 text-xs text-zinc-500">
                           <p>
                             <span className="text-zinc-400">Strava ID:</span>{" "}
                             {stravaActivity.id}

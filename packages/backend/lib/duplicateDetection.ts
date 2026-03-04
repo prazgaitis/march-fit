@@ -140,12 +140,11 @@ export function findPotentialDuplicates(
 
   for (let i = 0; i < stravaActivities.length; i++) {
     const strava = stravaActivities[i];
-    if (!strava.activityTypeId) continue;
 
-    // Find manual activities on the same date with the same activity type
+    // Find manual activities on the same date (any activity type — users may
+    // have logged the activity under the wrong type)
     const candidates = manualActivities.filter((manual) => {
       if (manual.source !== "manual") return false;
-      if (String(manual.activityTypeId) !== strava.activityTypeId) return false;
 
       // Compare dates: manual.loggedDate is UTC ms, strava.loggedDateStr is "YYYY-MM-DD"
       const manualDate = new Date(manual.loggedDate);
