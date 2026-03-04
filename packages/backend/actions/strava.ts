@@ -4,8 +4,14 @@ import { action, internalAction } from "../_generated/server";
 import { api, internal } from "../_generated/api";
 import { v } from "convex/values";
 import type { Id } from "../_generated/dataModel";
-import { coerceDateOnlyToString } from "../lib/dateOnly";
+import { coerceDateOnlyToString, parseDateOnlyToUtcMs } from "../lib/dateOnly";
 import { applyActivityPointSign } from "../lib/scoring";
+import {
+  findPotentialDuplicates,
+  type StravaActivityForDuplicateCheck,
+  type CandidateActivity,
+  type DuplicateMatch,
+} from "../lib/duplicateDetection";
 
 interface StravaTokenResponse {
   access_token: string;
@@ -552,6 +558,11 @@ export const testStravaConnection = action({
       stravaActivity: StravaActivity;
       scoring: ScoringPreview;
       alreadyImported: boolean;
+      potentialDuplicate: {
+        activityId: string;
+        reason: string;
+        confidence: "high" | "medium";
+      } | null;
     }>;
     tokenRefreshed: boolean;
   }> => {
@@ -628,11 +639,54 @@ export const testStravaConnection = action({
       ),
     );
 
-    const results = stravaActivities.map((stravaActivity: StravaActivity, i: number) => ({
-      stravaActivity,
-      scoring: calculateScoringPreview(stravaActivity, scoringData),
-      alreadyImported: existingChecks[i] !== null,
-    }));
+    const scoringResults = stravaActivities.map((stravaActivity: StravaActivity) =>
+      calculateScoringPreview(stravaActivity, scoringData),
+    );
+
+    // Duplicate detection: find manually-logged activities that may be duplicates
+    // Compute the date range from the Strava activities
+    const stravaDates = stravaActivities.map((a: StravaActivity) =>
+      (a.start_date_local ?? a.start_date).split("T")[0],
+    );
+    const uniqueDates = [...new Set(stravaDates)].sort();
+    let duplicateMap = new Map<number, DuplicateMatch>();
+    if (uniqueDates.length > 0) {
+      const startDateMs = parseDateOnlyToUtcMs(uniqueDates[0]);
+      const endDateMs = parseDateOnlyToUtcMs(uniqueDates[uniqueDates.length - 1]);
+
+      const manualActivities = await ctx.runQuery(
+        internal.queries.admin.getManualActivitiesForDateRange,
+        {
+          userId: user._id,
+          challengeId: args.challengeId,
+          startDateMs,
+          endDateMs,
+        },
+      ) as CandidateActivity[];
+
+      if (manualActivities.length > 0) {
+        const stravaForCheck: StravaActivityForDuplicateCheck[] =
+          stravaActivities.map((a: StravaActivity, i: number) => ({
+            loggedDateStr: stravaDates[i],
+            activityTypeId: scoringResults[i].activityTypeId,
+            metrics: scoringResults[i].metrics as Record<string, unknown>,
+          }));
+
+        duplicateMap = findPotentialDuplicates(stravaForCheck, manualActivities);
+      }
+    }
+
+    const results = stravaActivities.map((stravaActivity: StravaActivity, i: number) => {
+      const dup = duplicateMap.get(i);
+      return {
+        stravaActivity,
+        scoring: scoringResults[i],
+        alreadyImported: existingChecks[i] !== null,
+        potentialDuplicate: dup
+          ? { activityId: String(dup.activityId), reason: dup.reason, confidence: dup.confidence }
+          : null,
+      };
+    });
 
     return { activities: results, tokenRefreshed };
   },

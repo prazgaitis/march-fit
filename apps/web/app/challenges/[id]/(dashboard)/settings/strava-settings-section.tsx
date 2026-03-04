@@ -8,11 +8,13 @@ import { format } from "date-fns";
 import {
   Activity,
   AlertCircle,
+  AlertTriangle,
   Check,
   CheckCircle2,
   ChevronDown,
   ChevronUp,
   Clock,
+  Copy,
   Download,
   Link2,
   Loader2,
@@ -67,10 +69,17 @@ interface ScoringPreview {
   mappingSource: "explicit" | "fallback" | "none";
 }
 
+interface PotentialDuplicate {
+  activityId: string;
+  reason: string;
+  confidence: "high" | "medium";
+}
+
 interface ActivityWithScoring {
   stravaActivity: StravaActivity;
   scoring: ScoringPreview;
   alreadyImported: boolean;
+  potentialDuplicate: PotentialDuplicate | null;
 }
 
 interface StravaSettingsSectionProps {
@@ -308,7 +317,14 @@ export function StravaSettingsSection({
                   <p className="text-sm font-medium text-zinc-300">
                     Recent Activities ({activities.length})
                   </p>
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {activities.filter((a) => a.potentialDuplicate && !a.alreadyImported && !imported.has(a.stravaActivity.id)).length > 0 && (
+                      <Badge variant="outline" className="text-xs border-amber-500/50 text-amber-400">
+                        <AlertTriangle className="mr-1 h-3 w-3" />
+                        {activities.filter((a) => a.potentialDuplicate && !a.alreadyImported && !imported.has(a.stravaActivity.id)).length}{" "}
+                        possible duplicates
+                      </Badge>
+                    )}
                     {activities.filter((a) => a.alreadyImported || imported.has(a.stravaActivity.id)).length > 0 && (
                       <Badge variant="outline" className="text-xs border-emerald-500/50 text-emerald-400">
                         {activities.filter((a) => a.alreadyImported || imported.has(a.stravaActivity.id)).length}{" "}
@@ -328,7 +344,7 @@ export function StravaSettingsSection({
                   </p>
                 )}
 
-                {activities.map(({ stravaActivity, scoring, alreadyImported }) => {
+                {activities.map(({ stravaActivity, scoring, alreadyImported, potentialDuplicate }) => {
                   const isImported = alreadyImported || imported.has(stravaActivity.id);
                   const isImporting = importing.has(stravaActivity.id);
                   const canImport =
@@ -339,11 +355,13 @@ export function StravaSettingsSection({
                       key={stravaActivity.id}
                       className={cn(
                         "rounded-lg border p-3",
-                        scoring.mappingSource === "none"
-                          ? "border-zinc-800 bg-zinc-900/50"
-                          : isImported
-                            ? "border-emerald-500/20 bg-zinc-900/80"
-                            : "border-zinc-700 bg-zinc-900",
+                        potentialDuplicate && !isImported
+                          ? "border-amber-500/30 bg-amber-500/5"
+                          : scoring.mappingSource === "none"
+                            ? "border-zinc-800 bg-zinc-900/50"
+                            : isImported
+                              ? "border-emerald-500/20 bg-zinc-900/80"
+                              : "border-zinc-700 bg-zinc-900",
                       )}
                     >
                       {/* Header row */}
@@ -437,6 +455,20 @@ export function StravaSettingsSection({
                           <span className="text-zinc-600">No mapping configured</span>
                         )}
                       </div>
+
+                      {/* Potential duplicate warning */}
+                      {potentialDuplicate && !isImported && (
+                        <div className="mt-2 flex items-start gap-1.5 rounded-md bg-amber-500/10 px-2 py-1.5 text-xs text-amber-400">
+                          <Copy className="mt-0.5 h-3 w-3 shrink-0" />
+                          <div>
+                            <span className="font-medium">
+                              Possible duplicate
+                              {potentialDuplicate.confidence === "high" ? "" : " (low confidence)"}
+                            </span>
+                            <span className="text-amber-400/70"> — {potentialDuplicate.reason}</span>
+                          </div>
+                        </div>
+                      )}
 
                       {/* Triggered bonuses */}
                       {scoring.triggeredBonuses.length > 0 && (
