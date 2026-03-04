@@ -1,8 +1,8 @@
 "use client";
 
-import { memo, useCallback, useState } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 import Link from "next/link";
-import { Flame, Loader2, MapPin, Trophy, UserCheck, UserPlus } from "lucide-react";
+import { ChevronDown, Flame, Loader2, MapPin, Trophy, UserCheck, UserPlus } from "lucide-react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
@@ -10,6 +10,8 @@ import type { Id } from "@repo/backend/_generated/dataModel";
 import { PointsDisplay } from "@/components/ui/points-display";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+
+const INITIAL_VISIBLE = 50;
 
 interface LeaderboardEntry {
   rank: number;
@@ -172,8 +174,30 @@ const LeaderboardEntryRow = memo(function LeaderboardEntryRow({
 });
 
 export function LeaderboardList({ entries, challengeId, currentUserId }: LeaderboardListProps) {
+  const [showAll, setShowAll] = useState(false);
   const followingIds = useQuery(api.queries.follows.getFollowingIds);
-  const followingSet = new Set(followingIds ?? []);
+
+  // Memoize the Set to avoid recreating it on every render
+  const followingSet = useMemo(
+    () => new Set(followingIds ?? []),
+    [followingIds],
+  );
+
+  // Limit initial render to INITIAL_VISIBLE rows to avoid mobile scroll jank
+  // on large challenges. Always include the current user's row so they can
+  // see their own rank even if they're outside the top N.
+  const visibleEntries = useMemo(() => {
+    if (showAll || entries.length <= INITIAL_VISIBLE) return entries;
+
+    const top = entries.slice(0, INITIAL_VISIBLE);
+    const currentUserInTop = top.some((e) => e.user.id === currentUserId);
+    if (currentUserInTop) return top;
+
+    const currentUserEntry = entries.find((e) => e.user.id === currentUserId);
+    return currentUserEntry ? [...top, currentUserEntry] : top;
+  }, [entries, showAll, currentUserId]);
+
+  const hiddenCount = entries.length - INITIAL_VISIBLE;
 
   if (entries.length === 0) {
     return (
@@ -189,7 +213,7 @@ export function LeaderboardList({ entries, challengeId, currentUserId }: Leaderb
 
   return (
     <div className="space-y-2">
-      {entries.map((entry) => (
+      {visibleEntries.map((entry) => (
         <LeaderboardEntryRow
           key={entry.user.id}
           entry={entry}
@@ -198,6 +222,16 @@ export function LeaderboardList({ entries, challengeId, currentUserId }: Leaderb
           isFollowing={followingSet.has(entry.user.id as Id<"users">)}
         />
       ))}
+
+      {!showAll && hiddenCount > 0 && (
+        <button
+          onClick={() => setShowAll(true)}
+          className="flex w-full items-center justify-center gap-2 rounded-xl border border-zinc-800 bg-zinc-900/30 py-3 text-sm text-zinc-400 transition hover:bg-zinc-800/50 hover:text-zinc-200"
+        >
+          <ChevronDown className="h-4 w-4" />
+          Show all {entries.length} participants
+        </button>
+      )}
     </div>
   );
 }
