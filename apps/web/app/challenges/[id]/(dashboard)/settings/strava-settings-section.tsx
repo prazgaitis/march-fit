@@ -8,11 +8,13 @@ import { format } from "date-fns";
 import {
   Activity,
   AlertCircle,
+  AlertTriangle,
   Check,
   CheckCircle2,
   ChevronDown,
   ChevronUp,
   Clock,
+  Copy,
   Download,
   Link2,
   Loader2,
@@ -67,9 +69,17 @@ interface ScoringPreview {
   mappingSource: "explicit" | "fallback" | "none";
 }
 
+interface PotentialDuplicate {
+  activityId: string;
+  reason: string;
+  confidence: "high" | "medium";
+}
+
 interface ActivityWithScoring {
   stravaActivity: StravaActivity;
   scoring: ScoringPreview;
+  alreadyImported: boolean;
+  potentialDuplicate: PotentialDuplicate | null;
 }
 
 interface StravaSettingsSectionProps {
@@ -235,9 +245,27 @@ export function StravaSettingsSection({
       <CardContent className="space-y-4">
         {/* Error */}
         {error && (
-          <div className="flex items-start gap-2 rounded-lg border border-red-500/50 bg-red-500/10 p-3 text-sm text-red-400">
-            <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-            <span>{error}</span>
+          <div className="rounded-lg border border-red-500/50 bg-red-500/10 p-3">
+            <div className="flex items-start gap-2 text-sm text-red-400">
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+              <div className="min-w-0 space-y-1">
+                <p className="font-medium">
+                  {error.includes("reconnect")
+                    ? "Strava Connection Lost"
+                    : error.includes("already been imported")
+                      ? "Duplicate Activity"
+                      : error.includes("No active Strava")
+                        ? "Strava Not Connected"
+                        : "Something went wrong"}
+                </p>
+                <p className="text-xs text-red-400/80 break-words">{error}</p>
+                {error.includes("reconnect") && (
+                  <p className="text-xs text-zinc-400">
+                    Try disconnecting and reconnecting your Strava account below.
+                  </p>
+                )}
+              </div>
+            </div>
           </div>
         )}
 
@@ -285,14 +313,29 @@ export function StravaSettingsSection({
             {/* Activities list */}
             {activities && (
               <div className="space-y-3">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-2">
                   <p className="text-sm font-medium text-zinc-300">
                     Recent Activities ({activities.length})
                   </p>
-                  <Badge variant="outline" className="text-xs">
-                    {activities.filter((a) => a.scoring.mappingSource !== "none").length}{" "}
-                    mapped
-                  </Badge>
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {activities.filter((a) => a.potentialDuplicate && !a.alreadyImported && !imported.has(a.stravaActivity.id)).length > 0 && (
+                      <Badge variant="outline" className="text-xs border-amber-500/50 text-amber-400">
+                        <AlertTriangle className="mr-1 h-3 w-3" />
+                        {activities.filter((a) => a.potentialDuplicate && !a.alreadyImported && !imported.has(a.stravaActivity.id)).length}{" "}
+                        possible duplicates
+                      </Badge>
+                    )}
+                    {activities.filter((a) => a.alreadyImported || imported.has(a.stravaActivity.id)).length > 0 && (
+                      <Badge variant="outline" className="text-xs border-emerald-500/50 text-emerald-400">
+                        {activities.filter((a) => a.alreadyImported || imported.has(a.stravaActivity.id)).length}{" "}
+                        synced
+                      </Badge>
+                    )}
+                    <Badge variant="outline" className="text-xs">
+                      {activities.filter((a) => a.scoring.mappingSource !== "none").length}{" "}
+                      mapped
+                    </Badge>
+                  </div>
                 </div>
 
                 {activities.length === 0 && (
@@ -301,8 +344,8 @@ export function StravaSettingsSection({
                   </p>
                 )}
 
-                {activities.map(({ stravaActivity, scoring }) => {
-                  const isImported = imported.has(stravaActivity.id);
+                {activities.map(({ stravaActivity, scoring, alreadyImported, potentialDuplicate }) => {
+                  const isImported = alreadyImported || imported.has(stravaActivity.id);
                   const isImporting = importing.has(stravaActivity.id);
                   const canImport =
                     scoring.mappingSource !== "none" && !isImported && !isImporting;
@@ -312,9 +355,13 @@ export function StravaSettingsSection({
                       key={stravaActivity.id}
                       className={cn(
                         "rounded-lg border p-3",
-                        scoring.mappingSource === "none"
-                          ? "border-zinc-800 bg-zinc-900/50"
-                          : "border-zinc-700 bg-zinc-900",
+                        potentialDuplicate && !isImported
+                          ? "border-amber-500/30 bg-amber-500/5"
+                          : scoring.mappingSource === "none"
+                            ? "border-zinc-800 bg-zinc-900/50"
+                            : isImported
+                              ? "border-emerald-500/20 bg-zinc-900/80"
+                              : "border-zinc-700 bg-zinc-900",
                       )}
                     >
                       {/* Header row */}
@@ -323,7 +370,7 @@ export function StravaSettingsSection({
                           <p className="truncate text-sm font-medium text-zinc-200">
                             {stravaActivity.name}
                           </p>
-                          <div className="flex flex-wrap items-center gap-2 text-xs text-zinc-500">
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-zinc-500">
                             <span className="flex items-center gap-1">
                               <Clock className="h-3 w-3" />
                               {stravaActivity.start_date_local
@@ -342,13 +389,13 @@ export function StravaSettingsSection({
                           </div>
                         </div>
 
-                        {/* Points + import */}
-                        <div className="flex items-center gap-2">
+                        {/* Points + action */}
+                        <div className="flex shrink-0 flex-col items-end gap-1.5">
                           {scoring.mappingSource !== "none" && (
                             <div className="text-right">
                               <span
                                 className={cn(
-                                  "text-lg font-bold",
+                                  "text-lg font-bold leading-none",
                                   scoring.bonusPoints > 0
                                     ? "text-amber-400"
                                     : "text-emerald-400",
@@ -360,9 +407,9 @@ export function StravaSettingsSection({
                             </div>
                           )}
                           {isImported ? (
-                            <Badge className="border-emerald-500/50 bg-emerald-500/20 text-emerald-400 text-xs">
+                            <Badge className="border-emerald-500/50 bg-emerald-500/20 text-emerald-400 text-xs whitespace-nowrap">
                               <Check className="mr-1 h-3 w-3" />
-                              Imported
+                              Synced
                             </Badge>
                           ) : (
                             <Button
@@ -408,6 +455,20 @@ export function StravaSettingsSection({
                           <span className="text-zinc-600">No mapping configured</span>
                         )}
                       </div>
+
+                      {/* Potential duplicate warning */}
+                      {potentialDuplicate && !isImported && (
+                        <div className="mt-2 flex items-start gap-1.5 rounded-md bg-amber-500/10 px-2 py-1.5 text-xs text-amber-400">
+                          <Copy className="mt-0.5 h-3 w-3 shrink-0" />
+                          <div>
+                            <span className="font-medium">
+                              Possible duplicate
+                              {potentialDuplicate.confidence === "high" ? "" : " (low confidence)"}
+                            </span>
+                            <span className="text-amber-400/70"> — {potentialDuplicate.reason}</span>
+                          </div>
+                        </div>
+                      )}
 
                       {/* Triggered bonuses */}
                       {scoring.triggeredBonuses.length > 0 && (
