@@ -20,14 +20,14 @@ const BASE_SCORE = 1;
 const FLAG_PENALTY = -100;
 
 function descriptionBoost(length: number): number {
-  if (length >= 100) return 8;
-  if (length >= 50) return 5;
-  if (length >= 20) return 2;
+  if (length >= 100) return 16;
+  if (length >= 50) return 10;
+  if (length >= 20) return 4;
   return 0;
 }
 
 function mediaBoost(count: number): number {
-  return Math.min(count * 5, 15);
+  return Math.min(count * 10, 30);
 }
 
 function pointsBoost(pointsEarned: number): number {
@@ -124,7 +124,7 @@ export function computePersonalizedRank(
 
 export function computeTimeDecay(createdAtMs: number, nowMs: number): number {
   const hoursAge = Math.max(0, (nowMs - createdAtMs) / (1000 * 60 * 60));
-  return 1 / (1 + hoursAge / 24);
+  return 1 / (1 + hoursAge / 4);
 }
 
 // ── Final display score (query time) ───────────────────────────
