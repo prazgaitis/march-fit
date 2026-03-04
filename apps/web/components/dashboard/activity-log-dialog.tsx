@@ -37,13 +37,21 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import {
+  DrawerNestedRoot,
+  DrawerContent,
+  DrawerTrigger,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer";
 import { DatePicker } from "@/components/ui/date-picker";
+import { useIsMobile } from "@/hooks/use-media-query";
 import { useMentionableUsers } from "@/hooks/use-mentionable-users";
 import { isEditorContentEmpty } from "@/lib/rich-text-utils";
 import { cn } from "@/lib/utils";
 import { PointsDisplay } from "@/components/ui/points-display";
 import { formatPoints } from "@/lib/points";
-import { isToday } from "date-fns";
+import { format, isToday, isSameDay, subDays } from "date-fns";
 import { formatDateOnlyFromLocalDate, formatDateShortFromDateOnly } from "@/lib/date-only";
 
 interface ActivityLogDialogProps {
@@ -103,6 +111,215 @@ const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 const ACCEPTED_IMAGE_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
 const ACCEPTED_VIDEO_TYPES = ["video/mp4", "video/quicktime", "video/webm"];
 const ACCEPTED_TYPES = [...ACCEPTED_IMAGE_TYPES, ...ACCEPTED_VIDEO_TYPES];
+
+interface ActivityTypePickerProps {
+  activityTypes: Doc<"activityTypes">[] | undefined;
+  selectedId: string;
+  isLoading: boolean;
+  comboboxOpen: boolean;
+  onComboboxOpenChange: (open: boolean) => void;
+  onSelect: (type: Doc<"activityTypes">) => void;
+  popoverContainer: HTMLElement | null;
+}
+
+function ActivityTypePickerContent({
+  activityTypes,
+  selectedId,
+  onSelect,
+}: Pick<ActivityTypePickerProps, "activityTypes" | "selectedId" | "onSelect">) {
+  return (
+    <Command className="h-auto">
+      <CommandInput placeholder="Search activity type..." />
+      <CommandList>
+        <CommandEmpty>No activity type found.</CommandEmpty>
+        <CommandGroup>
+          {activityTypes?.map((type: Doc<"activityTypes">) => (
+            <CommandItem
+              key={type._id}
+              value={type.name}
+              onSelect={() => onSelect(type)}
+            >
+              <Check
+                className={cn(
+                  "mr-2 h-4 w-4",
+                  selectedId === type._id ? "opacity-100" : "opacity-0"
+                )}
+              />
+              <div className="flex flex-col">
+                <span>{type.name}</span>
+                <span className="text-xs text-muted-foreground">
+                  {type.isNegative ? "Penalty" : "Workout"}
+                  {type.contributesToStreak ? " • Counts toward streak" : ""}
+                </span>
+              </div>
+            </CommandItem>
+          ))}
+        </CommandGroup>
+      </CommandList>
+    </Command>
+  );
+}
+
+function ActivityTypePicker({
+  activityTypes,
+  selectedId,
+  isLoading,
+  comboboxOpen,
+  onComboboxOpenChange,
+  onSelect,
+  popoverContainer,
+}: ActivityTypePickerProps) {
+  const isMobile = useIsMobile();
+
+  const triggerButton = (
+    <Button
+      variant="outline"
+      role="combobox"
+      aria-expanded={comboboxOpen}
+      className="w-full justify-between h-auto min-h-[44px] px-3 py-2 text-left font-normal"
+      disabled={isLoading || (activityTypes && activityTypes.length === 0)}
+    >
+      {selectedId && activityTypes
+        ? (() => {
+            const type = activityTypes.find(
+              (t: Doc<"activityTypes">) => t._id === selectedId
+            );
+            return type ? (
+              <div className="flex flex-col items-start gap-0.5">
+                <span className="font-medium">{type.name}</span>
+                <span className="text-xs text-muted-foreground">
+                  {type.isNegative ? "Penalty" : "Workout"}
+                  {type.contributesToStreak ? " • Counts toward streak" : ""}
+                </span>
+              </div>
+            ) : (
+              "Select activity type..."
+            );
+          })()
+        : "Select activity type..."}
+      <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+    </Button>
+  );
+
+  const handleSelect = (type: Doc<"activityTypes">) => {
+    onSelect(type);
+    onComboboxOpenChange(false);
+  };
+
+  if (isMobile) {
+    return (
+      <DrawerNestedRoot open={comboboxOpen} onOpenChange={onComboboxOpenChange}>
+        <DrawerTrigger asChild>{triggerButton}</DrawerTrigger>
+        <DrawerContent className="max-h-[85vh]">
+          <DrawerHeader>
+            <DrawerTitle>Select activity type</DrawerTitle>
+          </DrawerHeader>
+          <div className="px-4 pb-4 flex-1 overflow-hidden">
+            <ActivityTypePickerContent
+              activityTypes={activityTypes}
+              selectedId={selectedId}
+              onSelect={handleSelect}
+            />
+          </div>
+        </DrawerContent>
+      </DrawerNestedRoot>
+    );
+  }
+
+  return (
+    <Popover open={comboboxOpen} onOpenChange={onComboboxOpenChange}>
+      <PopoverTrigger asChild>{triggerButton}</PopoverTrigger>
+      <PopoverContent
+        container={popoverContainer}
+        className="z-[60] max-h-[60vh] w-[--radix-popover-trigger-width] overflow-hidden p-0"
+        align="start"
+      >
+        <ActivityTypePickerContent
+          activityTypes={activityTypes}
+          selectedId={selectedId}
+          onSelect={handleSelect}
+        />
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+interface QuickDatePickerProps {
+  value?: Date;
+  onChange: (date: Date) => void;
+}
+
+function QuickDatePicker({ value, onChange }: QuickDatePickerProps) {
+  const isMobile = useIsMobile();
+  const today = new Date();
+  const options = [
+    { label: "Today", date: today },
+    { label: "Yesterday", date: subDays(today, 1) },
+    { label: "2 days ago", date: subDays(today, 2) },
+  ];
+
+  if (!isMobile) {
+    return (
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <Label htmlFor="logged-date">Date</Label>
+          {value && !isToday(value) && (
+            <Button
+              type="button"
+              variant="link"
+              className="h-auto p-0 text-xs"
+              onClick={() => onChange(new Date())}
+            >
+              Use today
+            </Button>
+          )}
+        </div>
+        <DatePicker value={value} onChange={(d) => d && onChange(d)} />
+        {value && !isToday(value) && (
+          <p className="mt-1.5 flex items-center gap-1.5 text-xs text-amber-400">
+            <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
+            Please try to log activities on the day you complete them.
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-2">
+      <Label>Date</Label>
+      <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1">
+        {options.map((opt) => {
+          const selected = value && isSameDay(value, opt.date);
+          return (
+            <button
+              key={opt.label}
+              type="button"
+              onClick={() => onChange(opt.date)}
+              className={cn(
+                "flex flex-col items-center gap-0.5 rounded-lg border px-4 py-2 text-sm font-medium transition-colors shrink-0",
+                selected
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-zinc-800 bg-zinc-900/50 text-zinc-400 active:bg-zinc-800"
+              )}
+            >
+              <span>{opt.label}</span>
+              <span className="text-[10px] font-normal text-muted-foreground">
+                {format(opt.date, "MMM d")}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      {value && !isToday(value) && (
+        <p className="mt-1 flex items-center gap-1.5 text-xs text-amber-400">
+          <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
+          Please try to log activities on the day you complete them.
+        </p>
+      )}
+    </div>
+  );
+}
 
 interface SuccessState {
   pointsEarned: number;
@@ -676,81 +893,23 @@ export function ActivityLogDialog({ challengeId, challengeStartDate, trigger }: 
                 ) : null}
             <div className="space-y-2">
               <Label htmlFor="activity-type">Activity type</Label>
-              <Popover open={comboboxOpen} onOpenChange={setComboboxOpen}>
-                <PopoverTrigger asChild>
-                  <Button
-                    variant="outline"
-                    role="combobox"
-                    aria-expanded={comboboxOpen}
-                    className="w-full justify-between h-auto min-h-[44px] px-3 py-2 text-left font-normal"
-                    disabled={isLoading || (activityTypes && activityTypes.length === 0)}
-                  >
-                    {form.activityTypeId && activityTypes
-                      ? (() => {
-                          const type = activityTypes.find((t: Doc<"activityTypes">) => t._id === form.activityTypeId);
-                          return type ? (
-                            <div className="flex flex-col items-start gap-0.5">
-                              <span className="font-medium">{type.name}</span>
-                              <span className="text-xs text-muted-foreground">
-                                {type.isNegative ? "Penalty" : "Workout"}
-                                {type.contributesToStreak ? " • Counts toward streak" : ""}
-                              </span>
-                            </div>
-                          ) : "Select activity type...";
-                        })()
-                      : "Select activity type..."}
-                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                  </Button>
-                </PopoverTrigger>
-                <PopoverContent
-                  container={popoverContainer}
-                  className="z-[60] max-h-[60vh] w-[--radix-popover-trigger-width] overflow-hidden p-0"
-                  align="start"
-                >
-                  <Command className="h-auto">
-                    <CommandInput placeholder="Search activity type..." />
-                    <CommandList>
-                      <CommandEmpty>No activity type found.</CommandEmpty>
-                      <CommandGroup>
-                        {activityTypes?.map((type: Doc<"activityTypes">) => (
-                          <CommandItem
-                            key={type._id}
-                            value={type.name}
-                            onSelect={() => {
-                              setForm((prev) => ({
-                                ...prev,
-                                activityTypeId: type._id,
-                                metricValue: "",
-                                selectedVariant: "",
-                                selectedBonuses: [],
-                              }));
-                              setComboboxOpen(false);
-                            }}
-                          >
-                            <Check
-                              className={cn(
-                                "mr-2 h-4 w-4",
-                                form.activityTypeId === type._id
-                                  ? "opacity-100"
-                                  : "opacity-0"
-                              )}
-                            />
-                            <div className="flex flex-col">
-                              <span>{type.name}</span>
-                              <span className="text-xs text-muted-foreground">
-                                {type.isNegative ? "Penalty" : "Workout"}
-                                {type.contributesToStreak
-                                  ? " • Counts toward streak"
-                                  : ""}
-                              </span>
-                            </div>
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
-                    </CommandList>
-                  </Command>
-                </PopoverContent>
-              </Popover>
+              <ActivityTypePicker
+                activityTypes={activityTypes}
+                selectedId={form.activityTypeId}
+                isLoading={isLoading}
+                comboboxOpen={comboboxOpen}
+                onComboboxOpenChange={setComboboxOpen}
+                onSelect={(type) => {
+                  setForm((prev) => ({
+                    ...prev,
+                    activityTypeId: type._id,
+                    metricValue: "",
+                    selectedVariant: "",
+                    selectedBonuses: [],
+                  }));
+                }}
+                popoverContainer={popoverContainer}
+              />
               {!isLoading && activityTypes && activityTypes.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
                   No activity types are available yet. Reach out to the
@@ -918,39 +1077,15 @@ export function ActivityLogDialog({ challengeId, challengeStartDate, trigger }: 
               );
             })()}
 
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="logged-date">Date</Label>
-                <Button
-                  type="button"
-                  variant="link"
-                  className="h-auto p-0 text-xs"
-                  onClick={() =>
-                    setForm((prev) => ({
-                      ...prev,
-                      loggedDate: new Date(),
-                    }))
-                  }
-                >
-                  Use today
-                </Button>
-              </div>
-              <DatePicker
-                value={form.loggedDate}
-                onChange={(date) =>
-                  setForm((prev) => ({
-                    ...prev,
-                    loggedDate: date,
-                  }))
-                }
-              />
-              {form.loggedDate && !isToday(form.loggedDate) && (
-                <p className="mt-1.5 flex items-center gap-1.5 text-xs text-amber-400">
-                  <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
-                  Please try to log activities on the day you complete them.
-                </p>
-              )}
-            </div>
+            <QuickDatePicker
+              value={form.loggedDate}
+              onChange={(date) =>
+                setForm((prev) => ({
+                  ...prev,
+                  loggedDate: date,
+                }))
+              }
+            />
 
             {metricKey ? (
               <div className="space-y-2">
