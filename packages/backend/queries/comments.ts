@@ -59,18 +59,21 @@ export const getByActivityId = query({
   handler: async (ctx, args) => {
     const user = await getCurrentUser(ctx);
 
+    // Use the compound index to filter by parentType at the DB level so that
+    // cursors are stable. In-memory filtering after paginate() caused
+    // InvalidCursor errors when flagged_activity/feedback comments were
+    // interleaved in the activityId index.
+    // The backfillCommentParentType migration ensures old comments have
+    // parentType = "activity" so none are missed.
     const comments = await ctx.db
       .query("comments")
-      .withIndex("activityId", (q) => q.eq("activityId", args.activityId))
+      .withIndex("activityIdByType", (q) =>
+        q.eq("activityId", args.activityId).eq("parentType", "activity"),
+      )
       .order("desc")
       .paginate(args.paginationOpts);
 
-    // Filter to only activity comments (not flagged_activity)
-    const activityComments = comments.page.filter(
-      (c) => !c.parentType || c.parentType === "activity",
-    );
-
-    const enriched = await enrichComments(ctx, activityComments, user?._id);
+    const enriched = await enrichComments(ctx, comments.page, user?._id);
     const page = enriched.filter((item) => item.author !== null).map((item) => ({
       ...item,
       author: item.author!,
@@ -145,15 +148,13 @@ export const getByFlaggedActivity = query({
       }
     }
 
-    const comments = await ctx.db
+    let flaggedComments = await ctx.db
       .query("comments")
-      .withIndex("activityId", (q) => q.eq("activityId", args.activityId))
+      .withIndex("activityIdByType", (q) =>
+        q.eq("activityId", args.activityId).eq("parentType", "flagged_activity"),
+      )
       .order("asc")
       .collect();
-
-    let flaggedComments = comments.filter(
-      (c) => c.parentType === "flagged_activity",
-    );
 
     // Non-admins only see participant-visible comments
     if (!isAdmin) {

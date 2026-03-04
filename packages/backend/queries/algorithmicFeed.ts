@@ -6,7 +6,7 @@ import { notDeleted } from "../lib/activityFilters";
 import {
   FOLLOWING_BOOST,
   computeAffinityBoost,
-  computePersonalizedRank,
+  computeDisplayScore,
 } from "../lib/feedScoring";
 
 /**
@@ -123,9 +123,11 @@ export const getAlgorithmicFeed = query({
           ? affinityByAuthor.get(activity.userId as string) ?? 0
           : 0;
 
-        const displayScore = computePersonalizedRank(
-          activity.feedRank ?? 0,
+        const displayScore = computeDisplayScore(
+          activity.feedScore ?? 0,
           isFollowing,
+          activity._creationTime,
+          Date.now(),
           affinityScore,
         );
 

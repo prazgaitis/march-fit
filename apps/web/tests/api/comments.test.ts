@@ -162,6 +162,19 @@ describe("Comments", () => {
         });
       });
 
+      // Simulate the backfillCommentParentType migration running —
+      // getByActivityId now queries the activityIdByType index which requires
+      // parentType to be set. The migration sets parentType="activity" on all
+      // legacy comments so they remain visible after the schema change.
+      await t.run(async (ctx) => {
+        const all = await ctx.db.query("comments").collect();
+        for (const c of all) {
+          if (!c.parentType) {
+            await ctx.db.patch(c._id, { parentType: "activity" });
+          }
+        }
+      });
+
       const tAuth = t.withIdentity({
         subject: "participant-sub",
         email: "participant@example.com",
@@ -174,7 +187,7 @@ describe("Comments", () => {
 
       expect(result.page.length).toBe(1);
       expect(result.page[0].comment.content).toBe("Pre-migration comment");
-      expect(result.page[0].comment.parentType).toBe("activity"); // defaults
+      expect(result.page[0].comment.parentType).toBe("activity"); // set by migration
     });
 
     it("pre-migration comments are counted in feed score", async () => {
