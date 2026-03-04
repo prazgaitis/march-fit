@@ -4,6 +4,7 @@ import { useState, useRef, useCallback } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { formatDistanceToNow, format } from "date-fns";
+import { formatDateOnlyFromUtcMs, formatDateShortFromDateOnly } from "@/lib/date-only";
 import { useMutation, useQuery, usePaginatedQuery } from "convex/react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
@@ -332,7 +333,7 @@ export function ActivityDetailContent({
     };
     setEditNotes(typeof activity.notes === "string" ? activity.notes : "");
     setEditNotesIsEmpty(!activity.notes || activity.notes.trim() === "");
-    setEditLoggedDate(format(new Date(activity.loggedDate), "yyyy-MM-dd"));
+    setEditLoggedDate(formatDateOnlyFromUtcMs(activity.loggedDate));
     setEditActivityTypeId(activityType._id);
     // Pre-populate metric value from existing metrics
     const config = activityType.scoringConfig ?? {};
@@ -581,7 +582,7 @@ export function ActivityDetailContent({
                 <Calendar className="h-5 w-5 text-blue-500" />
                 <div>
                   <p className="text-lg font-semibold">
-                    {format(new Date(activity.loggedDate), "MMM d, yyyy")}
+                    {formatDateShortFromDateOnly(formatDateOnlyFromUtcMs(activity.loggedDate))}
                   </p>
                   <p className="text-sm text-muted-foreground">Activity date</p>
                 </div>

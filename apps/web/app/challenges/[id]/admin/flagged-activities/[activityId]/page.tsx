@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { format, formatDistanceToNow } from "date-fns";
+import { formatDateOnlyFromUtcMs, formatDateShortFromDateOnly } from "@/lib/date-only";
 import { getConvexClient } from "@/lib/convex-server";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
@@ -59,7 +60,7 @@ export default async function FlaggedActivityDetailPage({
           <CardTitle>Flagged Activity</CardTitle>
           <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
             <span>
-              Logged on {format(new Date(detail.activity.loggedDate), "PPpp")}
+              Logged on {formatDateShortFromDateOnly(formatDateOnlyFromUtcMs(detail.activity.loggedDate))}
             </span>
             <Badge
               variant={

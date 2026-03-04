@@ -22,6 +22,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
+import { formatDateShortFromDateOnly } from "@/lib/date-only";
 
 interface SettingsContentProps {
   currentUser: {
@@ -261,8 +262,8 @@ export function SettingsContent({
                     <div>
                       <p className="font-medium">{challenge.name}</p>
                       <p className="text-sm text-muted-foreground">
-                        {new Date(challenge.startDate).toLocaleDateString()} -{" "}
-                        {new Date(challenge.endDate).toLocaleDateString()}
+                        {formatDateShortFromDateOnly(challenge.startDate)} -{" "}
+                        {formatDateShortFromDateOnly(challenge.endDate)}
                       </p>
                     </div>
                     {isCurrent && (
