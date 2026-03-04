@@ -59,7 +59,9 @@ export interface EngagementScoreInput {
 }
 
 export function computeEngagementScore(input: EngagementScoreInput): number {
-  return Math.min(input.likeCount * 3, 30) + Math.min(input.commentCount * 5, 30);
+  return (
+    Math.min(input.likeCount * 3, 30) + Math.min(input.commentCount * 5, 30)
+  );
 }
 
 // ── Combined static feed score (stored on activity) ────────────
@@ -87,14 +89,23 @@ export function getFeedDayBucket(createdAtMs: number): number {
 }
 
 export function clampFeedRankWithinBucket(feedScore: number): number {
-  return Math.max(0, Math.min(FEED_RANK_MAX_WITHIN_BUCKET, Math.round(feedScore)));
+  return Math.max(
+    0,
+    Math.min(FEED_RANK_MAX_WITHIN_BUCKET, Math.round(feedScore)),
+  );
 }
 
-export function getRankInFeedBucket(feedRank: number, createdAtMs: number): number {
+export function getRankInFeedBucket(
+  feedRank: number,
+  createdAtMs: number,
+): number {
   return feedRank - getFeedDayBucket(createdAtMs) * FEED_RANK_BUCKET_SPAN;
 }
 
-export function computeFeedRank(feedScore: number, createdAtMs: number): number {
+export function computeFeedRank(
+  feedScore: number,
+  createdAtMs: number,
+): number {
   const dayBucket = getFeedDayBucket(createdAtMs);
   const clamped = clampFeedRankWithinBucket(feedScore);
   return dayBucket * FEED_RANK_BUCKET_SPAN + clamped;
@@ -117,14 +128,11 @@ export function computePersonalizedRank(
   isFollowing: boolean,
   affinityScore: number = 0,
 ): number {
-  return feedRank + (isFollowing ? FOLLOWING_BOOST : 0) + computeAffinityBoost(affinityScore);
-}
-
-// ── Time decay (applied at query time) ─────────────────────────
-
-export function computeTimeDecay(createdAtMs: number, nowMs: number): number {
-  const hoursAge = Math.max(0, (nowMs - createdAtMs) / (1000 * 60 * 60));
-  return 1 / (1 + hoursAge / 4);
+  return (
+    feedRank +
+    (isFollowing ? FOLLOWING_BOOST : 0) +
+    computeAffinityBoost(affinityScore)
+  );
 }
 
 // ── Final display score (query time) ───────────────────────────
@@ -132,11 +140,11 @@ export function computeTimeDecay(createdAtMs: number, nowMs: number): number {
 export function computeDisplayScore(
   feedScore: number,
   isFollowing: boolean,
-  createdAtMs: number,
-  nowMs: number,
   affinityScore: number = 0,
 ): number {
-  const personalized =
-    feedScore + (isFollowing ? FOLLOWING_BOOST : 0) + computeAffinityBoost(affinityScore);
-  return personalized * computeTimeDecay(createdAtMs, nowMs);
+  return (
+    feedScore +
+    (isFollowing ? FOLLOWING_BOOST : 0) +
+    computeAffinityBoost(affinityScore)
+  );
 }

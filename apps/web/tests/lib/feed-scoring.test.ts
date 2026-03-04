@@ -6,7 +6,6 @@ import {
   computeFeedRank,
   computePersonalizedRank,
   getRankInFeedBucket,
-  computeTimeDecay,
   computeDisplayScore,
   FOLLOWING_BOOST,
   FEED_RANK_BUCKET_SPAN,
@@ -175,70 +174,29 @@ describe("computeFeedRank", () => {
   });
 });
 
-// ── Time decay ─────────────────────────────────────────────────
-
-describe("computeTimeDecay", () => {
-  const now = Date.now();
-  const HOUR = 1000 * 60 * 60;
-
-  it("returns 1.0 for brand new activity", () => {
-    expect(computeTimeDecay(now, now)).toBe(1);
-  });
-
-  it("returns ~0.5 at 4 hours", () => {
-    expect(computeTimeDecay(now - 4 * HOUR, now)).toBeCloseTo(0.5, 5);
-  });
-
-  it("returns ~0.25 at 12 hours", () => {
-    expect(computeTimeDecay(now - 12 * HOUR, now)).toBeCloseTo(0.25, 5);
-  });
-
-  it("never returns negative", () => {
-    expect(computeTimeDecay(now - 365 * 24 * HOUR, now)).toBeGreaterThan(0);
-  });
-
-  it("handles future timestamps gracefully (clamps to 1)", () => {
-    expect(computeTimeDecay(now + HOUR, now)).toBe(1);
-  });
-});
-
 // ── Display score (end-to-end) ─────────────────────────────────
 
 describe("computeDisplayScore", () => {
-  const now = Date.now();
-  const HOUR = 1000 * 60 * 60;
-
-  it("returns feedScore * 1.0 for brand new non-followed activity", () => {
-    expect(computeDisplayScore(30, false, now, now)).toBe(30);
+  it("returns feedScore for non-followed activity with no affinity", () => {
+    expect(computeDisplayScore(30, false)).toBe(30);
   });
 
   it("adds following boost", () => {
-    expect(computeDisplayScore(30, true, now, now)).toBe(30 + FOLLOWING_BOOST);
-  });
-
-  it("applies time decay to the boosted score", () => {
-    const score = computeDisplayScore(30, true, now - 4 * HOUR, now);
-    expect(score).toBeCloseTo((30 + FOLLOWING_BOOST) * 0.5, 5);
-  });
-
-  it("ranks rich recent content above bland old content", () => {
-    const richRecent = computeDisplayScore(40, false, now - 1 * HOUR, now);
-    const blandOld = computeDisplayScore(5, false, now - 48 * HOUR, now);
-    expect(richRecent).toBeGreaterThan(blandOld);
+    expect(computeDisplayScore(30, true)).toBe(30 + FOLLOWING_BOOST);
   });
 
   it("following boost can overcome lower content score", () => {
-    const lowFollowed = computeDisplayScore(10, true, now, now);
-    const highUnfollowed = computeDisplayScore(20, false, now, now);
+    const lowFollowed = computeDisplayScore(10, true);
+    const highUnfollowed = computeDisplayScore(20, false);
     // 10 + 15 = 25 > 20
     expect(lowFollowed).toBeGreaterThan(highUnfollowed);
   });
 
   it("applies affinity boost in addition to follow boost", () => {
-    const withAffinity = computeDisplayScore(30, false, now, now, 50);
+    const withAffinity = computeDisplayScore(30, false, 50);
     expect(withAffinity).toBeCloseTo(30 + computeAffinityBoost(50), 5);
 
-    const withBoth = computeDisplayScore(30, true, now, now, 80);
+    const withBoth = computeDisplayScore(30, true, 80);
     expect(withBoth).toBeCloseTo(
       30 + FOLLOWING_BOOST + computeAffinityBoost(80),
       5,

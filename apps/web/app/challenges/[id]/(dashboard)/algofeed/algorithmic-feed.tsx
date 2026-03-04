@@ -1,10 +1,10 @@
 "use client";
 
-import { useCallback, useMemo } from "react";
+import { useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { formatDistanceToNow } from "date-fns";
 import { Loader2, ThumbsUp, MessageCircle, Zap } from "lucide-react";
-import { useMutation, usePaginatedQuery } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
 
@@ -21,28 +21,55 @@ import { PointsDisplay } from "@/components/ui/points-display";
 import { MediaGallery } from "@/components/media-gallery";
 import { cn } from "@/lib/utils";
 
+interface AlgoFeedItem {
+  activity: {
+    _id: string;
+    notes?: string;
+    pointsEarned: number;
+    createdAt: number;
+    metrics?: Record<string, unknown>;
+    triggeredBonuses?: Array<{
+      metric: string;
+      threshold: number;
+      bonusPoints: number;
+      description: string;
+    }>;
+  };
+  user: {
+    id: string;
+    name: string | null;
+    username: string;
+    avatarUrl: string | null;
+    location?: string | null;
+  };
+  activityType: {
+    id: string | null;
+    name: string | null;
+    categoryId: string | null;
+    isNegative?: boolean;
+  } | null;
+  likes: number;
+  comments: number;
+  likedByUser: boolean;
+  mediaUrls: string[];
+  displayScore: number;
+}
+
 interface AlgorithmicFeedProps {
   challengeId: string;
 }
 
 export function AlgorithmicFeed({ challengeId }: AlgorithmicFeedProps) {
-  const { results, status, loadMore, isLoading } = usePaginatedQuery(
+  const feedResult = useQuery(
     api.queries.algorithmicFeed.getAlgorithmicFeed,
     {
       challengeId: challengeId as Id<"challenges">,
       includeEngagementCounts: true,
       includeMediaUrls: true,
     },
-    { initialNumItems: 15 },
   );
 
-  const handleLoadMore = useCallback(() => {
-    if (status === "CanLoadMore") {
-      loadMore(15);
-    }
-  }, [loadMore, status]);
-
-  if (isLoading && (!results || results.length === 0)) {
+  if (feedResult === undefined) {
     return (
       <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
         <Loader2 className="h-4 w-4 animate-spin" />
@@ -51,7 +78,9 @@ export function AlgorithmicFeed({ challengeId }: AlgorithmicFeedProps) {
     );
   }
 
-  if (!results || results.length === 0) {
+  const results = feedResult.page as AlgoFeedItem[];
+
+  if (results.length === 0) {
     return (
       <Card className="border-dashed text-center">
         <CardHeader>
@@ -66,13 +95,7 @@ export function AlgorithmicFeed({ challengeId }: AlgorithmicFeedProps) {
   return (
     <div className="space-y-4">
       {results
-        .filter(
-          (
-            item,
-          ): item is NonNullable<typeof item> & {
-            user: NonNullable<(typeof item)["user"]>;
-          } => item?.user != null,
-        )
+        .filter((item) => item?.user != null)
         .map((item) => (
           <AlgoFeedCard
             key={item.activity._id}
@@ -81,19 +104,6 @@ export function AlgorithmicFeed({ challengeId }: AlgorithmicFeedProps) {
           />
         ))}
 
-      {status === "CanLoadMore" && (
-        <div className="flex justify-center">
-          <Button variant="outline" size="sm" onClick={handleLoadMore}>
-            Load more
-          </Button>
-        </div>
-      )}
-
-      {isLoading && (
-        <div className="flex items-center justify-center gap-2 py-4 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" />
-        </div>
-      )}
     </div>
   );
 }
