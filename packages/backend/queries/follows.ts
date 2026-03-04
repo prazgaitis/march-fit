@@ -165,22 +165,31 @@ export const getProfileFollowData = query({
       getCurrentUser(ctx),
     ]);
 
-    // Check if current user is following this user
     let isFollowing = false;
+    let isFollowedBy = false;
     let isOwnProfile = false;
 
     if (currentUser) {
       isOwnProfile = currentUser._id === args.userId;
 
       if (!isOwnProfile) {
-        const follow = await ctx.db
-          .query("follows")
-          .withIndex("followerFollowing", (q) =>
-            q.eq("followerId", currentUser._id).eq("followingId", args.userId)
-          )
-          .first();
+        const [meToThem, themToMe] = await Promise.all([
+          ctx.db
+            .query("follows")
+            .withIndex("followerFollowing", (q) =>
+              q.eq("followerId", currentUser._id).eq("followingId", args.userId)
+            )
+            .first(),
+          ctx.db
+            .query("follows")
+            .withIndex("followerFollowing", (q) =>
+              q.eq("followerId", args.userId).eq("followingId", currentUser._id)
+            )
+            .first(),
+        ]);
 
-        isFollowing = follow !== null;
+        isFollowing = meToThem !== null;
+        isFollowedBy = themToMe !== null;
       }
     }
 
@@ -188,6 +197,7 @@ export const getProfileFollowData = query({
       followersCount: followers.length,
       followingCount: following.length,
       isFollowing,
+      isFollowedBy,
       isOwnProfile,
     };
   },

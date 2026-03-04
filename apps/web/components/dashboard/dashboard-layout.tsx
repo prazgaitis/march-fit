@@ -1,6 +1,6 @@
 "use client";
 
-import { ReactNode, useCallback, useRef, WheelEvent } from "react";
+import { ReactNode } from "react";
 import { Plus } from "lucide-react";
 import type { Doc } from "@repo/backend/_generated/dataModel";
 import { formatDateShortFromDateOnly } from "@/lib/date-only";
@@ -34,15 +34,10 @@ export function DashboardLayout({
   children,
   hideRightSidebar = false,
 }: DashboardLayoutProps) {
-  const mainRef = useRef<HTMLElement>(null);
-  const forwardScroll = useCallback((e: WheelEvent) => {
-    mainRef.current?.scrollBy({ top: e.deltaY, left: e.deltaX });
-  }, []);
-
   return (
-    <div className="flex min-h-dvh bg-black text-white lg:h-dvh lg:overflow-hidden">
+    <div className="flex min-h-dvh bg-black text-white lg:fixed lg:inset-0 lg:overflow-hidden">
       {/* Left Sidebar - Collapsed (lg) */}
-      <aside onWheel={forwardScroll} className="hidden w-[72px] flex-shrink-0 flex-col border-r border-zinc-800 lg:flex xl:hidden">
+      <aside className="hidden w-[72px] flex-shrink-0 flex-col overflow-hidden border-r border-zinc-800 lg:flex xl:hidden">
         <div className="flex h-full flex-col items-center py-4">
           {/* Logo/Icon */}
           <div className="mb-4 h-10 w-10 rounded-full bg-gradient-to-r from-indigo-500 to-fuchsia-500" />
@@ -85,7 +80,7 @@ export function DashboardLayout({
       </aside>
 
       {/* Left Sidebar - Full (xl) */}
-      <aside onWheel={forwardScroll} className="hidden w-72 flex-shrink-0 flex-col border-r border-zinc-800 xl:flex">
+      <aside className="hidden w-72 flex-shrink-0 flex-col overflow-hidden border-r border-zinc-800 xl:flex">
         <div className="flex h-full flex-col">
           {/* Challenge Header */}
           <div className="p-4">
@@ -131,7 +126,6 @@ export function DashboardLayout({
 
       {/* Main Content */}
       <main
-        ref={mainRef}
         className="min-h-0 min-w-0 flex-1 overflow-x-hidden scrollbar-hide pt-[env(safe-area-inset-top)] pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:overflow-y-auto lg:overscroll-contain lg:pt-0 lg:pb-0"
       >
         <PaymentRequiredBanner challengeId={challenge.id} />
@@ -141,11 +135,11 @@ export function DashboardLayout({
 
       {/* Right Sidebar - Fixed (xl only) */}
       {!hideRightSidebar && (
-        <aside onWheel={forwardScroll} className="hidden min-h-0 w-96 flex-shrink-0 flex-col border-l border-zinc-800 lg:flex">
+        <aside className="hidden min-h-0 w-96 flex-shrink-0 flex-col border-l border-zinc-800 lg:flex">
           <div className="p-4">
             <UserSearch challengeId={challenge.id} />
           </div>
-          <div className="flex-1 overflow-y-auto scrollbar-hide p-4">
+          <div className="flex-1 overflow-y-auto overscroll-contain scrollbar-hide p-4">
             <ChallengeSidebar challengeId={challenge.id} currentUserId={currentUserId} challengeStartDate={challenge.startDate} />
           </div>
         </aside>

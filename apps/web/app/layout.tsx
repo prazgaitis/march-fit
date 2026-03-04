@@ -63,11 +63,7 @@ export default async function RootLayout({
         <body
           className={`${geistSans.variable} ${geistMono.variable} bg-black text-white antialiased`}
         >
-          <div className="relative min-h-screen">
-            <div className="relative z-10">
-              {children}
-            </div>
-          </div>
+          {children}
           <Toaster />
           <Analytics />
           <SpeedInsights />

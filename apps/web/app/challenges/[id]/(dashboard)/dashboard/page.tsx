@@ -133,6 +133,7 @@ async function DashboardContent({ challengeSlug }: { challengeSlug: string }) {
       )}
       <ActivityFeed
         challengeId={challenge._id}
+        currentUserId={user._id}
         initialItems={initialFeed.page}
         initialAlgoItems={initialAlgoFeed.page}
         initialLightweightMode={isMobileRequest}

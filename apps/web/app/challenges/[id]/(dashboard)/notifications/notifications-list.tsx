@@ -1,14 +1,15 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { formatDistanceToNow } from "date-fns";
-import { useMutation } from "convex/react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
-import { Heart, MessageCircle, MessageSquare, UserPlus, Trophy, Bell, Shield } from "lucide-react";
+import { Heart, MessageCircle, MessageSquare, UserPlus, Trophy, Bell, Shield, Loader2 } from "lucide-react";
 
 import { UserAvatar } from "@/components/user-avatar";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 interface Notification {
@@ -34,6 +35,7 @@ interface NotificationsListProps {
 function getNotificationIcon(type: string) {
   switch (type) {
     case "like":
+    case "comment_like":
       return <Heart className="h-4 w-4 text-pink-500" />;
     case "comment":
       return <MessageCircle className="h-4 w-4 text-blue-500" />;
@@ -63,6 +65,8 @@ function getNotificationMessage(notification: Notification) {
   switch (notification.type) {
     case "like":
       return `${actorName} liked your activity`;
+    case "comment_like":
+      return `${actorName} liked your comment`;
     case "comment":
       return `${actorName} commented on your activity`;
     case "mention":
@@ -119,9 +123,54 @@ function getNotificationLink(notification: Notification, challengeId: string) {
   return null;
 }
 
+function FollowBackButton({ actorId }: { actorId: string }) {
+  const [isLoading, setIsLoading] = useState(false);
+  const [didFollow, setDidFollow] = useState(false);
+  const toggleFollow = useMutation(api.mutations.follows.toggle);
+
+  if (didFollow) {
+    return (
+      <span className="text-xs text-zinc-500 whitespace-nowrap">Following</span>
+    );
+  }
+
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      className="h-7 text-xs shrink-0"
+      disabled={isLoading}
+      onClick={async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsLoading(true);
+        try {
+          await toggleFollow({ userId: actorId as Id<"users"> });
+          setDidFollow(true);
+        } catch (error) {
+          console.error("Failed to follow back:", error);
+        } finally {
+          setIsLoading(false);
+        }
+      }}
+    >
+      {isLoading ? (
+        <Loader2 className="h-3 w-3 animate-spin" />
+      ) : (
+        <>
+          <UserPlus className="mr-1 h-3 w-3" />
+          Follow back
+        </>
+      )}
+    </Button>
+  );
+}
+
 export function NotificationsList({ notifications, challengeId, userId }: NotificationsListProps) {
   const markAllAsRead = useMutation(api.mutations.notifications.markAllAsRead);
   const markedRef = useRef(false);
+  const followingIds = useQuery(api.queries.follows.getFollowingIds);
+  const followingSet = new Set(followingIds ?? []);
 
   useEffect(() => {
     if (markedRef.current) return;
@@ -148,6 +197,11 @@ export function NotificationsList({ notifications, challengeId, userId }: Notifi
     <div className="space-y-1">
       {notifications.map((notification) => {
         const link = getNotificationLink(notification, challengeId);
+        const isFollowNotification =
+          notification.type === "follow" || notification.type === "new_follower";
+        const showFollowBack =
+          isFollowNotification && !followingSet.has(notification.actor.id);
+
         const content = (
           <div
             className={cn(
@@ -180,8 +234,12 @@ export function NotificationsList({ notifications, challengeId, userId }: Notifi
                 {formatDistanceToNow(notification.createdAt, { addSuffix: true })}
               </p>
             </div>
-            {!notification.readAt && (
-              <div className="h-2 w-2 rounded-full bg-indigo-500" />
+            {showFollowBack ? (
+              <FollowBackButton actorId={notification.actor.id} />
+            ) : (
+              !notification.readAt && (
+                <div className="h-2 w-2 rounded-full bg-indigo-500" />
+              )
             )}
           </div>
         );
