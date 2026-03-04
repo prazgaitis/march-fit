@@ -133,5 +133,37 @@ export const disconnect = mutation({
   },
 });
 
+/**
+ * Soft-revoke a Strava integration: clears tokens and marks revoked.
+ * Previously synced activities are preserved.
+ */
+export const unlinkStrava = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const user = await requireCurrentUser(ctx);
 
+    const integration = await ctx.db
+      .query("userIntegrations")
+      .withIndex("userId", (q) => q.eq("userId", user._id))
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("service"), "strava"),
+          q.eq(q.field("revoked"), false),
+        ),
+      )
+      .first();
+
+    if (!integration) {
+      throw new Error("No active Strava connection found");
+    }
+
+    await ctx.db.patch(integration._id, {
+      accessToken: undefined,
+      refreshToken: undefined,
+      expiresAt: undefined,
+      revoked: true,
+      updatedAt: Date.now(),
+    });
+  },
+});
 

@@ -48,6 +48,27 @@ export const getByAthleteId = internalQuery({
 });
 
 /**
+ * Get a user's active (non-revoked) Strava integration (internal).
+ */
+export const getActiveStravaForUser = internalQuery({
+  args: {
+    userId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db
+      .query("userIntegrations")
+      .withIndex("userId", (q) => q.eq("userId", args.userId))
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("service"), "strava"),
+          q.eq(q.field("revoked"), false),
+        ),
+      )
+      .first();
+  },
+});
+
+/**
  * Get challenge participants who have Strava connected (for admin preview)
  */
 export const getChallengeParticipantsWithStrava = query({

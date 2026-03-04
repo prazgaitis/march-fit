@@ -10,6 +10,7 @@ import { Loader2, User, List, Check, Shield, LogOut } from "lucide-react";
 import { betterAuthClient } from "@/lib/better-auth/client";
 
 import { SignOutButton } from "@/components/auth/sign-out-button";
+import { StravaSettingsSection } from "./strava-settings-section";
 import { UserAvatar } from "@/components/user-avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -234,6 +235,12 @@ export function SettingsContent({
           </div>
         </CardContent>
       </Card>
+
+      {/* Strava Integration */}
+      <StravaSettingsSection
+        userId={currentUser._id}
+        challengeId={currentChallengeId}
+      />
 
       {/* Account Security */}
       <AccountSecurityCard email={currentUser.email} />

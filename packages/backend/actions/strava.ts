@@ -1,7 +1,7 @@
 "use node";
 
 import { action, internalAction } from "../_generated/server";
-import { internal } from "../_generated/api";
+import { api, internal } from "../_generated/api";
 import { v } from "convex/values";
 import type { Id } from "../_generated/dataModel";
 import { coerceDateOnlyToString } from "../lib/dateOnly";
@@ -536,6 +536,134 @@ function getMetricValueForThreshold(
 
   return undefined;
 }
+
+/**
+ * User-facing: test Strava connection and fetch recent activities with scoring
+ * preview for a specific challenge. Looks up the current user's integration
+ * internally so tokens are never sent to the client.
+ */
+export const testStravaConnection = action({
+  args: {
+    challengeId: v.id("challenges"),
+    perPage: v.optional(v.number()),
+  },
+  handler: async (ctx, args): Promise<{
+    activities: Array<{
+      stravaActivity: StravaActivity;
+      scoring: ScoringPreview;
+    }>;
+    tokenRefreshed: boolean;
+  }> => {
+    // Authenticate: look up the current user via the public query (shares auth context)
+    const user = await ctx.runQuery(api.queries.users.current, {});
+    if (!user) {
+      throw new Error("Not authenticated");
+    }
+
+    // Look up the user's active Strava integration
+    const integration = await ctx.runQuery(
+      internal.queries.integrations.getActiveStravaForUser,
+      { userId: user._id },
+    );
+
+    if (!integration || !integration.accessToken || !integration.refreshToken) {
+      throw new Error("No active Strava connection found. Please reconnect Strava.");
+    }
+
+    // Delegate to the existing preview action logic (token refresh + fetch + scoring)
+    let accessToken = integration.accessToken;
+    let tokenRefreshed = false;
+
+    const now = Math.floor(Date.now() / 1000);
+    if ((integration.expiresAt ?? 0) <= now + 3600) {
+      const data = await httpRefreshStravaToken(integration.refreshToken);
+      await ctx.runMutation(internal.mutations.integrations.updateStravaTokens, {
+        integrationId: integration._id,
+        accessToken: data.access_token,
+        refreshToken: data.refresh_token,
+        expiresAt: data.expires_at,
+      });
+      accessToken = data.access_token;
+      tokenRefreshed = true;
+    }
+
+    const stravaActivities = (await httpFetchStravaRecentActivities(accessToken, {
+      perPage: args.perPage ?? 10,
+    })) as StravaActivity[];
+
+    // Enrich activities that have photos
+    const activitiesWithPhotos = stravaActivities.filter(
+      (a) => (a.total_photo_count ?? 0) > 0,
+    );
+    if (activitiesWithPhotos.length > 0) {
+      const photoDetails = await Promise.all(
+        activitiesWithPhotos.map((a) => fetchActivityDetail(accessToken, a.id)),
+      );
+      for (let i = 0; i < activitiesWithPhotos.length; i++) {
+        const detail = photoDetails[i];
+        if (detail?.photos) {
+          activitiesWithPhotos[i].photos = detail.photos;
+        }
+      }
+    }
+
+    // Get scoring data and calculate previews
+    const scoringData = await ctx.runQuery(
+      internal.queries.admin.getScoringPreviewData,
+      { challengeId: args.challengeId },
+    );
+
+    const results = stravaActivities.map((stravaActivity: StravaActivity) => ({
+      stravaActivity,
+      scoring: calculateScoringPreview(stravaActivity, scoringData),
+    }));
+
+    return { activities: results, tokenRefreshed };
+  },
+});
+
+/**
+ * User-facing: import a single Strava activity into a challenge.
+ * Delegates to the existing createFromStrava internal mutation so all
+ * scoring, streak, and category logic is applied consistently.
+ */
+export const importStravaActivity = action({
+  args: {
+    challengeId: v.id("challenges"),
+    stravaActivityData: v.any(),
+  },
+  handler: async (ctx, args): Promise<{ activityId: string | null }> => {
+    const user = await ctx.runQuery(api.queries.users.current, {});
+    if (!user) {
+      throw new Error("Not authenticated");
+    }
+
+    const externalId = String(
+      (args.stravaActivityData as StravaActivity).id,
+    );
+
+    // Check for duplicate
+    const existing = await ctx.runQuery(
+      internal.mutations.stravaWebhook.getExistingActivity,
+      { userId: user._id, challengeId: args.challengeId, externalId },
+    );
+    if (existing) {
+      throw new Error("This activity has already been imported into this challenge.");
+    }
+
+    // Delegate to the existing internal mutation
+    const activityId = await ctx.runMutation(
+      internal.mutations.stravaWebhook.createFromStrava,
+      {
+        userId: user._id,
+        challengeId: args.challengeId,
+        stravaActivity: args.stravaActivityData,
+      },
+    );
+
+    return { activityId: activityId ? String(activityId) : null };
+  },
+});
 
 interface StravaWebhookEvent {
   aspect_type: "create" | "update" | "delete";
