@@ -37,22 +37,22 @@ describe("computeContentScore", () => {
   });
 
   it("boosts short descriptions (20-49 chars)", () => {
-    expect(computeContentScore({ ...base, notesLength: 25 })).toBe(1 + 2);
+    expect(computeContentScore({ ...base, notesLength: 25 })).toBe(1 + 4);
   });
 
   it("boosts medium descriptions (50-99 chars)", () => {
-    expect(computeContentScore({ ...base, notesLength: 75 })).toBe(1 + 5);
+    expect(computeContentScore({ ...base, notesLength: 75 })).toBe(1 + 10);
   });
 
   it("boosts long descriptions (100+ chars)", () => {
-    expect(computeContentScore({ ...base, notesLength: 150 })).toBe(1 + 8);
+    expect(computeContentScore({ ...base, notesLength: 150 })).toBe(1 + 16);
   });
 
-  it("boosts media: +5 per item, capped at 15", () => {
-    expect(computeContentScore({ ...base, mediaCount: 1 })).toBe(1 + 5);
-    expect(computeContentScore({ ...base, mediaCount: 2 })).toBe(1 + 10);
-    expect(computeContentScore({ ...base, mediaCount: 3 })).toBe(1 + 15);
-    expect(computeContentScore({ ...base, mediaCount: 5 })).toBe(1 + 15); // capped
+  it("boosts media: +10 per item, capped at 30", () => {
+    expect(computeContentScore({ ...base, mediaCount: 1 })).toBe(1 + 10);
+    expect(computeContentScore({ ...base, mediaCount: 2 })).toBe(1 + 20);
+    expect(computeContentScore({ ...base, mediaCount: 3 })).toBe(1 + 30);
+    expect(computeContentScore({ ...base, mediaCount: 5 })).toBe(1 + 30); // capped
   });
 
   it("boosts points earned (log-scaled, capped at 12)", () => {
@@ -86,13 +86,13 @@ describe("computeContentScore", () => {
 
   it("stacks multiple boosts", () => {
     const rich: ContentScoreInput = {
-      notesLength: 120,  // +8
-      mediaCount: 2,     // +10
+      notesLength: 120,  // +16
+      mediaCount: 2,     // +20
       pointsEarned: 15,  // log2(16)*2 = 8
       triggeredBonusCount: 2, // +8
       flagged: false,
     };
-    expect(computeContentScore(rich)).toBe(1 + 8 + 10 + 8 + 8);
+    expect(computeContentScore(rich)).toBe(1 + 16 + 20 + 8 + 8);
   });
 
   it("handles zero/negative points gracefully", () => {
@@ -185,12 +185,12 @@ describe("computeTimeDecay", () => {
     expect(computeTimeDecay(now, now)).toBe(1);
   });
 
-  it("returns ~0.5 at 24 hours", () => {
-    expect(computeTimeDecay(now - 24 * HOUR, now)).toBeCloseTo(0.5, 5);
+  it("returns ~0.5 at 4 hours", () => {
+    expect(computeTimeDecay(now - 4 * HOUR, now)).toBeCloseTo(0.5, 5);
   });
 
-  it("returns ~0.25 at 72 hours", () => {
-    expect(computeTimeDecay(now - 72 * HOUR, now)).toBeCloseTo(0.25, 5);
+  it("returns ~0.25 at 12 hours", () => {
+    expect(computeTimeDecay(now - 12 * HOUR, now)).toBeCloseTo(0.25, 5);
   });
 
   it("never returns negative", () => {
@@ -217,7 +217,7 @@ describe("computeDisplayScore", () => {
   });
 
   it("applies time decay to the boosted score", () => {
-    const score = computeDisplayScore(30, true, now - 24 * HOUR, now);
+    const score = computeDisplayScore(30, true, now - 4 * HOUR, now);
     expect(score).toBeCloseTo((30 + FOLLOWING_BOOST) * 0.5, 5);
   });
 
