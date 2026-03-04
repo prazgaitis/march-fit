@@ -109,10 +109,6 @@ async function DashboardContent({ challengeSlug }: { challengeSlug: string }) {
         challengeId,
         includeEngagementCounts: !isMobileRequest,
         includeMediaUrls: true,
-        paginationOpts: {
-          numItems: 10,
-          cursor: null,
-        },
       },
     ).catch((error) => {
       console.error("[perf] dashboard algo feed preload failed", error);

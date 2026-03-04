@@ -6,9 +6,7 @@ import { getCurrentUser } from "../lib/ids";
 import {
   FOLLOWING_BOOST,
   computeAffinityBoost,
-  getFeedDayBucket,
-  getRankInFeedBucket,
-  computePersonalizedRank,
+  computeDisplayScore,
 } from "../lib/feedScoring";
 import type { Id } from "../_generated/dataModel";
 
@@ -37,7 +35,7 @@ async function getChallengeAdminUser(
   const participation = await ctx.db
     .query("userChallenges")
     .withIndex("userChallengeUnique", (q) =>
-      q.eq("userId", user._id).eq("challengeId", challengeId)
+      q.eq("userId", user._id).eq("challengeId", challengeId),
     )
     .first();
 
@@ -103,11 +101,17 @@ export const checkOutOfBoundsActivities = query({
 
       const challengeStartMs = dateOnlyToUtcMs(challenge.startDate);
       const challengeEndMs = dateOnlyToUtcMs(challenge.endDate);
-      const beforeStart = activities.filter((a) => a.loggedDate < challengeStartMs);
+      const beforeStart = activities.filter(
+        (a) => a.loggedDate < challengeStartMs,
+      );
       const afterEnd = activities.filter((a) => a.loggedDate > challengeEndMs);
 
       if (beforeStart.length > 0 || afterEnd.length > 0) {
-        const examples: Array<{ activityId: string; loggedDate: number; issue: string }> = [];
+        const examples: Array<{
+          activityId: string;
+          loggedDate: number;
+          issue: string;
+        }> = [];
 
         beforeStart.slice(0, 3).forEach((a) => {
           examples.push({
@@ -149,12 +153,7 @@ export const checkOutOfBoundsActivities = query({
 export const listFlaggedActivities = query({
   args: {
     challengeId: v.id("challenges"),
-    status: v.optional(
-      v.union(
-        v.literal("pending"),
-        v.literal("resolved")
-      )
-    ),
+    status: v.optional(v.union(v.literal("pending"), v.literal("resolved"))),
     participantId: v.optional(v.id("users")),
     search: v.optional(v.string()),
     limit: v.optional(v.number()),
@@ -168,7 +167,7 @@ export const listFlaggedActivities = query({
     let activities = await ctx.db
       .query("activities")
       .withIndex("challengeFlagged", (q) =>
-        q.eq("challengeId", args.challengeId).eq("flagged", true)
+        q.eq("challengeId", args.challengeId).eq("flagged", true),
       )
       .filter(notDeleted)
       .collect();
@@ -241,7 +240,7 @@ export const listFlaggedActivities = query({
               }
             : null,
         };
-      })
+      }),
     );
 
     return {
@@ -298,7 +297,7 @@ export const getFlaggedActivityDetail = query({
               }
             : null,
         };
-      })
+      }),
     );
 
     return {
@@ -379,7 +378,7 @@ export const listChallengePayments = query({
           paymentReference: p.paymentReference,
           totalPoints: p.totalPoints,
         };
-      })
+      }),
     );
 
     return result.filter((item) => item.participant !== null);
@@ -416,7 +415,9 @@ export const getMonitoringDashboard = query({
       includeFeedDebug
         ? ctx.db
             .query("userChallenges")
-            .withIndex("challengeId", (q) => q.eq("challengeId", args.challengeId))
+            .withIndex("challengeId", (q) =>
+              q.eq("challengeId", args.challengeId),
+            )
             .collect()
         : Promise.resolve([]),
     ]);
@@ -503,25 +504,48 @@ export const getMonitoringDashboard = query({
             ] as const;
           }),
         )
-      ).filter((entry): entry is readonly [Id<"users">, { id: Id<"users">; username: string; name: string | null; email: string }] => entry !== null),
+      ).filter(
+        (
+          entry,
+        ): entry is readonly [
+          Id<"users">,
+          {
+            id: Id<"users">;
+            username: string;
+            name: string | null;
+            email: string;
+          },
+        ] => entry !== null,
+      ),
     );
 
-    const activityTypeIds = new Set(activities.map((activity) => activity.activityTypeId));
+    const activityTypeIds = new Set(
+      activities.map((activity) => activity.activityTypeId),
+    );
     const activityTypeMap = new Map(
       (
         await Promise.all(
           Array.from(activityTypeIds).map(async (activityTypeId) => {
             const activityType = await ctx.db.get(activityTypeId);
             if (!activityType) return null;
-            return [activityType._id, { id: activityType._id, name: activityType.name }] as const;
+            return [
+              activityType._id,
+              { id: activityType._id, name: activityType.name },
+            ] as const;
           }),
         )
-      ).filter((entry): entry is readonly [Id<"activityTypes">, { id: Id<"activityTypes">; name: string }] => entry !== null),
+      ).filter(
+        (
+          entry,
+        ): entry is readonly [
+          Id<"activityTypes">,
+          { id: Id<"activityTypes">; name: string },
+        ] => entry !== null,
+      ),
     );
 
     const feedRows = [...activities]
-      .filter((activity) => typeof activity.feedRank === "number")
-      .sort((a, b) => (b.feedRank ?? 0) - (a.feedRank ?? 0))
+      .sort((a, b) => b._creationTime - a._creationTime)
       .slice(0, feedLimit)
       .map((activity) => {
         const actor = userMap.get(activity.userId);
@@ -531,17 +555,15 @@ export const getMonitoringDashboard = query({
 
         const type = activityTypeMap.get(activity.activityTypeId);
         const isFollowing = followingIds.has(activity.userId);
-        const affinityScore = affinityByAuthor.get(activity.userId as string) ?? 0;
+        const affinityScore =
+          affinityByAuthor.get(activity.userId as string) ?? 0;
         const affinityBoostApplied = computeAffinityBoost(affinityScore);
-        const feedRank = activity.feedRank ?? 0;
-        const personalizedRank = computePersonalizedRank(
-          feedRank,
+        const feedScore = activity.feedScore ?? 0;
+        const displayScore = computeDisplayScore(
+          feedScore,
           isFollowing,
           affinityScore,
         );
-        const feedScore = activity.feedScore ?? 0;
-        const dayBucket = getFeedDayBucket(activity.createdAt);
-        const rankInDayBucket = getRankInFeedBucket(feedRank, activity.createdAt);
 
         return {
           activityId: activity._id,
@@ -553,27 +575,18 @@ export const getMonitoringDashboard = query({
           activityType: type ?? null,
           debug: {
             feedScore,
-            feedRank,
-            personalizedRank,
+            displayScore,
             followingBoostApplied: isFollowing ? FOLLOWING_BOOST : 0,
             affinityScore,
             affinityBoostApplied,
             totalBoostApplied:
               (isFollowing ? FOLLOWING_BOOST : 0) + affinityBoostApplied,
             isFollowingAuthor: isFollowing,
-            dayBucket,
-            rankInDayBucket,
           },
         };
       })
       .filter((row): row is NonNullable<typeof row> => row !== null)
-      // Match "For You" display ordering (personalized score first).
-      .sort((a, b) => {
-        if (b.debug.personalizedRank !== a.debug.personalizedRank) {
-          return b.debug.personalizedRank - a.debug.personalizedRank;
-        }
-        return b.debug.feedRank - a.debug.feedRank;
-      });
+      .sort((a, b) => b.debug.displayScore - a.debug.displayScore);
 
     const viewAsCandidates = [...userMap.values()];
     if (!viewAsCandidates.some((candidate) => candidate.id === adminUser._id)) {

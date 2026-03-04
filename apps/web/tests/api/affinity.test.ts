@@ -224,7 +224,6 @@ describe("challenge-scoped affinity", () => {
       challengeId,
       includeEngagementCounts: false,
       includeMediaUrls: false,
-      paginationOpts: { numItems: 10, cursor: null },
     });
 
     expect(feed.page).toHaveLength(2);

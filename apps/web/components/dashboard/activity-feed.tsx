@@ -25,6 +25,7 @@ import {
   useConvexConnectionState,
   useMutation,
   usePaginatedQuery,
+  useQuery,
 } from "convex/react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
@@ -238,12 +239,7 @@ export function ActivityFeed({
     { initialNumItems: 10 },
   );
 
-  const {
-    results: algoResults,
-    status: algoStatus,
-    loadMore: algoLoadMore,
-    isLoading: algoIsLoading,
-  } = usePaginatedQuery(
+  const algoFeedResult = useQuery(
     api.queries.algorithmicFeed.getAlgorithmicFeed,
     feedFilter === "for_you"
       ? {
@@ -252,8 +248,12 @@ export function ActivityFeed({
           includeMediaUrls: true,
         }
       : "skip",
-    { initialNumItems: 10 },
   );
+  const algoResults = useMemo(
+    () => (algoFeedResult?.page ?? []) as AlgoFeedItem[],
+    [algoFeedResult],
+  );
+  const algoIsLoading = algoFeedResult === undefined && feedFilter === "for_you";
 
   const loadHttpPage = useCallback(
     async (cursor: string | null, append: boolean) => {
@@ -378,9 +378,6 @@ export function ActivityFeed({
 
   const handleLoadMore = () => {
     if (feedFilter === "for_you") {
-      if (algoStatus === "CanLoadMore") {
-        algoLoadMore(10);
-      }
       return;
     }
 
@@ -402,9 +399,9 @@ export function ActivityFeed({
     // effectively this just hides the alert.
   };
 
-  const algoDisplayResults = useMemo(() => {
+  const algoDisplayResults = useMemo((): ActivityFeedItem[] => {
     if (feedFilter !== "for_you") return [];
-    const mapped = (algoResults ?? []).map(mapAlgoItem);
+    const mapped = algoResults.map(mapAlgoItem);
     if (mapped.length === 0) return initialAlgoItems.map(mapAlgoItem);
     return mapped;
   }, [algoResults, feedFilter, initialAlgoItems]);
@@ -485,7 +482,7 @@ export function ActivityFeed({
         : isLoading;
   const canLoadMore =
     feedFilter === "for_you"
-      ? algoStatus === "CanLoadMore"
+      ? false
       : useHttpFallback
         ? !httpIsDone && !httpLoading && httpCursor !== null
         : status === "CanLoadMore";

@@ -1,6 +1,5 @@
 import { query } from "../_generated/server";
 import { v } from "convex/values";
-import { paginationOptsValidator } from "convex/server";
 import { getCurrentUser } from "../lib/ids";
 import { notDeleted } from "../lib/activityFilters";
 import {
@@ -10,26 +9,25 @@ import {
 } from "../lib/feedScoring";
 
 /**
- * Algorithmic feed: activities ranked by content quality, engagement,
- * social relevance (following), and recency.
- *
- * Uses the `challengeFeedRank` index for efficient page fetches
- * (time-bucketed: today's posts always above yesterday's), then
- * applies per-viewer following boost and re-sorts within each page.
+ * Algorithmic feed: fetch the N most recent activities, then rank
+ * purely by interestingness (content quality + engagement + social
+ * relevance). No time decay — recency is handled by the candidate
+ * window size.
  */
 export const getAlgorithmicFeed = query({
   args: {
     challengeId: v.id("challenges"),
     includeEngagementCounts: v.optional(v.boolean()),
     includeMediaUrls: v.optional(v.boolean()),
-    paginationOpts: paginationOptsValidator,
+    candidateLimit: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const includeEngagementCounts = args.includeEngagementCounts ?? true;
     const includeMediaUrls = args.includeMediaUrls ?? true;
+    const candidateLimit = Math.min(Math.max(args.candidateLimit ?? 200, 10), 500);
     const currentUser = await getCurrentUser(ctx);
 
-    // Load viewer's following set (cheap — typically < 200 rows).
+    // Load viewer's following set and affinities.
     let followingIds: Set<string> | null = null;
     let affinityByAuthor: Map<string, number> | null = null;
     if (currentUser) {
@@ -53,22 +51,19 @@ export const getAlgorithmicFeed = query({
       );
     }
 
-    // Paginate by feedRank DESC via index.
-    // Activities without a feedRank (pre-backfill) have feedRank = undefined
-    // and won't appear in this index scan — that's intentional; the backfill
-    // will fill them in and they'll start appearing.
+    // Fetch most recent activities by creation time.
     const activities = await ctx.db
       .query("activities")
-      .withIndex("challengeFeedRank", (q) =>
+      .withIndex("challengeId", (q) =>
         q.eq("challengeId", args.challengeId),
       )
       .filter(notDeleted)
       .order("desc")
-      .paginate(args.paginationOpts);
+      .take(candidateLimit);
 
     // Hydrate each activity with user, type, engagement, media.
     const hydratedPage = await Promise.all(
-      activities.page.map(async (activity) => {
+      activities.map(async (activity) => {
         const [user, activityType, userLike] = await Promise.all([
           ctx.db.get(activity.userId),
           ctx.db.get(activity.activityTypeId),
@@ -126,8 +121,6 @@ export const getAlgorithmicFeed = query({
         const displayScore = computeDisplayScore(
           activity.feedScore ?? 0,
           isFollowing,
-          activity._creationTime,
-          Date.now(),
           affinityScore,
         );
 
@@ -159,14 +152,11 @@ export const getAlgorithmicFeed = query({
       }),
     );
 
-    // Filter out null entries (deleted user/type), then re-sort by displayScore.
+    // Filter out null entries (deleted user/type), then sort by displayScore.
     const page = hydratedPage
       .filter((item) => item !== null)
       .sort((a, b) => b.displayScore - a.displayScore);
 
-    return {
-      ...activities,
-      page,
-    };
+    return { page };
   },
 });
