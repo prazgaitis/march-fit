@@ -625,6 +625,54 @@ export const getMonitoringDashboard = query({
 });
 
 /**
+ * Get a user's logged activities for a challenge (admin only, for Strava debug).
+ * Returns lightweight records keyed by externalId so the frontend can
+ * cross-reference fetched Strava activities with what has already been logged.
+ */
+export const getUserActivitiesForStravaDebug = query({
+  args: {
+    challengeId: v.id("challenges"),
+    userId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    const adminUser = await getChallengeAdminUser(ctx, args.challengeId);
+    if (!adminUser) {
+      return [];
+    }
+
+    const activities = await ctx.db
+      .query("activities")
+      .withIndex("by_user_challenge_date", (q) =>
+        q.eq("userId", args.userId).eq("challengeId", args.challengeId),
+      )
+      .filter(notDeleted)
+      .collect();
+
+    const activityTypeIds = new Set(activities.map((a) => a.activityTypeId));
+    const activityTypeMap = new Map(
+      (
+        await Promise.all(
+          Array.from(activityTypeIds).map(async (id) => {
+            const at = await ctx.db.get(id);
+            return at ? ([at._id, at.name] as const) : null;
+          }),
+        )
+      ).filter((e): e is readonly [Id<"activityTypes">, string] => e !== null),
+    );
+
+    return activities.map((a) => ({
+      _id: a._id,
+      externalId: a.externalId ?? null,
+      source: a.source,
+      loggedDate: a.loggedDate,
+      pointsEarned: a.pointsEarned,
+      activityTypeName: activityTypeMap.get(a.activityTypeId) ?? null,
+      createdAt: a.createdAt,
+    }));
+  },
+});
+
+/**
  * Get activity types and integration mappings for scoring preview (internal)
  */
 export const getScoringPreviewData = internalQuery({

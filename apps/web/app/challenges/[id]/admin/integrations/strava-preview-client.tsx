@@ -1,19 +1,23 @@
 "use client";
 
 import { useState } from "react";
-import { useAction } from "@/lib/convex-auth-react";
+import { useAction, useQuery } from "@/lib/convex-auth-react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
 import { format } from "date-fns";
 import {
   Activity,
   AlertCircle,
+  Calendar,
   Camera,
+  Check,
   CheckCircle2,
   ChevronDown,
   ChevronUp,
+  ChevronsUpDown,
   Clock,
   Code,
+  Database,
   Loader2,
   Map,
   RefreshCw,
@@ -23,14 +27,21 @@ import {
 
 import { Button } from "@/components/ui/button";
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { formatDateOnlyFromUtcMs } from "@/lib/date-only";
 
 interface ParticipantWithStrava {
   id: string;
@@ -52,6 +63,7 @@ interface StravaActivity {
   type: string;
   sport_type: string;
   start_date: string;
+  start_date_local?: string;
   elapsed_time: number;
   moving_time: number;
   distance?: number;
@@ -110,6 +122,7 @@ export function StravaPreviewClient({
   participantsWithStrava,
 }: StravaPreviewClientProps) {
   const [selectedUserId, setSelectedUserId] = useState<string>("");
+  const [comboboxOpen, setComboboxOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activities, setActivities] = useState<ActivityWithScoring[] | null>(null);
@@ -117,6 +130,30 @@ export function StravaPreviewClient({
   const [expandedJsonIds, setExpandedJsonIds] = useState<Set<number>>(new Set());
 
   const fetchActivities = useAction(api.actions.strava.fetchActivitiesWithScoringPreview);
+
+  // Load logged activities for the selected user (reactive)
+  const loggedActivities = useQuery(
+    api.queries.admin.getUserActivitiesForStravaDebug,
+    selectedUserId
+      ? {
+          challengeId: challengeId as Id<"challenges">,
+          userId: selectedUserId as Id<"users">,
+        }
+      : "skip",
+  );
+
+  // Build a lookup from Strava external ID -> logged activity
+  const loggedByExternalId = new globalThis.Map<
+    string,
+    NonNullable<typeof loggedActivities>[number]
+  >();
+  if (loggedActivities) {
+    for (const la of loggedActivities) {
+      if (la.externalId) {
+        loggedByExternalId.set(la.externalId, la);
+      }
+    }
+  }
 
   const toggleJsonExpanded = (activityId: number) => {
     setExpandedJsonIds((prev) => {
@@ -177,29 +214,87 @@ export function StravaPreviewClient({
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end">
         <div className="flex-1 space-y-2">
           <label className="text-sm font-medium text-zinc-300">Select Participant</label>
-          <Select value={selectedUserId} onValueChange={setSelectedUserId}>
-            <SelectTrigger className="w-full">
-              <SelectValue placeholder="Choose a participant with Strava connected" />
-            </SelectTrigger>
-            <SelectContent>
-              {participantsWithStrava.map((participant) => (
-                <SelectItem key={participant.id} value={participant.id}>
+          <Popover open={comboboxOpen} onOpenChange={setComboboxOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                role="combobox"
+                aria-expanded={comboboxOpen}
+                className="w-full justify-between"
+              >
+                {selectedParticipant ? (
                   <div className="flex items-center gap-2">
-                    {participant.avatarUrl ? (
+                    {selectedParticipant.avatarUrl ? (
                       <img
-                        src={participant.avatarUrl}
+                        src={selectedParticipant.avatarUrl}
                         alt=""
                         className="h-5 w-5 rounded-full"
                       />
                     ) : (
                       <User className="h-5 w-5 text-zinc-500" />
                     )}
-                    <span>{participant.name || participant.username}</span>
+                    <span>{selectedParticipant.name || selectedParticipant.username}</span>
                   </div>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+                ) : (
+                  <span className="text-muted-foreground">Search participants...</span>
+                )}
+                <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+              <Command>
+                <CommandInput placeholder="Search by name or username..." />
+                <CommandList>
+                  <CommandEmpty>No participant found.</CommandEmpty>
+                  <CommandGroup>
+                    {participantsWithStrava.map((participant) => (
+                      <CommandItem
+                        key={participant.id}
+                        value={`${participant.name} ${participant.username}`}
+                        onSelect={() => {
+                          setSelectedUserId(
+                            participant.id === selectedUserId ? "" : participant.id
+                          );
+                          setComboboxOpen(false);
+                          // Clear fetched activities when switching users
+                          if (participant.id !== selectedUserId) {
+                            setActivities(null);
+                            setError(null);
+                          }
+                        }}
+                      >
+                        <Check
+                          className={cn(
+                            "mr-2 h-4 w-4",
+                            selectedUserId === participant.id
+                              ? "opacity-100"
+                              : "opacity-0"
+                          )}
+                        />
+                        <div className="flex items-center gap-2">
+                          {participant.avatarUrl ? (
+                            <img
+                              src={participant.avatarUrl}
+                              alt=""
+                              className="h-5 w-5 rounded-full"
+                            />
+                          ) : (
+                            <User className="h-5 w-5 text-zinc-500" />
+                          )}
+                          <span>{participant.name || participant.username}</span>
+                          {participant.name && participant.username && (
+                            <span className="text-xs text-zinc-500">
+                              @{participant.username}
+                            </span>
+                          )}
+                        </div>
+                      </CommandItem>
+                    ))}
+                  </CommandGroup>
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
         </div>
         <Button
           onClick={handleFetchActivities}
@@ -238,204 +333,253 @@ export function StravaPreviewClient({
             <h3 className="text-lg font-medium text-zinc-200">
               Recent Activities ({activities.length})
             </h3>
-            <Badge variant="outline">
-              {activities.filter((a) => a.scoring.mappingSource !== "none").length} mapped
-            </Badge>
+            <div className="flex items-center gap-2">
+              <Badge variant="outline">
+                {activities.filter((a) => a.scoring.mappingSource !== "none").length} mapped
+              </Badge>
+              <Badge variant="outline" className="border-emerald-500/50 text-emerald-400">
+                {activities.filter((a) => loggedByExternalId.has(String(a.stravaActivity.id))).length} logged
+              </Badge>
+            </div>
           </div>
 
           <div className="space-y-3">
-            {activities.map(({ stravaActivity, scoring }) => (
-              <div
-                key={stravaActivity.id}
-                className={cn(
-                  "rounded-lg border p-4",
-                  scoring.mappingSource === "none"
-                    ? "border-zinc-800 bg-zinc-900/50"
-                    : "border-zinc-700 bg-zinc-900"
-                )}
-              >
-                {/* Activity Header */}
-                <div className="flex items-start justify-between">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <Activity className="h-4 w-4 text-zinc-400" />
-                      <span className="font-medium text-zinc-200">
-                        {stravaActivity.name}
-                      </span>
+            {activities.map(({ stravaActivity, scoring }) => {
+              const loggedActivity = loggedByExternalId.get(
+                String(stravaActivity.id)
+              );
+
+              return (
+                <div
+                  key={stravaActivity.id}
+                  className={cn(
+                    "rounded-lg border p-4",
+                    scoring.mappingSource === "none"
+                      ? "border-zinc-800 bg-zinc-900/50"
+                      : "border-zinc-700 bg-zinc-900"
+                  )}
+                >
+                  {/* Activity Header */}
+                  <div className="flex items-start justify-between">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <Activity className="h-4 w-4 text-zinc-400" />
+                        <span className="font-medium text-zinc-200">
+                          {stravaActivity.name}
+                        </span>
+                        {loggedActivity && (
+                          <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/50 text-xs">
+                            <Database className="mr-1 h-3 w-3" />
+                            Logged
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap items-center gap-3 text-sm text-zinc-500">
+                        <span className="flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
+                          {stravaActivity.start_date_local
+                            ? format(new Date(stravaActivity.start_date_local), "MMM d, yyyy h:mm a")
+                            : format(new Date(stravaActivity.start_date), "MMM d, yyyy h:mm a")}
+                          {stravaActivity.start_date_local && (
+                            <span className="text-zinc-600">(local)</span>
+                          )}
+                        </span>
+                        <Badge variant="secondary" className="text-xs">
+                          {stravaActivity.sport_type}
+                        </Badge>
+                      </div>
                     </div>
-                    <div className="flex flex-wrap items-center gap-3 text-sm text-zinc-500">
-                      <span className="flex items-center gap-1">
-                        <Clock className="h-3 w-3" />
-                        {format(new Date(stravaActivity.start_date), "MMM d, yyyy h:mm a")}
+
+                    {/* Points Badge */}
+                    {scoring.mappingSource !== "none" && (
+                      <div className="text-right">
+                        <div
+                          className={cn(
+                            "text-2xl font-bold",
+                            scoring.bonusPoints > 0 ? "text-amber-400" : "text-emerald-400"
+                          )}
+                        >
+                          {scoring.totalPoints.toFixed(1)}
+                        </div>
+                        <div className="text-xs text-zinc-500">points</div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Logged Activity Details */}
+                  {loggedActivity && (
+                    <div className="mt-3 rounded-md border border-emerald-500/20 bg-emerald-500/5 p-3">
+                      <div className="flex flex-wrap items-center gap-4 text-sm">
+                        <div className="flex items-center gap-1.5 text-emerald-400">
+                          <Calendar className="h-3.5 w-3.5" />
+                          <span className="font-medium">Logged Date:</span>
+                          <span className="font-mono">
+                            {formatDateOnlyFromUtcMs(loggedActivity.loggedDate)}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5 text-zinc-400">
+                          <Trophy className="h-3.5 w-3.5" />
+                          <span>{loggedActivity.pointsEarned} pts earned</span>
+                        </div>
+                        {loggedActivity.activityTypeName && (
+                          <Badge variant="outline" className="text-xs">
+                            {loggedActivity.activityTypeName}
+                          </Badge>
+                        )}
+                        <span className="text-xs text-zinc-600">
+                          Source: {loggedActivity.source}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Activity Photo */}
+                  {(() => {
+                    const photoUrl = getStravaPhotoUrl(stravaActivity);
+                    const photoCount =
+                      stravaActivity.total_photo_count ??
+                      stravaActivity.photos?.count ??
+                      0;
+
+                    if (!photoUrl && photoCount === 0) return null;
+
+                    return (
+                      <div className="mt-3">
+                        {photoUrl ? (
+                          <div className="relative inline-block">
+                            <img
+                              src={photoUrl}
+                              alt={`Photo from ${stravaActivity.name}`}
+                              className="h-24 w-auto rounded border border-zinc-700 object-cover"
+                            />
+                            {photoCount > 1 && (
+                              <div className="absolute right-1 top-1 flex items-center gap-1 rounded-full bg-black/70 px-1.5 py-0.5 text-[10px] text-zinc-200">
+                                <Camera className="h-2.5 w-2.5" />
+                                {photoCount}
+                              </div>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-1.5 text-sm text-zinc-500">
+                            <Camera className="h-3.5 w-3.5" />
+                            <span>
+                              {photoCount} photo{photoCount !== 1 ? "s" : ""} (could not load preview)
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+
+                  {/* Metrics Row */}
+                  <div className="mt-3 flex flex-wrap gap-4 text-sm">
+                    {stravaActivity.distance && (
+                      <div className="flex items-center gap-1.5 text-zinc-400">
+                        <Map className="h-3.5 w-3.5" />
+                        <span>
+                          {((scoring.metrics.distance_miles as number) || 0).toFixed(2)} mi
+                          {" / "}
+                          {((scoring.metrics.distance_km as number) || 0).toFixed(2)} km
+                        </span>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-1.5 text-zinc-400">
+                      <Clock className="h-3.5 w-3.5" />
+                      <span>
+                        {scoring.metrics.minutes as number} min
+                        {scoring.metrics.moving_minutes !== scoring.metrics.minutes && (
+                          <span className="text-zinc-600">
+                            {" "}({scoring.metrics.moving_minutes as number} moving)
+                          </span>
+                        )}
                       </span>
-                      <Badge variant="secondary" className="text-xs">
-                        {stravaActivity.sport_type}
-                      </Badge>
                     </div>
                   </div>
 
-                  {/* Points Badge */}
-                  {scoring.mappingSource !== "none" && (
-                    <div className="text-right">
-                      <div
-                        className={cn(
-                          "text-2xl font-bold",
-                          scoring.bonusPoints > 0 ? "text-amber-400" : "text-emerald-400"
-                        )}
-                      >
-                        {scoring.totalPoints.toFixed(1)}
+                  {/* Scoring Details */}
+                  <div className="mt-3 border-t border-zinc-800 pt-3">
+                    {scoring.mappingSource === "none" ? (
+                      <div className="flex items-center gap-2 text-sm text-zinc-500">
+                        <AlertCircle className="h-4 w-4" />
+                        <span>
+                          No mapping found for <strong>{stravaActivity.sport_type}</strong> -
+                          configure an integration mapping to score this activity type
+                        </span>
                       </div>
-                      <div className="text-xs text-zinc-500">points</div>
-                    </div>
-                  )}
-                </div>
+                    ) : (
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between text-sm">
+                          <div className="flex items-center gap-2">
+                            <span className="text-zinc-400">Maps to:</span>
+                            <Badge variant="default">{scoring.activityTypeName}</Badge>
+                            <Badge
+                              variant="outline"
+                              className={cn(
+                                "text-xs",
+                                scoring.mappingSource === "explicit"
+                                  ? "border-emerald-500/50 text-emerald-400"
+                                  : "border-amber-500/50 text-amber-400"
+                              )}
+                            >
+                              {scoring.mappingSource === "explicit" ? "Configured" : "Auto-matched"}
+                            </Badge>
+                          </div>
+                        </div>
 
-                {/* Activity Photo */}
-                {(() => {
-                  const photoUrl = getStravaPhotoUrl(stravaActivity);
-                  const photoCount =
-                    stravaActivity.total_photo_count ??
-                    stravaActivity.photos?.count ??
-                    0;
-
-                  if (!photoUrl && photoCount === 0) return null;
-
-                  return (
-                    <div className="mt-3">
-                      {photoUrl ? (
-                        <div className="relative inline-block">
-                          <img
-                            src={photoUrl}
-                            alt={`Photo from ${stravaActivity.name}`}
-                            className="h-24 w-auto rounded border border-zinc-700 object-cover"
-                          />
-                          {photoCount > 1 && (
-                            <div className="absolute right-1 top-1 flex items-center gap-1 rounded-full bg-black/70 px-1.5 py-0.5 text-[10px] text-zinc-200">
-                              <Camera className="h-2.5 w-2.5" />
-                              {photoCount}
-                            </div>
+                        {/* Points Breakdown */}
+                        <div className="flex items-center gap-4 text-sm">
+                          <span className="text-zinc-400">
+                            Base: <span className="font-mono text-zinc-300">{scoring.basePoints.toFixed(1)}</span>
+                          </span>
+                          {scoring.bonusPoints > 0 && (
+                            <span className="text-amber-400">
+                              Bonuses: <span className="font-mono">+{scoring.bonusPoints}</span>
+                            </span>
                           )}
                         </div>
-                      ) : (
-                        <div className="flex items-center gap-1.5 text-sm text-zinc-500">
-                          <Camera className="h-3.5 w-3.5" />
-                          <span>
-                            {photoCount} photo{photoCount !== 1 ? "s" : ""} (could not load preview)
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })()}
 
-                {/* Metrics Row */}
-                <div className="mt-3 flex flex-wrap gap-4 text-sm">
-                  {stravaActivity.distance && (
-                    <div className="flex items-center gap-1.5 text-zinc-400">
-                      <Map className="h-3.5 w-3.5" />
-                      <span>
-                        {((scoring.metrics.distance_miles as number) || 0).toFixed(2)} mi
-                        {" / "}
-                        {((scoring.metrics.distance_km as number) || 0).toFixed(2)} km
-                      </span>
-                    </div>
-                  )}
-                  <div className="flex items-center gap-1.5 text-zinc-400">
-                    <Clock className="h-3.5 w-3.5" />
-                    <span>
-                      {scoring.metrics.minutes as number} min
-                      {scoring.metrics.moving_minutes !== scoring.metrics.minutes && (
-                        <span className="text-zinc-600">
-                          {" "}({scoring.metrics.moving_minutes as number} moving)
-                        </span>
-                      )}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Scoring Details */}
-                <div className="mt-3 border-t border-zinc-800 pt-3">
-                  {scoring.mappingSource === "none" ? (
-                    <div className="flex items-center gap-2 text-sm text-zinc-500">
-                      <AlertCircle className="h-4 w-4" />
-                      <span>
-                        No mapping found for <strong>{stravaActivity.sport_type}</strong> -
-                        configure an integration mapping to score this activity type
-                      </span>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between text-sm">
-                        <div className="flex items-center gap-2">
-                          <span className="text-zinc-400">Maps to:</span>
-                          <Badge variant="default">{scoring.activityTypeName}</Badge>
-                          <Badge
-                            variant="outline"
-                            className={cn(
-                              "text-xs",
-                              scoring.mappingSource === "explicit"
-                                ? "border-emerald-500/50 text-emerald-400"
-                                : "border-amber-500/50 text-amber-400"
-                            )}
-                          >
-                            {scoring.mappingSource === "explicit" ? "Configured" : "Auto-matched"}
-                          </Badge>
-                        </div>
-                      </div>
-
-                      {/* Points Breakdown */}
-                      <div className="flex items-center gap-4 text-sm">
-                        <span className="text-zinc-400">
-                          Base: <span className="font-mono text-zinc-300">{scoring.basePoints.toFixed(1)}</span>
-                        </span>
-                        {scoring.bonusPoints > 0 && (
-                          <span className="text-amber-400">
-                            Bonuses: <span className="font-mono">+{scoring.bonusPoints}</span>
-                          </span>
+                        {/* Triggered Bonuses */}
+                        {scoring.triggeredBonuses.length > 0 && (
+                          <div className="flex flex-wrap gap-2">
+                            {scoring.triggeredBonuses.map((bonus, idx) => (
+                              <div
+                                key={idx}
+                                className="flex items-center gap-1.5 rounded-full bg-amber-500/10 px-2 py-1 text-xs text-amber-400"
+                              >
+                                <Trophy className="h-3 w-3" />
+                                {bonus.description} (+{bonus.bonusPoints})
+                              </div>
+                            ))}
+                          </div>
                         )}
                       </div>
-
-                      {/* Triggered Bonuses */}
-                      {scoring.triggeredBonuses.length > 0 && (
-                        <div className="flex flex-wrap gap-2">
-                          {scoring.triggeredBonuses.map((bonus, idx) => (
-                            <div
-                              key={idx}
-                              className="flex items-center gap-1.5 rounded-full bg-amber-500/10 px-2 py-1 text-xs text-amber-400"
-                            >
-                              <Trophy className="h-3 w-3" />
-                              {bonus.description} (+{bonus.bonusPoints})
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* Raw JSON Toggle */}
-                <div className="mt-3 border-t border-zinc-800 pt-3">
-                  <button
-                    type="button"
-                    onClick={() => toggleJsonExpanded(stravaActivity.id)}
-                    className="flex items-center gap-1.5 text-xs text-zinc-500 transition-colors hover:text-zinc-300"
-                  >
-                    <Code className="h-3.5 w-3.5" />
-                    <span>Raw JSON</span>
-                    {expandedJsonIds.has(stravaActivity.id) ? (
-                      <ChevronUp className="h-3 w-3" />
-                    ) : (
-                      <ChevronDown className="h-3 w-3" />
                     )}
-                  </button>
-                  {expandedJsonIds.has(stravaActivity.id) && (
-                    <pre className="mt-2 max-h-80 overflow-auto rounded-md border border-zinc-800 bg-zinc-950 p-3 text-xs text-zinc-400">
-                      {JSON.stringify(stravaActivity, null, 2)}
-                    </pre>
-                  )}
+                  </div>
+
+                  {/* Raw JSON Toggle */}
+                  <div className="mt-3 border-t border-zinc-800 pt-3">
+                    <button
+                      type="button"
+                      onClick={() => toggleJsonExpanded(stravaActivity.id)}
+                      className="flex items-center gap-1.5 text-xs text-zinc-500 transition-colors hover:text-zinc-300"
+                    >
+                      <Code className="h-3.5 w-3.5" />
+                      <span>Raw JSON</span>
+                      {expandedJsonIds.has(stravaActivity.id) ? (
+                        <ChevronUp className="h-3 w-3" />
+                      ) : (
+                        <ChevronDown className="h-3 w-3" />
+                      )}
+                    </button>
+                    {expandedJsonIds.has(stravaActivity.id) && (
+                      <pre className="mt-2 max-h-80 overflow-auto rounded-md border border-zinc-800 bg-zinc-950 p-3 text-xs text-zinc-400">
+                        {JSON.stringify(stravaActivity, null, 2)}
+                      </pre>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
 
           {activities.length === 0 && (
