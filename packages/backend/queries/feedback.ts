@@ -2,7 +2,7 @@ import { internalQuery, query } from "../_generated/server";
 import { v } from "convex/values";
 import type { Id } from "../_generated/dataModel";
 import type { QueryCtx } from "../_generated/server";
-import { getCurrentUser } from "../lib/ids";
+import { requireCurrentUser } from "../lib/ids";
 
 async function getAdminStatus(
   ctx: QueryCtx,
@@ -103,10 +103,7 @@ export const listByChallenge = query({
     challengeId: v.id("challenges"),
   },
   handler: async (ctx, args) => {
-    const user = await getCurrentUser(ctx);
-    if (!user) {
-      throw new Error("Not authenticated");
-    }
+    const user = await requireCurrentUser(ctx);
 
     const challenge = await ctx.db.get(args.challengeId);
     if (!challenge) {
@@ -133,10 +130,7 @@ export const listForAdmin = query({
     challengeId: v.id("challenges"),
   },
   handler: async (ctx, args) => {
-    const user = await getCurrentUser(ctx);
-    if (!user) {
-      throw new Error("Not authenticated");
-    }
+    const user = await requireCurrentUser(ctx);
 
     await assertChallengeAdmin(ctx, user._id, args.challengeId, user.role);
     return { items: await buildFeedbackRows(ctx, args.challengeId) };
