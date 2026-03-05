@@ -64,6 +64,7 @@
 - For production troubleshooting UX, do not add user-facing alerts for transient feed/connection issues; log to Sentry instead.
 
 ## Patterns That Work
+- Dashboard desktop scroll isolation: use `lg:fixed lg:inset-0 lg:overflow-hidden` on the dashboard shell div instead of `lg:h-dvh lg:overflow-hidden`. Fixed positioning escapes parent flow (body siblings like Toaster, Analytics) that would otherwise cause document-level scrollbars. The old `forwardScroll` wheel handler on sidebars was removed — left sidebars use `overflow-hidden`, right sidebar uses `overflow-y-auto overscroll-contain` for independent scroll.
 - For feed ranking knobs, centralize bucket math in `lib/feedScoring` helpers (`computeFeedRank`, `getFeedDayBucket`, `getRankInFeedBucket`) and import them in debug/query code to avoid drift when tuning constants.
 - In Next App Router root layout, avoid manual `<head>` blocks with `next/script`; keep scripts in `<body>` (or metadata APIs) to reduce head hydration mismatch risk.
 - For idea/research tasks, combine source reading with a quick scan of local CI/docs/testing files before proposing changes; recommendations become concrete and repo-specific.

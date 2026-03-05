@@ -50,14 +50,11 @@ import {
   useActivityNotification,
   useChallengeSummary,
 } from "./challenge-realtime-context";
-import { UserAvatar } from "@/components/user-avatar";
 import { UserChallengeDisplay } from "@/components/user-challenge-display";
 import { Button } from "@/components/ui/button";
 import {
   Card,
-  CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -87,6 +84,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { PointsDisplay } from "@/components/ui/points-display";
 import { MediaGallery } from "@/components/media-gallery";
+import { FollowButton } from "@/components/follow-button";
 import { captureAppException, captureAppMessage } from "@/lib/sentry";
 import { isLatestActivityVisibleInFeed } from "@/lib/feed-notification";
 
@@ -182,6 +180,7 @@ function mapAlgoItem(item: AlgoFeedItem): ActivityFeedItem {
 
 interface ActivityFeedProps {
   challengeId: string;
+  currentUserId?: string;
   initialItems?: ActivityFeedItem[];
   initialAlgoItems?: AlgoFeedItem[];
   initialLightweightMode?: boolean;
@@ -197,6 +196,7 @@ interface FeedPageResponse {
 
 export function ActivityFeed({
   challengeId,
+  currentUserId,
   initialItems = [],
   initialAlgoItems = [],
   initialLightweightMode = false,
@@ -205,6 +205,8 @@ export function ActivityFeed({
   const { summary } = useChallengeSummary();
   const { hasNewActivity, acknowledgeActivity } = useActivityNotification();
   const { users: mentionUsers } = useMentionableUsers(challengeId);
+  const followingIds = useQuery(api.queries.follows.getFollowingIds);
+  const followingSet = useMemo(() => new Set(followingIds ?? []), [followingIds]);
   const [feedFilter, setFeedFilter] = useState<FeedFilter>("for_you");
   const [hasLoadedFollowingFeed, setHasLoadedFollowingFeed] = useState(false);
   const [useHttpFallback, setUseHttpFallback] = useState(false);
@@ -513,7 +515,7 @@ export function ActivityFeed({
   }, [displayResults, effectiveIsLoading, feedFilter]);
 
   return (
-    <div className="space-y-4">
+    <div>
       {/* Twitter-like Feed Filter Tabs */}
       <div className="sticky top-[env(safe-area-inset-top)] z-10 -mx-4 border-b border-zinc-800 bg-black/80 backdrop-blur">
         <div className="flex">
@@ -599,6 +601,8 @@ export function ActivityFeed({
         </div>
       )}
 
+      <div className="h-2" />
+
       {displayResults
         ?.filter(
           (
@@ -621,6 +625,8 @@ export function ActivityFeed({
               mediaUrls: item.mediaUrls ?? [],
             }}
             mentionOptions={mentionUsers}
+            currentUserId={currentUserId}
+            isFollowing={followingSet.has(item.user.id)}
           />
         ))}
 
@@ -758,6 +764,8 @@ interface ActivityCardProps {
   item: ActivityFeedItem;
   showEngagementCounts: boolean;
   mentionOptions: MentionableUser[];
+  currentUserId?: string;
+  isFollowing: boolean;
 }
 
 const ActivityCard = memo(function ActivityCard({
@@ -765,6 +773,8 @@ const ActivityCard = memo(function ActivityCard({
   item,
   showEngagementCounts,
   mentionOptions,
+  currentUserId,
+  isFollowing,
 }: ActivityCardProps) {
   const activityId = item.activity.id ?? item.activity._id;
   const router = useRouter();
@@ -862,12 +872,183 @@ const ActivityCard = memo(function ActivityCard({
     }
   };
 
-  return (
-    <Card
-      className="cursor-pointer overflow-hidden transition-colors hover:bg-muted/30"
-      onClick={handleCardClick}
+  const actionBar = (
+    <div
+      className="flex items-center gap-1 sm:gap-2"
+      onClick={(e) => e.stopPropagation()}
     >
-      <CardHeader>
+      <Button
+        variant={item.likedByUser ? "default" : "outline"}
+        size="sm"
+        disabled={isLiking}
+        onClick={handleToggleLike}
+      >
+        <ThumbsUp
+          className={cn(
+            "h-4 w-4 sm:mr-2",
+            item.likedByUser && "fill-current",
+          )}
+        />
+        {showEngagementCounts ? (
+          item.likes
+        ) : (
+          <span className="hidden sm:inline">Like</span>
+        )}
+      </Button>
+      <Button
+        variant={showComments ? "default" : "outline"}
+        size="sm"
+        onClick={() => setShowComments((prev) => !prev)}
+      >
+        <MessageCircle className="h-4 w-4 sm:mr-2" />
+        {showEngagementCounts ? (
+          item.comments
+        ) : (
+          <span className="hidden sm:inline">Comment</span>
+        )}
+      </Button>
+      <Button variant="ghost" size="sm" onClick={handleShare}>
+        <Share2 className="h-4 w-4 sm:mr-2" />{" "}
+        <span className="hidden sm:inline">Share</span>
+      </Button>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="sm" className="ml-auto h-8 w-8 p-0">
+            <MoreHorizontal className="h-4 w-4" />
+            <span className="sr-only">More options</span>
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem
+            onClick={() => {
+              setFlagSuccess(false);
+              setFlagError(null);
+              setFlagCategory("");
+              setFlagReason("");
+              setShowFlagDialog(true);
+            }}
+            className="text-destructive focus:text-destructive"
+          >
+            <Flag className="mr-2 h-4 w-4" />
+            Report activity
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <Dialog open={showFlagDialog} onOpenChange={setShowFlagDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Report Activity</DialogTitle>
+            <DialogDescription>
+              Flag this activity for admin review. Please describe why you
+              think this activity should be reviewed.
+            </DialogDescription>
+          </DialogHeader>
+          {flagSuccess ? (
+            <div className="py-4 text-center">
+              <p className="text-sm text-muted-foreground">
+                Thank you for your report. An admin will review this activity.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <RadioGroup
+                value={flagCategory}
+                onValueChange={setFlagCategory}
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem
+                    value="incorrect_type"
+                    id="feed-flag-incorrect"
+                  />
+                  <Label htmlFor="feed-flag-incorrect">
+                    Logged as incorrect type
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem
+                    value="impossible"
+                    id="feed-flag-impossible"
+                  />
+                  <Label htmlFor="feed-flag-impossible">
+                    Seems like an impossible feat of athleticism
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="other" id="feed-flag-other" />
+                  <Label htmlFor="feed-flag-other">Other</Label>
+                </div>
+              </RadioGroup>
+              <Textarea
+                value={flagReason}
+                onChange={(e) => setFlagReason(e.target.value)}
+                placeholder="Add additional context (optional)..."
+                rows={3}
+                maxLength={2000}
+              />
+              {flagError && (
+                <p className="text-sm text-destructive">{flagError}</p>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            {flagSuccess ? (
+              <Button
+                variant="outline"
+                onClick={() => setShowFlagDialog(false)}
+              >
+                Close
+              </Button>
+            ) : (
+              <>
+                <Button
+                  variant="outline"
+                  onClick={() => setShowFlagDialog(false)}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={handleFlagSubmit}
+                  disabled={
+                    flagSubmitting ||
+                    !flagCategory ||
+                    (flagCategory === "other" && !flagReason.trim())
+                  }
+                >
+                  {flagSubmitting ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Submitting
+                    </>
+                  ) : (
+                    "Submit Report"
+                  )}
+                </Button>
+              </>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+
+  const commentsSection = (
+    <div onClick={(e) => e.stopPropagation()}>
+      <InlineComments
+        activityId={activityId}
+        challengeId={challengeId}
+        showCommentInput={showComments}
+        mentionOptions={mentionOptions}
+      />
+    </div>
+  );
+
+  const isOwnPost = currentUserId === item.user.id;
+
+  const headerContent = (
+    <div className="flex items-center gap-2">
+      <div className="min-w-0 flex-1">
         <UserChallengeDisplay
           user={item.user}
           challengeId={challengeId}
@@ -884,207 +1065,51 @@ const ActivityCard = memo(function ActivityCard({
             </>
           }
         />
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div>
-          <p className="text-sm font-semibold text-primary">
-            {item.activityType?.name ?? "Activity"}
-          </p>
-          {item.activity.notes ? (
-            <RichTextViewer
-              content={item.activity.notes}
-              className="mt-2 text-sm text-muted-foreground"
-            />
-          ) : null}
-        </div>
-
-        {/* Media Gallery */}
-        <MediaGallery urls={item.mediaUrls} variant="feed" />
-
-        <ActivityStats item={item} />
-      </CardContent>
-      <CardFooter
-        className="flex items-center gap-1 sm:gap-2"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <Button
-          variant={item.likedByUser ? "default" : "outline"}
-          size="sm"
-          disabled={isLiking}
-          onClick={handleToggleLike}
-        >
-          <ThumbsUp
-            className={cn(
-              "h-4 w-4 sm:mr-2",
-              item.likedByUser && "fill-current",
-            )}
-          />
-          {showEngagementCounts ? (
-            item.likes
-          ) : (
-            <span className="hidden sm:inline">Like</span>
-          )}
-        </Button>
-        <Button
-          variant={showComments ? "default" : "outline"}
-          size="sm"
-          onClick={() => setShowComments((prev) => !prev)}
-        >
-          <MessageCircle className="h-4 w-4 sm:mr-2" />
-          {showEngagementCounts ? (
-            item.comments
-          ) : (
-            <span className="hidden sm:inline">Comment</span>
-          )}
-        </Button>
-        <Button variant="ghost" size="sm" onClick={handleShare}>
-          <Share2 className="h-4 w-4 sm:mr-2" />{" "}
-          <span className="hidden sm:inline">Share</span>
-        </Button>
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button variant="ghost" size="sm" className="ml-auto h-8 w-8 p-0">
-              <MoreHorizontal className="h-4 w-4" />
-              <span className="sr-only">More options</span>
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem
-              onClick={() => {
-                setFlagSuccess(false);
-                setFlagError(null);
-                setFlagCategory("");
-                setFlagReason("");
-                setShowFlagDialog(true);
-              }}
-              className="text-destructive focus:text-destructive"
-            >
-              <Flag className="mr-2 h-4 w-4" />
-              Report activity
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-
-        <Dialog open={showFlagDialog} onOpenChange={setShowFlagDialog}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Report Activity</DialogTitle>
-              <DialogDescription>
-                Flag this activity for admin review. Please describe why you
-                think this activity should be reviewed.
-              </DialogDescription>
-            </DialogHeader>
-            {flagSuccess ? (
-              <div className="py-4 text-center">
-                <p className="text-sm text-muted-foreground">
-                  Thank you for your report. An admin will review this activity.
-                </p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                <RadioGroup
-                  value={flagCategory}
-                  onValueChange={setFlagCategory}
-                >
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem
-                      value="incorrect_type"
-                      id="feed-flag-incorrect"
-                    />
-                    <Label htmlFor="feed-flag-incorrect">
-                      Logged as incorrect type
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem
-                      value="impossible"
-                      id="feed-flag-impossible"
-                    />
-                    <Label htmlFor="feed-flag-impossible">
-                      Seems like an impossible feat of athleticism
-                    </Label>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <RadioGroupItem value="other" id="feed-flag-other" />
-                    <Label htmlFor="feed-flag-other">Other</Label>
-                  </div>
-                </RadioGroup>
-                <Textarea
-                  value={flagReason}
-                  onChange={(e) => setFlagReason(e.target.value)}
-                  placeholder="Add additional context (optional)..."
-                  rows={3}
-                  maxLength={2000}
-                />
-                {flagError && (
-                  <p className="text-sm text-destructive">{flagError}</p>
-                )}
-              </div>
-            )}
-            <DialogFooter>
-              {flagSuccess ? (
-                <Button
-                  variant="outline"
-                  onClick={() => setShowFlagDialog(false)}
-                >
-                  Close
-                </Button>
-              ) : (
-                <>
-                  <Button
-                    variant="outline"
-                    onClick={() => setShowFlagDialog(false)}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    onClick={handleFlagSubmit}
-                    disabled={
-                      flagSubmitting ||
-                      !flagCategory ||
-                      (flagCategory === "other" && !flagReason.trim())
-                    }
-                  >
-                    {flagSubmitting ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Submitting
-                      </>
-                    ) : (
-                      "Submit Report"
-                    )}
-                  </Button>
-                </>
-              )}
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </CardFooter>
-
-      {showComments && (
-        <CardContent
-          className="border-t bg-muted/40"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <ActivityComments
-            activityId={activityId}
-            challengeId={challengeId}
-            mentionOptions={mentionOptions}
-          />
-        </CardContent>
+      </div>
+      {!isOwnPost && (
+        <FollowButton userId={item.user.id} isFollowing={isFollowing} />
       )}
-    </Card>
+    </div>
+  );
+
+  const bodyContent = (
+    <>
+      <div>
+        <p className="text-sm font-semibold text-primary">
+          {item.activityType?.name ?? "Activity"}
+        </p>
+        {item.activity.notes ? (
+          <RichTextViewer
+            content={item.activity.notes}
+            className="mt-2 text-sm text-muted-foreground"
+          />
+        ) : null}
+      </div>
+      <MediaGallery urls={item.mediaUrls} variant="feed" />
+      <ActivityStats item={item} />
+    </>
+  );
+
+  return (
+    <div className="cursor-pointer" onClick={handleCardClick}>
+      <div className="px-4 pt-3 pb-2" onClick={(e) => e.stopPropagation()}>{headerContent}</div>
+      <div className="space-y-3 px-4">{bodyContent}</div>
+      <div className="px-4 py-2">{actionBar}</div>
+      <div className="px-4 pb-4">{commentsSection}</div>
+      <div className="border-b border-zinc-800 mb-2" />
+    </div>
   );
 });
 
-function ActivityComments({
+function InlineComments({
   activityId,
   challengeId,
+  showCommentInput,
   mentionOptions,
 }: {
   activityId: string;
   challengeId: string;
+  showCommentInput: boolean;
   mentionOptions: MentionableUser[];
 }) {
   const [commentInput, setCommentInput] = useState("");
@@ -1100,7 +1125,7 @@ function ActivityComments({
   } = usePaginatedQuery(
     api.queries.comments.getByActivityId,
     { activityId: activityId as Id<"activities"> },
-    { initialNumItems: 5 },
+    { initialNumItems: 3 },
   );
 
   const createComment = useMutation(api.mutations.comments.create);
@@ -1130,105 +1155,91 @@ function ActivityComments({
     }
   };
 
-  return (
-    <div className="space-y-4">
-      <div className="space-y-2">
-        <RichTextEditor
-          value={commentInput}
-          onChange={setCommentInput}
-          onIsEmptyChange={setCommentIsEmpty}
-          placeholder="Leave an encouraging note"
-          disabled={submittingComment}
-          mentionOptions={mentionOptions}
-        />
-        <div className="flex items-center justify-between text-xs text-muted-foreground">
-          {commentError ? (
-            <span className="text-destructive">{commentError}</span>
-          ) : (
-            <span>Cheer on your teammates!</span>
-          )}
-          <Button
-            size="sm"
-            disabled={
-              submittingComment ||
-              commentIsEmpty ||
-              isEditorContentEmpty(commentInput)
-            }
-            onClick={handleSubmitComment}
-          >
-            {submittingComment ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Posting
-              </>
-            ) : (
-              "Comment"
-            )}
-          </Button>
-        </div>
-      </div>
+  const hasComments = comments && comments.length > 0;
 
-      <div className="space-y-3">
-        {comments?.map(
-          (entry: {
-            comment: { id: string; createdAt: number; content: string };
-            author: {
-              id: string;
-              name: string;
-              username: string;
-              avatarUrl: string | null;
-            };
-          }) => (
-            <div key={entry.comment.id} className="flex gap-3">
-              <UserAvatar
-                user={{
-                  id: entry.author.id,
-                  name: entry.author.name,
-                  username: entry.author.username,
-                  avatarUrl: entry.author.avatarUrl,
-                }}
-                challengeId={challengeId}
-                size="sm"
-              />
-              <div className="flex-1 rounded-lg bg-background p-3 shadow-sm">
-                <div className="flex items-center justify-between">
-                  <p className="text-sm font-semibold">
-                    {entry.author.name ?? entry.author.username}
-                  </p>
-                  <span className="text-xs text-muted-foreground">
-                    {formatDistanceToNow(new Date(entry.comment.createdAt), {
-                      addSuffix: true,
-                    })}
-                  </span>
-                </div>
+  return (
+    <div className="space-y-1.5">
+      {/* Compact comment list — Instagram style */}
+      {hasComments && (
+        <div className="space-y-1">
+          {comments.map(
+            (entry: {
+              comment: { id: string; createdAt: number; content: string };
+              author: {
+                id: string;
+                name: string;
+                username: string;
+                avatarUrl: string | null;
+              };
+            }) => (
+              <div key={entry.comment.id} className="text-sm leading-snug">
+                <span className="font-semibold text-foreground">
+                  {entry.author.username}
+                </span>{" "}
                 <RichTextViewer
                   content={entry.comment.content}
-                  className="mt-1 text-sm text-muted-foreground"
+                  className="inline text-sm text-muted-foreground [&_p]:inline"
                 />
               </div>
-            </div>
-          ),
-        )}
+            ),
+          )}
 
-        {loadingComments && (
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            Loading comments…
-          </div>
-        )}
-
-        {commentsStatus === "CanLoadMore" && !loadingComments && (
-          <div className="flex justify-center">
-            <Button
-              variant="link"
-              size="sm"
+          {commentsStatus === "CanLoadMore" && !loadingComments && (
+            <button
+              className="text-xs text-muted-foreground"
               onClick={() => loadMoreComments(5)}
             >
-              Load more replies
+              View more comments
+            </button>
+          )}
+
+          {loadingComments && (
+            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              Loading...
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Comment input — shown when user taps comment button */}
+      {showCommentInput && (
+        <div className="space-y-2 pt-1">
+          <RichTextEditor
+            value={commentInput}
+            onChange={setCommentInput}
+            onIsEmptyChange={setCommentIsEmpty}
+            placeholder="Add a comment..."
+            disabled={submittingComment}
+            mentionOptions={mentionOptions}
+          />
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            {commentError ? (
+              <span className="text-destructive">{commentError}</span>
+            ) : (
+              <span />
+            )}
+            <Button
+              size="sm"
+              disabled={
+                submittingComment ||
+                commentIsEmpty ||
+                isEditorContentEmpty(commentInput)
+              }
+              onClick={handleSubmitComment}
+            >
+              {submittingComment ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Posting
+                </>
+              ) : (
+                "Post"
+              )}
             </Button>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

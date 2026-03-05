@@ -40,6 +40,10 @@
     "./lib/weeks": {
       "types": "./lib/weeks.ts",
       "default": "./lib/weeks.ts"
+    },
+    "./lib/duplicateDetection": {
+      "types": "./lib/duplicateDetection.ts",
+      "default": "./lib/duplicateDetection.ts"
     }
   },
   "scripts": {

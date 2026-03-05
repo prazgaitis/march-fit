@@ -715,3 +715,45 @@ export const getScoringPreviewData = internalQuery({
     };
   },
 });
+
+/**
+ * Get manual activities for a user in a challenge within a date range.
+ * Used by duplicate detection to find manually-logged activities that may
+ * overlap with Strava-synced activities.
+ */
+export const getManualActivitiesForDateRange = internalQuery({
+  args: {
+    userId: v.id("users"),
+    challengeId: v.id("challenges"),
+    startDateMs: v.number(),
+    endDateMs: v.number(),
+  },
+  handler: async (ctx, args) => {
+    const activities = await ctx.db
+      .query("activities")
+      .withIndex("by_user_challenge_date", (q) =>
+        q
+          .eq("userId", args.userId)
+          .eq("challengeId", args.challengeId)
+          .gte("loggedDate", args.startDateMs)
+          .lte("loggedDate", args.endDateMs),
+      )
+      .filter((q) =>
+        q.and(
+          q.eq(q.field("source"), "manual"),
+          notDeleted(q),
+        ),
+      )
+      .collect();
+
+    return activities.map((a) => ({
+      _id: a._id,
+      activityTypeId: a.activityTypeId,
+      loggedDate: a.loggedDate,
+      metrics: a.metrics as Record<string, unknown> | null,
+      source: a.source,
+      notes: a.notes,
+      pointsEarned: a.pointsEarned,
+    }));
+  },
+});
