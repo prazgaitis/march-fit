@@ -57,7 +57,6 @@ import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
@@ -513,15 +512,15 @@ export function ActivityDetailContent({
       </div>
 
       <div className="space-y-6">
-        <Card>
-          <CardHeader className="flex flex-row items-start gap-4">
+        <div>
+          <div className="flex items-start gap-4">
             <UserAvatarInline
               user={user}
               challengeId={challengeId}
               size="xl"
               suffix={
                 <>
-                  <span aria-hidden="true">•</span>
+                  <span aria-hidden="true">·</span>
                   <span>
                     {formatDistanceToNow(new Date(activity.createdAt), {
                       addSuffix: true,
@@ -536,98 +535,73 @@ export function ActivityDetailContent({
             ) : (
               <Badge variant="secondary">{activityType.name}</Badge>
             )}
-          </CardHeader>
+          </div>
 
-          <CardContent className="space-y-6">
-            {activity.notes && (
-              <div>
-                <RichTextViewer
-                  content={activity.notes}
-                  className="text-base"
-                />
-              </div>
-            )}
-
-            {/* Media Gallery */}
-            <MediaGallery urls={mediaUrls ?? []} variant="detail" />
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div
-                className={cn(
-                  "flex items-center gap-3 rounded-lg border bg-muted/30 p-4",
-                  (activityType.isNegative || activity.pointsEarned < 0) &&
-                    "border-red-500/30",
-                )}
-              >
+          <div className="mt-4 space-y-4">
+            {/* Points & date row */}
+            <div className="flex items-center gap-4 text-sm text-muted-foreground">
+              <span className="flex items-center gap-1.5">
                 <Trophy
                   className={cn(
-                    "h-5 w-5",
+                    "h-4 w-4",
                     activityType.isNegative || activity.pointsEarned < 0
                       ? "text-red-500"
                       : "text-yellow-500",
                   )}
                 />
-                <div>
-                  <PointsDisplay
-                    points={activity.pointsEarned}
-                    isNegative={activityType.isNegative}
-                    decimals={1}
-                    size="xl"
-                    showSign={true}
-                    showLabel={false}
-                    className="font-bold"
-                  />
-                  <p className="text-sm text-muted-foreground">Points earned</p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3 rounded-lg border bg-muted/30 p-4">
-                <Calendar className="h-5 w-5 text-blue-500" />
-                <div>
-                  <p className="text-lg font-semibold">
-                    {formatDateShortFromDateOnly(
-                      formatDateOnlyFromUtcMs(activity.loggedDate),
-                    )}
-                  </p>
-                  <p className="text-sm text-muted-foreground">Activity date</p>
-                </div>
-              </div>
+                <PointsDisplay
+                  points={activity.pointsEarned}
+                  isNegative={activityType.isNegative}
+                  decimals={1}
+                  size="lg"
+                  showSign={true}
+                  showLabel={true}
+                  className="font-semibold"
+                />
+              </span>
+              <span aria-hidden="true">·</span>
+              <span className="flex items-center gap-1.5">
+                <Calendar className="h-4 w-4 text-blue-500" />
+                {formatDateShortFromDateOnly(
+                  formatDateOnlyFromUtcMs(activity.loggedDate),
+                )}
+              </span>
+              {activity.source !== "manual" && (
+                <>
+                  <span aria-hidden="true">·</span>
+                  <span className="flex items-center gap-1.5">
+                    <Clock className="h-4 w-4" />
+                    via <span className="capitalize">{activity.source}</span>
+                  </span>
+                </>
+              )}
             </div>
 
+            {/* Metrics inline */}
             {metrics && Object.keys(metrics).length > 0 && (
-              <div>
-                <h3 className="mb-3 text-sm font-medium text-muted-foreground">
-                  Activity metrics
-                </h3>
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                  {Object.entries(metrics).map(([key, value]) => (
-                    <div
-                      key={key}
-                      className="rounded-lg border bg-muted/20 px-4 py-3"
-                    >
-                      <p className="text-lg font-semibold">
-                        {typeof value === "number"
-                          ? value.toLocaleString()
-                          : String(value)}
-                      </p>
-                      <p className="text-xs text-muted-foreground capitalize">
-                        {key.replace(/_/g, " ")}
-                      </p>
-                    </div>
-                  ))}
-                </div>
+              <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+                {Object.entries(metrics).map(([key, value]) => (
+                  <span key={key} className="text-muted-foreground">
+                    <span className="font-medium text-foreground">
+                      {typeof value === "number"
+                        ? value.toLocaleString()
+                        : String(value)}
+                    </span>{" "}
+                    <span className="capitalize">{key.replace(/_/g, " ")}</span>
+                  </span>
+                ))}
               </div>
             )}
 
-            {activity.source !== "manual" && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Clock className="h-4 w-4" />
-                <span>
-                  Synced from{" "}
-                  <span className="capitalize">{activity.source}</span>
-                </span>
-              </div>
+            {activity.notes && (
+              <RichTextViewer
+                content={activity.notes}
+                className="text-base"
+              />
             )}
+
+            {/* Media Gallery */}
+            <MediaGallery urls={mediaUrls ?? []} variant="detail" />
 
             {adminComment && (
               <div className="flex items-start gap-3 rounded-lg border border-amber-500/30 bg-amber-500/5 p-4">
@@ -642,9 +616,9 @@ export function ActivityDetailContent({
                 </div>
               </div>
             )}
-          </CardContent>
+          </div>
 
-          <CardFooter className="flex flex-wrap items-center gap-2 border-t pt-4">
+          <div className="mt-4 flex flex-wrap items-center gap-2 border-t pt-4">
             <Button
               variant={likedByUser ? "default" : "outline"}
               size="sm"
@@ -936,8 +910,9 @@ export function ActivityDetailContent({
                 </ResponsiveDialogContent>
               </ResponsiveDialog>
             </DropdownMenu>
+          </div>
 
-            <Dialog open={showFlagDialog} onOpenChange={setShowFlagDialog}>
+          <Dialog open={showFlagDialog} onOpenChange={setShowFlagDialog}>
               <DialogContent>
                 <DialogHeader>
                   <DialogTitle>Report Activity</DialogTitle>
@@ -1075,8 +1050,7 @@ export function ActivityDetailContent({
                 </DialogFooter>
               </DialogContent>
             </Dialog>
-          </CardFooter>
-        </Card>
+        </div>
 
         {isAdmin && (
           <AdminEditSection
@@ -1089,21 +1063,17 @@ export function ActivityDetailContent({
           />
         )}
 
-        <Card id="comments">
-          <CardHeader>
-            <CardTitle>Comments</CardTitle>
-            <CardDescription>
-              Leave an encouraging message for {user.name ?? user.username}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ActivityComments
-              activityId={activityId}
-              challengeId={challengeId}
-              mentionOptions={mentionUsers}
-            />
-          </CardContent>
-        </Card>
+        <div id="comments" className="border-t pt-6">
+          <h2 className="text-lg font-semibold">Comments</h2>
+          <p className="mb-4 text-sm text-muted-foreground">
+            Leave an encouraging message for {user.name ?? user.username}
+          </p>
+          <ActivityComments
+            activityId={activityId}
+            challengeId={challengeId}
+            mentionOptions={mentionUsers}
+          />
+        </div>
       </div>
     </div>
   );
