@@ -12,7 +12,7 @@ import { UserAvatar } from "@/components/user-avatar";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-interface Notification {
+export interface Notification {
   id: string;
   type: string;
   data?: Record<string, unknown>;
@@ -59,7 +59,7 @@ function getNotificationIcon(type: string) {
   }
 }
 
-function getNotificationMessage(notification: Notification) {
+export function getNotificationMessage(notification: Notification) {
   const actorName = notification.actor.name || notification.actor.username || "Someone";
 
   switch (notification.type) {
@@ -101,7 +101,7 @@ function getNotificationMessage(notification: Notification) {
   }
 }
 
-function getNotificationLink(notification: Notification, challengeId: string) {
+export function getNotificationLink(notification: Notification, challengeId: string) {
   if (notification.type === "feedback_response") {
     const cId = notification.data?.challengeId ?? challengeId;
     return `/challenges/${cId}/feedback`;
@@ -113,6 +113,11 @@ function getNotificationLink(notification: Notification, challengeId: string) {
   if (notification.type === "invite_accepted" || notification.type === "join") {
     const cId = notification.data?.challengeId ?? challengeId;
     return `/challenges/${cId}/users/${notification.actor.id}`;
+  }
+  if (notification.type === "comment_like" && notification.data?.activityId) {
+    const commentId = notification.data.commentId as string | undefined;
+    const base = `/challenges/${challengeId}/activities/${notification.data.activityId}`;
+    return commentId ? `${base}?commentId=${commentId}` : base;
   }
   if (notification.data?.activityId) {
     return `/challenges/${challengeId}/activities/${notification.data.activityId}`;
@@ -227,20 +232,23 @@ export function NotificationsList({ notifications, challengeId, userId }: Notifi
               </div>
             </div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm text-white">
-                {getNotificationMessage(notification)}
-              </p>
+              <div className="flex items-start justify-between gap-2">
+                <p className="text-sm text-white">
+                  {getNotificationMessage(notification)}
+                </p>
+                {!showFollowBack && !notification.readAt && (
+                  <div className="mt-1 h-2 w-2 shrink-0 rounded-full bg-indigo-500" />
+                )}
+              </div>
               <p className="mt-1 text-xs text-zinc-500">
                 {formatDistanceToNow(notification.createdAt, { addSuffix: true })}
               </p>
+              {showFollowBack && (
+                <div className="mt-2">
+                  <FollowBackButton actorId={notification.actor.id} />
+                </div>
+              )}
             </div>
-            {showFollowBack ? (
-              <FollowBackButton actorId={notification.actor.id} />
-            ) : (
-              !notification.readAt && (
-                <div className="h-2 w-2 rounded-full bg-indigo-500" />
-              )
-            )}
           </div>
         );
 

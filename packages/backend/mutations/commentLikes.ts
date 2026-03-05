@@ -35,7 +35,10 @@ export const toggle = mutation({
           userId: comment.userId,
           actorId: user._id,
           type: "comment_like",
-          data: { commentId: args.commentId },
+          data: {
+            commentId: args.commentId,
+            ...(comment.activityId ? { activityId: comment.activityId } : {}),
+          },
           createdAt: now,
         });
       }

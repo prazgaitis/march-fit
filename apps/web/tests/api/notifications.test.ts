@@ -600,4 +600,122 @@ describe("Notifications", () => {
       expect(likeNotifications.length).toBe(1);
     });
   });
+
+  // ─── Comment Like Notification ──────────────────────────────────────────
+
+  describe("comment_like notification", () => {
+    async function setupCommentLikeTest() {
+      const ownerEmail = "owner@example.com";
+      const commenterEmail = "commenter@example.com";
+      const likerEmail = "liker@example.com";
+
+      const ownerId = await createTestUser(t, {
+        email: ownerEmail,
+        username: "owner",
+        name: "Owner",
+      });
+      const commenterId = await createTestUser(t, {
+        email: commenterEmail,
+        username: "commenter",
+        name: "Commenter",
+      });
+      const likerId = await createTestUser(t, {
+        email: likerEmail,
+        username: "liker",
+        name: "Liker",
+      });
+
+      const challengeId = await createTestChallenge(t, ownerId);
+      const activityTypeId = await createTestActivityType(t, challengeId);
+
+      await createTestParticipation(t, ownerId, challengeId);
+      await createTestParticipation(t, commenterId, challengeId);
+      await createTestParticipation(t, likerId, challengeId);
+
+      const activityId = await t.run(async (ctx) => {
+        return await insertTestActivity(ctx, {
+          userId: ownerId,
+          challengeId: challengeId as Id<"challenges">,
+          activityTypeId: activityTypeId as Id<"activityTypes">,
+          loggedDate: Date.now(),
+          pointsEarned: 10,
+          flagged: false,
+          resolutionStatus: "pending",
+          adminCommentVisibility: "internal",
+          source: "manual",
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+      });
+
+      // Create a comment on the activity
+      const commenterAuth = t.withIdentity({
+        subject: "commenter-subject",
+        email: commenterEmail,
+      });
+
+      await commenterAuth.mutation(api.mutations.comments.create, {
+        activityId,
+        content: "Great workout!",
+      });
+
+      // Get the comment ID
+      const comments = await t.run(async (ctx) => {
+        return await ctx.db
+          .query("comments")
+          .withIndex("activityId", (q) => q.eq("activityId", activityId))
+          .collect();
+      });
+      const commentId = comments[0]._id;
+
+      const likerAuth = t.withIdentity({
+        subject: "liker-subject",
+        email: likerEmail,
+      });
+
+      return {
+        ownerId,
+        commenterId,
+        likerId,
+        challengeId,
+        activityId,
+        commentId,
+        commenterAuth,
+        likerAuth,
+      };
+    }
+
+    it("should notify comment author and include activityId in data", async () => {
+      const { commenterId, likerId, activityId, commentId, likerAuth } =
+        await setupCommentLikeTest();
+
+      await likerAuth.mutation(api.mutations.commentLikes.toggle, {
+        commentId,
+      });
+
+      const notifications = await getNotifications(commenterId);
+      const commentLikeNotifs = notifications.filter(
+        (n) => n.type === "comment_like"
+      );
+      expect(commentLikeNotifs.length).toBe(1);
+      expect(commentLikeNotifs[0].actorId).toBe(likerId);
+      expect(commentLikeNotifs[0].data.commentId).toBe(commentId);
+      expect(commentLikeNotifs[0].data.activityId).toBe(activityId);
+    });
+
+    it("should NOT notify when liking own comment", async () => {
+      const { commenterId, commentId, commenterAuth } =
+        await setupCommentLikeTest();
+
+      await commenterAuth.mutation(api.mutations.commentLikes.toggle, {
+        commentId,
+      });
+
+      const notifications = await getNotifications(commenterId);
+      const commentLikeNotifs = notifications.filter(
+        (n) => n.type === "comment_like"
+      );
+      expect(commentLikeNotifs.length).toBe(0);
+    });
+  });
 });
