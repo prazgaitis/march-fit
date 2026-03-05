@@ -199,27 +199,37 @@ export function UserProfileContent({
                       </Link>
                     </Button>
                   ) : (
-                    <Button
-                      variant={followData.isFollowing ? "outline" : "default"}
-                      size="sm"
-                      onClick={handleToggleFollow}
-                      disabled={isTogglingFollow}
-                      className="min-w-[100px]"
-                    >
-                      {isTogglingFollow ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : followData.isFollowing ? (
-                        <>
-                          <UserMinus className="mr-2 h-4 w-4" />
-                          Unfollow
-                        </>
-                      ) : (
-                        <>
-                          <UserPlus className="mr-2 h-4 w-4" />
-                          Follow
-                        </>
+                    <div className="flex flex-col items-center gap-1.5 sm:items-end">
+                      <Button
+                        variant={followData.isFollowing ? "outline" : "default"}
+                        size="sm"
+                        onClick={handleToggleFollow}
+                        disabled={isTogglingFollow}
+                        className="min-w-[100px]"
+                      >
+                        {isTogglingFollow ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : followData.isFollowing ? (
+                          <>
+                            <UserMinus className="mr-2 h-4 w-4" />
+                            Unfollow
+                          </>
+                        ) : followData.isFollowedBy ? (
+                          <>
+                            <UserPlus className="mr-2 h-4 w-4" />
+                            Follow back
+                          </>
+                        ) : (
+                          <>
+                            <UserPlus className="mr-2 h-4 w-4" />
+                            Follow
+                          </>
+                        )}
+                      </Button>
+                      {followData.isFollowedBy && (
+                        <span className="text-xs text-muted-foreground">Follows you</span>
                       )}
-                    </Button>
+                    </div>
                   ))}
               </div>
 
