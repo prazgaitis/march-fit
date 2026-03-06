@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { formatDistanceToNow, format } from "date-fns";
 import {
   formatDateOnlyFromUtcMs,
@@ -185,6 +185,9 @@ export function ActivityDetailContent({
   const { users: mentionUsers } = useMentionableUsers(challengeId);
 
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const highlightCommentId = searchParams.get("commentId");
+
   const toggleLike = useMutation(api.mutations.likes.toggle);
   const flagActivity = useMutation(api.mutations.activities.flagActivity);
   const deleteActivity = useMutation(api.mutations.activities.remove);
@@ -1072,6 +1075,7 @@ export function ActivityDetailContent({
             activityId={activityId}
             challengeId={challengeId}
             mentionOptions={mentionUsers}
+            highlightCommentId={highlightCommentId}
           />
         </div>
       </div>
@@ -1083,15 +1087,19 @@ function ActivityComments({
   activityId,
   challengeId,
   mentionOptions,
+  highlightCommentId,
 }: {
   activityId: string;
   challengeId: string;
   mentionOptions: MentionableUser[];
+  highlightCommentId?: string | null;
 }) {
   const [commentInput, setCommentInput] = useState("");
   const [commentIsEmpty, setCommentIsEmpty] = useState(true);
   const [submittingComment, setSubmittingComment] = useState(false);
   const [commentError, setCommentError] = useState<string | null>(null);
+  const [highlightedId, setHighlightedId] = useState<string | null>(null);
+  const didScrollRef = useRef(false);
 
   const {
     results: comments,
@@ -1103,6 +1111,18 @@ function ActivityComments({
     { activityId: activityId as Id<"activities"> },
     { initialNumItems: 10 },
   );
+
+  useEffect(() => {
+    if (!highlightCommentId || didScrollRef.current || !comments?.length) return;
+    const el = document.getElementById(`comment-${highlightCommentId}`);
+    if (el) {
+      didScrollRef.current = true;
+      setHighlightedId(highlightCommentId);
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      const timer = setTimeout(() => setHighlightedId(null), 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [highlightCommentId, comments]);
 
   const createComment = useMutation(api.mutations.comments.create);
   const toggleCommentLike = useMutation(api.mutations.commentLikes.toggle);
@@ -1183,7 +1203,14 @@ function ActivityComments({
             likeCount: number;
             likedByMe: boolean;
           }) => (
-            <div key={entry.comment.id} className="flex gap-3">
+            <div
+              key={entry.comment.id}
+              id={`comment-${entry.comment.id}`}
+              className={cn(
+                "flex gap-3 rounded-lg transition-colors duration-700",
+                highlightedId === entry.comment.id && "bg-indigo-500/20 ring-1 ring-indigo-500/40",
+              )}
+            >
               <UserAvatar
                 user={{
                   id: entry.author.id,
