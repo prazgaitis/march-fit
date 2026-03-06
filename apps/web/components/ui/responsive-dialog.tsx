@@ -122,7 +122,7 @@ function ResponsiveDialogContent({
 
   if (isMobile) {
     return (
-      <DrawerContent className={cn("max-h-[96vh]", className)}>
+      <DrawerContent className={cn("max-h-[96dvh]", className)}>
         {children}
       </DrawerContent>
     );
