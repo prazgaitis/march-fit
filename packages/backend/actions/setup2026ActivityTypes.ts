@@ -309,15 +309,13 @@ function getActivityTypeDefinitions(categories: Record<string, Id<"categories">>
         name: "Tracy Anderson Arms",
         availableInFinalDays: true,
         displayOrder: 260,
-        description: "See how long you can go without resting arms. 4+ min=20pts, Full Video=40pts. One-time opportunity.",
+        description: "See how long you can go without resting arms. Partial (4+ min)=20pts, Full Video=40pts. One-time opportunity.",
         scoringConfig: {
-          type: "tiered",
-          metric: "duration_minutes",
-          tiers: [
-            { maxValue: 4, points: 0 },
-            { maxValue: 999, points: 20 },
-            { points: 40 }, // Full video
-          ],
+          defaultVariant: "partial",
+          variants: {
+            partial: { name: "Partial (4+ min)", points: 20 },
+            full_video: { name: "Full Video", points: 40 },
+          },
         },
         contributesToStreak: true,
         isNegative: false,
