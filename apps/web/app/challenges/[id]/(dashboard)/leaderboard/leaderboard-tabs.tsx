@@ -47,20 +47,8 @@ export function LeaderboardTabs({
 
   return (
     <div>
-      {/* Search bar */}
-      <div className="relative mb-4">
-        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          placeholder="Search participants..."
-          className="w-full rounded-lg border border-zinc-800 bg-zinc-900/50 py-2 pl-9 pr-3 text-sm text-white placeholder:text-zinc-500 focus:border-zinc-600 focus:outline-none focus:ring-1 focus:ring-zinc-600"
-        />
-      </div>
-
       {/* Tab switcher */}
-      <div className="mb-6 flex rounded-lg bg-zinc-900/50 p-1">
+      <div className="mb-4 flex rounded-lg bg-zinc-900/50 p-1">
         <button
           onClick={() => setActiveTab("overall")}
           className={cn(
@@ -94,6 +82,18 @@ export function LeaderboardTabs({
         >
           Weekly
         </button>
+      </div>
+
+      {/* Search bar */}
+      <div className="relative mb-4">
+        <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-500" />
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Search participants..."
+          className="w-full rounded-lg border border-zinc-800 bg-zinc-900/50 py-2 pl-9 pr-3 text-sm text-white placeholder:text-zinc-500 focus:border-zinc-600 focus:outline-none focus:ring-1 focus:ring-zinc-600"
+        />
       </div>
 
       {/* Tab content */}
