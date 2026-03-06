@@ -27,12 +27,14 @@ interface LikesDisplayProps {
   likes: number;
   likedByUser: boolean;
   recentLikers: RecentLiker[];
+  currentUserId?: string;
 }
 
 function formatLikersSummary(
   likes: number,
   likedByUser: boolean,
   recentLikers: RecentLiker[],
+  currentUserId?: string,
 ): React.ReactNode {
   if (likes === 0) return null;
 
@@ -45,10 +47,10 @@ function formatLikersSummary(
 
   for (const liker of recentLikers) {
     if (names.length >= 2) break;
-    // If user already added "you", skip if this liker is the current user
-    // (we can't reliably check, but recentLikers won't include "you" label)
+    // Skip current user from recentLikers since we already added "you"
+    if (likedByUser && currentUserId && liker.id === currentUserId) continue;
     const displayName = liker.name ?? liker.username;
-    if (!names.includes(displayName) && displayName !== "you") {
+    if (!names.includes(displayName)) {
       names.push(displayName);
     }
   }
@@ -106,12 +108,13 @@ export function LikesDisplay({
   likes,
   likedByUser,
   recentLikers,
+  currentUserId,
 }: LikesDisplayProps) {
   const [showLikers, setShowLikers] = useState(false);
 
   if (likes === 0) return null;
 
-  const summary = formatLikersSummary(likes, likedByUser, recentLikers);
+  const summary = formatLikersSummary(likes, likedByUser, recentLikers, currentUserId);
 
   return (
     <>
