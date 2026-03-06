@@ -85,6 +85,7 @@ import { cn } from "@/lib/utils";
 import { PointsDisplay } from "@/components/ui/points-display";
 import { MediaGallery } from "@/components/media-gallery";
 import { FollowButton } from "@/components/follow-button";
+import { LikesDisplay } from "@/components/likes-display";
 import { captureAppException, captureAppMessage } from "@/lib/sentry";
 import { isLatestActivityVisibleInFeed } from "@/lib/feed-notification";
 
@@ -124,6 +125,7 @@ interface ActivityFeedItem {
   comments: number;
   likedByUser: boolean;
   mediaUrls: string[];
+  recentLikers: Array<{ id: string; name: string | null; username: string }>;
 }
 
 interface AlgoFeedItem {
@@ -155,6 +157,7 @@ interface AlgoFeedItem {
   comments: number;
   likedByUser: boolean;
   mediaUrls: string[];
+  recentLikers: Array<{ id: string; name: string | null; username: string }>;
   displayScore: number;
 }
 
@@ -175,6 +178,7 @@ function mapAlgoItem(item: AlgoFeedItem): ActivityFeedItem {
     comments: item.comments,
     likedByUser: item.likedByUser,
     mediaUrls: item.mediaUrls,
+    recentLikers: item.recentLikers ?? [],
   };
 }
 
@@ -1090,11 +1094,24 @@ const ActivityCard = memo(function ActivityCard({
     </>
   );
 
+  const likesDisplay = showEngagementCounts && item.likes > 0 ? (
+    <div onClick={(e) => e.stopPropagation()}>
+      <LikesDisplay
+        activityId={activityId}
+        challengeId={challengeId}
+        likes={item.likes}
+        likedByUser={item.likedByUser}
+        recentLikers={item.recentLikers ?? []}
+      />
+    </div>
+  ) : null;
+
   return (
     <div className="cursor-pointer" onClick={handleCardClick}>
       <div className="px-4 pt-3 pb-2" onClick={(e) => e.stopPropagation()}>{headerContent}</div>
       <div className="space-y-3 px-4">{bodyContent}</div>
       <div className="px-4 py-2">{actionBar}</div>
+      {likesDisplay && <div className="px-4 pb-1">{likesDisplay}</div>}
       <div className="px-4 pb-4">{commentsSection}</div>
       <div className="border-b border-zinc-800 mb-2" />
     </div>
