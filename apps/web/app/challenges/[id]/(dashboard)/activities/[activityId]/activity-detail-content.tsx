@@ -103,6 +103,7 @@ import { cn } from "@/lib/utils";
 import { formatPoints } from "@/lib/points";
 import { PointsDisplay } from "@/components/ui/points-display";
 import { MediaGallery } from "@/components/media-gallery";
+import { LikesDisplay } from "@/components/likes-display";
 
 interface MediaPreview {
   file: File;
@@ -485,6 +486,7 @@ export function ActivityDetailContent({
     comments,
     likedByUser,
     mediaUrls,
+    recentLikers,
     adminComment,
     isAdmin,
     isOwner,
@@ -1054,6 +1056,15 @@ export function ActivityDetailContent({
               </DialogContent>
             </Dialog>
         </div>
+        {likes > 0 && (
+          <LikesDisplay
+            activityId={activityId}
+            challengeId={challengeId}
+            likes={likes}
+            likedByUser={likedByUser}
+            recentLikers={recentLikers ?? []}
+          />
+        )}
 
         {isAdmin && (
           <AdminEditSection

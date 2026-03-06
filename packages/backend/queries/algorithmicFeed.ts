@@ -81,15 +81,14 @@ export const getAlgorithmicFeed = query({
 
         if (!user || !activityType) return null;
 
-        const [likeCount, commentCount] = includeEngagementCounts
+        const [allLikes, commentCount] = includeEngagementCounts
           ? await Promise.all([
               ctx.db
                 .query("likes")
                 .withIndex("activityId", (q) =>
                   q.eq("activityId", activity._id),
                 )
-                .collect()
-                .then((rows) => rows.length),
+                .collect(),
               ctx.db
                 .query("comments")
                 .withIndex("activityId", (q) =>
@@ -98,7 +97,27 @@ export const getAlgorithmicFeed = query({
                 .collect()
                 .then((rows) => rows.length),
             ])
-          : [0, 0];
+          : [[] as Array<{ userId: typeof activity.userId; createdAt: number }>, 0];
+
+        const likeCount = allLikes.length;
+
+        // Fetch display info for the 2 most recent likers (for Instagram-style summary)
+        const recentLikers = includeEngagementCounts && likeCount > 0
+          ? await Promise.all(
+              [...allLikes]
+                .sort((a, b) => b.createdAt - a.createdAt)
+                .slice(0, 2)
+                .map(async (like) => {
+                  const likerUser = await ctx.db.get(like.userId);
+                  if (!likerUser) return null;
+                  return {
+                    id: likerUser._id as string,
+                    name: likerUser.name ?? null,
+                    username: likerUser.username,
+                  };
+                }),
+            ).then((arr) => arr.filter((u) => u !== null))
+          : [];
 
         const mediaUrls =
           includeMediaUrls && activity.mediaIds && activity.mediaIds.length > 0
@@ -144,6 +163,7 @@ export const getAlgorithmicFeed = query({
           comments: commentCount,
           likedByUser: userLike !== null,
           mediaUrls,
+          recentLikers,
           displayScore,
           affinityScore,
           affinityBoost: computeAffinityBoost(affinityScore),
