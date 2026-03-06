@@ -13,12 +13,12 @@ import { formatDistanceToNow } from "date-fns";
 import {
   ArrowUp,
   Flag,
+  Heart,
   Loader2,
   MessageCircle,
   MoreHorizontal,
   RefreshCw,
   Share2,
-  ThumbsUp,
   Zap,
 } from "lucide-react";
 import {
@@ -85,6 +85,7 @@ import { cn } from "@/lib/utils";
 import { PointsDisplay } from "@/components/ui/points-display";
 import { MediaGallery } from "@/components/media-gallery";
 import { FollowButton } from "@/components/follow-button";
+import { LikesDisplay } from "@/components/likes-display";
 import { captureAppException, captureAppMessage } from "@/lib/sentry";
 import { isLatestActivityVisibleInFeed } from "@/lib/feed-notification";
 
@@ -124,6 +125,7 @@ interface ActivityFeedItem {
   comments: number;
   likedByUser: boolean;
   mediaUrls: string[];
+  recentLikers: Array<{ id: string; name: string | null; username: string }>;
 }
 
 interface AlgoFeedItem {
@@ -155,6 +157,7 @@ interface AlgoFeedItem {
   comments: number;
   likedByUser: boolean;
   mediaUrls: string[];
+  recentLikers: Array<{ id: string; name: string | null; username: string }>;
   displayScore: number;
 }
 
@@ -175,6 +178,7 @@ function mapAlgoItem(item: AlgoFeedItem): ActivityFeedItem {
     comments: item.comments,
     likedByUser: item.likedByUser,
     mediaUrls: item.mediaUrls,
+    recentLikers: item.recentLikers ?? [],
   };
 }
 
@@ -713,37 +717,29 @@ function ActivityStats({ item }: { item: ActivityFeedItem }) {
     ? item.activity.triggeredBonuses!.reduce((sum, b) => sum + b.bonusPoints, 0)
     : 0;
   return (
-    <div className="rounded-lg bg-muted px-4 py-3 text-sm">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          {metricDisplay && (
-            <span className="font-semibold text-foreground">
-              {metricDisplay}
-            </span>
-          )}
-          <PointsDisplay
-            points={item.activity.pointsEarned}
-            isNegative={item.activityType?.isNegative}
-            decimals={1}
-            size="sm"
-            showSign={false}
-            hasBonuses={!!hasBonuses}
-            className="font-medium"
-          />
-          {hasBonuses && (
-            <span className="text-xs text-muted-foreground">
-              (incl. +{bonusTotal} bonus)
-            </span>
-          )}
-        </div>
-        <div className="text-xs text-muted-foreground">
-          {formatDistanceToNow(new Date(item.activity.createdAt), {
-            addSuffix: true,
-          })}
-        </div>
-      </div>
+    <div className="flex items-center gap-3 text-sm">
+      {metricDisplay && (
+        <span className="font-mono font-semibold text-foreground">
+          {metricDisplay}
+        </span>
+      )}
+      {metricDisplay && <span className="text-zinc-600">/</span>}
+      <PointsDisplay
+        points={item.activity.pointsEarned}
+        isNegative={item.activityType?.isNegative}
+        decimals={1}
+        size="sm"
+        showSign={false}
+        hasBonuses={!!hasBonuses}
+        className="font-mono font-medium"
+      />
       {hasBonuses && (
-        <div className="mt-2 flex flex-wrap gap-1.5">
+        <span className="text-xs text-muted-foreground">
+          (+{bonusTotal} bonus)
+        </span>
+      )}
+      {hasBonuses && (
+        <div className="flex flex-wrap gap-1.5">
           {item.activity.triggeredBonuses!.map((bonus, i) => (
             <span
               key={i}
@@ -874,49 +870,53 @@ const ActivityCard = memo(function ActivityCard({
 
   const actionBar = (
     <div
-      className="flex items-center gap-1 sm:gap-2"
+      className="flex items-center gap-4 text-muted-foreground"
       onClick={(e) => e.stopPropagation()}
     >
-      <Button
-        variant={item.likedByUser ? "default" : "outline"}
-        size="sm"
+      <button
         disabled={isLiking}
         onClick={handleToggleLike}
+        className={cn(
+          "flex items-center gap-1.5 text-sm transition-colors",
+          item.likedByUser
+            ? "text-red-500"
+            : "hover:text-red-500",
+        )}
       >
-        <ThumbsUp
+        <Heart
           className={cn(
-            "h-4 w-4 sm:mr-2",
+            "h-[18px] w-[18px]",
             item.likedByUser && "fill-current",
           )}
         />
-        {showEngagementCounts ? (
-          item.likes
-        ) : (
-          <span className="hidden sm:inline">Like</span>
+        {showEngagementCounts && item.likes > 0 && (
+          <span>{item.likes}</span>
         )}
-      </Button>
-      <Button
-        variant={showComments ? "default" : "outline"}
-        size="sm"
+      </button>
+      <button
         onClick={() => setShowComments((prev) => !prev)}
-      >
-        <MessageCircle className="h-4 w-4 sm:mr-2" />
-        {showEngagementCounts ? (
-          item.comments
-        ) : (
-          <span className="hidden sm:inline">Comment</span>
+        className={cn(
+          "flex items-center gap-1.5 text-sm transition-colors",
+          showComments ? "text-foreground" : "hover:text-foreground",
         )}
-      </Button>
-      <Button variant="ghost" size="sm" onClick={handleShare}>
-        <Share2 className="h-4 w-4 sm:mr-2" />{" "}
-        <span className="hidden sm:inline">Share</span>
-      </Button>
+      >
+        <MessageCircle className="h-[18px] w-[18px]" />
+        {showEngagementCounts && item.comments > 0 && (
+          <span>{item.comments}</span>
+        )}
+      </button>
+      <button
+        onClick={handleShare}
+        className="flex items-center gap-1.5 text-sm transition-colors hover:text-foreground"
+      >
+        <Share2 className="h-[18px] w-[18px]" />
+      </button>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="sm" className="ml-auto h-8 w-8 p-0">
-            <MoreHorizontal className="h-4 w-4" />
+          <button className="ml-auto flex items-center transition-colors hover:text-foreground">
+            <MoreHorizontal className="h-[18px] w-[18px]" />
             <span className="sr-only">More options</span>
-          </Button>
+          </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end">
           <DropdownMenuItem
@@ -1064,7 +1064,11 @@ const ActivityCard = memo(function ActivityCard({
               </span>
             </>
           }
-        />
+        >
+          <span className="text-sm font-semibold text-primary">
+            {item.activityType?.name ?? "Activity"}
+          </span>
+        </UserChallengeDisplay>
       </div>
       {!isOwnPost && (
         <FollowButton userId={item.user.id} isFollowing={isFollowing} />
@@ -1074,29 +1078,38 @@ const ActivityCard = memo(function ActivityCard({
 
   const bodyContent = (
     <>
-      <div>
-        <p className="text-sm font-semibold text-primary">
-          {item.activityType?.name ?? "Activity"}
-        </p>
-        {item.activity.notes ? (
-          <RichTextViewer
-            content={item.activity.notes}
-            className="mt-2 text-sm text-muted-foreground"
-          />
-        ) : null}
-      </div>
+      {item.activity.notes ? (
+        <RichTextViewer
+          content={item.activity.notes}
+          className="text-sm text-muted-foreground"
+        />
+      ) : null}
       <MediaGallery urls={item.mediaUrls} variant="feed" />
       <ActivityStats item={item} />
     </>
   );
 
+  const likesDisplay = showEngagementCounts && item.likes > 0 ? (
+    <div onClick={(e) => e.stopPropagation()}>
+      <LikesDisplay
+        activityId={activityId}
+        challengeId={challengeId}
+        likes={item.likes}
+        likedByUser={item.likedByUser}
+        recentLikers={item.recentLikers ?? []}
+        currentUserId={currentUserId}
+      />
+    </div>
+  ) : null;
+
   return (
     <div className="cursor-pointer" onClick={handleCardClick}>
-      <div className="px-4 pt-3 pb-2" onClick={(e) => e.stopPropagation()}>{headerContent}</div>
-      <div className="space-y-3 px-4">{bodyContent}</div>
+      <div className="px-4 pt-3 pb-1" onClick={(e) => e.stopPropagation()}>{headerContent}</div>
+      <div className="space-y-2 px-4">{bodyContent}</div>
+      {likesDisplay && <div className="px-4 pt-2">{likesDisplay}</div>}
       <div className="px-4 py-2">{actionBar}</div>
-      <div className="px-4 pb-4">{commentsSection}</div>
-      <div className="border-b border-zinc-800 mb-2" />
+      <div className="px-4 pb-3">{commentsSection}</div>
+      <div className="border-b border-zinc-800" />
     </div>
   );
 });

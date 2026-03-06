@@ -13,7 +13,10 @@ import type { Id } from "../_generated/dataModel";
 const ROLLUP_WINDOW_MS = 60 * 60 * 1000;
 
 /** Notification types that should be deduped within the rollup window. */
-const ROLLUP_TYPES = new Set(["like", "comment", "comment_like", "feedback_comment"]);
+const ROLLUP_TYPES = new Set([
+  "like", "comment", "comment_like", "feedback_comment",
+  "mini_game_partner_activity", "mini_game_hunter_activity", "mini_game_prey_activity",
+]);
 
 type Ctx = { db: any };
 
@@ -47,11 +50,14 @@ export async function insertNotification(
       .order("desc")
       .take(50);
 
+    const isMiniGameType = notification.type.startsWith("mini_game_");
     const isDuplicate = recent.some(
       (n: any) =>
         n.type === notification.type &&
         n.createdAt >= cutoff &&
-        (activityId ? n.data?.activityId === activityId : true),
+        (isMiniGameType
+          ? n.actorId === notification.actorId
+          : activityId ? n.data?.activityId === activityId : true),
     );
 
     if (isDuplicate) {

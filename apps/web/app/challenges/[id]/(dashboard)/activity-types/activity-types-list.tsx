@@ -186,19 +186,15 @@ export function ActivityTypesList({
 
   return (
     <div className="space-y-12">
-      {/* Intro */}
+      {/* Streak callout */}
       <section>
-        <p className="text-zinc-400 leading-relaxed">
-          Earn points by logging activities. Different activities have different point values
-          based on distance, duration, or completion.
-        </p>
-        <div className="mt-4 flex items-start gap-3 rounded-lg border border-orange-500/30 bg-orange-500/5 p-4">
+        <div className="flex items-start gap-3 rounded-lg border border-orange-500/30 bg-orange-500/5 p-4">
           <Flame className="h-5 w-5 flex-shrink-0 text-orange-500 mt-0.5" />
           <div>
             <p className="font-medium text-white">Daily Streak</p>
             <p className="text-sm text-zinc-400">
-              Log at least <strong className="text-orange-400">{streakMinPoints} points</strong> each
-              day to maintain your streak. Activities marked with <Flame className="inline h-3 w-3 text-orange-500" /> count toward your daily total.
+              Log <strong className="text-orange-400">{streakMinPoints}+ pts</strong> each
+              day to keep your streak. <Flame className="inline h-3 w-3 text-orange-500" /> = counts toward streak.
             </p>
           </div>
         </div>
@@ -215,7 +211,7 @@ export function ActivityTypesList({
               {category?.name || "Other"}
             </h2>
 
-            <div className="space-y-8">
+            <div className="space-y-3">
               {types.map((type) => {
                 const config = type.scoringConfig || {};
                 const ppu = config.pointsPerUnit;
@@ -224,7 +220,7 @@ export function ActivityTypesList({
                 const hasVariants = config.variants && typeof config.variants === "object";
 
                 return (
-                  <article key={type._id} className="group">
+                  <article key={type._id} className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-4">
                     <div className="flex items-start gap-3">
                       {/* Icon */}
                       <div
@@ -377,27 +373,19 @@ export function ActivityTypesList({
                           </p>
                         )}
 
-                        {/* Example calculations table */}
+                        {/* Example calculations */}
                         {examples.length > 0 && (
-                          <div className="mt-3 inline-block">
-                            <table className="text-sm">
-                              <tbody>
-                                <tr className="text-zinc-500">
-                                  {examples.map((ex) => (
-                                    <td key={ex.value} className="pr-6 pb-1">
-                                      {ex.value} {formatUnitPlural(unit ?? "unit", ex.value)}
-                                    </td>
-                                  ))}
-                                </tr>
-                                <tr className="text-zinc-300 font-medium">
-                                  {examples.map((ex) => (
-                                    <td key={ex.value} className="pr-6">
-                                      {ex.points} pts
-                                    </td>
-                                  ))}
-                                </tr>
-                              </tbody>
-                            </table>
+                          <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-sm">
+                            {examples.map((ex) => (
+                              <div key={ex.value} className="flex items-baseline gap-1.5">
+                                <span className="text-zinc-500">
+                                  {ex.value} {formatUnitPlural(unit ?? "unit", ex.value)}
+                                </span>
+                                <span className="font-mono font-medium text-zinc-300">
+                                  {ex.points} pts
+                                </span>
+                              </div>
+                            ))}
                           </div>
                         )}
 

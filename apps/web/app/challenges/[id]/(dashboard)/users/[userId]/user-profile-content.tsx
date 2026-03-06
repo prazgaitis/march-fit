@@ -8,17 +8,15 @@ import { useMutation, useQuery } from "@/lib/convex-auth-react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
 import {
-  Activity,
   Award,
   Calendar,
-  Flame,
+  ChevronRight,
   Loader2,
   MapPin,
   Medal,
   Mountain,
   Send,
   Settings,
-  Trophy,
   UserMinus,
   UserPlus,
   Users,
@@ -163,150 +161,148 @@ export function UserProfileContent({
   const errorUrl = `${profilePath}?error=strava_auth_failed`;
 
   return (
-    <div className="space-y-6">
-      {/* User Info Card */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-start">
-            <UserAvatar user={user} size="2xl" />
-            <div className="flex-1 text-center sm:text-left">
-              <div className="flex flex-col items-center gap-3 sm:flex-row sm:items-start sm:justify-between">
-                <div>
-                  <h2 className="text-2xl font-bold">
-                    {user.name ?? user.username}
-                  </h2>
-                  <p className="text-muted-foreground">@{user.username}</p>
-                  {user.location && (
-                    <p className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
-                      <MapPin className="h-3.5 w-3.5" />
-                      {user.location}
-                    </p>
-                  )}
-                </div>
-
-                {/* Settings Button (own profile) or Follow Button */}
-                {followData &&
-                  (followData.isOwnProfile ? (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      asChild
-                      className="min-w-[100px]"
-                    >
-                      <Link href={`/challenges/${challengeId}/settings`}>
-                        <Settings className="mr-2 h-4 w-4" />
-                        Settings
-                      </Link>
-                    </Button>
-                  ) : (
-                    <div className="flex flex-col items-center gap-1.5 sm:items-end">
-                      <Button
-                        variant={followData.isFollowing ? "outline" : "default"}
-                        size="sm"
-                        onClick={handleToggleFollow}
-                        disabled={isTogglingFollow}
-                        className="min-w-[100px]"
-                      >
-                        {isTogglingFollow ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : followData.isFollowing ? (
-                          <>
-                            <UserMinus className="mr-2 h-4 w-4" />
-                            Unfollow
-                          </>
-                        ) : followData.isFollowedBy ? (
-                          <>
-                            <UserPlus className="mr-2 h-4 w-4" />
-                            Follow back
-                          </>
-                        ) : (
-                          <>
-                            <UserPlus className="mr-2 h-4 w-4" />
-                            Follow
-                          </>
-                        )}
-                      </Button>
-                      {followData.isFollowedBy && (
-                        <span className="text-xs text-muted-foreground">Follows you</span>
-                      )}
-                    </div>
-                  ))}
+    <div>
+      {/* User Info */}
+      <div className="px-4 py-6">
+        <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-start">
+          <UserAvatar user={user} size="2xl" />
+          <div className="flex-1 text-center sm:text-left">
+            <div className="flex flex-col items-center gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h2 className="text-2xl font-bold">
+                  {user.name ?? user.username}
+                </h2>
+                <p className="text-muted-foreground">@{user.username}</p>
+                {user.location && (
+                  <p className="flex items-center gap-1 text-sm text-muted-foreground mt-1">
+                    <MapPin className="h-3.5 w-3.5" />
+                    {user.location}
+                  </p>
+                )}
               </div>
 
-              {/* Follower/Following Counts */}
-              {followData && (
-                <div className="mt-3 flex flex-wrap justify-center gap-4 text-sm sm:justify-start">
-                  <span>
-                    <strong>{followData.followersCount}</strong>{" "}
-                    <span className="text-muted-foreground">
-                      {followData.followersCount === 1
-                        ? "follower"
-                        : "followers"}
-                    </span>
-                  </span>
-                  <span>
-                    <strong>{followData.followingCount}</strong>{" "}
-                    <span className="text-muted-foreground">following</span>
-                  </span>
-                  {participation && (participation.inviteCount ?? 0) > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setShowInvitedModal(true)}
-                      className="hover:underline"
+              {/* Settings Button (own profile) or Follow Button */}
+              {followData &&
+                (followData.isOwnProfile ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    asChild
+                    className="min-w-[100px]"
+                  >
+                    <Link href={`/challenges/${challengeId}/settings`}>
+                      <Settings className="mr-2 h-4 w-4" />
+                      Settings
+                    </Link>
+                  </Button>
+                ) : (
+                  <div className="flex flex-col items-center gap-1.5 sm:items-end">
+                    <Button
+                      variant={followData.isFollowing ? "outline" : "default"}
+                      size="sm"
+                      onClick={handleToggleFollow}
+                      disabled={isTogglingFollow}
+                      className="min-w-[100px]"
                     >
-                      <strong>{participation.inviteCount}</strong>{" "}
-                      <span className="text-muted-foreground">
-                        {participation.inviteCount === 1 ? "invite" : "invites"}
-                      </span>
-                    </button>
-                  )}
-                </div>
-              )}
-
-              {participation ? (
-                <div className="mt-3 flex flex-wrap justify-center gap-2 sm:justify-start">
-                  <Badge variant="secondary">
-                    <Users className="mr-1 h-3 w-3" />
-                    Participant
-                  </Badge>
-                  {participation.rank && participation.rank <= 3 && (
-                    <Badge
-                      variant="default"
-                      className={cn(
-                        participation.rank === 1 &&
-                          "bg-yellow-500 text-yellow-950",
-                        participation.rank === 2 && "bg-gray-400 text-gray-950",
-                        participation.rank === 3 &&
-                          "bg-amber-600 text-amber-950",
+                      {isTogglingFollow ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : followData.isFollowing ? (
+                        <>
+                          <UserMinus className="mr-2 h-4 w-4" />
+                          Unfollow
+                        </>
+                      ) : followData.isFollowedBy ? (
+                        <>
+                          <UserPlus className="mr-2 h-4 w-4" />
+                          Follow back
+                        </>
+                      ) : (
+                        <>
+                          <UserPlus className="mr-2 h-4 w-4" />
+                          Follow
+                        </>
                       )}
-                    >
-                      <Medal className="mr-1 h-3 w-3" />
-                      {participation.rank === 1 && "1st Place"}
-                      {participation.rank === 2 && "2nd Place"}
-                      {participation.rank === 3 && "3rd Place"}
-                    </Badge>
-                  )}
-                </div>
-              ) : (
-                <Badge variant="outline" className="mt-3">
-                  Not participating
-                </Badge>
-              )}
+                    </Button>
+                    {followData.isFollowedBy && (
+                      <span className="text-xs text-muted-foreground">Follows you</span>
+                    )}
+                  </div>
+                ))}
             </div>
+
+            {/* Follower/Following Counts */}
+            {followData && (
+              <div className="mt-3 flex flex-wrap justify-center gap-4 text-sm sm:justify-start">
+                <span>
+                  <strong>{followData.followersCount}</strong>{" "}
+                  <span className="text-muted-foreground">
+                    {followData.followersCount === 1
+                      ? "follower"
+                      : "followers"}
+                  </span>
+                </span>
+                <span>
+                  <strong>{followData.followingCount}</strong>{" "}
+                  <span className="text-muted-foreground">following</span>
+                </span>
+                {participation && (participation.inviteCount ?? 0) > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setShowInvitedModal(true)}
+                    className="hover:underline"
+                  >
+                    <strong>{participation.inviteCount}</strong>{" "}
+                    <span className="text-muted-foreground">
+                      {participation.inviteCount === 1 ? "invite" : "invites"}
+                    </span>
+                  </button>
+                )}
+              </div>
+            )}
+
+            {participation ? (
+              <div className="mt-3 flex flex-wrap justify-center gap-2 sm:justify-start">
+                <Badge variant="secondary">
+                  <Users className="mr-1 h-3 w-3" />
+                  Participant
+                </Badge>
+                {participation.rank && participation.rank <= 3 && (
+                  <Badge
+                    variant="default"
+                    className={cn(
+                      participation.rank === 1 &&
+                        "bg-yellow-500 text-yellow-950",
+                      participation.rank === 2 && "bg-gray-400 text-gray-950",
+                      participation.rank === 3 &&
+                        "bg-amber-600 text-amber-950",
+                    )}
+                  >
+                    <Medal className="mr-1 h-3 w-3" />
+                    {participation.rank === 1 && "1st Place"}
+                    {participation.rank === 2 && "2nd Place"}
+                    {participation.rank === 3 && "3rd Place"}
+                  </Badge>
+                )}
+              </div>
+            ) : (
+              <Badge variant="outline" className="mt-3">
+                Not participating
+              </Badge>
+            )}
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
+
+      <div className="border-b border-border/50" />
 
       {showStravaCard && (
-        <Card className="p-4">
-          <div className="flex items-center gap-4">
+        <>
+          <div className="flex items-center gap-4 px-4 py-4">
             <div className="min-w-0 flex-1">
-              <CardTitle className="text-sm font-medium">
-                Connect Strava
-              </CardTitle>
-              <CardDescription className="text-xs">
+              <p className="text-sm font-medium">Connect Strava</p>
+              <p className="text-xs text-muted-foreground">
                 Auto-import workouts for this challenge.
-              </CardDescription>
+              </p>
             </div>
             <StravaConnectButton
               successUrl={profilePath}
@@ -314,83 +310,57 @@ export function UserProfileContent({
               className="w-auto shrink-0"
             />
           </div>
-        </Card>
+          <div className="border-b border-border/50" />
+        </>
       )}
 
-      {/* Stats Grid */}
+      {/* Stats Row */}
       {participation && (
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Card>
-            <CardContent className="flex items-center gap-3 pt-6">
-              <div className="rounded-full bg-yellow-500/10 p-3">
-                <Trophy className="h-5 w-5 text-yellow-500" />
-              </div>
-              <div>
-                <PointsDisplay
-                  points={participation.totalPoints}
-                  size="xl"
-                  showSign={false}
-                  showLabel={false}
-                  className="font-bold"
-                />
-                <p className="text-sm text-muted-foreground">Total Points</p>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="flex items-center gap-3 pt-6">
-              <div className="rounded-full bg-orange-500/10 p-3">
-                <Flame className="h-5 w-5 text-orange-500" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">
-                  {participation.currentStreak}
-                </p>
-                <p className="text-sm text-muted-foreground">Day Streak</p>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="flex items-center gap-3 pt-6">
-              <div className="rounded-full bg-blue-500/10 p-3">
-                <Medal className="h-5 w-5 text-blue-500" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">
-                  #{participation.rank ?? "-"}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  of {participation.totalParticipants}
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="flex items-center gap-3 pt-6">
-              <div className="rounded-full bg-green-500/10 p-3">
-                <Activity className="h-5 w-5 text-green-500" />
-              </div>
-              <div>
-                <p className="text-2xl font-bold">{stats.totalActivities}</p>
-                <p className="text-sm text-muted-foreground">Activities</p>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
+        <>
+          <div className="grid grid-cols-4 divide-x divide-border/50 py-4">
+            <div className="flex flex-col items-center gap-1 px-2">
+              <PointsDisplay
+                points={participation.totalPoints}
+                size="lg"
+                showSign={false}
+                showLabel={false}
+                className="font-bold"
+              />
+              <p className="text-xs text-muted-foreground">Points</p>
+            </div>
+            <div className="flex flex-col items-center gap-1 px-2">
+              <p className="text-lg font-bold">{participation.currentStreak}</p>
+              <p className="text-xs text-muted-foreground">Streak</p>
+            </div>
+            <div className="flex flex-col items-center gap-1 px-2">
+              <p className="text-lg font-bold">#{participation.rank ?? "-"}</p>
+              <p className="text-xs text-muted-foreground">
+                of {participation.totalParticipants}
+              </p>
+            </div>
+            <div className="flex flex-col items-center gap-1 px-2">
+              <p className="text-lg font-bold">{stats.totalActivities}</p>
+              <p className="text-xs text-muted-foreground">Activities</p>
+            </div>
+          </div>
+          <div className="border-b border-border/50" />
+        </>
       )}
 
       {participation && streakCalendar && (
-        <StreakCalendarCard
-          startDate={streakCalendar.startDate}
-          endDate={streakCalendar.endDate}
-          streakMinPoints={streakCalendar.streakMinPoints}
-          dailyPoints={streakCalendar.dailyPoints}
-          dailyStreakCount={streakCalendar.dailyStreakCount}
-          totalStreakBonusPoints={streakCalendar.totalStreakBonusPoints}
-        />
+        <>
+          <div className="px-4 py-4">
+            <StreakCalendarCard
+              startDate={streakCalendar.startDate}
+              endDate={streakCalendar.endDate}
+              streakMinPoints={streakCalendar.streakMinPoints}
+              dailyPoints={streakCalendar.dailyPoints}
+              dailyStreakCount={streakCalendar.dailyStreakCount}
+              totalStreakBonusPoints={streakCalendar.totalStreakBonusPoints}
+            />
+          </div>
+          <div className="border-b border-border/50" />
+        </>
       )}
 
       {participation && (
@@ -408,36 +378,38 @@ export function UserProfileContent({
             )}
             disabled={!prDay}
           >
-            <Card
-              className={cn(prDay && "transition-colors hover:bg-muted/40")}
+            <div
+              className={cn(
+                "flex items-center justify-between gap-3 px-4 py-4",
+                prDay && "transition-colors hover:bg-muted/40",
+              )}
             >
-              <CardContent className="flex items-center justify-between gap-3 pt-6">
-                <div className="flex items-center gap-3">
-                  <div className="rounded-full bg-violet-500/10 p-3">
-                    <Mountain className="h-5 w-5 text-violet-500" />
-                  </div>
-                  <div>
-                    <p className="text-sm text-muted-foreground">PR Day</p>
-                    {prDay ? (
-                      <p className="font-semibold">
-                        {format(
-                          new Date(`${prDay.date}T00:00:00Z`),
-                          "MMMM d, yyyy",
-                        )}
-                      </p>
-                    ) : (
-                      <p className="font-semibold text-muted-foreground">
-                        Not set yet
-                      </p>
-                    )}
-                  </div>
+              <div className="flex items-center gap-3">
+                <div className="rounded-full bg-violet-500/10 p-2.5">
+                  <Mountain className="h-5 w-5 text-violet-500" />
                 </div>
-                <p className="text-right font-semibold text-primary">
-                  {prDay ? `+${prDay.totalPoints.toFixed(0)} pts` : "-"}
-                </p>
-              </CardContent>
-            </Card>
+                <div>
+                  <p className="text-sm text-muted-foreground">PR Day</p>
+                  {prDay ? (
+                    <p className="font-semibold">
+                      {format(
+                        new Date(`${prDay.date}T00:00:00Z`),
+                        "MMMM d, yyyy",
+                      )}
+                    </p>
+                  ) : (
+                    <p className="font-semibold text-muted-foreground">
+                      Not set yet
+                    </p>
+                  )}
+                </div>
+              </div>
+              <p className="text-right font-semibold text-primary">
+                {prDay ? `+${prDay.totalPoints.toFixed(0)} pts` : "-"}
+              </p>
+            </div>
           </button>
+          <div className="border-b border-border/50" />
 
           <Dialog open={showPrDayModal} onOpenChange={setShowPrDayModal}>
             <DialogContent>
@@ -554,100 +526,98 @@ export function UserProfileContent({
       </Dialog>
 
       {/* Mini-Games */}
-      <UserMiniGames challengeId={challengeId} userId={profileUserId} />
+      <div className="px-4 py-4">
+        <UserMiniGames challengeId={challengeId} userId={profileUserId} />
+      </div>
 
       {/* ── Achievements ─────────────────────────────────────────── */}
-      <AchievementsSection
-        ownProgress={ownAchievementProgress}
-        theirEarned={theirEarnedAchievements}
-        isOwnProfile={followData?.isOwnProfile ?? false}
-        challengeName={challenge.name}
-      />
+      <div className="px-4 py-4">
+        <AchievementsSection
+          ownProgress={ownAchievementProgress}
+          theirEarned={theirEarnedAchievements}
+          isOwnProfile={followData?.isOwnProfile ?? false}
+          challengeName={challenge.name}
+        />
+      </div>
 
       {/* Participation Info */}
       {participation && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-lg">Challenge Participation</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Calendar className="h-4 w-4" />
-              <span>
-                Joined{" "}
-                {format(new Date(participation.joinedAt), "MMMM d, yyyy")}
-              </span>
-            </div>
-          </CardContent>
-        </Card>
+        <div className="flex items-center gap-2 px-4 py-3 text-sm text-muted-foreground">
+          <Calendar className="h-4 w-4" />
+          <span>
+            Joined{" "}
+            {format(new Date(participation.joinedAt), "MMMM d, yyyy")}
+          </span>
+        </div>
       )}
 
-      {/* Recent Activities */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Recent Activities</CardTitle>
-          <CardDescription>
-            Latest activities in {challenge.name}
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {stats.recentActivities.length > 0 ? (
-            <div className="space-y-3">
-              {stats.recentActivities.map(
-                (activity: {
-                  _id: string;
-                  activityTypeName: string;
-                  loggedDate: number;
-                  pointsEarned: number;
-                  createdAt: number;
-                  isNegative?: boolean;
-                }) => (
-                  <Link
-                    key={activity._id}
-                    href={`/challenges/${challengeId}/activities/${activity._id}`}
-                    className="flex items-center justify-between rounded-lg border bg-muted/30 p-4 transition-colors hover:bg-muted/50"
-                  >
-                    <div className="flex-1">
-                      <p className="font-medium">{activity.activityTypeName}</p>
-                      <p className="text-sm text-muted-foreground">
-                        {formatMonthDayFromUtcMs(activity.loggedDate)} ·{" "}
-                        {formatDistanceToNow(new Date(activity.createdAt), {
-                          addSuffix: true,
-                        })}
-                      </p>
-                    </div>
-                    <div className="text-right">
-                      <PointsDisplay
-                        points={activity.pointsEarned}
-                        isNegative={activity.isNegative}
-                        size="base"
-                      />
-                    </div>
-                  </Link>
-                ),
-              )}
-            </div>
-          ) : (
-            <p className="py-8 text-center text-sm text-muted-foreground">
-              No activities logged yet.
-            </p>
-          )}
+      <div className="border-b border-border/50" />
 
+      {/* Recent Activities */}
+      <div className="py-4">
+        <div className="flex items-center justify-between px-4 pb-3">
+          <h3 className="text-lg font-semibold">Recent Activities</h3>
           {stats.totalActivities > 5 && (
-            <div className="mt-4 text-center">
-              <Button variant="outline" size="sm" asChild>
-                <Link
-                  href={`/challenges/${challengeId}/users/${profileUserId}/activities`}
-                >
-                  View all {stats.totalActivities} activities
-                </Link>
-              </Button>
-            </div>
+            <Link
+              href={`/challenges/${challengeId}/users/${profileUserId}/activities`}
+              className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            >
+              View all
+              <ChevronRight className="h-4 w-4" />
+            </Link>
           )}
-        </CardContent>
-      </Card>
+        </div>
+
+        {stats.recentActivities.length > 0 ? (
+          <div>
+            {stats.recentActivities.map(
+              (activity: {
+                _id: string;
+                activityTypeName: string;
+                loggedDate: number;
+                pointsEarned: number;
+                createdAt: number;
+                isNegative?: boolean;
+              }) => (
+                <Link
+                  key={activity._id}
+                  href={`/challenges/${challengeId}/activities/${activity._id}`}
+                  className="flex items-center justify-between px-4 py-3 transition-colors hover:bg-muted/40"
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium">{activity.activityTypeName}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {formatMonthDayFromUtcMs(activity.loggedDate)} ·{" "}
+                      {formatDistanceToNow(new Date(activity.createdAt), {
+                        addSuffix: true,
+                      })}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <PointsDisplay
+                      points={activity.pointsEarned}
+                      isNegative={activity.isNegative}
+                      size="base"
+                    />
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                  </div>
+                </Link>
+              ),
+            )}
+          </div>
+        ) : (
+          <p className="px-4 py-8 text-center text-sm text-muted-foreground">
+            No activities logged yet.
+          </p>
+        )}
+      </div>
+
       {/* API Key Management (own profile only) */}
-      {followData?.isOwnProfile && <ApiKeySection />}
+      {followData?.isOwnProfile && (
+        <div className="px-4 py-4">
+          <ApiKeySection />
+        </div>
+      )}
     </div>
   );
 }

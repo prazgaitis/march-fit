@@ -93,16 +93,13 @@ const EntryRow = memo(function EntryRow({
         </p>
       </div>
 
-      <div className="text-right">
-        <PointsDisplay
-          points={entry.totalPoints}
-          size="sm"
-          showSign={false}
-          showLabel={false}
-          className={cn("font-bold", entry.totalPoints >= 0 && "text-white")}
-        />
-        <p className="text-xs text-zinc-500">pts</p>
-      </div>
+      <PointsDisplay
+        points={entry.totalPoints}
+        size="sm"
+        showSign={false}
+        showLabel={false}
+        className={cn("shrink-0 font-mono font-bold", entry.totalPoints >= 0 && "text-white")}
+      />
     </Link>
   );
 });

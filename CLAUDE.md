@@ -164,3 +164,35 @@ grouping daily totals. Prefer `formatDateOnlyFromUtcMs(loggedDate)` for rollups.
 
 The client must send a local date (or a local timestamp plus timezone) for activity logging.
 The backend should normalize to a date-only value and must not infer a local date from UTC alone.
+
+## Design Context
+
+### Users
+Friend groups competing in fitness challenges for fun and accountability. They check in on mobile and desktop to log activities, trash-talk on the leaderboard, and track streaks. The context is social and competitive — people care about their rank and their friends' activity.
+
+### Brand Personality
+**Bold, competitive, edgy.** The brand channels streetwear/athletic energy — high contrast, uppercase type, unapologetic confidence. Think Nike campaign meets dark-mode developer tool. The voice is direct, motivational, and never corporate.
+
+### Emotional Goals
+The interface should make users feel **fired up and competitive** — urgency to climb the leaderboard, desire to maintain streaks, rivalry with friends. Every screen should reinforce momentum and progress.
+
+### Aesthetic Direction
+- **Dark-first** with light mode support (dark is default, users can switch)
+- **High contrast:** Black backgrounds (`bg-black`), white text, vivid accent colors (indigo, fuchsia gradients)
+- **Typography:** Geist Sans/Mono, uppercase tracking for labels and headers, bold weight hierarchy
+- **Surfaces:** `zinc-900/50` cards with `zinc-800` borders, subtle backdrop blur
+- **Buttons:** Pill-shaped (rounded-full) with uppercase tracking on marketing; standard rounded-md shadcn buttons in-app
+- **Data presentation:** Bloomberg terminal-inspired stat cards — monospace values, tiny uppercase labels, color-coded icons
+- **References:** Strava (social fitness, clean data), Nike Run Club (bold branding, motivational), with a developer-tool precision layer
+- **Multiple theme support** via CSS custom properties (Tokyo Night, Retro Synthwave, Emerald, etc.)
+
+### Anti-References
+- **No generic SaaS:** Avoid bland dashboards, cookie-cutter card layouts, or corporate blue palettes
+- **No sterile/boring UI:** Every screen should have energy and personality — gradients, glow effects, strong type hierarchy
+
+### Design Principles
+1. **Competition is visible** — Ranks, streaks, and points should be prominent and feel consequential. Use color, size, and motion to make progress tangible.
+2. **Dark and bold** — Embrace the dark palette. Use vivid accents sparingly for emphasis. High contrast is a feature, not a limitation.
+3. **Data-dense but scannable** — Show lots of information (stats, leaderboards, activity feeds) but with clear visual hierarchy. Monospace numbers, tiny labels, strong grouping.
+4. **Mobile-first energy** — Most users check on their phones. Interfaces should feel native, fast, and tap-friendly. No wasted space.
+5. **Personality over polish** — Prefer distinctive design choices (gradient text, glow effects, bold type) over safe, generic patterns. The UI should feel like it belongs to this brand.
