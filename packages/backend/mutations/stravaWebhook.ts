@@ -196,6 +196,21 @@ export const createFromStrava = internalMutation({
           challengeStartDate: challenge.startDate,
         });
 
+        // Notify user their previously-deleted Strava activity was re-imported
+        await insertNotification(ctx, {
+          userId: args.userId,
+          actorId: args.userId,
+          type: "strava_update",
+          data: {
+            activityId: existing._id,
+            challengeId: args.challengeId,
+            activityName: stravaActivity.name,
+            pointsEarned,
+            activityTypeName: activityType.name,
+          },
+          createdAt: Date.now(),
+        });
+
         return existing._id;
       }
 
@@ -271,6 +286,22 @@ export const createFromStrava = internalMutation({
           pointsDelta: pointsEarned,
         });
       }
+
+      // Notify user their Strava activity was updated
+      await insertNotification(ctx, {
+        userId: args.userId,
+        actorId: args.userId,
+        type: "strava_update",
+        data: {
+          activityId: existing._id,
+          challengeId: args.challengeId,
+          activityName: stravaActivity.name,
+          pointsEarned,
+          previousPointsEarned: existing.pointsEarned,
+          activityTypeName: activityType.name,
+        },
+        createdAt: Date.now(),
+      });
 
       return existing._id;
     }
