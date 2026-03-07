@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { api } from "@repo/backend";
 import {
   createTestContext,
@@ -11,6 +11,14 @@ describe("Forum Posts", () => {
 
   beforeEach(async () => {
     t = createTestContext();
+  });
+
+  // The create/reply mutations schedule notifications via ctx.scheduler.runAfter.
+  // Without draining them, convex-test throws "Write outside of transaction"
+  // as unhandled rejections. Finish any in-progress scheduled functions after
+  // each test so the scheduler queue is clean.
+  afterEach(async () => {
+    await t.finishInProgressScheduledFunctions();
   });
 
   // Helper to set up a challenge with a participant
