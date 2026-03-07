@@ -295,7 +295,7 @@ export default function AdminAlgorithmicFeedPage() {
                       </div>
                       <div className="text-[10px] text-zinc-500">
                         {row.activityType?.name ?? "?"} ·{" "}
-                        {row.pointsEarned.toFixed(1)} pts
+                        {row.pointsEarned.toFixed(2)} pts
                         {row.debug.isFollowingAuthor && (
                           <span className="ml-1 text-blue-400">
                             ★ following

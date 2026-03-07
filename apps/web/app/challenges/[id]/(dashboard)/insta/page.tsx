@@ -5,14 +5,11 @@ import { getConvexClient } from "@/lib/convex-server";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
 
-import { ActivityFeed } from "@/components/dashboard/activity-feed";
-import { OnboardingCard } from "@/components/dashboard/onboarding-card";
-import { StoriesSection } from "@/components/dashboard/stories-section";
+import { InstaFeed } from "./insta-feed";
 import { getCurrentUser } from "@/lib/auth";
 import { fetchAuthQuery } from "@/lib/server-auth";
-import { dateOnlyToUtcMs } from "@/lib/date-only";
 
-interface ChallengeDashboardPageProps {
+interface InstaPageProps {
   params: Promise<{ id: string }>;
 }
 
@@ -51,10 +48,18 @@ interface InitialFeedResponse {
   }>;
 }
 
-function DashboardSkeleton() {
+function InstaPageSkeleton() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-6 space-y-4">
-      <div className="h-24 animate-pulse rounded-xl bg-zinc-900/50" />
+      {/* Stories skeleton */}
+      <div className="flex gap-3 overflow-hidden py-3">
+        {[1, 2, 3, 4, 5].map((i) => (
+          <div key={i} className="flex shrink-0 flex-col items-center gap-1.5">
+            <div className="h-[72px] w-[72px] animate-pulse rounded-full bg-zinc-900/50" />
+            <div className="h-3 w-12 animate-pulse rounded bg-zinc-900/50" />
+          </div>
+        ))}
+      </div>
       {[1, 2, 3].map((i) => (
         <div key={i} className="h-48 animate-pulse rounded-xl bg-zinc-900/50" />
       ))}
@@ -62,23 +67,20 @@ function DashboardSkeleton() {
   );
 }
 
-export default async function ChallengeDashboardPage({
-  params,
-}: ChallengeDashboardPageProps) {
+export default async function InstaPage({ params }: InstaPageProps) {
   const { id } = await params;
 
   return (
-    <Suspense fallback={<DashboardSkeleton />}>
-      <DashboardContent challengeSlug={id} />
+    <Suspense fallback={<InstaPageSkeleton />}>
+      <InstaContent challengeSlug={id} />
     </Suspense>
   );
 }
 
-async function DashboardContent({ challengeSlug }: { challengeSlug: string }) {
+async function InstaContent({ challengeSlug }: { challengeSlug: string }) {
   const convex = getConvexClient();
-  const dashStart = performance.now();
   const user = await getCurrentUser();
-  if (!user) return null; // Layout handles redirect
+  if (!user) return null;
 
   const challengeId = challengeSlug as Id<"challenges">;
   const userAgent = (await headers()).get("user-agent") ?? "";
@@ -100,10 +102,7 @@ async function DashboardContent({ challengeSlug }: { challengeSlug: string }) {
           cursor: null,
         },
       },
-    ).catch((error) => {
-      console.error("[perf] dashboard initial feed preload failed", error);
-      return { page: [] };
-    }),
+    ).catch(() => ({ page: [] })),
     fetchAuthQuery<InitialFeedResponse>(
       api.queries.algorithmicFeed.getAlgorithmicFeed,
       {
@@ -111,45 +110,24 @@ async function DashboardContent({ challengeSlug }: { challengeSlug: string }) {
         includeEngagementCounts: !isMobileRequest,
         includeMediaUrls: true,
       },
-    ).catch((error) => {
-      console.error("[perf] dashboard algo feed preload failed", error);
-      return { page: [] };
-    }),
+    ).catch(() => ({ page: [] })),
   ]);
-
-  console.log(
-    `[perf] dashboard page total: ${Math.round(performance.now() - dashStart)}ms`,
-  );
 
   if (!challenge) notFound();
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-6 space-y-4">
-      {dateOnlyToUtcMs(challenge.startDate) > Date.now() && (
-        <OnboardingCard
-          challengeId={challenge._id}
-          userId={user._id}
-          challengeStartDate={challenge.startDate}
-        />
-      )}
-      <StoriesSection
-        challengeId={challenge._id}
-        challengeStartDate={challenge.startDate}
-        currentUser={{
-          id: user._id,
-          name: user.name ?? null,
-          username: user.username,
-          avatarUrl: user.avatarUrl ?? null,
-        }}
-        initialAlgoItems={initialAlgoFeed.page}
-      />
-      <ActivityFeed
-        challengeId={challenge._id}
-        currentUserId={user._id}
-        initialItems={initialFeed.page}
-        initialAlgoItems={initialAlgoFeed.page}
-        initialLightweightMode={isMobileRequest}
-      />
-    </div>
+    <InstaFeed
+      challengeId={challenge._id}
+      challengeStartDate={challenge.startDate}
+      currentUser={{
+        id: user._id,
+        name: user.name ?? null,
+        username: user.username,
+        avatarUrl: user.avatarUrl ?? null,
+      }}
+      initialItems={initialFeed.page}
+      initialAlgoItems={initialAlgoFeed.page}
+      initialLightweightMode={isMobileRequest}
+    />
   );
 }

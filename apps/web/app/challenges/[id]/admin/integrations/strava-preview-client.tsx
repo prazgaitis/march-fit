@@ -419,7 +419,7 @@ export function StravaPreviewClient({
                         </div>
                         <div className="flex items-center gap-1.5 text-zinc-400">
                           <Trophy className="h-3.5 w-3.5" />
-                          <span>{loggedActivity.pointsEarned} pts earned</span>
+                          <span>{loggedActivity.pointsEarned.toFixed(2)} pts earned</span>
                         </div>
                         {loggedActivity.activityTypeName && (
                           <Badge variant="outline" className="text-xs">

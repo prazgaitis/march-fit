@@ -434,7 +434,7 @@ export function ActivityDetailContent({
       setEditNewMedia([]);
 
       toast.success(
-        `Activity updated! ${formatPoints(result.pointsEarned, 1)} pts.`,
+        `Activity updated! ${formatPoints(result.pointsEarned, 2)} pts.`,
       );
       setShowEditDialog(false);
     } catch (err) {
@@ -557,7 +557,7 @@ export function ActivityDetailContent({
                 <PointsDisplay
                   points={activity.pointsEarned}
                   isNegative={activityType.isNegative}
-                  decimals={1}
+                  decimals={2}
                   size="lg"
                   showSign={true}
                   showLabel={true}

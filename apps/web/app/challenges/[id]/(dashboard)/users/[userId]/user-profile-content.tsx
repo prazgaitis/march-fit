@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import Link from "next/link";
 import { formatDistanceToNow, format } from "date-fns";
 import { formatMonthDayFromUtcMs } from "@/lib/date-only";
@@ -45,6 +45,8 @@ import { StravaConnectButton } from "@/components/integrations/strava-connect-bu
 import { ApiKeySection } from "@/components/api-key-section";
 import { cn } from "@/lib/utils";
 import { PointsDisplay } from "@/components/ui/points-display";
+import { StoryViewer } from "@/components/dashboard/story-viewer";
+import { buildUserStory } from "@/lib/story-utils";
 
 interface UserProfileContentProps {
   challengeId: string;
@@ -58,6 +60,7 @@ export function UserProfileContent({
   const [isTogglingFollow, setIsTogglingFollow] = useState(false);
   const [showPrDayModal, setShowPrDayModal] = useState(false);
   const [showInvitedModal, setShowInvitedModal] = useState(false);
+  const [storyViewerOpen, setStoryViewerOpen] = useState(false);
 
   const profileData = useQuery(api.queries.users.getProfile, {
     userId: profileUserId as Id<"users">,
@@ -102,7 +105,26 @@ export function UserProfileContent({
       : "skip",
   );
 
+  const userStories = useQuery(api.queries.activities.getUserStories, {
+    userId: profileUserId as Id<"users">,
+    challengeId: challengeId as Id<"challenges">,
+    limit: 20,
+  });
+
   const toggleFollow = useMutation(api.mutations.follows.toggle);
+
+  const stories = useMemo(() => {
+    if (!userStories || userStories.length === 0 || !profileData) return [];
+    const u = profileData.user;
+    const story = buildUserStory(
+      { id: u.id, name: u.name, username: u.username, avatarUrl: u.avatarUrl },
+      challengeId,
+      userStories as any[],
+    );
+    return story ? [story] : [];
+  }, [userStories, profileData, challengeId]);
+
+  const hasStories = stories.length > 0;
 
   const handleToggleFollow = async () => {
     if (isTogglingFollow) return;
@@ -165,7 +187,12 @@ export function UserProfileContent({
       {/* User Info */}
       <div className="px-4 py-6">
         <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-start">
-          <UserAvatar user={user} size="2xl" />
+          <UserAvatar
+            user={user}
+            size="2xl"
+            hasStory={hasStories}
+            onAvatarClick={hasStories ? () => setStoryViewerOpen(true) : undefined}
+          />
           <div className="flex-1 text-center sm:text-left">
             <div className="flex flex-col items-center gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
@@ -449,7 +476,7 @@ export function UserProfileContent({
                         </div>
                         <p className="font-semibold text-primary">
                           {activity.pointsEarned >= 0 ? "+" : ""}
-                          {activity.pointsEarned.toFixed(0)} pts
+                          {activity.pointsEarned.toFixed(2)} pts
                         </p>
                       </Link>
                     ),
@@ -618,6 +645,14 @@ export function UserProfileContent({
           <ApiKeySection />
         </div>
       )}
+
+      {/* Story viewer */}
+      <StoryViewer
+        stories={stories}
+        initialIndex={0}
+        open={storyViewerOpen}
+        onClose={() => setStoryViewerOpen(false)}
+      />
     </div>
   );
 }
