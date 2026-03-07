@@ -48,6 +48,8 @@ function getNotificationIcon(type: string) {
     case "streak":
       return <Trophy className="h-4 w-4 text-amber-500" />;
     case "forum_mention":
+    case "forum_reply":
+    case "forum_new_post":
       return <MessageSquare className="h-4 w-4 text-indigo-500" />;
     case "admin_comment":
     case "admin_edit":
@@ -73,6 +75,10 @@ export function getNotificationMessage(notification: Notification) {
       return `${actorName} mentioned you`;
     case "forum_mention":
       return `${actorName} mentioned you in a forum post`;
+    case "forum_reply":
+      return `${actorName} replied to your forum post`;
+    case "forum_new_post":
+      return `${actorName} posted in the forum`;
     case "follow":
     case "new_follower":
       return `${actorName} started following you`;
@@ -106,7 +112,12 @@ export function getNotificationLink(notification: Notification, challengeId: str
     const cId = notification.data?.challengeId ?? challengeId;
     return `/challenges/${cId}/feedback`;
   }
-  if (notification.type === "forum_mention" && notification.data?.postId) {
+  if (
+    (notification.type === "forum_mention" ||
+      notification.type === "forum_reply" ||
+      notification.type === "forum_new_post") &&
+    notification.data?.postId
+  ) {
     const cId = notification.data.challengeId ?? challengeId;
     return `/challenges/${cId}/forum/${notification.data.postId}`;
   }

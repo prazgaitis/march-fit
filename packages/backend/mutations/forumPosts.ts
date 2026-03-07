@@ -83,6 +83,31 @@ export const create = mutation({
       );
     }
 
+    if (args.parentPostId) {
+      // Notify the parent post author of the reply
+      await ctx.scheduler.runAfter(
+        0,
+        internal.mutations.forumPosts.sendReplyNotification,
+        {
+          postId,
+          parentPostId: args.parentPostId,
+          actorId: user._id,
+          challengeId: args.challengeId,
+        },
+      );
+    } else {
+      // Notify all challenge participants of the new top-level post
+      await ctx.scheduler.runAfter(
+        0,
+        internal.mutations.forumPosts.sendNewPostNotifications,
+        {
+          postId,
+          actorId: user._id,
+          challengeId: args.challengeId,
+        },
+      );
+    }
+
     return postId;
   },
 });
@@ -312,6 +337,73 @@ export const internalCreate = internalMutation({
       createdAt: args.createdAt,
       updatedAt: args.updatedAt,
     });
+  },
+});
+
+/**
+ * Internal: send a reply notification to the parent post author.
+ */
+export const sendReplyNotification = internalMutation({
+  args: {
+    postId: v.id("forumPosts"),
+    parentPostId: v.id("forumPosts"),
+    actorId: v.id("users"),
+    challengeId: v.id("challenges"),
+  },
+  handler: async (ctx, args) => {
+    const parentPost = await ctx.db.get(args.parentPostId);
+    if (!parentPost || parentPost.deletedAt) return;
+
+    // Don't notify if the author is replying to their own post
+    if (parentPost.userId === args.actorId) return;
+
+    await ctx.db.insert("notifications", {
+      userId: parentPost.userId,
+      actorId: args.actorId,
+      type: "forum_reply",
+      data: {
+        postId: args.postId,
+        parentPostId: args.parentPostId,
+        challengeId: args.challengeId,
+      },
+      createdAt: Date.now(),
+    });
+  },
+});
+
+/**
+ * Internal: notify all challenge participants of a new top-level forum post.
+ */
+export const sendNewPostNotifications = internalMutation({
+  args: {
+    postId: v.id("forumPosts"),
+    actorId: v.id("users"),
+    challengeId: v.id("challenges"),
+  },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+
+    // Get all participants in the challenge
+    const participations = await ctx.db
+      .query("userChallenges")
+      .filter((q) => q.eq(q.field("challengeId"), args.challengeId))
+      .collect();
+
+    for (const participation of participations) {
+      // Don't notify the author
+      if (participation.userId === args.actorId) continue;
+
+      await ctx.db.insert("notifications", {
+        userId: participation.userId,
+        actorId: args.actorId,
+        type: "forum_new_post",
+        data: {
+          postId: args.postId,
+          challengeId: args.challengeId,
+        },
+        createdAt: now,
+      });
+    }
   },
 });
 

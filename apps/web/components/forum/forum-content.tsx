@@ -1,6 +1,6 @@
 "use client";
 
-import { memo, useCallback, useMemo, useState } from "react";
+import { memo, useCallback, useState } from "react";
 import Link from "next/link";
 import { usePaginatedQuery, useMutation } from "@/lib/convex-auth-react";
 import { api } from "@repo/backend";
@@ -10,7 +10,7 @@ import { formatDistanceToNow } from "date-fns";
 
 import { Button } from "@/components/ui/button";
 import { UserAvatar } from "@/components/user-avatar";
-import { getPlainTextFromValue } from "@/lib/rich-text-utils";
+import { RichTextViewer } from "@/components/editor/rich-text-viewer";
 
 interface ForumContentProps {
   challengeId: string;
@@ -106,11 +106,6 @@ const ForumPostCard = memo(function ForumPostCard({ item, challengeId }: ForumPo
     }
   }, [item.post._id, toggleUpvote]);
 
-  const plainText = useMemo(
-    () => getPlainTextFromValue(item.post.content),
-    [item.post.content]
-  );
-
   return (
     <Link
       href={`/challenges/${challengeId}/forum/${item.post._id}`}
@@ -152,9 +147,9 @@ const ForumPostCard = memo(function ForumPostCard({ item, challengeId }: ForumPo
           </h3>
         </div>
 
-        <p className="mt-1 line-clamp-2 text-sm text-zinc-400">
-          {plainText}
-        </p>
+        <div className="mt-1 line-clamp-2 text-sm text-zinc-400 [&_*]:text-zinc-400">
+          <RichTextViewer content={item.post.content} />
+        </div>
 
         <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-500">
           {item.user && (

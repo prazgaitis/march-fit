@@ -1141,6 +1141,29 @@ export const createForumPostForUser = internalMutation({
       );
     }
 
+    if (args.parentPostId) {
+      await ctx.scheduler.runAfter(
+        0,
+        internalApi.mutations.forumPosts.sendReplyNotification,
+        {
+          postId,
+          parentPostId: args.parentPostId,
+          actorId: user._id,
+          challengeId: args.challengeId,
+        },
+      );
+    } else {
+      await ctx.scheduler.runAfter(
+        0,
+        internalApi.mutations.forumPosts.sendNewPostNotifications,
+        {
+          postId,
+          actorId: user._id,
+          challengeId: args.challengeId,
+        },
+      );
+    }
+
     return postId;
   },
 });
