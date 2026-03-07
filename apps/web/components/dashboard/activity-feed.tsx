@@ -50,6 +50,8 @@ import {
   useActivityNotification,
   useChallengeSummary,
 } from "./challenge-realtime-context";
+import { ActivityShareDialog } from "@/components/activity-share-dialog";
+import type { ShareCardData } from "@/lib/share-card-renderer";
 import { UserChallengeDisplay } from "@/components/user-challenge-display";
 import { Button } from "@/components/ui/button";
 import {
@@ -184,6 +186,7 @@ function mapAlgoItem(item: AlgoFeedItem): ActivityFeedItem {
 
 interface ActivityFeedProps {
   challengeId: string;
+  challengeName?: string;
   currentUserId?: string;
   initialItems?: ActivityFeedItem[];
   initialAlgoItems?: AlgoFeedItem[];
@@ -200,6 +203,7 @@ interface FeedPageResponse {
 
 export function ActivityFeed({
   challengeId,
+  challengeName,
   currentUserId,
   initialItems = [],
   initialAlgoItems = [],
@@ -619,6 +623,7 @@ export function ActivityFeed({
           <ActivityCard
             key={item.activity._id}
             challengeId={challengeId}
+            challengeName={challengeName}
             showEngagementCounts={!lightweightFeedMode}
             item={{
               ...item,
@@ -757,6 +762,7 @@ function ActivityStats({ item }: { item: ActivityFeedItem }) {
 
 interface ActivityCardProps {
   challengeId: string;
+  challengeName?: string;
   item: ActivityFeedItem;
   showEngagementCounts: boolean;
   mentionOptions: MentionableUser[];
@@ -766,6 +772,7 @@ interface ActivityCardProps {
 
 const ActivityCard = memo(function ActivityCard({
   challengeId,
+  challengeName,
   item,
   showEngagementCounts,
   mentionOptions,
@@ -782,6 +789,9 @@ const ActivityCard = memo(function ActivityCard({
   const [flagSubmitting, setFlagSubmitting] = useState(false);
   const [flagError, setFlagError] = useState<string | null>(null);
   const [flagSuccess, setFlagSuccess] = useState(false);
+  const [showShareDialog, setShowShareDialog] = useState(false);
+
+  const { summary } = useChallengeSummary();
 
   const toggleLike = useMutation(api.mutations.likes.toggle);
   const flagActivity = useMutation(api.mutations.activities.flagActivity);
@@ -851,22 +861,22 @@ const ActivityCard = memo(function ActivityCard({
     }
   };
 
-  const handleShare = async () => {
-    const url = `${window.location.origin}${activityUrl}`;
-
-    try {
-      if (navigator.share) {
-        await navigator.share({
-          title: "Check out this activity",
-          url,
-        });
-      } else if (navigator.clipboard) {
-        await navigator.clipboard.writeText(url);
-      }
-    } catch (error) {
-      console.error("Share failed", error);
-    }
-  };
+  const shareCardData: ShareCardData = useMemo(() => ({
+    activityTypeName: item.activityType?.name ?? "Activity",
+    pointsEarned: item.activity.pointsEarned,
+    loggedDate: new Date(item.activity.loggedDate).toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    }),
+    metrics: item.activity.metrics,
+    userName: item.user.name ?? item.user.username,
+    challengeName: challengeName ?? "Challenge",
+    rank: summary.stats.userRank,
+    totalParticipants: summary.stats.totalParticipants,
+    totalPoints: summary.stats.userPoints,
+    currentStreak: summary.stats.userStreak,
+  }), [item, challengeName, summary.stats]);
 
   const actionBar = (
     <div
@@ -906,7 +916,7 @@ const ActivityCard = memo(function ActivityCard({
         )}
       </button>
       <button
-        onClick={handleShare}
+        onClick={() => setShowShareDialog(true)}
         className="flex items-center gap-1.5 text-sm transition-colors hover:text-foreground"
       >
         <Share2 className="h-[18px] w-[18px]" />
@@ -1110,6 +1120,11 @@ const ActivityCard = memo(function ActivityCard({
       <div className="px-4 py-2">{actionBar}</div>
       <div className="px-4 pb-3">{commentsSection}</div>
       <div className="border-b border-zinc-800" />
+      <ActivityShareDialog
+        open={showShareDialog}
+        onOpenChange={setShowShareDialog}
+        data={shareCardData}
+      />
     </div>
   );
 });

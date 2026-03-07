@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { formatDistanceToNow, format } from "date-fns";
@@ -104,6 +104,9 @@ import { formatPoints } from "@/lib/points";
 import { PointsDisplay } from "@/components/ui/points-display";
 import { MediaGallery } from "@/components/media-gallery";
 import { LikesDisplay } from "@/components/likes-display";
+import { ActivityShareDialog } from "@/components/activity-share-dialog";
+import type { ShareCardData } from "@/lib/share-card-renderer";
+import { useChallengeSummary } from "@/components/dashboard/challenge-realtime-context";
 
 interface MediaPreview {
   file: File;
@@ -146,6 +149,7 @@ export function ActivityDetailContent({
   activityId,
 }: ActivityDetailContentProps) {
   const [pendingLike, setPendingLike] = useState(false);
+  const [showShareDialog, setShowShareDialog] = useState(false);
   const [showFlagDialog, setShowFlagDialog] = useState(false);
   const [flagCategory, setFlagCategory] = useState("");
   const [flagReason, setFlagReason] = useState("");
@@ -184,6 +188,7 @@ export function ActivityDetailContent({
   );
 
   const { users: mentionUsers } = useMentionableUsers(challengeId);
+  const { summary } = useChallengeSummary();
 
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -252,22 +257,26 @@ export function ActivityDetailContent({
     }
   };
 
-  const handleShare = async () => {
-    const url = window.location.href;
-
-    try {
-      if (navigator.share) {
-        await navigator.share({
-          title: "Check out this activity",
-          url,
-        });
-      } else if (navigator.clipboard) {
-        await navigator.clipboard.writeText(url);
-      }
-    } catch (error) {
-      console.error("Share failed", error);
-    }
-  };
+  const shareCardData: ShareCardData | null = useMemo(() => {
+    if (!activityData) return null;
+    const { activity: act, user: u, activityType: at, challenge: ch } = activityData;
+    return {
+      activityTypeName: at.name,
+      pointsEarned: act.pointsEarned,
+      loggedDate: new Date(act.loggedDate).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      }),
+      metrics: act.metrics as Record<string, unknown> | undefined,
+      userName: u.name ?? u.username,
+      challengeName: ch.name,
+      rank: summary.stats.userRank,
+      totalParticipants: summary.stats.totalParticipants,
+      totalPoints: summary.stats.userPoints,
+      currentStreak: summary.stats.userStreak,
+    };
+  }, [activityData, summary.stats]);
 
   const handleFlagSubmit = async () => {
     if (!flagCategory) return;
@@ -641,7 +650,7 @@ export function ActivityDetailContent({
                 {comments} {comments === 1 ? "Comment" : "Comments"}
               </a>
             </Button>
-            <Button variant="ghost" size="sm" onClick={handleShare}>
+            <Button variant="ghost" size="sm" onClick={() => setShowShareDialog(true)}>
               <Share2 className="mr-2 h-4 w-4" /> Share
             </Button>
             <DropdownMenu>
@@ -1090,6 +1099,13 @@ export function ActivityDetailContent({
           />
         </div>
       </div>
+      {shareCardData && (
+        <ActivityShareDialog
+          open={showShareDialog}
+          onOpenChange={setShowShareDialog}
+          data={shareCardData}
+        />
+      )}
     </div>
   );
 }
