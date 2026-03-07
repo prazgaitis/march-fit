@@ -229,7 +229,7 @@ function AlgoFeedCard({
             <PointsDisplay
               points={item.activity.pointsEarned}
               isNegative={item.activityType?.isNegative}
-              decimals={1}
+              decimals={2}
               size="sm"
               showSign={false}
               hasBonuses={!!hasBonuses}

@@ -44,7 +44,7 @@ export function ActivityLinkCard({ activityId }: ActivityLinkCardProps) {
               {data.activityType.name}
             </span>
             <span className="text-xs font-medium text-emerald-400">
-              +{data.activity.pointsEarned} pts
+              +{data.activity.pointsEarned.toFixed(2)} pts
             </span>
           </div>
           <div className="flex items-center gap-2 text-xs text-zinc-500">

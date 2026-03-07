@@ -452,6 +452,91 @@ export const previewScore = query({
 });
 
 /**
+ * Get recent activities with media for a specific user in a challenge.
+ * Used to power the Instagram-style story viewer on user profiles.
+ */
+export const getUserStories = query({
+  args: {
+    userId: v.id("users"),
+    challengeId: v.id("challenges"),
+    limit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const maxItems = args.limit ?? 20;
+    const currentUser = await getCurrentUser(ctx);
+
+    const activities = await ctx.db
+      .query("activities")
+      .withIndex("userId", (q) => q.eq("userId", args.userId))
+      .filter(notDeleted)
+      .order("desc")
+      .collect();
+
+    // Filter to this challenge and only activities with media
+    const withMedia = activities
+      .filter(
+        (a) =>
+          a.challengeId === args.challengeId &&
+          a.mediaIds &&
+          a.mediaIds.length > 0,
+      )
+      .slice(0, maxItems);
+
+    if (withMedia.length === 0) return [];
+
+    const user = await ctx.db.get(args.userId);
+    if (!user) return [];
+
+    return Promise.all(
+      withMedia.map(async (activity) => {
+        const [activityType, mediaUrls, likeCount, commentCount, userLike] =
+          await Promise.all([
+            ctx.db.get(activity.activityTypeId),
+            Promise.all(
+              activity.mediaIds!.map((id) => ctx.storage.getUrl(id)),
+            ).then((urls) => urls.filter((u): u is string => u !== null)),
+            ctx.db
+              .query("likes")
+              .withIndex("activityId", (q) =>
+                q.eq("activityId", activity._id),
+              )
+              .collect()
+              .then((rows) => rows.length),
+            ctx.db
+              .query("comments")
+              .withIndex("activityId", (q) =>
+                q.eq("activityId", activity._id),
+              )
+              .collect()
+              .then((rows) => rows.length),
+            currentUser
+              ? ctx.db
+                  .query("likes")
+                  .withIndex("activityUserUnique", (q) =>
+                    q
+                      .eq("activityId", activity._id)
+                      .eq("userId", currentUser._id),
+                  )
+                  .first()
+              : null,
+          ]);
+
+        return {
+          activityId: activity._id as string,
+          mediaUrls,
+          activityType: activityType?.name ?? null,
+          createdAt: activity.createdAt,
+          pointsEarned: activity.pointsEarned,
+          likes: likeCount,
+          comments: commentCount,
+          likedByUser: userLike !== null,
+        };
+      }),
+    );
+  },
+});
+
+/**
  * Get media URLs for an activity
  */
 export const getMediaUrls = query({

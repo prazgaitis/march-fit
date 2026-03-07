@@ -28,6 +28,10 @@ interface UserAvatarProps {
   children?: React.ReactNode;
   /** Custom class for the container */
   className?: string;
+  /** If provided, clicking the avatar calls this instead of navigating */
+  onAvatarClick?: () => void;
+  /** Show gradient ring around the avatar (Instagram-style) */
+  hasStory?: boolean;
 }
 
 const sizeClasses = {
@@ -63,13 +67,15 @@ export function UserAvatar({
   showUsername = false,
   children,
   className,
+  onAvatarClick,
+  hasStory = false,
 }: UserAvatarProps) {
-  const profileUrl = !disableLink && challengeId
+  const profileUrl = !disableLink && !onAvatarClick && challengeId
     ? `/challenges/${challengeId}/users/${user.id}`
     : undefined;
 
-  const avatarElement = (
-    <Avatar className={cn(sizeClasses[size], profileUrl && 'transition-opacity hover:opacity-80')}>
+  const avatarInner = (
+    <Avatar className={cn(sizeClasses[size], (profileUrl || onAvatarClick) && 'transition-opacity hover:opacity-80')}>
       <AvatarImage
         src={user.avatarUrl ?? undefined}
         alt={getDisplayName(user.name, user.username)}
@@ -77,6 +83,14 @@ export function UserAvatar({
       <AvatarFallback>{getInitials(user.name, user.username)}</AvatarFallback>
     </Avatar>
   );
+
+  const avatarElement = hasStory ? (
+    <div className="rounded-full bg-gradient-to-br from-indigo-500 via-fuchsia-500 to-amber-500 p-[2.5px]">
+      <div className="rounded-full bg-background p-[2px]">
+        {avatarInner}
+      </div>
+    </div>
+  ) : avatarInner;
 
   const nameElement = showName && (
     <span className={cn('font-semibold', textSizeClasses[size], profileUrl && 'hover:underline')}>
@@ -90,6 +104,13 @@ export function UserAvatar({
 
   // Avatar only mode
   if (!showName && !showUsername && !children) {
+    if (onAvatarClick) {
+      return (
+        <button onClick={onAvatarClick} className={cn('shrink-0 cursor-pointer', className)}>
+          {avatarElement}
+        </button>
+      );
+    }
     if (profileUrl) {
       return (
         <Link href={profileUrl} className={cn('shrink-0', className)}>
@@ -100,10 +121,16 @@ export function UserAvatar({
     return <div className={cn('shrink-0', className)}>{avatarElement}</div>;
   }
 
-  // Avatar with text content
+  // Avatar with text content — avatar clickable separately when onAvatarClick is set
+  const avatarPart = onAvatarClick ? (
+    <button onClick={onAvatarClick} className="shrink-0 cursor-pointer">
+      {avatarElement}
+    </button>
+  ) : avatarElement;
+
   const content = (
     <div className={cn('flex items-center gap-3', className)}>
-      {avatarElement}
+      {avatarPart}
       <div className="flex-1 min-w-0">
         {nameElement}
         {showName && showUsername ? (

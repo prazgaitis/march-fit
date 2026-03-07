@@ -118,7 +118,13 @@ async function InstaContent({ challengeSlug }: { challengeSlug: string }) {
   return (
     <InstaFeed
       challengeId={challenge._id}
-      currentUserId={user._id}
+      challengeStartDate={challenge.startDate}
+      currentUser={{
+        id: user._id,
+        name: user.name ?? null,
+        username: user.username,
+        avatarUrl: user.avatarUrl ?? null,
+      }}
       initialItems={initialFeed.page}
       initialAlgoItems={initialAlgoFeed.page}
       initialLightweightMode={isMobileRequest}

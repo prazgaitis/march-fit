@@ -7,6 +7,7 @@ import type { Id } from "@repo/backend/_generated/dataModel";
 
 import { ActivityFeed } from "@/components/dashboard/activity-feed";
 import { OnboardingCard } from "@/components/dashboard/onboarding-card";
+import { StoriesSection } from "@/components/dashboard/stories-section";
 import { getCurrentUser } from "@/lib/auth";
 import { fetchAuthQuery } from "@/lib/server-auth";
 import { dateOnlyToUtcMs } from "@/lib/date-only";
@@ -131,6 +132,17 @@ async function DashboardContent({ challengeSlug }: { challengeSlug: string }) {
           challengeStartDate={challenge.startDate}
         />
       )}
+      <StoriesSection
+        challengeId={challenge._id}
+        challengeStartDate={challenge.startDate}
+        currentUser={{
+          id: user._id,
+          name: user.name ?? null,
+          username: user.username,
+          avatarUrl: user.avatarUrl ?? null,
+        }}
+        initialAlgoItems={initialAlgoFeed.page}
+      />
       <ActivityFeed
         challengeId={challenge._id}
         currentUserId={user._id}
