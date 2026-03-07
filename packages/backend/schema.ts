@@ -758,6 +758,13 @@ export default defineSchema({
     externalData: v.any(),
   }).index("activityId", ["activityId"]),
 
+  // App Config - singleton table for global app state (e.g., bundle version)
+  appConfig: defineTable({
+    key: v.literal("global"),
+    bundleVersion: v.number(), // Incremented on each deploy to signal clients
+    updatedAt: v.number(),
+  }).index("key", ["key"]),
+
   // Email Sends - tracking sent emails
   emailSends: defineTable({
     emailSequenceId: v.id("emailSequences"),

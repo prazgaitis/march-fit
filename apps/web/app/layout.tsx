@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ConvexProviderWrapper } from "@/components/providers/convex-provider";
 import { Toaster } from "@/components/ui/sonner";
+import { BundleVersionGuard } from "@/components/bundle-version-guard";
 import { Analytics } from "@vercel/analytics/next";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import { getToken } from "@/lib/server-auth";
@@ -64,6 +65,7 @@ export default async function RootLayout({
           className={`${geistSans.variable} ${geistMono.variable} bg-black text-white antialiased`}
         >
           {children}
+          <BundleVersionGuard />
           <Toaster />
           <Analytics />
           <SpeedInsights />
