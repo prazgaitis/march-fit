@@ -6,7 +6,7 @@ import { formatDistanceToNow } from "date-fns";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
-import { Heart, MessageCircle, MessageSquare, UserPlus, Trophy, Bell, Shield, Loader2, Swords, Users } from "lucide-react";
+import { Heart, MessageCircle, MessageSquare, UserPlus, Trophy, Bell, Shield, Loader2, Swords, Users, Activity } from "lucide-react";
 
 import { UserAvatar } from "@/components/user-avatar";
 import { Button } from "@/components/ui/button";
@@ -59,6 +59,8 @@ function getNotificationIcon(type: string) {
     case "mini_game_hunter_activity":
     case "mini_game_prey_activity":
       return <Swords className="h-4 w-4 text-red-500" />;
+    case "strava_import":
+      return <Activity className="h-4 w-4 text-orange-500" />;
     default:
       return <Bell className="h-4 w-4 text-zinc-400" />;
   }
@@ -118,6 +120,14 @@ export function getNotificationMessage(notification: Notification) {
       return gameName
         ? `Your prey ${actorName} logged an activity during ${gameName}`
         : `Your prey ${actorName} logged an activity`;
+    }
+    case "strava_import": {
+      const activityName = notification.data?.activityName as string | undefined;
+      const points = notification.data?.pointsEarned as number | undefined;
+      if (activityName && points != null) {
+        return `Strava activity "${activityName}" imported — ${points} pts earned`;
+      }
+      return "Your Strava activity was imported";
     }
     default:
       return `${actorName} interacted with you`;
