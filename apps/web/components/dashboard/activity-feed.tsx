@@ -22,6 +22,7 @@ import {
   Zap,
 } from "lucide-react";
 import {
+  useConvex,
   useConvexConnectionState,
   useMutation,
   usePaginatedQuery,
@@ -219,9 +220,6 @@ export function ActivityFeed({
   const [httpIsDone, setHttpIsDone] = useState(false);
   const [httpLoading, setHttpLoading] = useState(false);
   const httpRequestIdRef = useRef(0);
-  // Track the top algo feed item to detect when "For You" content changes
-  const lastSeenAlgoTopIdRef = useRef<string | null>(null);
-  const [hasNewAlgoContent, setHasNewAlgoContent] = useState(false);
   const isMobileClient = useMemo(() => {
     if (typeof navigator === "undefined") {
       return false;
@@ -245,21 +243,48 @@ export function ActivityFeed({
     { initialNumItems: 10 },
   );
 
-  const algoFeedResult = useQuery(
-    api.queries.algorithmicFeed.getAlgorithmicFeed,
-    feedFilter === "for_you"
-      ? {
+  // Snapshot-based algo feed: fetch once on mount/tab switch, re-fetch on explicit refresh only
+  const convexClient = useConvex();
+  const [algoSnapshot, setAlgoSnapshot] = useState<AlgoFeedItem[]>(
+    () => (initialAlgoItems ?? []) as AlgoFeedItem[],
+  );
+  const [algoSnapshotLoading, setAlgoSnapshotLoading] = useState(false);
+  const algoFetchIdRef = useRef(0);
+
+  const fetchAlgoFeed = useCallback(async () => {
+    const fetchId = ++algoFetchIdRef.current;
+    setAlgoSnapshotLoading(true);
+    try {
+      const result = await convexClient.query(
+        api.queries.algorithmicFeed.getAlgorithmicFeed,
+        {
           challengeId: challengeId as Id<"challenges">,
           includeEngagementCounts: !lightweightFeedMode,
           includeMediaUrls: true,
-        }
-      : "skip",
-  );
-  const algoResults = useMemo(
-    () => (algoFeedResult?.page ?? []) as AlgoFeedItem[],
-    [algoFeedResult],
-  );
-  const algoIsLoading = algoFeedResult === undefined && feedFilter === "for_you";
+        },
+      );
+      if (fetchId !== algoFetchIdRef.current) return;
+      setAlgoSnapshot((result?.page ?? []) as AlgoFeedItem[]);
+    } catch (error) {
+      if (fetchId !== algoFetchIdRef.current) return;
+      console.error("Failed to fetch algo feed", error);
+    } finally {
+      if (fetchId === algoFetchIdRef.current) {
+        setAlgoSnapshotLoading(false);
+      }
+    }
+  }, [convexClient, challengeId, lightweightFeedMode]);
+
+  // Fetch algo feed when switching to "For You" tab
+  useEffect(() => {
+    if (feedFilter !== "for_you") return;
+    // Only fetch if we don't have initial data
+    if (algoSnapshot.length > 0 && algoFetchIdRef.current === 0) return;
+    void fetchAlgoFeed();
+  }, [feedFilter]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const algoResults = algoSnapshot;
+  const algoIsLoading = algoSnapshotLoading && algoSnapshot.length === 0;
 
   const loadHttpPage = useCallback(
     async (cursor: string | null, append: boolean) => {
@@ -407,24 +432,9 @@ export function ActivityFeed({
 
   const algoDisplayResults = useMemo((): ActivityFeedItem[] => {
     if (feedFilter !== "for_you") return [];
-    const mapped = algoResults.map(mapAlgoItem);
-    if (mapped.length === 0) return initialAlgoItems.map(mapAlgoItem);
-    return mapped;
-  }, [algoResults, feedFilter, initialAlgoItems]);
+    return algoResults.map(mapAlgoItem);
+  }, [algoResults, feedFilter]);
 
-  // Detect when the top item in the algo feed changes (for "For You" notifications)
-  const algoTopId = algoDisplayResults[0]?.activity?._id ?? null;
-  useEffect(() => {
-    if (!algoTopId) return;
-    // Initialize on first load
-    if (lastSeenAlgoTopIdRef.current === null) {
-      lastSeenAlgoTopIdRef.current = algoTopId;
-      return;
-    }
-    if (algoTopId !== lastSeenAlgoTopIdRef.current) {
-      setHasNewAlgoContent(true);
-    }
-  }, [algoTopId]);
 
   const liveDisplayResults = useMemo(() => {
     if (feedFilter === "for_you") {
@@ -478,7 +488,7 @@ export function ActivityFeed({
     feedFilter === "all" && hasNewActivity && !latestActivityVisible;
 
   const showForYouNewBanner =
-    feedFilter === "for_you" && hasNewAlgoContent;
+    feedFilter === "for_you" && hasNewActivity;
 
   const effectiveIsLoading =
     feedFilter === "for_you"
@@ -566,8 +576,8 @@ export function ActivityFeed({
         <div className="fixed left-1/2 top-20 z-20 -translate-x-1/2">
           <button
             onClick={() => {
-              setHasNewAlgoContent(false);
-              lastSeenAlgoTopIdRef.current = algoTopId;
+              acknowledgeActivity();
+              void fetchAlgoFeed();
               window.scrollTo({ top: 0, behavior: "smooth" });
             }}
             className="flex items-center gap-1.5 rounded-full bg-indigo-500 px-4 py-2 text-sm font-medium text-white shadow-lg transition-transform hover:scale-105 active:scale-95"

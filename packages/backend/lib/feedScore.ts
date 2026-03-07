@@ -9,7 +9,7 @@ type Ctx = Pick<MutationCtx, "db">;
  */
 function contentInputFromActivity(activity: Doc<"activities">): ContentScoreInput {
   return {
-    notesLength: activity.notes?.length ?? 0,
+    hasDescription: !!activity.notes && activity.notes.trim().length > 0,
     mediaCount: activity.mediaIds?.length ?? 0,
     pointsEarned: activity.pointsEarned,
     triggeredBonusCount: activity.triggeredBonuses?.length ?? 0,
@@ -70,7 +70,7 @@ export function computeInitialFeedScoreAndRank(
   fields: Pick<Doc<"activities">, "notes" | "mediaIds" | "pointsEarned" | "triggeredBonuses" | "flagged" | "createdAt">,
 ): { feedScore: number; feedRank: number } {
   const content: ContentScoreInput = {
-    notesLength: fields.notes?.length ?? 0,
+    hasDescription: !!fields.notes && fields.notes.trim().length > 0,
     mediaCount: fields.mediaIds?.length ?? 0,
     pointsEarned: fields.pointsEarned,
     triggeredBonusCount: fields.triggeredBonuses?.length ?? 0,
