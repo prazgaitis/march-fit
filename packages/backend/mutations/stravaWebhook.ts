@@ -14,6 +14,7 @@ import { dateOnlyToUtcMs } from "../lib/dateOnly";
 import { insertActivity, patchActivity } from "../lib/activityWrites";
 import { applyCategoryPointsDelta } from "../lib/categoryPoints";
 import { applyWeeklyCategoryPointsDeltaFromDate } from "../lib/weeklyCategoryPoints";
+import { insertNotification } from "../lib/notifications";
 
 /**
  * Get user's active challenge participations
@@ -309,6 +310,21 @@ export const createFromStrava = internalMutation({
       categoryId: activityType.categoryId,
       loggedDate: loggedDateTs,
       challengeStartDate: challenge.startDate,
+    });
+
+    // Notify user their Strava activity was imported
+    await insertNotification(ctx, {
+      userId: args.userId,
+      actorId: args.userId,
+      type: "strava_import",
+      data: {
+        activityId: activityId,
+        challengeId: args.challengeId,
+        activityName: stravaActivity.name,
+        pointsEarned,
+        activityTypeName: activityType.name,
+      },
+      createdAt: Date.now(),
     });
 
       return activityId;

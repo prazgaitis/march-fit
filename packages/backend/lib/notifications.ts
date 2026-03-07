@@ -13,7 +13,11 @@ import type { Id } from "../_generated/dataModel";
 const ROLLUP_WINDOW_MS = 60 * 60 * 1000;
 
 /** Notification types that should be deduped within the rollup window. */
-const ROLLUP_TYPES = new Set(["like", "comment", "comment_like", "feedback_comment"]);
+const ROLLUP_TYPES = new Set([
+  "like", "comment", "comment_like", "feedback_comment",
+  "mini_game_partner_activity", "mini_game_hunter_activity", "mini_game_prey_activity",
+  "strava_import",
+]);
 
 type Ctx = { db: any };
 
@@ -47,11 +51,14 @@ export async function insertNotification(
       .order("desc")
       .take(50);
 
+    const dedupByActor = notification.type.startsWith("mini_game_") || notification.type === "strava_import";
     const isDuplicate = recent.some(
       (n: any) =>
         n.type === notification.type &&
         n.createdAt >= cutoff &&
-        (activityId ? n.data?.activityId === activityId : true),
+        (dedupByActor
+          ? n.actorId === notification.actorId
+          : activityId ? n.data?.activityId === activityId : true),
     );
 
     if (isDuplicate) {

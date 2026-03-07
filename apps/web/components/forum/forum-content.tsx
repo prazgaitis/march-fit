@@ -156,23 +156,28 @@ const ForumPostCard = memo(function ForumPostCard({ item, challengeId }: ForumPo
           {plainText}
         </p>
 
-        <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-500">
+        <div className="mt-2 flex items-center gap-2 text-xs text-zinc-500">
           {item.user && (
             <UserAvatar
               user={item.user}
               size="sm"
-              showName
-              className="text-xs"
             />
           )}
-          <span>
-            {formatDistanceToNow(new Date(item.post.createdAt), {
-              addSuffix: true,
-            })}
-          </span>
-          <span className="flex items-center gap-1">
-            <MessageSquare className="h-3 w-3" />
-            {item.replyCount}
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            {item.user && (
+              <span className="font-medium text-zinc-400">
+                {item.user.name || item.user.username}
+              </span>
+            )}
+            <span>
+              {formatDistanceToNow(new Date(item.post.createdAt), {
+                addSuffix: true,
+              })}
+            </span>
+            <span className="flex items-center gap-1">
+              <MessageSquare className="h-3 w-3" />
+              {item.replyCount}
+            </span>
           </span>
         </div>
       </div>

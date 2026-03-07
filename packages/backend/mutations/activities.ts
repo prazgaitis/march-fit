@@ -18,6 +18,8 @@ import { insertActivity, patchActivity } from "../lib/activityWrites";
 import { applyCategoryPointsDelta } from "../lib/categoryPoints";
 import { applyWeeklyCategoryPointsDeltaFromDate } from "../lib/weeklyCategoryPoints";
 import { recomputeFeedScore } from "../lib/feedScore";
+import { insertNotification } from "../lib/notifications";
+import type { Id } from "../_generated/dataModel";
 
 // Internal mutation for seeding
 export const create = internalMutation({
@@ -49,6 +51,80 @@ export const create = internalMutation({
     });
   },
 });
+
+/**
+ * Notify mini-game partners/hunters/prey when a user logs an activity.
+ * - Partner Week: notify the user's partner
+ * - Hunt Week: notify both the user's hunter and prey
+ */
+async function notifyMiniGameParticipants(
+  ctx: any,
+  userId: Id<"users">,
+  challengeId: Id<"challenges">,
+  activityId: Id<"activities">,
+) {
+  // Find active mini-games for this challenge
+  const activeMiniGames = await ctx.db
+    .query("miniGames")
+    .withIndex("challengeStatus", (q: any) =>
+      q.eq("challengeId", challengeId).eq("status", "active"),
+    )
+    .collect();
+
+  if (activeMiniGames.length === 0) return;
+
+  const now = Date.now();
+
+  for (const game of activeMiniGames) {
+    if (game.type !== "partner_week" && game.type !== "hunt_week") continue;
+
+    // Find this user's participation record in the game
+    const participation = await ctx.db
+      .query("miniGameParticipants")
+      .withIndex("miniGameUser", (q: any) =>
+        q.eq("miniGameId", game._id).eq("userId", userId),
+      )
+      .first();
+
+    if (!participation) continue;
+
+    if (game.type === "partner_week" && participation.partnerUserId) {
+      // Don't notify if partnered with yourself (odd number middle person)
+      if (participation.partnerUserId !== userId) {
+        await insertNotification(ctx, {
+          userId: participation.partnerUserId,
+          actorId: userId,
+          type: "mini_game_partner_activity",
+          data: { activityId, miniGameId: game._id, miniGameName: game.name },
+          createdAt: now,
+        });
+      }
+    }
+
+    if (game.type === "hunt_week") {
+      // Notify the user's prey (the person they're hunting)
+      if (participation.preyUserId) {
+        await insertNotification(ctx, {
+          userId: participation.preyUserId,
+          actorId: userId,
+          type: "mini_game_hunter_activity",
+          data: { activityId, miniGameId: game._id, miniGameName: game.name },
+          createdAt: now,
+        });
+      }
+      // Notify the user's hunter (the person hunting them)
+      if (participation.hunterUserId) {
+        await insertNotification(ctx, {
+          userId: participation.hunterUserId,
+          actorId: userId,
+          type: "mini_game_prey_activity",
+          data: { activityId, miniGameId: game._id, miniGameName: game.name },
+          createdAt: now,
+        });
+      }
+    }
+  }
+}
 
 export const log = mutation({
   args: {
@@ -254,6 +330,9 @@ export const log = mutation({
 
     // Check for achievement progress
     await checkAndAwardAchievements(ctx, user._id, args.challengeId, activityId);
+
+    // Notify mini-game partners/hunters when activity is logged
+    await notifyMiniGameParticipants(ctx, user._id, args.challengeId, activityId);
 
       return {
           id: activityId,

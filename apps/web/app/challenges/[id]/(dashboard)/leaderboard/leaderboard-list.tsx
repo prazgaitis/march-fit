@@ -1,14 +1,15 @@
 "use client";
 
-import { memo, useCallback, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Flame, Loader2, MapPin, Trophy, UserCheck, UserPlus } from "lucide-react";
-import { useMutation, useQuery } from "convex/react";
+import { Crosshair, Flame, MapPin, Trophy } from "lucide-react";
+import { useQuery } from "convex/react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
 
 import { PointsDisplay } from "@/components/ui/points-display";
-import { Button } from "@/components/ui/button";
+import { UserAvatar } from "@/components/user-avatar";
+import { FollowButton } from "@/components/follow-button";
 import { cn } from "@/lib/utils";
 
 interface LeaderboardEntry {
@@ -59,51 +60,6 @@ function getRankBadge(rank: number) {
   );
 }
 
-const FollowButton = memo(function FollowButton({
-  userId,
-  isFollowing,
-}: {
-  userId: string;
-  isFollowing: boolean;
-}) {
-  const [isToggling, setIsToggling] = useState(false);
-  const toggleFollow = useMutation(api.mutations.follows.toggle);
-
-  const handleClick = useCallback(
-    async (e: React.MouseEvent) => {
-      e.preventDefault();
-      e.stopPropagation();
-      if (isToggling) return;
-      setIsToggling(true);
-      try {
-        await toggleFollow({ userId: userId as Id<"users"> });
-      } catch (error) {
-        console.error("Failed to toggle follow:", error);
-      } finally {
-        setIsToggling(false);
-      }
-    },
-    [isToggling, toggleFollow, userId],
-  );
-
-  return (
-    <Button
-      variant="ghost"
-      size="icon"
-      className="h-8 w-8 shrink-0"
-      onClick={handleClick}
-    >
-      {isToggling ? (
-        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
-      ) : isFollowing ? (
-        <UserCheck className="h-4 w-4 text-blue-400" />
-      ) : (
-        <UserPlus className="h-4 w-4 text-muted-foreground" />
-      )}
-    </Button>
-  );
-});
-
 const LeaderboardEntryRow = memo(function LeaderboardEntryRow({
   entry,
   challengeId,
@@ -127,6 +83,18 @@ const LeaderboardEntryRow = memo(function LeaderboardEntryRow({
     >
       {getRankBadge(entry.rank)}
 
+      <UserAvatar
+        user={{
+          id: entry.user.id,
+          name: entry.user.name,
+          username: entry.user.username,
+          avatarUrl: entry.user.avatarUrl,
+        }}
+        challengeId={challengeId}
+        disableLink
+        size="sm"
+      />
+
       <div className="min-w-0 flex-1">
         {/* Top row: name + points + follow */}
         <div className="flex items-center gap-2">
@@ -139,7 +107,7 @@ const LeaderboardEntryRow = memo(function LeaderboardEntryRow({
               size="lg"
               showSign={false}
               showLabel={false}
-              className={cn("font-bold", entry.totalPoints >= 0 && "text-white")}
+              className={cn("font-mono font-bold", entry.totalPoints >= 0 && "text-white")}
             />
             {!isCurrentUser && (
               <FollowButton userId={entry.user.id} isFollowing={isFollowing} />
@@ -175,6 +143,26 @@ export function LeaderboardList({ entries, challengeId, currentUserId }: Leaderb
   const followingIds = useQuery(api.queries.follows.getFollowingIds);
   const followingSet = new Set(followingIds ?? []);
 
+  const myEntryRef = useRef<HTMLDivElement>(null);
+  const [myEntryVisible, setMyEntryVisible] = useState(true);
+
+  const myEntry = entries.find((e) => e.user.id === currentUserId);
+
+  useEffect(() => {
+    const el = myEntryRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      ([entry]) => setMyEntryVisible(entry.isIntersecting),
+      { threshold: 0.1 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  const scrollToMe = useCallback(() => {
+    myEntryRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, []);
+
   if (entries.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
@@ -188,16 +176,34 @@ export function LeaderboardList({ entries, challengeId, currentUserId }: Leaderb
   }
 
   return (
-    <div className="space-y-2">
-      {entries.map((entry) => (
-        <LeaderboardEntryRow
-          key={entry.user.id}
-          entry={entry}
-          challengeId={challengeId}
-          isCurrentUser={entry.user.id === currentUserId}
-          isFollowing={followingSet.has(entry.user.id as Id<"users">)}
-        />
-      ))}
-    </div>
+    <>
+      <div className="space-y-2">
+        {entries.map((entry) => {
+          const isCurrentUser = entry.user.id === currentUserId;
+          return (
+            <div key={entry.user.id} ref={isCurrentUser ? myEntryRef : undefined}>
+              <LeaderboardEntryRow
+                entry={entry}
+                challengeId={challengeId}
+                isCurrentUser={isCurrentUser}
+                isFollowing={followingSet.has(entry.user.id as Id<"users">)}
+              />
+            </div>
+          );
+        })}
+      </div>
+
+      {myEntry && !myEntryVisible && (
+        <div className="fixed bottom-24 left-1/2 z-20 -translate-x-1/2">
+          <button
+            onClick={scrollToMe}
+            className="flex items-center gap-1.5 rounded-full bg-indigo-500 px-4 py-2 text-sm font-medium text-white shadow-lg transition-transform hover:scale-105 active:scale-95"
+          >
+            <Crosshair className="h-4 w-4" />
+            #{myEntry.rank} — Find me
+          </button>
+        </div>
+      )}
+    </>
   );
 }
