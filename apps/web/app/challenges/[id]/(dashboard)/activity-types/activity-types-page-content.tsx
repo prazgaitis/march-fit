@@ -27,7 +27,7 @@ export function ActivityTypesPageContent({
   categoryMap,
   streakMinPoints,
 }: ActivityTypesPageContentProps) {
-  const [activeTab, setActiveTab] = useState<Tab>("reference");
+  const [activeTab, setActiveTab] = useState<Tab>("availability");
 
   return (
     <div>
@@ -54,9 +54,6 @@ export function ActivityTypesPageContent({
           )}
         >
           For Me
-          <span className="ml-1.5 rounded bg-indigo-500/20 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-400">
-            New
-          </span>
         </button>
       </div>
 

@@ -44,7 +44,6 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "@/components/ui/drawer";
-import { DatePicker } from "@/components/ui/date-picker";
 import { useIsMobile } from "@/hooks/use-media-query";
 import { useMentionableUsers } from "@/hooks/use-mentionable-users";
 import { isEditorContentEmpty } from "@/lib/rich-text-utils";
@@ -210,7 +209,7 @@ function ActivityTypePicker({
     return (
       <DrawerNestedRoot open={comboboxOpen} onOpenChange={onComboboxOpenChange}>
         <DrawerTrigger asChild>{triggerButton}</DrawerTrigger>
-        <DrawerContent className="max-h-[85vh]">
+        <DrawerContent className="max-h-[85dvh]">
           <DrawerHeader>
             <DrawerTitle>Select activity type</DrawerTitle>
           </DrawerHeader>
@@ -250,40 +249,12 @@ interface QuickDatePickerProps {
 }
 
 function QuickDatePicker({ value, onChange }: QuickDatePickerProps) {
-  const isMobile = useIsMobile();
   const today = new Date();
   const options = [
     { label: "Today", date: today },
     { label: "Yesterday", date: subDays(today, 1) },
     { label: "2 days ago", date: subDays(today, 2) },
   ];
-
-  if (!isMobile) {
-    return (
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <Label htmlFor="logged-date">Date</Label>
-          {value && !isToday(value) && (
-            <Button
-              type="button"
-              variant="link"
-              className="h-auto p-0 text-xs"
-              onClick={() => onChange(new Date())}
-            >
-              Use today
-            </Button>
-          )}
-        </div>
-        <DatePicker value={value} onChange={(d) => d && onChange(d)} />
-        {value && !isToday(value) && (
-          <p className="mt-1.5 flex items-center gap-1.5 text-xs text-amber-400">
-            <AlertTriangle className="h-3.5 w-3.5 flex-shrink-0" />
-            Please try to log activities on the day you complete them.
-          </p>
-        )}
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-2">
@@ -1077,6 +1048,39 @@ export function ActivityLogDialog({ challengeId, challengeStartDate, trigger }: 
               );
             })()}
 
+            {selectedActivityType && (
+              <div className={cn("rounded-lg border p-3 text-sm", selectedActivityType.isNegative ? "border-red-500/30" : "border-zinc-800")}>
+                <div className="flex items-center justify-between">
+                  <span className={cn("text-xs font-medium uppercase tracking-wider", selectedActivityType.isNegative ? "text-red-400" : "text-zinc-500")}>
+                    {selectedActivityType.isNegative ? "Penalty" : "Est. points"}
+                  </span>
+                  {scorePreview ? (
+                    <span className={cn("font-mono text-lg font-semibold", selectedActivityType.isNegative ? "text-red-400" : "text-foreground")}>
+                      {formatPoints(scorePreview.pointsEarned, 2)} pts
+                    </span>
+                  ) : (
+                    <span className="text-xs text-muted-foreground">Fill in details below</span>
+                  )}
+                </div>
+                {(scorePreview?.triggeredBonuses.length ?? 0) > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {scorePreview!.triggeredBonuses.map((
+                      bonus: { description: string; bonusPoints: number },
+                      i: number
+                    ) => (
+                      <span
+                        key={i}
+                        className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-xs text-amber-500"
+                      >
+                        <Zap className="h-3 w-3" />
+                        {bonus.description} (+{bonus.bonusPoints})
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             <QuickDatePicker
               value={form.loggedDate}
               onChange={(date) =>
@@ -1087,37 +1091,37 @@ export function ActivityLogDialog({ challengeId, challengeStartDate, trigger }: 
               }
             />
 
-            {metricKey ? (
+            {metricKey && !isCompletionActivity ? (
               <div className="space-y-2">
                 <Label htmlFor="metric-value">
-                  {isCompletionActivity ? "Completion" : toSentenceCase(metricKey)}
+                  {toSentenceCase(metricKey)}
                 </Label>
-                {isCompletionActivity ? (
-                  <Input
-                    id="metric-value"
-                    type="text"
-                    value="1"
-                    disabled
-                    className="bg-muted"
-                  />
-                ) : (
-                  <Input
-                    id="metric-value"
-                    type="number"
-                    inputMode="decimal"
-                    step="0.01"
-                    min="0"
-                    placeholder={`Enter ${toSentenceCase(metricKey)}`}
-                    value={form.metricValue}
-                    onChange={(event) =>
+                <Input
+                  id="metric-value"
+                  type="text"
+                  inputMode="decimal"
+                  pattern="[0-9]*\.?[0-9]*"
+                  placeholder={`Enter ${toSentenceCase(metricKey)}`}
+                  value={form.metricValue}
+                  onChange={(event) => {
+                    const val = event.target.value;
+                    // Allow empty, digits, and one decimal point
+                    if (val === "" || /^\d*\.?\d*$/.test(val)) {
                       setForm((prev) => ({
                         ...prev,
-                        metricValue: event.target.value,
-                      }))
+                        metricValue: val,
+                      }));
                     }
-                    required
-                  />
-                )}
+                  }}
+                  onFocus={(e) => {
+                    // On mobile keyboards, ensure the input scrolls into view
+                    // after the keyboard animation settles
+                    setTimeout(() => {
+                      e.target.scrollIntoView({ behavior: "smooth", block: "center" });
+                    }, 300);
+                  }}
+                  required
+                />
               </div>
             ) : null}
 
@@ -1175,7 +1179,7 @@ export function ActivityLogDialog({ challengeId, challengeStartDate, trigger }: 
                       <button
                         type="button"
                         onClick={() => handleRemoveMedia(index)}
-                        className="absolute right-1 top-1 rounded-full bg-black/70 p-1 text-white opacity-0 transition group-hover:opacity-100 hover:bg-black"
+                        className="absolute right-1 top-1 rounded-full bg-black/70 p-1 text-white sm:opacity-0 sm:transition sm:group-hover:opacity-100 hover:bg-black"
                       >
                         <X className="h-4 w-4" />
                       </button>
@@ -1205,40 +1209,6 @@ export function ActivityLogDialog({ challengeId, challengeStartDate, trigger }: 
               </p>
             </div>
 
-            <div className={cn("rounded-lg border bg-background p-4 text-sm", selectedActivityType?.isNegative && "border-red-500/30")}>
-              <p className={cn("font-medium", selectedActivityType?.isNegative ? "text-red-400" : "text-foreground")}>
-                {selectedActivityType?.isNegative ? "Penalty preview" : "Points preview"}
-              </p>
-              {selectedActivityType ? (
-                <>
-                  <p className={cn("mt-1", selectedActivityType?.isNegative ? "text-red-400/70" : "text-muted-foreground")}>
-                    {scorePreview
-                      ? `${formatPoints(scorePreview.pointsEarned, 2)} points (estimated)`
-                      : "Points will be calculated when you submit."}
-                  </p>
-                  {(scorePreview?.triggeredBonuses.length ?? 0) > 0 && (
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      {scorePreview!.triggeredBonuses.map((
-                        bonus: { description: string; bonusPoints: number },
-                        i: number
-                      ) => (
-                        <span
-                          key={i}
-                          className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-xs text-amber-500"
-                        >
-                          <Zap className="h-3 w-3" />
-                          {bonus.description} (+{bonus.bonusPoints})
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </>
-              ) : (
-                <p className="mt-1 text-muted-foreground">
-                  Select an activity to view how points are calculated.
-                </p>
-              )}
-            </div>
           </ResponsiveDialogBody>
 
           <ResponsiveDialogFooter>

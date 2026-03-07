@@ -31,10 +31,7 @@ export default async function ActivityTypesPage({ params }: ActivityTypesPagePro
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-6">
-      <h1 className="mb-2 text-2xl font-bold">Activity Types</h1>
-      <p className="mb-6 text-zinc-500">
-        Here are all the ways you can earn points in this challenge.
-      </p>
+      <h1 className="mb-6 text-2xl font-bold">Earning Points</h1>
       <ActivityTypesPageContent
         challengeId={challengeId}
         activityTypes={activityTypes}

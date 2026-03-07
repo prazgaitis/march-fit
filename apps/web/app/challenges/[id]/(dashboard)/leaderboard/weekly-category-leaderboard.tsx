@@ -185,16 +185,13 @@ export function WeeklyCategoryLeaderboard({
                         </p>
                       </div>
 
-                      <div className="shrink-0 text-right">
-                        <PointsDisplay
-                          points={entry.weeklyPoints}
-                          size="sm"
-                          showSign={false}
-                          showLabel={false}
-                          className={cn("font-bold", entry.weeklyPoints >= 0 && "text-white")}
-                        />
-                        <p className="text-xs text-zinc-500">pts</p>
-                      </div>
+                      <PointsDisplay
+                        points={entry.weeklyPoints}
+                        size="sm"
+                        showSign={false}
+                        showLabel={false}
+                        className={cn("shrink-0 font-mono font-bold", entry.weeklyPoints >= 0 && "text-white")}
+                      />
                     </Link>
                   );
                 })}

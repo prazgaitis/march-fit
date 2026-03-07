@@ -949,7 +949,8 @@ export const adminEditActivityForUser = internalMutation({
     }
 
     if (args.notes !== undefined) {
-      updates.notes = args.notes;
+      // null means "clear the field" — convert to undefined so Convex unsets the optional field
+      updates.notes = args.notes === null ? undefined : args.notes;
       changes.notes = { from: activity.notes, to: args.notes };
     }
 

@@ -19,15 +19,14 @@ export const getById = query({
       return null;
     }
 
-    const [user, activityType, challenge, likeCount, commentCount, currentUser, externalDataRecord] = await Promise.all([
+    const [user, activityType, challenge, allLikes, commentCount, currentUser, externalDataRecord] = await Promise.all([
       ctx.db.get(activity.userId),
       ctx.db.get(activity.activityTypeId),
       ctx.db.get(activity.challengeId),
       ctx.db
         .query("likes")
         .withIndex("activityId", (q) => q.eq("activityId", activity._id))
-        .collect()
-        .then((likes) => likes.length),
+        .collect(),
       ctx.db
         .query("comments")
         .withIndex("activityId", (q) => q.eq("activityId", activity._id))
@@ -39,6 +38,26 @@ export const getById = query({
         .withIndex("activityId", (q) => q.eq("activityId", activity._id))
         .first(),
     ]);
+
+    const likeCount = allLikes.length;
+
+    // Fetch display info for the 2 most recent likers (for Instagram-style summary)
+    const recentLikers = likeCount > 0
+      ? await Promise.all(
+          [...allLikes]
+            .sort((a, b) => b.createdAt - a.createdAt)
+            .slice(0, 2)
+            .map(async (like) => {
+              const likerUser = await ctx.db.get(like.userId);
+              if (!likerUser) return null;
+              return {
+                id: likerUser._id as string,
+                name: likerUser.name ?? null,
+                username: likerUser.username,
+              };
+            }),
+        ).then((arr) => arr.filter((u) => u !== null))
+      : [];
 
     if (!user || !activityType || !challenge) {
       return null;
@@ -111,6 +130,7 @@ export const getById = query({
       comments: commentCount,
       likedByUser,
       mediaUrls,
+      recentLikers,
       adminComment,
       isOwner,
       isAdmin,
@@ -251,20 +271,39 @@ export const getChallengeFeed = query({
         ]);
 
         // Counts can be expensive in large feeds. Allow clients to opt out.
-        const [likeCount, commentCount] = includeEngagementCounts
+        const [allLikes, commentCount] = includeEngagementCounts
           ? await Promise.all([
               ctx.db
                 .query("likes")
                 .withIndex("activityId", (q) => q.eq("activityId", activity._id))
-                .collect()
-                .then((likes) => likes.length),
+                .collect(),
               ctx.db
                 .query("comments")
                 .withIndex("activityId", (q) => q.eq("activityId", activity._id))
                 .collect()
                 .then((comments) => comments.length),
             ])
-          : [0, 0];
+          : [[] as Array<{ userId: typeof activity.userId; createdAt: number }>, 0];
+
+        const likeCount = allLikes.length;
+
+        // Fetch display info for the 2 most recent likers (for Instagram-style summary)
+        const recentLikers = includeEngagementCounts && likeCount > 0
+          ? await Promise.all(
+              [...allLikes]
+                .sort((a, b) => b.createdAt - a.createdAt)
+                .slice(0, 2)
+                .map(async (like) => {
+                  const likerUser = await ctx.db.get(like.userId);
+                  if (!likerUser) return null;
+                  return {
+                    id: likerUser._id as string,
+                    name: likerUser.name ?? null,
+                    username: likerUser.username,
+                  };
+                }),
+            ).then((arr) => arr.filter((u) => u !== null))
+          : [];
 
         // Media URL generation can be expensive for paginated feeds.
         // Allow clients to opt out and load media lazily.
@@ -301,6 +340,7 @@ export const getChallengeFeed = query({
           comments: commentCount,
           likedByUser: userLike !== null,
           mediaUrls,
+          recentLikers,
         };
       })
     );
