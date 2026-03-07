@@ -203,7 +203,7 @@ export function mapStravaActivity(
     locationCountry: stravaActivity.location_country ?? null,
     startLatlng,
     metrics,
-    notes: null,
+    notes: stravaActivity.name,
     imageUrl: primaryUrl,
     stravaPhotoUrls: allUrls,
     source: "strava",
