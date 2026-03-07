@@ -11,6 +11,7 @@ import { betterAuthClient } from "@/lib/better-auth/client";
 
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { StravaSettingsSection } from "./strava-settings-section";
+import { NotificationSettingsSection } from "./notification-settings-section";
 import { UserAvatar } from "@/components/user-avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -241,6 +242,9 @@ export function SettingsContent({
         userId={currentUser._id}
         challengeId={currentChallengeId}
       />
+
+      {/* Email Notifications */}
+      <NotificationSettingsSection userId={currentUser._id} />
 
       {/* Account Security */}
       <AccountSecurityCard email={currentUser.email} />

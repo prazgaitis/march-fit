@@ -758,6 +758,21 @@ export default defineSchema({
     externalData: v.any(),
   }).index("activityId", ["activityId"]),
 
+  // Notification Preferences - per-user email notification opt-in/out
+  notificationPreferences: defineTable({
+    userId: v.id("users"),
+    // Email notification toggles per category (all default to false / opt-in)
+    emailLikes: v.boolean(),
+    emailComments: v.boolean(),
+    emailFollows: v.boolean(),
+    emailChallengeJoins: v.boolean(),
+    emailAchievements: v.boolean(),
+    emailStravaImports: v.boolean(),
+    emailMiniGames: v.boolean(),
+    emailAdmin: v.boolean(),
+    updatedAt: v.number(),
+  }).index("userId", ["userId"]),
+
   // Email Sends - tracking sent emails
   emailSends: defineTable({
     emailSequenceId: v.id("emailSequences"),

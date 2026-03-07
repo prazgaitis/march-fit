@@ -8,6 +8,7 @@
  */
 
 import type { Id } from "../_generated/dataModel";
+import { internal } from "../_generated/api";
 
 /** Rollup window – 1 hour */
 const ROLLUP_WINDOW_MS = 60 * 60 * 1000;
@@ -19,7 +20,7 @@ const ROLLUP_TYPES = new Set([
   "strava_import",
 ]);
 
-type Ctx = { db: any };
+type Ctx = { db: any; scheduler?: any };
 
 interface NotificationInsert {
   userId: Id<"users">;
@@ -35,6 +36,9 @@ interface NotificationInsert {
  * For types in ROLLUP_TYPES, if a notification with the same
  * (userId, type, data.activityId) already exists within the rollup window
  * we skip inserting.
+ *
+ * If the notification is inserted and the context has a scheduler,
+ * schedules an email send check (respects user preferences).
  */
 export async function insertNotification(
   ctx: Ctx,
@@ -66,5 +70,23 @@ export async function insertNotification(
     }
   }
 
-  return await ctx.db.insert("notifications", notification);
+  const id = await ctx.db.insert("notifications", notification);
+
+  // Schedule email notification check (fire-and-forget)
+  if (id && ctx.scheduler) {
+    const challengeId = notification.data?.challengeId as string | undefined;
+    await ctx.scheduler.runAfter(
+      0,
+      internal.mutations.notificationEmails.maybeSendEmail,
+      {
+        userId: notification.userId,
+        actorId: notification.actorId,
+        type: notification.type,
+        data: notification.data,
+        challengeId,
+      },
+    );
+  }
+
+  return id;
 }
