@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { api } from "@repo/backend";
 import {
   createTestContext,
@@ -9,16 +9,22 @@ import {
 describe("Forum Posts", () => {
   let t: Awaited<ReturnType<typeof createTestContext>>;
 
+  // Use fake timers so that ctx.scheduler.runAfter(0, ...) callbacks don't
+  // fire automatically as macrotasks. convex-test stores the global Convex
+  // instance in global.Convex — when beforeEach replaces it with a fresh
+  // instance, any pending setTimeout callbacks from the prior test would run
+  // against the wrong db, causing "Write outside of transaction" errors.
+  // Fake timers prevent that by keeping callbacks queued until we drain them
+  // explicitly in afterEach (via finishAllScheduledFunctions) while the
+  // correct global.Convex is still in scope.
   beforeEach(async () => {
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
     t = createTestContext();
   });
 
-  // The create/reply mutations schedule notifications via ctx.scheduler.runAfter.
-  // Without draining them, convex-test throws "Write outside of transaction"
-  // as unhandled rejections. Finish any in-progress scheduled functions after
-  // each test so the scheduler queue is clean.
   afterEach(async () => {
-    await t.finishInProgressScheduledFunctions();
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    vi.useRealTimers();
   });
 
   // Helper to set up a challenge with a participant
