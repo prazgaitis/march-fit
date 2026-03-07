@@ -78,7 +78,7 @@ export const backfillFeedScore = internalMutation({
 
       const content: ContentScoreInput = {
         hasDescription: !!activity.notes && activity.notes.trim().length > 0,
-        mediaCount: activity.mediaIds?.length ?? 0,
+        mediaCount: (activity.mediaIds?.length ?? 0) + (activity.cloudinaryPublicIds?.length ?? 0),
         pointsEarned: activity.pointsEarned,
         triggeredBonusCount: activity.triggeredBonuses?.length ?? 0,
         flagged: activity.flagged,

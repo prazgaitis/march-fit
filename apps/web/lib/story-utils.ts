@@ -1,9 +1,11 @@
 import type { StoryItem, StorySlide } from "@/components/dashboard/stories-row";
+import { getCloudinaryMediaUrl } from "@/lib/cloudinary";
 
 /** Minimal activity shape needed to build story slides */
 export interface StoryActivity {
   activityId: string;
   mediaUrls: string[];
+  cloudinaryPublicIds?: string[];
   activityType: string | null;
   createdAt: number;
   pointsEarned: number;
@@ -13,21 +15,47 @@ export interface StoryActivity {
 }
 
 /** Flatten activities into individual StorySlides (one per media URL) */
-export function activitiesToSlides(activities: StoryActivity[]): StorySlide[] {
+export function activitiesToSlides(
+  activities: StoryActivity[],
+  useCloudinary = true,
+): StorySlide[] {
   return activities
     .sort((a, b) => b.createdAt - a.createdAt)
-    .flatMap((a) =>
-      a.mediaUrls.map((mediaUrl) => ({
-        activityId: a.activityId,
-        mediaUrl,
-        activityType: a.activityType,
-        createdAt: a.createdAt,
-        pointsEarned: a.pointsEarned,
-        likes: a.likes,
-        comments: a.comments,
-        likedByUser: a.likedByUser,
-      })),
-    );
+    .flatMap((a) => {
+      const slides: StorySlide[] = [];
+
+      // Cloudinary media (gated by useCloudinary flag for beta rollout)
+      if (useCloudinary && a.cloudinaryPublicIds) {
+        for (const id of a.cloudinaryPublicIds) {
+          slides.push({
+            activityId: a.activityId,
+            mediaUrl: getCloudinaryMediaUrl(id, "full"),
+            activityType: a.activityType,
+            createdAt: a.createdAt,
+            pointsEarned: a.pointsEarned,
+            likes: a.likes,
+            comments: a.comments,
+            likedByUser: a.likedByUser,
+          });
+        }
+      }
+
+      // Legacy Convex storage URLs
+      for (const mediaUrl of a.mediaUrls) {
+        slides.push({
+          activityId: a.activityId,
+          mediaUrl,
+          activityType: a.activityType,
+          createdAt: a.createdAt,
+          pointsEarned: a.pointsEarned,
+          likes: a.likes,
+          comments: a.comments,
+          likedByUser: a.likedByUser,
+        });
+      }
+
+      return slides;
+    });
 }
 
 /** Build a single StoryItem for one user from their activities */
@@ -35,8 +63,9 @@ export function buildUserStory(
   user: StoryItem["user"],
   challengeId: string,
   activities: StoryActivity[],
+  useCloudinary = true,
 ): StoryItem | null {
-  const slides = activitiesToSlides(activities);
+  const slides = activitiesToSlides(activities, useCloudinary);
   if (slides.length === 0) return null;
   return { user, challengeId, slides };
 }
@@ -51,6 +80,7 @@ export function buildStoriesFromFeed(
     activity: { _id: string; createdAt: number; pointsEarned: number };
     activityType: { name: string | null } | null;
     mediaUrls: string[];
+    cloudinaryPublicIds?: string[];
     likes: number;
     comments: number;
     likedByUser: boolean;
@@ -58,17 +88,20 @@ export function buildStoriesFromFeed(
   challengeId: string,
   maxAgeMs: number,
   maxUsers = 20,
+  useCloudinary = true,
 ): StoryItem[] {
   const now = Date.now();
   const userMap = new Map<string, { user: StoryItem["user"]; activities: StoryActivity[] }>();
 
   for (const item of items) {
-    if (!item.user || !item.mediaUrls || item.mediaUrls.length === 0) continue;
+    const hasMedia = (item.mediaUrls && item.mediaUrls.length > 0) || (item.cloudinaryPublicIds && item.cloudinaryPublicIds.length > 0);
+    if (!item.user || !hasMedia) continue;
     if (now - item.activity.createdAt > maxAgeMs) continue;
 
     const activity: StoryActivity = {
       activityId: item.activity._id,
-      mediaUrls: item.mediaUrls,
+      mediaUrls: item.mediaUrls ?? [],
+      cloudinaryPublicIds: item.cloudinaryPublicIds,
       activityType: item.activityType?.name ?? null,
       createdAt: item.activity.createdAt,
       pointsEarned: item.activity.pointsEarned,
@@ -100,6 +133,6 @@ export function buildStoriesFromFeed(
       return bMax - aMax;
     })
     .slice(0, maxUsers)
-    .map(({ user, activities }) => buildUserStory(user, challengeId, activities)!)
+    .map(({ user, activities }) => buildUserStory(user, challengeId, activities, useCloudinary)!)
     .filter(Boolean);
 }

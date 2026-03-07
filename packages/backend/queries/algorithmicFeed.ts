@@ -166,6 +166,7 @@ export const getAlgorithmicFeed = query({
           comments: commentCount,
           likedByUser: userLike !== null,
           mediaUrls,
+          cloudinaryPublicIds: activity.cloudinaryPublicIds ?? [],
           recentLikers,
           displayScore,
           affinityScore,
