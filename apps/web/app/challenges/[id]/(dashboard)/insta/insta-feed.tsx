@@ -47,14 +47,11 @@ interface AlgoFeedItem {
   displayScore: number;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-type AnyFeedItem = any;
-
 interface InstaFeedProps {
   challengeId: string;
   currentUserId?: string;
-  initialItems?: AnyFeedItem[];
-  initialAlgoItems?: AnyFeedItem[];
+  initialItems?: any[];
+  initialAlgoItems?: any[];
   initialLightweightMode?: boolean;
 }
 
