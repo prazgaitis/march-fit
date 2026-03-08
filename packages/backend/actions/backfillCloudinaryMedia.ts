@@ -99,7 +99,7 @@ export const backfill = action({
             continue;
           }
 
-          const data: CloudinaryUploadResponse = await cloudinaryRes.json();
+          const data = (await cloudinaryRes.json()) as CloudinaryUploadResponse;
           const publicId = isVideo ? `v/${data.public_id}` : data.public_id;
           publicIds.push(publicId);
         }
