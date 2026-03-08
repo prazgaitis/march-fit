@@ -200,8 +200,8 @@ export default function MiniGamesAdminPage() {
         challengeId: challengeId as Id<"challenges">,
         type: newGame.type,
         name: newGame.name,
-        startsAt: new Date(newGame.startsAt).getTime(),
-        endsAt: new Date(newGame.endsAt).getTime(),
+        startsAt: dateOnlyToUtcMs(newGame.startsAt),
+        endsAt: dateOnlyToUtcMs(newGame.endsAt),
       });
 
       setIsCreateOpen(false);
