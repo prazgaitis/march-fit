@@ -225,7 +225,7 @@ describe('Mini-Games Lifecycle & Configuration', () => {
           miniGameId,
           name: "Should Fail",
         })
-      ).rejects.toThrow("Can only edit draft mini-games");
+      ).rejects.toThrow("Can only change end date of an active mini-game");
     });
 
     it('should delete a draft mini-game', async () => {
@@ -410,7 +410,7 @@ describe('Mini-Games Lifecycle & Configuration', () => {
 
       await expect(
         tWithAuth.mutation(api.mutations.miniGames.start, { miniGameId })
-      ).rejects.toThrow("No participants in challenge");
+      ).rejects.toThrow("No eligible participants in challenge");
     });
   });
 
@@ -1080,7 +1080,7 @@ describe('Mini-Games Lifecycle & Configuration', () => {
           miniGameId,
           name: "Should Fail",
         })
-      ).rejects.toThrow("Can only edit draft mini-games");
+      ).rejects.toThrow("Can only change end date of an active mini-game");
     });
 
     it('should reject delete on non-draft game via internal mutation', async () => {
