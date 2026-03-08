@@ -573,8 +573,9 @@ export function calculateThresholdBonuses(
     return { totalBonusPoints: 0, triggeredBonuses: [] };
   }
 
-  const triggeredBonuses: BonusThreshold[] = [];
-  let totalBonusPoints = 0;
+  // Group thresholds by metric — within the same metric, only the highest
+  // triggered threshold applies (e.g., marathon supersedes half-marathon).
+  const byMetric = new Map<string, BonusThreshold>();
 
   for (const threshold of thresholds) {
     // Try to find the metric value using various possible keys
@@ -590,10 +591,15 @@ export function calculateThresholdBonuses(
     }
 
     if (metricValue >= threshold.threshold) {
-      triggeredBonuses.push(threshold);
-      totalBonusPoints += threshold.bonusPoints;
+      const existing = byMetric.get(threshold.metric);
+      if (!existing || threshold.threshold > existing.threshold) {
+        byMetric.set(threshold.metric, threshold);
+      }
     }
   }
+
+  const triggeredBonuses = [...byMetric.values()];
+  const totalBonusPoints = triggeredBonuses.reduce((sum, t) => sum + t.bonusPoints, 0);
 
   return { totalBonusPoints, triggeredBonuses };
 }
