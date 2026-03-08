@@ -52,7 +52,7 @@ import { uploadToCloudinary, isCloudinaryEnabledForUser } from "@/lib/cloudinary
 import { PointsDisplay } from "@/components/ui/points-display";
 import { formatPoints } from "@/lib/points";
 import { format, isToday, isSameDay, subDays } from "date-fns";
-import { formatDateOnlyFromLocalDate, formatDateShortFromDateOnly } from "@/lib/date-only";
+import { formatDateOnlyFromLocalDate, formatDateShortFromDateOnly, parseDateOnlyToUtcMs } from "@/lib/date-only";
 
 interface ActivityLogDialogProps {
   challengeId: string;
@@ -317,9 +317,18 @@ export function ActivityLogDialog({ challengeId, challengeStartDate, trigger }: 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dismissTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Derive the user's local date as UTC-midnight ms so week boundaries are
+  // evaluated against the date being logged, not raw server time.  A user in
+  // an earlier timezone may still be in week N when the server has already
+  // ticked over to week N+1.
+  const loggedDateMs = useMemo(() => {
+    const d = form.loggedDate ?? new Date();
+    return parseDateOnlyToUtcMs(formatDateOnlyFromLocalDate(d));
+  }, [form.loggedDate]);
+
   const activityTypes = useQuery(
     api.queries.activityTypes.getVisibleByChallengeId,
-    open ? { challengeId: challengeId as Id<"challenges"> } : "skip"
+    open ? { challengeId: challengeId as Id<"challenges">, todayDateMs: loggedDateMs } : "skip"
   );
 
   const currentUser = useQuery(api.queries.users.current);
