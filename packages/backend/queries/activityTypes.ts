@@ -64,14 +64,19 @@ export const getByChallengeId = query({
 export const getVisibleByChallengeId = query({
   args: {
     challengeId: v.id("challenges"),
+    // The client should pass the user's local date as UTC-midnight ms so that
+    // week boundaries are evaluated against the date the user is logging for
+    // (not raw server time, which may already be in the next week for users
+    // in earlier time zones).  Falls back to Date.now() when omitted.
+    todayDateMs: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const challenge = await ctx.db.get(args.challengeId);
     if (!challenge) return [];
 
-    const now = Date.now();
-    const currentWeek = getChallengeWeekNumber(challenge.startDate, now);
-    const finalDays = isInFinalDays(challenge, now);
+    const effectiveNow = args.todayDateMs ?? Date.now();
+    const currentWeek = getChallengeWeekNumber(challenge.startDate, effectiveNow);
+    const finalDays = isInFinalDays(challenge, effectiveNow);
 
     const types = await ctx.db
       .query("activityTypes")
@@ -111,10 +116,9 @@ export const getAvailabilityForUser = query({
     const challenge = await ctx.db.get(args.challengeId);
     if (!challenge) return null;
 
-    const now = Date.now();
-    const currentWeek = getChallengeWeekNumber(challenge.startDate, now);
+    const currentWeek = getChallengeWeekNumber(challenge.startDate, args.todayDateMs);
     const totalWeeks = getTotalWeeks(challenge.durationDays);
-    const finalDays = isInFinalDays(challenge, now);
+    const finalDays = isInFinalDays(challenge, args.todayDateMs);
 
     const types = await ctx.db
       .query("activityTypes")
