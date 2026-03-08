@@ -1,11 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { MediaLightbox } from "@/components/ui/media-lightbox";
+import {
+  getCloudinaryMediaUrl,
+  isCloudinaryVideo,
+  type CloudinaryTransform,
+} from "@/lib/cloudinary";
+import { useCloudinaryDisplay } from "@/hooks/use-cloudinary-display";
 
 interface MediaGalleryProps {
   urls: string[];
+  cloudinaryPublicIds?: string[];
   /** Use compact aspect ratios for feed cards vs full for detail pages */
   variant?: "feed" | "detail";
 }
@@ -19,10 +26,49 @@ function isVideoUrl(url: string) {
   );
 }
 
-export function MediaGallery({ urls, variant = "feed" }: MediaGalleryProps) {
-  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+interface MediaItem {
+  src: string;
+  fullSrc: string;
+  isVideo: boolean;
+}
 
-  if (!urls || urls.length === 0) return null;
+export function MediaGallery({
+  urls,
+  cloudinaryPublicIds = [],
+  variant = "feed",
+}: MediaGalleryProps) {
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const showCloudinary = useCloudinaryDisplay();
+
+  const feedTransform: CloudinaryTransform = variant === "detail" ? "full" : "feed";
+
+  const items: MediaItem[] = useMemo(() => {
+    const result: MediaItem[] = [];
+
+    // Cloudinary media (only shown to beta users until fully rolled out)
+    const effectiveCloudinaryIds = showCloudinary ? cloudinaryPublicIds : [];
+    for (const id of effectiveCloudinaryIds) {
+      const isVideo = isCloudinaryVideo(id);
+      result.push({
+        src: getCloudinaryMediaUrl(id, feedTransform),
+        fullSrc: getCloudinaryMediaUrl(id, isVideo ? "video_feed" : "full"),
+        isVideo,
+      });
+    }
+
+    // Legacy Convex storage URLs
+    for (const url of urls) {
+      result.push({
+        src: url,
+        fullSrc: url,
+        isVideo: isVideoUrl(url),
+      });
+    }
+
+    return result;
+  }, [urls, cloudinaryPublicIds, feedTransform, showCloudinary]);
+
+  if (items.length === 0) return null;
 
   const handleMediaClick = (e: React.MouseEvent, index: number) => {
     e.stopPropagation();
@@ -34,14 +80,13 @@ export function MediaGallery({ urls, variant = "feed" }: MediaGalleryProps) {
       <div
         className={cn(
           "grid gap-2",
-          urls.length === 1 && "grid-cols-1",
-          urls.length === 2 && "grid-cols-2",
-          urls.length >= 3 && "grid-cols-2",
+          items.length === 1 && "grid-cols-1",
+          items.length === 2 && "grid-cols-2",
+          items.length >= 3 && "grid-cols-2",
         )}
       >
-        {urls.slice(0, 4).map((url, index) => {
-          const isVideo = isVideoUrl(url);
-          const isLastWithMore = index === 3 && urls.length > 4;
+        {items.slice(0, 4).map((item, index) => {
+          const isLastWithMore = index === 3 && items.length > 4;
 
           return (
             <button
@@ -49,22 +94,22 @@ export function MediaGallery({ urls, variant = "feed" }: MediaGalleryProps) {
               type="button"
               className={cn(
                 "relative overflow-hidden rounded-lg bg-zinc-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                urls.length === 1 ? "aspect-video" : "aspect-square",
-                urls.length === 3 && index === 0 && "row-span-2",
+                items.length === 1 ? "aspect-video" : "aspect-square",
+                items.length === 3 && index === 0 && "row-span-2",
               )}
               onClick={(e) => handleMediaClick(e, index)}
-              aria-label={`View ${isVideo ? "video" : "photo"} ${index + 1} of ${urls.length}`}
+              aria-label={`View ${item.isVideo ? "video" : "photo"} ${index + 1} of ${items.length}`}
             >
-              {isVideo ? (
+              {item.isVideo ? (
                 <video
-                  src={url}
+                  src={item.src}
                   className="h-full w-full object-cover"
                   preload="metadata"
                   muted
                 />
               ) : (
                 <img
-                  src={url}
+                  src={item.src}
                   alt={`Activity media ${index + 1}`}
                   className="h-full w-full object-cover"
                   loading="lazy"
@@ -74,7 +119,7 @@ export function MediaGallery({ urls, variant = "feed" }: MediaGalleryProps) {
               {isLastWithMore && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/60">
                   <span className="text-lg font-semibold text-white">
-                    +{urls.length - 4}
+                    +{items.length - 4}
                   </span>
                 </div>
               )}
@@ -84,7 +129,7 @@ export function MediaGallery({ urls, variant = "feed" }: MediaGalleryProps) {
       </div>
 
       <MediaLightbox
-        urls={urls}
+        urls={items.map((i) => i.fullSrc)}
         initialIndex={lightboxIndex ?? 0}
         open={lightboxIndex !== null}
         onClose={() => setLightboxIndex(null)}

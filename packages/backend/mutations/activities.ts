@@ -135,6 +135,7 @@ export const log = mutation({
     notes: v.optional(v.string()),
     imageUrl: v.optional(v.string()),
     mediaIds: v.optional(v.array(v.id("_storage"))),
+    cloudinaryPublicIds: v.optional(v.array(v.string())),
     // Local time & location context
     localTime: v.optional(v.string()), // "HH:MM" from user's local clock
     timezone: v.optional(v.string()), // IANA timezone (e.g., "America/Chicago")
@@ -244,7 +245,7 @@ export const log = mutation({
 
     // Calculate media bonus (+1 point for posting at least one photo/media)
     // Only award once per day per challenge (daily cap)
-    const hasMedia = (args.mediaIds && args.mediaIds.length > 0) || !!args.imageUrl;
+    const hasMedia = (args.mediaIds && args.mediaIds.length > 0) || (args.cloudinaryPublicIds && args.cloudinaryPublicIds.length > 0) || !!args.imageUrl;
     let alreadyEarnedPhotoBonus = false;
     if (hasMedia) {
       const loggedDateStr = formatDateOnlyFromUtcMs(loggedDateTs);
@@ -261,7 +262,7 @@ export const log = mutation({
 
       alreadyEarnedPhotoBonus = existingActivitiesToday.some((a) => {
         const aDateStr = formatDateOnlyFromUtcMs(a.loggedDate);
-        const aHasMedia = !!(a.mediaIds && a.mediaIds.length > 0) || !!a.imageUrl;
+        const aHasMedia = !!(a.mediaIds && a.mediaIds.length > 0) || !!(a.cloudinaryPublicIds && a.cloudinaryPublicIds.length > 0) || !!a.imageUrl;
         const aHasPhotoBonus = !!(a.triggeredBonuses?.some((b) => b.metric === "media"));
         return aDateStr === loggedDateStr && aHasMedia && aHasPhotoBonus;
       });
@@ -296,6 +297,7 @@ export const log = mutation({
       notes: args.notes,
       imageUrl: args.imageUrl,
       mediaIds: args.mediaIds,
+      cloudinaryPublicIds: args.cloudinaryPublicIds,
       localTime: args.localTime,
       timezone: args.timezone,
       locationCity: args.locationCity,
@@ -657,7 +659,7 @@ export const editActivity = mutation({
 
     // Determine effective media: use provided mediaIds if given, otherwise fall back to existing.
     const effectiveMediaIds = args.mediaIds !== undefined ? args.mediaIds : activity.mediaIds;
-    const hasMedia = !!(effectiveMediaIds && effectiveMediaIds.length > 0) || !!activity.imageUrl;
+    const hasMedia = !!(effectiveMediaIds && effectiveMediaIds.length > 0) || !!(activity.cloudinaryPublicIds && activity.cloudinaryPublicIds.length > 0) || !!activity.imageUrl;
     let alreadyEarnedPhotoBonusEdit = false;
     if (hasMedia) {
       const loggedDateStrEdit = formatDateOnlyFromUtcMs(newLoggedDateTs);
@@ -675,7 +677,7 @@ export const editActivity = mutation({
       alreadyEarnedPhotoBonusEdit = existingActivitiesForEdit.some((a) => {
         if (a._id === args.activityId) return false; // exclude self
         const aDateStr = formatDateOnlyFromUtcMs(a.loggedDate);
-        const aHasMedia = !!(a.mediaIds && a.mediaIds.length > 0) || !!a.imageUrl;
+        const aHasMedia = !!(a.mediaIds && a.mediaIds.length > 0) || !!(a.cloudinaryPublicIds && a.cloudinaryPublicIds.length > 0) || !!a.imageUrl;
         const aHasPhotoBonus = !!(a.triggeredBonuses?.some((b) => b.metric === "media"));
         return aDateStr === loggedDateStrEdit && aHasMedia && aHasPhotoBonus;
       });

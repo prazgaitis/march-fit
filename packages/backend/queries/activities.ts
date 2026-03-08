@@ -130,6 +130,7 @@ export const getById = query({
       comments: commentCount,
       likedByUser,
       mediaUrls,
+      cloudinaryPublicIds: activity.cloudinaryPublicIds ?? [],
       recentLikers,
       adminComment,
       isOwner,
@@ -340,6 +341,7 @@ export const getChallengeFeed = query({
           comments: commentCount,
           likedByUser: userLike !== null,
           mediaUrls,
+          cloudinaryPublicIds: activity.cloudinaryPublicIds ?? [],
           recentLikers,
         };
       })
@@ -419,7 +421,7 @@ export const previewScore = query({
         .collect();
 
       const alreadyEarnedPhotoBonus = existingActivitiesToday.some((activity) => {
-        const activityHasMedia = !!(activity.mediaIds && activity.mediaIds.length > 0) || !!activity.imageUrl;
+        const activityHasMedia = !!(activity.mediaIds && activity.mediaIds.length > 0) || !!(activity.cloudinaryPublicIds && activity.cloudinaryPublicIds.length > 0) || !!activity.imageUrl;
         const activityHasPhotoBonus = !!activity.triggeredBonuses?.some(
           (bonus) => bonus.metric === "media"
         );
@@ -477,8 +479,8 @@ export const getUserStories = query({
       .filter(
         (a) =>
           a.challengeId === args.challengeId &&
-          a.mediaIds &&
-          a.mediaIds.length > 0,
+          (a.mediaIds && a.mediaIds.length > 0) ||
+          (a.cloudinaryPublicIds && a.cloudinaryPublicIds.length > 0),
       )
       .slice(0, maxItems);
 
@@ -524,6 +526,7 @@ export const getUserStories = query({
         return {
           activityId: activity._id as string,
           mediaUrls,
+          cloudinaryPublicIds: activity.cloudinaryPublicIds ?? [],
           activityType: activityType?.name ?? null,
           createdAt: activity.createdAt,
           pointsEarned: activity.pointsEarned,
@@ -545,14 +548,20 @@ export const getMediaUrls = query({
   },
   handler: async (ctx, args) => {
     const activity = await ctx.db.get(args.activityId);
-    if (!activity || activity.deletedAt || !activity.mediaIds) {
-      return [];
+    if (!activity || activity.deletedAt) {
+      return { urls: [], cloudinaryPublicIds: [] };
     }
 
-    const urls = await Promise.all(
-      activity.mediaIds.map((storageId) => ctx.storage.getUrl(storageId))
-    );
-    return urls.filter((url): url is string => url !== null);
+    const urls = activity.mediaIds
+      ? (await Promise.all(
+          activity.mediaIds.map((storageId) => ctx.storage.getUrl(storageId))
+        )).filter((url): url is string => url !== null)
+      : [];
+
+    return {
+      urls,
+      cloudinaryPublicIds: activity.cloudinaryPublicIds ?? [],
+    };
   },
 });
 

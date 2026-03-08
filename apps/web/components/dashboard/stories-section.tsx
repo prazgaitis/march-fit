@@ -8,6 +8,7 @@ import type { Id } from "@repo/backend/_generated/dataModel";
 import { StoriesRow } from "./stories-row";
 import { StoryViewer } from "./story-viewer";
 import { buildStoriesFromFeed } from "@/lib/story-utils";
+import { useCloudinaryDisplay } from "@/hooks/use-cloudinary-display";
 
 const STORIES_MAX_AGE_MS = 48 * 60 * 60 * 1000; // 48 hours
 
@@ -31,6 +32,7 @@ export function StoriesSection({
 }: StoriesSectionProps) {
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
+  const showCloudinary = useCloudinaryDisplay();
 
   const algoFeedResult = useQuery(
     api.queries.algorithmicFeed.getAlgorithmicFeed,
@@ -48,8 +50,10 @@ export function StoriesSection({
         (algoFeedResult?.page ?? initialAlgoItems) as any[],
         challengeId,
         STORIES_MAX_AGE_MS,
+        20,
+        showCloudinary,
       ),
-    [algoFeedResult, initialAlgoItems, challengeId],
+    [algoFeedResult, initialAlgoItems, challengeId, showCloudinary],
   );
 
   const handleStoryPress = (index: number) => {

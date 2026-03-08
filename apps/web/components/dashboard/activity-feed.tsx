@@ -126,6 +126,7 @@ interface ActivityFeedItem {
   comments: number;
   likedByUser: boolean;
   mediaUrls: string[];
+  cloudinaryPublicIds?: string[];
   recentLikers: Array<{ id: string; name: string | null; username: string }>;
 }
 
@@ -158,6 +159,7 @@ interface AlgoFeedItem {
   comments: number;
   likedByUser: boolean;
   mediaUrls: string[];
+  cloudinaryPublicIds?: string[];
   recentLikers: Array<{ id: string; name: string | null; username: string }>;
   displayScore: number;
 }
@@ -179,6 +181,7 @@ function mapAlgoItem(item: AlgoFeedItem): ActivityFeedItem {
     comments: item.comments,
     likedByUser: item.likedByUser,
     mediaUrls: item.mediaUrls,
+    cloudinaryPublicIds: item.cloudinaryPublicIds,
     recentLikers: item.recentLikers ?? [],
   };
 }
@@ -637,6 +640,7 @@ export function ActivityFeed({
                 id: item.activity._id,
               },
               mediaUrls: item.mediaUrls ?? [],
+              cloudinaryPublicIds: item.cloudinaryPublicIds,
             }}
             mentionOptions={mentionUsers}
             currentUserId={currentUserId}
@@ -1094,7 +1098,7 @@ const ActivityCard = memo(function ActivityCard({
           className="text-sm text-muted-foreground"
         />
       ) : null}
-      <MediaGallery urls={item.mediaUrls} variant="feed" />
+      <MediaGallery urls={item.mediaUrls} cloudinaryPublicIds={item.cloudinaryPublicIds} variant="feed" />
       <ActivityStats item={item} />
     </>
   );

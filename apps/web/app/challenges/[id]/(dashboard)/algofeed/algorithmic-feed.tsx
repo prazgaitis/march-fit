@@ -52,6 +52,7 @@ interface AlgoFeedItem {
   comments: number;
   likedByUser: boolean;
   mediaUrls: string[];
+  cloudinaryPublicIds?: string[];
   displayScore: number;
 }
 
@@ -144,6 +145,7 @@ function AlgoFeedCard({
     comments: number;
     likedByUser: boolean;
     mediaUrls: string[];
+    cloudinaryPublicIds?: string[];
     displayScore: number;
   };
 }) {
@@ -221,7 +223,7 @@ function AlgoFeedCard({
         </div>
 
         {/* Media Gallery */}
-        <MediaGallery urls={item.mediaUrls} variant="feed" />
+        <MediaGallery urls={item.mediaUrls} cloudinaryPublicIds={item.cloudinaryPublicIds} variant="feed" />
 
         {/* Stats */}
         <div className="rounded-lg bg-muted px-4 py-3 text-sm">

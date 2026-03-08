@@ -48,6 +48,7 @@ import { useIsMobile } from "@/hooks/use-media-query";
 import { useMentionableUsers } from "@/hooks/use-mentionable-users";
 import { isEditorContentEmpty } from "@/lib/rich-text-utils";
 import { cn } from "@/lib/utils";
+import { uploadToCloudinary, isCloudinaryEnabledForUser } from "@/lib/cloudinary";
 import { PointsDisplay } from "@/components/ui/points-display";
 import { formatPoints } from "@/lib/points";
 import { format, isToday, isSameDay, subDays } from "date-fns";
@@ -329,6 +330,9 @@ export function ActivityLogDialog({ challengeId, challengeStartDate, trigger }: 
     api.queries.activityTypes.getVisibleByChallengeId,
     open ? { challengeId: challengeId as Id<"challenges">, todayDateMs: loggedDateMs } : "skip"
   );
+
+  const currentUser = useQuery(api.queries.users.current);
+  const useCloudinary = isCloudinaryEnabledForUser(currentUser?.email);
 
   const logActivity = useMutation(api.mutations.activities.log);
   const createCheckoutSession = useAction(api.actions.payments.createCheckoutSession);
@@ -644,25 +648,40 @@ export function ActivityLogDialog({ challengeId, challengeStartDate, trigger }: 
     setSuccessState(null);
 
     try {
-      // Upload media files first
+      // Upload media files
+      let cloudinaryPublicIds: string[] | undefined;
       let mediaIds: Id<"_storage">[] | undefined;
+
       if (mediaFiles.length > 0) {
         setUploadProgress(`Uploading ${mediaFiles.length} file(s)...`);
-        mediaIds = [];
-        for (let i = 0; i < mediaFiles.length; i++) {
-          setUploadProgress(`Uploading file ${i + 1} of ${mediaFiles.length}...`);
-          const uploadUrl = await generateUploadUrl();
-          const response = await fetch(uploadUrl, {
-            method: "POST",
-            headers: { "Content-Type": mediaFiles[i].file.type },
-            body: mediaFiles[i].file,
-          });
-          if (!response.ok) {
-            throw new Error(`Failed to upload file ${i + 1}`);
+
+        if (useCloudinary) {
+          // Upload to Cloudinary (optimized pipeline)
+          cloudinaryPublicIds = [];
+          for (let i = 0; i < mediaFiles.length; i++) {
+            setUploadProgress(`Uploading file ${i + 1} of ${mediaFiles.length}...`);
+            const { publicId } = await uploadToCloudinary(mediaFiles[i].file);
+            cloudinaryPublicIds.push(publicId);
           }
-          const { storageId } = await response.json();
-          mediaIds.push(storageId);
+        } else {
+          // Fallback: upload to Convex storage
+          mediaIds = [];
+          for (let i = 0; i < mediaFiles.length; i++) {
+            setUploadProgress(`Uploading file ${i + 1} of ${mediaFiles.length}...`);
+            const uploadUrl = await generateUploadUrl();
+            const response = await fetch(uploadUrl, {
+              method: "POST",
+              headers: { "Content-Type": mediaFiles[i].file.type },
+              body: mediaFiles[i].file,
+            });
+            if (!response.ok) {
+              throw new Error(`Failed to upload file ${i + 1}`);
+            }
+            const { storageId } = await response.json();
+            mediaIds.push(storageId);
+          }
         }
+
         setUploadProgress(null);
       }
 
@@ -678,6 +697,7 @@ export function ActivityLogDialog({ challengeId, challengeStartDate, trigger }: 
         metrics,
         notes: !notesIsEmpty && form.notes && !isEditorContentEmpty(form.notes) ? form.notes : undefined,
         mediaIds,
+        cloudinaryPublicIds,
         timezone: browserTimezone,
         localTime,
         source: "manual",
