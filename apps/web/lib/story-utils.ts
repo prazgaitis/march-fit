@@ -1,11 +1,12 @@
 import type { StoryItem, StorySlide } from "@/components/dashboard/stories-row";
-import { getCloudinaryMediaUrl } from "@/lib/cloudinary";
+import { getOptimizedMediaUrl } from "@/lib/media-optimizer";
 
 /** Minimal activity shape needed to build story slides */
 export interface StoryActivity {
   activityId: string;
   mediaUrls: string[];
-  cloudinaryPublicIds?: string[];
+  /** Optimized media public IDs (e.g. Cloudinary). When present and useOptimized is true, these are preferred. */
+  optimizedMediaIds?: string[];
   activityType: string | null;
   createdAt: number;
   pointsEarned: number;
@@ -17,44 +18,26 @@ export interface StoryActivity {
 /** Flatten activities into individual StorySlides (one per media URL) */
 export function activitiesToSlides(
   activities: StoryActivity[],
-  useCloudinary = true,
+  useOptimized = false,
 ): StorySlide[] {
   return activities
     .sort((a, b) => b.createdAt - a.createdAt)
     .flatMap((a) => {
-      const slides: StorySlide[] = [];
+      const urls =
+        useOptimized && a.optimizedMediaIds && a.optimizedMediaIds.length > 0
+          ? a.optimizedMediaIds.map((id) => getOptimizedMediaUrl(id, "full"))
+          : a.mediaUrls;
 
-      // Cloudinary media (gated by useCloudinary flag for beta rollout)
-      if (useCloudinary && a.cloudinaryPublicIds) {
-        for (const id of a.cloudinaryPublicIds) {
-          slides.push({
-            activityId: a.activityId,
-            mediaUrl: getCloudinaryMediaUrl(id, "full"),
-            activityType: a.activityType,
-            createdAt: a.createdAt,
-            pointsEarned: a.pointsEarned,
-            likes: a.likes,
-            comments: a.comments,
-            likedByUser: a.likedByUser,
-          });
-        }
-      }
-
-      // Legacy Convex storage URLs
-      for (const mediaUrl of a.mediaUrls) {
-        slides.push({
-          activityId: a.activityId,
-          mediaUrl,
-          activityType: a.activityType,
-          createdAt: a.createdAt,
-          pointsEarned: a.pointsEarned,
-          likes: a.likes,
-          comments: a.comments,
-          likedByUser: a.likedByUser,
-        });
-      }
-
-      return slides;
+      return urls.map((mediaUrl) => ({
+        activityId: a.activityId,
+        mediaUrl,
+        activityType: a.activityType,
+        createdAt: a.createdAt,
+        pointsEarned: a.pointsEarned,
+        likes: a.likes,
+        comments: a.comments,
+        likedByUser: a.likedByUser,
+      }));
     });
 }
 
@@ -63,9 +46,9 @@ export function buildUserStory(
   user: StoryItem["user"],
   challengeId: string,
   activities: StoryActivity[],
-  useCloudinary = true,
+  useOptimized = false,
 ): StoryItem | null {
-  const slides = activitiesToSlides(activities, useCloudinary);
+  const slides = activitiesToSlides(activities, useOptimized);
   if (slides.length === 0) return null;
   return { user, challengeId, slides };
 }
@@ -88,20 +71,22 @@ export function buildStoriesFromFeed(
   challengeId: string,
   maxAgeMs: number,
   maxUsers = 20,
-  useCloudinary = true,
+  useOptimized = false,
 ): StoryItem[] {
   const now = Date.now();
   const userMap = new Map<string, { user: StoryItem["user"]; activities: StoryActivity[] }>();
 
   for (const item of items) {
-    const hasMedia = (item.mediaUrls && item.mediaUrls.length > 0) || (item.cloudinaryPublicIds && item.cloudinaryPublicIds.length > 0);
+    const hasMedia =
+      (item.mediaUrls && item.mediaUrls.length > 0) ||
+      (item.cloudinaryPublicIds && item.cloudinaryPublicIds.length > 0);
     if (!item.user || !hasMedia) continue;
     if (now - item.activity.createdAt > maxAgeMs) continue;
 
     const activity: StoryActivity = {
       activityId: item.activity._id,
-      mediaUrls: item.mediaUrls ?? [],
-      cloudinaryPublicIds: item.cloudinaryPublicIds,
+      mediaUrls: item.mediaUrls,
+      optimizedMediaIds: item.cloudinaryPublicIds,
       activityType: item.activityType?.name ?? null,
       createdAt: item.activity.createdAt,
       pointsEarned: item.activity.pointsEarned,
@@ -133,6 +118,6 @@ export function buildStoriesFromFeed(
       return bMax - aMax;
     })
     .slice(0, maxUsers)
-    .map(({ user, activities }) => buildUserStory(user, challengeId, activities, useCloudinary)!)
+    .map(({ user, activities }) => buildUserStory(user, challengeId, activities, useOptimized)!)
     .filter(Boolean);
 }

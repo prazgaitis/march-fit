@@ -607,7 +607,7 @@ export function ActivityDetailContent({
             )}
 
             {/* Media Gallery */}
-            <MediaGallery urls={mediaUrls ?? []} cloudinaryPublicIds={cloudinaryPublicIds ?? []} variant="detail" />
+            <MediaGallery urls={mediaUrls ?? []} optimizedMediaIds={cloudinaryPublicIds} variant="detail" />
 
             {adminComment && (
               <div className="flex items-start gap-3 rounded-lg border border-amber-500/30 bg-amber-500/5 p-4">

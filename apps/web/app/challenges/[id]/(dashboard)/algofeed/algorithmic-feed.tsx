@@ -223,7 +223,7 @@ function AlgoFeedCard({
         </div>
 
         {/* Media Gallery */}
-        <MediaGallery urls={item.mediaUrls} cloudinaryPublicIds={item.cloudinaryPublicIds} variant="feed" />
+        <MediaGallery urls={item.mediaUrls} optimizedMediaIds={item.cloudinaryPublicIds} variant="feed" />
 
         {/* Stats */}
         <div className="rounded-lg bg-muted px-4 py-3 text-sm">

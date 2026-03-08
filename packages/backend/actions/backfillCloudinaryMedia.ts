@@ -1,32 +1,29 @@
 "use node";
 
-/**
- * Backfill: upload recent Convex storage media to Cloudinary.
- *
- * Run manually:
- *   npx convex run actions/backfillCloudinaryMedia:backfill '{"daysBack": 4}'
- *   npx convex run actions/backfillCloudinaryMedia:backfill '{"daysBack": 4}' --prod
- *
- * Requires environment variables on the Convex deployment:
- *   CLOUDINARY_CLOUD_NAME
- *   CLOUDINARY_UPLOAD_PRESET
- *
- * Safe to re-run — skips activities that already have cloudinaryPublicIds.
- */
-
 import { action } from "../_generated/server";
-import { internal } from "../_generated/api";
 import { v } from "convex/values";
-import type { Id } from "../_generated/dataModel";
+import { internal } from "../_generated/api";
 
 interface CloudinaryUploadResponse {
   public_id: string;
-  resource_type: "image" | "video" | "raw";
+  secure_url: string;
+  resource_type: string;
 }
 
+/**
+ * Backfill existing Convex-stored media to Cloudinary.
+ *
+ * Run via:
+ *   npx convex run actions/backfillCloudinaryMedia:backfill '{"daysBack": 4}'
+ *
+ * Requires CLOUDINARY_CLOUD_NAME and CLOUDINARY_UPLOAD_PRESET env vars
+ * on the Convex deployment.
+ */
 export const backfill = action({
   args: {
     daysBack: v.optional(v.number()),
+    limit: v.optional(v.number()),
+    dryRun: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
@@ -34,52 +31,55 @@ export const backfill = action({
 
     if (!cloudName || !uploadPreset) {
       throw new Error(
-        "Missing CLOUDINARY_CLOUD_NAME or CLOUDINARY_UPLOAD_PRESET env vars on Convex deployment",
+        "Missing CLOUDINARY_CLOUD_NAME or CLOUDINARY_UPLOAD_PRESET env vars",
       );
     }
 
-    const daysBack = args.daysBack ?? 4;
-    const cutoffMs = Date.now() - daysBack * 24 * 60 * 60 * 1000;
+    const dryRun = args.dryRun ?? false;
 
-    console.log(
-      `[backfill] Looking for activities from last ${daysBack} days (since ${new Date(cutoffMs).toISOString()})`,
+    const activities = await ctx.runQuery(
+      internal.queries.backfillCloudinary.findActivitiesNeedingBackfill,
+      { daysBack: args.daysBack ?? 4, limit: args.limit ?? 50 },
     );
 
-    const activities: Array<{
+    const results: Array<{
       activityId: string;
-      media: Array<{ storageId: string; url: string }>;
-    }> = await ctx.runQuery(
-      internal.queries.backfillCloudinary.getActivitiesNeedingBackfill,
-      { cutoffMs },
-    );
-
-    console.log(`[backfill] Found ${activities.length} activities to process`);
-
-    let processed = 0;
-    let failed = 0;
+      mediaCount: number;
+      publicIds: string[];
+      error?: string;
+    }> = [];
 
     for (const activity of activities) {
       try {
         const publicIds: string[] = [];
 
-        for (const media of activity.media) {
-          // Download from Convex storage
-          const response = await fetch(media.url);
-          if (!response.ok) {
-            console.error(
-              `[backfill] Failed to download ${media.url}: ${response.status}`,
-            );
-            failed++;
+        for (const storageId of activity.mediaIds) {
+          // Get the URL for the stored file
+          const url = await ctx.storage.getUrl(storageId);
+          if (!url) {
+            console.warn(`No URL for storage ID ${storageId}`);
             continue;
           }
 
-          const contentType =
-            response.headers.get("content-type") ?? "image/jpeg";
+          if (dryRun) {
+            publicIds.push(`[dry-run] ${storageId}`);
+            continue;
+          }
+
+          // Download from Convex storage
+          const fileResponse = await fetch(url);
+          if (!fileResponse.ok) {
+            console.warn(`Failed to download ${url}: ${fileResponse.statusText}`);
+            continue;
+          }
+          const blob = await fileResponse.blob();
+
+          // Detect resource type from content-type
+          const contentType = fileResponse.headers.get("content-type") ?? "";
           const isVideo = contentType.startsWith("video/");
           const resourceType = isVideo ? "video" : "image";
 
           // Upload to Cloudinary
-          const blob = await response.blob();
           const formData = new FormData();
           formData.append("file", blob);
           formData.append("upload_preset", uploadPreset);
@@ -91,11 +91,9 @@ export const backfill = action({
           );
 
           if (!cloudinaryRes.ok) {
-            const error = await cloudinaryRes.text();
-            console.error(
-              `[backfill] Cloudinary upload failed for activity ${activity.activityId}: ${error}`,
+            console.warn(
+              `Cloudinary upload failed for ${storageId}: ${cloudinaryRes.statusText}`,
             );
-            failed++;
             continue;
           }
 
@@ -104,30 +102,33 @@ export const backfill = action({
           publicIds.push(publicId);
         }
 
-        if (publicIds.length > 0) {
+        if (!dryRun && publicIds.length > 0) {
           await ctx.runMutation(
             internal.mutations.backfillCloudinary.patchCloudinaryIds,
-            {
-              activityId: activity.activityId as Id<"activities">,
-              cloudinaryPublicIds: publicIds,
-            },
-          );
-          processed++;
-          console.log(
-            `[backfill] Processed activity ${activity.activityId}: ${publicIds.length} files`,
+            { activityId: activity._id, cloudinaryPublicIds: publicIds },
           );
         }
+
+        results.push({
+          activityId: activity._id,
+          mediaCount: activity.mediaIds.length,
+          publicIds,
+        });
       } catch (error) {
-        console.error(
-          `[backfill] Error processing activity ${activity.activityId}:`,
-          error,
-        );
-        failed++;
+        results.push({
+          activityId: activity._id,
+          mediaCount: activity.mediaIds.length,
+          publicIds: [],
+          error: error instanceof Error ? error.message : String(error),
+        });
       }
     }
 
-    const summary = `Done. Processed: ${processed}, Failed: ${failed}, Total: ${activities.length}`;
-    console.log(`[backfill] ${summary}`);
-    return summary;
+    return {
+      dryRun,
+      totalActivities: activities.length,
+      processed: results.length,
+      results,
+    };
   },
 });

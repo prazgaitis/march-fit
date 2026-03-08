@@ -479,8 +479,8 @@ export const getUserStories = query({
       .filter(
         (a) =>
           a.challengeId === args.challengeId &&
-          (a.mediaIds && a.mediaIds.length > 0) ||
-          (a.cloudinaryPublicIds && a.cloudinaryPublicIds.length > 0),
+          ((a.mediaIds && a.mediaIds.length > 0) ||
+            (a.cloudinaryPublicIds && a.cloudinaryPublicIds.length > 0)),
       )
       .slice(0, maxItems);
 
@@ -494,9 +494,11 @@ export const getUserStories = query({
         const [activityType, mediaUrls, likeCount, commentCount, userLike] =
           await Promise.all([
             ctx.db.get(activity.activityTypeId),
-            Promise.all(
-              activity.mediaIds!.map((id) => ctx.storage.getUrl(id)),
-            ).then((urls) => urls.filter((u): u is string => u !== null)),
+            activity.mediaIds && activity.mediaIds.length > 0
+              ? Promise.all(
+                  activity.mediaIds.map((id) => ctx.storage.getUrl(id)),
+                ).then((urls) => urls.filter((u): u is string => u !== null))
+              : Promise.resolve([] as string[]),
             ctx.db
               .query("likes")
               .withIndex("activityId", (q) =>

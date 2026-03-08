@@ -1098,7 +1098,7 @@ const ActivityCard = memo(function ActivityCard({
           className="text-sm text-muted-foreground"
         />
       ) : null}
-      <MediaGallery urls={item.mediaUrls} cloudinaryPublicIds={item.cloudinaryPublicIds} variant="feed" />
+      <MediaGallery urls={item.mediaUrls} optimizedMediaIds={item.cloudinaryPublicIds} variant="feed" />
       <ActivityStats item={item} />
     </>
   );

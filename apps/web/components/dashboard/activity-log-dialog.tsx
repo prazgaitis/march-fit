@@ -48,7 +48,10 @@ import { useIsMobile } from "@/hooks/use-media-query";
 import { useMentionableUsers } from "@/hooks/use-mentionable-users";
 import { isEditorContentEmpty } from "@/lib/rich-text-utils";
 import { cn } from "@/lib/utils";
-import { uploadToCloudinary, isCloudinaryEnabledForUser } from "@/lib/cloudinary";
+import {
+  isMediaOptimizationEnabled,
+  uploadOptimizedMedia,
+} from "@/lib/media-optimizer";
 import { PointsDisplay } from "@/components/ui/points-display";
 import { formatPoints } from "@/lib/points";
 import { format, isToday, isSameDay, subDays } from "date-fns";
@@ -332,11 +335,10 @@ export function ActivityLogDialog({ challengeId, challengeStartDate, trigger }: 
   );
 
   const currentUser = useQuery(api.queries.users.current);
-  const useCloudinary = isCloudinaryEnabledForUser(currentUser?.email);
-
   const logActivity = useMutation(api.mutations.activities.log);
   const createCheckoutSession = useAction(api.actions.payments.createCheckoutSession);
   const generateUploadUrl = useMutation(api.mutations.activities.generateUploadUrl);
+  const useMediaOptimizer = isMediaOptimizationEnabled(currentUser?.email);
 
   const paymentInfo = useQuery(api.queries.paymentConfig.getPublicPaymentInfo, {
     challengeId: challengeId as Id<"challenges">,
@@ -651,17 +653,17 @@ export function ActivityLogDialog({ challengeId, challengeStartDate, trigger }: 
       // Upload media files
       let cloudinaryPublicIds: string[] | undefined;
       let mediaIds: Id<"_storage">[] | undefined;
-
+      let optimizedMediaIds: string[] | undefined;
       if (mediaFiles.length > 0) {
         setUploadProgress(`Uploading ${mediaFiles.length} file(s)...`);
 
-        if (useCloudinary) {
-          // Upload to Cloudinary (optimized pipeline)
-          cloudinaryPublicIds = [];
+        if (useMediaOptimizer) {
+          // Upload to optimized media provider (Cloudinary)
+          optimizedMediaIds = [];
           for (let i = 0; i < mediaFiles.length; i++) {
             setUploadProgress(`Uploading file ${i + 1} of ${mediaFiles.length}...`);
-            const { publicId } = await uploadToCloudinary(mediaFiles[i].file);
-            cloudinaryPublicIds.push(publicId);
+            const result = await uploadOptimizedMedia(mediaFiles[i].file);
+            optimizedMediaIds.push(result.publicId);
           }
         } else {
           // Fallback: upload to Convex storage
@@ -697,7 +699,7 @@ export function ActivityLogDialog({ challengeId, challengeStartDate, trigger }: 
         metrics,
         notes: !notesIsEmpty && form.notes && !isEditorContentEmpty(form.notes) ? form.notes : undefined,
         mediaIds,
-        cloudinaryPublicIds,
+        cloudinaryPublicIds: optimizedMediaIds,
         timezone: browserTimezone,
         localTime,
         source: "manual",

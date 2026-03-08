@@ -47,7 +47,7 @@ import { cn } from "@/lib/utils";
 import { PointsDisplay } from "@/components/ui/points-display";
 import { StoryViewer } from "@/components/dashboard/story-viewer";
 import { buildUserStory } from "@/lib/story-utils";
-import { useCloudinaryDisplay } from "@/hooks/use-cloudinary-display";
+import { useOptimizedMedia } from "@/hooks/use-optimized-media";
 
 interface UserProfileContentProps {
   challengeId: string;
@@ -113,7 +113,7 @@ export function UserProfileContent({
   });
 
   const toggleFollow = useMutation(api.mutations.follows.toggle);
-  const showCloudinary = useCloudinaryDisplay();
+  const showOptimized = useOptimizedMedia();
 
   const stories = useMemo(() => {
     if (!userStories || userStories.length === 0 || !profileData) return [];
@@ -122,10 +122,10 @@ export function UserProfileContent({
       { id: u.id, name: u.name, username: u.username, avatarUrl: u.avatarUrl },
       challengeId,
       userStories as any[],
-      showCloudinary,
+      showOptimized,
     );
     return story ? [story] : [];
-  }, [userStories, profileData, challengeId, showCloudinary]);
+  }, [userStories, profileData, challengeId, showOptimized]);
 
   const hasStories = stories.length > 0;
 

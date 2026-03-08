@@ -145,8 +145,8 @@ export default defineSchema({
       )
     ),
     imageUrl: v.optional(v.string()), // Legacy field for backward compatibility
-    mediaIds: v.optional(v.array(v.id("_storage"))), // Convex storage media (legacy)
-    cloudinaryPublicIds: v.optional(v.array(v.string())), // Cloudinary media public IDs
+    mediaIds: v.optional(v.array(v.id("_storage"))), // New field for media attachments
+    cloudinaryPublicIds: v.optional(v.array(v.string())), // Optimized media (Cloudinary)
     notes: v.optional(v.string()),
     flagged: v.boolean(),
     flaggedAt: v.optional(v.number()),
