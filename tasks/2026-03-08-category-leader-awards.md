@@ -1,36 +1,50 @@
 # 2026-03-08 Category Leader Awards
 
-Admin page to preview and apply weekly category leader bonus points.
+Admin page to preview and apply weekly category leader bonus points (top 3 placements, escalating by week, plus cumulative).
 
 ## Todos
 - [x] Add `category_leader` source literal to activities schema
-- [x] Create backend query: preview category leader awards for a given week
-- [x] Create backend mutation: apply category leader awards for a given week
+- [x] Create shared lib for placement point calculations
+- [x] Create backend query: preview category leader awards (top 3, weekly + cumulative)
+- [x] Create backend mutation: apply category leader awards
 - [x] Create admin page at `/admin/category-leaders`
 - [x] Add nav item to admin layout (Scoring group)
-- [x] Typecheck passes
+- [x] Typecheck + lint passes
+
+## Point Structure
+
+Multipliers per placement: 1st = 10×, 2nd = 5×, 3rd = 3×
+
+| Period     | 1st | 2nd | 3rd |
+|------------|-----|-----|-----|
+| Week 1     | 10  | 5   | 3   |
+| Week 2     | 20  | 10  | 6   |
+| Week 3     | 30  | 15  | 9   |
+| Week 4     | 40  | 20  | 12  |
+| Cumulative | 50  | 25  | 15  |
 
 ## Implementation Notes
 
-**Schema**: Added `"category_leader"` to the `source` union in `activities` table.
+**Shared Lib** (`lib/categoryLeaderPoints.ts`):
+- Placement multipliers [10, 5, 3], derived from week number
+- Cumulative uses (totalWeeks + 1) as multiplier
 
 **Backend Query** (`queries/categoryLeaderAwards.ts`):
-- `previewWeeklyAwards` — returns #1 leader per leaderboard category for a given week
-- Shows which weeks have already been awarded (parses externalId pattern)
-- Surfaces tie information (count of tied users)
-- Uses `sourceExternalId` index to efficiently find existing awards
+- `previewWeeklyAwards` — weekNumber 0 = cumulative, 1+ = weekly
+- Returns top 3 per leaderboard category with placement points
+- Weekly: reads `weeklyCategoryPoints` table
+- Cumulative: reads `categoryPoints` table
+- Tracks which weeks have already been applied
 
 **Backend Mutation** (`mutations/categoryLeaderAwards.ts`):
-- `applyWeeklyAwards` — awards bonus points to weekly category leaders
-- Idempotent via `externalId`: `category_leader_week_{weekNum}_{categoryId}_{userId}`
-- Creates "Category Leader Bonus" activity type on first use
+- `applyWeeklyAwards` — awards top 3 per category
+- Idempotent via externalId: `category_leader_week_{N}_{catId}_{userId}` or `category_leader_cumulative_{catId}_{userId}`
+- Uses existing "Category Leader Bonus" activity type or creates one
 - Updates denormalized `userChallenges.totalPoints`
-- Uses `insertActivity` which handles feed scoring and aggregation
 
-**Admin Page** (`apps/web/app/challenges/[id]/admin/category-leaders/page.tsx`):
-- Week selector with prev/next navigation
-- Configurable bonus points (default: 25)
-- Preview table showing category, leader, weekly points, and bonus amount
-- Applied/current week badges
-- Apply button with idempotency protection (disabled if already applied)
-- Success result banner
+**Admin Page**:
+- Week selector: W1–W4 + Cumulative (week 0), with prev/next arrows
+- Points reference card showing placement → points for selected week
+- Per-category cards with top 3 placements (crown/medal icons, user avatar, category points, bonus)
+- Applied/current week badges, applied weeks summary
+- Apply button with idempotency protection

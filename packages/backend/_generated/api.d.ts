@@ -37,6 +37,7 @@ import type * as lib_activityFilters from "../lib/activityFilters.js";
 import type * as lib_activityPointsAggregate from "../lib/activityPointsAggregate.js";
 import type * as lib_activityWrites from "../lib/activityWrites.js";
 import type * as lib_apiKey from "../lib/apiKey.js";
+import type * as lib_categoryLeaderPoints from "../lib/categoryLeaderPoints.js";
 import type * as lib_categoryPoints from "../lib/categoryPoints.js";
 import type * as lib_challengePoints from "../lib/challengePoints.js";
 import type * as lib_dateOnly from "../lib/dateOnly.js";
@@ -176,6 +177,7 @@ declare const fullApi: ApiFromModules<{
   "lib/activityPointsAggregate": typeof lib_activityPointsAggregate;
   "lib/activityWrites": typeof lib_activityWrites;
   "lib/apiKey": typeof lib_apiKey;
+  "lib/categoryLeaderPoints": typeof lib_categoryLeaderPoints;
   "lib/categoryPoints": typeof lib_categoryPoints;
   "lib/challengePoints": typeof lib_challengePoints;
   "lib/dateOnly": typeof lib_dateOnly;

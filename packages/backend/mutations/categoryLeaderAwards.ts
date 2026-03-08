@@ -1,37 +1,52 @@
 import { mutation } from "../_generated/server";
 import { v } from "convex/values";
 import type { Id } from "../_generated/dataModel";
-import { getChallengeWeekNumber, getTotalWeeks } from "../lib/weeks";
-import { insertActivity } from "../lib/activityWrites";
 import type { MutationCtx } from "../_generated/server";
+import { getTotalWeeks } from "../lib/weeks";
+import { insertActivity, deleteActivity } from "../lib/activityWrites";
+import {
+  PLACEMENT_COUNT,
+  getWeeklyPlacementPoints,
+  getCumulativePlacementPoints,
+  placementLabel,
+} from "../lib/categoryLeaderPoints";
 
 type MutationDbCtx = Pick<MutationCtx, "db" | "runMutation">;
 
 /**
- * Apply category leader bonus points for a given week.
- * Awards bonus points to the #1 leader in each category.
- * Idempotent — skips categories that already have awards for the week.
+ * Apply category leader bonus points for a given week or cumulative.
+ *
+ * weekNumber 1–N  → weekly awards (top 3 per category)
+ * weekNumber 0    → cumulative awards (top 3 per category, all-time)
+ *
+ * Idempotent — skips placements that already have awards.
  */
 export const applyWeeklyAwards = mutation({
   args: {
     challengeId: v.id("challenges"),
-    weekNumber: v.number(),
-    bonusPoints: v.number(),
+    weekNumber: v.number(), // 0 = cumulative
   },
   handler: async (ctx, args) => {
     const challenge = await ctx.db.get(args.challengeId);
     if (!challenge) throw new Error("Challenge not found");
 
     const totalWeeks = getTotalWeeks(challenge.durationDays);
-    const weekNumber = Math.max(1, Math.min(args.weekNumber, totalWeeks));
+    const isCumulative = args.weekNumber === 0;
+    const weekNumber = isCumulative
+      ? 0
+      : Math.max(1, Math.min(args.weekNumber, totalWeeks));
 
-    // Check for existing awards this week (idempotency)
+    const placementPoints = isCumulative
+      ? getCumulativePlacementPoints(totalWeeks)
+      : getWeeklyPlacementPoints(weekNumber);
+
+    // Check for existing awards (idempotency)
     const existingAwards = await ctx.db
       .query("activities")
-      .withIndex("sourceExternalId", (q) =>
+      .withIndex("sourceExternalId", (q: any) =>
         q.eq("source", "category_leader")
       )
-      .filter((q) =>
+      .filter((q: any) =>
         q.and(
           q.eq(q.field("challengeId"), args.challengeId),
           q.eq(q.field("deletedAt"), undefined),
@@ -40,20 +55,22 @@ export const applyWeeklyAwards = mutation({
       .collect();
 
     const appliedKeys = new Set(
-      existingAwards.map((a) => a.externalId).filter(Boolean)
+      existingAwards.map((a: any) => a.externalId).filter(Boolean)
     );
 
     // Get leaderboard categories
     const activityTypes = await ctx.db
       .query("activityTypes")
-      .withIndex("challengeId", (q) => q.eq("challengeId", args.challengeId))
+      .withIndex("challengeId", (q: any) =>
+        q.eq("challengeId", args.challengeId)
+      )
       .collect();
 
     const uniqueCategoryIds = [
       ...new Set(
         activityTypes
-          .map((at) => at.categoryId as string | undefined)
-          .filter((id): id is string => !!id)
+          .map((at: any) => at.categoryId as string | undefined)
+          .filter((id: any): id is string => !!id)
       ),
     ];
 
@@ -76,77 +93,141 @@ export const applyWeeklyAwards = mutation({
     let skipped = 0;
 
     for (const cat of leaderboardCategories) {
-      const points = await ctx.db
-        .query("weeklyCategoryPoints")
-        .withIndex("weekCategory", (q) =>
-          q
-            .eq("challengeId", args.challengeId)
-            .eq("weekNumber", weekNumber)
-            .eq("categoryId", cat._id)
+      const sorted = isCumulative
+        ? await getCumulativeLeaders(ctx, args.challengeId, cat._id)
+        : await getWeeklyLeaders(ctx, args.challengeId, cat._id, weekNumber);
+
+      const top = sorted.slice(0, PLACEMENT_COUNT);
+      if (top.length === 0) {
+        skipped++;
+        continue;
+      }
+
+      for (let i = 0; i < top.length; i++) {
+        const entry = top[i];
+        const placement = i + 1;
+        const bonus = placementPoints[i];
+
+        const externalId = isCumulative
+          ? `category_leader_cumulative_${cat._id}_${entry.userId}`
+          : `category_leader_week_${weekNumber}_${cat._id}_${entry.userId}`;
+
+        if (appliedKeys.has(externalId)) {
+          skipped++;
+          continue;
+        }
+
+        const label = isCumulative ? "Cumulative" : `Week ${weekNumber}`;
+        const description = `${label} ${cat.name} ${placementLabel(placement)} Place (${bonus} pts)`;
+
+        await insertActivity(ctx, {
+          userId: entry.userId,
+          challengeId: args.challengeId,
+          activityTypeId: bonusActivityType._id,
+          loggedDate: now,
+          pointsEarned: bonus,
+          notes: description,
+          flagged: false,
+          adminCommentVisibility: "internal",
+          resolutionStatus: "resolved",
+          source: "category_leader",
+          externalId,
+          externalData: {
+            weekNumber,
+            isCumulative,
+            categoryId: cat._id,
+            categoryName: cat.name,
+            placement,
+            categoryPoints: entry.totalPoints,
+          },
+          createdAt: now,
+          updatedAt: now,
+        });
+
+        // Update user's total points
+        const userChallenge = await ctx.db
+          .query("userChallenges")
+          .withIndex("userChallengeUnique", (q: any) =>
+            q
+              .eq("userId", entry.userId)
+              .eq("challengeId", args.challengeId)
+          )
+          .first();
+
+        if (userChallenge) {
+          await ctx.db.patch(userChallenge._id, {
+            totalPoints: userChallenge.totalPoints + bonus,
+            updatedAt: now,
+          });
+        }
+
+        awarded++;
+      }
+    }
+
+    return { awarded, skipped, weekNumber, isCumulative };
+  },
+});
+
+/**
+ * Revoke category leader awards for a given week or cumulative.
+ * Deletes the bonus activities and reverses totalPoints on userChallenges.
+ */
+export const revokeWeeklyAwards = mutation({
+  args: {
+    challengeId: v.id("challenges"),
+    weekNumber: v.number(), // 0 = cumulative
+  },
+  handler: async (ctx, args) => {
+    const isCumulative = args.weekNumber === 0;
+    const prefix = isCumulative
+      ? "category_leader_cumulative_"
+      : `category_leader_week_${args.weekNumber}_`;
+
+    // Find all category_leader activities for this challenge matching the week
+    const allAwards = await ctx.db
+      .query("activities")
+      .withIndex("sourceExternalId", (q: any) =>
+        q.eq("source", "category_leader")
+      )
+      .filter((q: any) =>
+        q.and(
+          q.eq(q.field("challengeId"), args.challengeId),
+          q.eq(q.field("deletedAt"), undefined),
         )
-        .collect();
+      )
+      .collect();
 
-      const sorted = points
-        .filter((p) => p.totalPoints > 0)
-        .sort((a, b) => b.totalPoints - a.totalPoints);
+    const toRevoke = allAwards.filter(
+      (a: any) => a.externalId?.startsWith(prefix)
+    );
 
-      if (sorted.length === 0) {
-        skipped++;
-        continue;
-      }
+    let revoked = 0;
 
-      const leader = sorted[0];
-      const externalId = `category_leader_week_${weekNumber}_${cat._id}_${leader.userId}`;
-
-      if (appliedKeys.has(externalId)) {
-        skipped++;
-        continue;
-      }
-
-      // Award the bonus activity
-      await insertActivity(ctx, {
-        userId: leader.userId,
-        challengeId: args.challengeId,
-        activityTypeId: bonusActivityType._id,
-        loggedDate: now,
-        pointsEarned: args.bonusPoints,
-        notes: `Week ${weekNumber} ${cat.name} Leader Bonus`,
-        flagged: false,
-        adminCommentVisibility: "internal",
-        resolutionStatus: "resolved",
-        source: "category_leader",
-        externalId,
-        externalData: {
-          weekNumber,
-          categoryId: cat._id,
-          categoryName: cat.name,
-          weeklyPoints: leader.totalPoints,
-        },
-        createdAt: now,
-        updatedAt: now,
-      });
-
-      // Update user's total points
+    for (const activity of toRevoke) {
+      // Reverse totalPoints on userChallenges
       const userChallenge = await ctx.db
         .query("userChallenges")
-        .withIndex("userChallengeUnique", (q) =>
+        .withIndex("userChallengeUnique", (q: any) =>
           q
-            .eq("userId", leader.userId)
+            .eq("userId", activity.userId)
             .eq("challengeId", args.challengeId)
         )
         .first();
 
       if (userChallenge) {
         await ctx.db.patch(userChallenge._id, {
-          totalPoints: userChallenge.totalPoints + args.bonusPoints,
-          updatedAt: now,
+          totalPoints: userChallenge.totalPoints - activity.pointsEarned,
+          updatedAt: Date.now(),
         });
       }
 
-      awarded++;
+      // Delete the activity (handles aggregate cleanup)
+      await deleteActivity(ctx, activity._id);
+      revoked++;
     }
 
-    return { awarded, skipped, weekNumber };
+    return { revoked, weekNumber: args.weekNumber, isCumulative };
   },
 });
 
@@ -156,8 +237,8 @@ async function getOrCreateBonusActivityType(
 ) {
   let bonusType = await ctx.db
     .query("activityTypes")
-    .withIndex("challengeId", (q) => q.eq("challengeId", challengeId))
-    .filter((q) => q.eq(q.field("name"), "Category Leader Bonus"))
+    .withIndex("challengeId", (q: any) => q.eq("challengeId", challengeId))
+    .filter((q: any) => q.eq(q.field("name"), "Category Leader Bonus"))
     .first();
 
   if (!bonusType) {
@@ -180,4 +261,42 @@ async function getOrCreateBonusActivityType(
   }
 
   return bonusType;
+}
+
+async function getWeeklyLeaders(
+  ctx: MutationDbCtx,
+  challengeId: Id<"challenges">,
+  categoryId: Id<"categories">,
+  weekNumber: number
+) {
+  const points = await ctx.db
+    .query("weeklyCategoryPoints")
+    .withIndex("weekCategory", (q: any) =>
+      q
+        .eq("challengeId", challengeId)
+        .eq("weekNumber", weekNumber)
+        .eq("categoryId", categoryId)
+    )
+    .collect();
+
+  return points
+    .filter((p: any) => p.totalPoints > 0)
+    .sort((a: any, b: any) => b.totalPoints - a.totalPoints);
+}
+
+async function getCumulativeLeaders(
+  ctx: MutationDbCtx,
+  challengeId: Id<"challenges">,
+  categoryId: Id<"categories">
+) {
+  const points = await ctx.db
+    .query("categoryPoints")
+    .withIndex("challengeCategory", (q: any) =>
+      q.eq("challengeId", challengeId).eq("categoryId", categoryId)
+    )
+    .collect();
+
+  return points
+    .filter((p: any) => p.totalPoints > 0)
+    .sort((a: any, b: any) => b.totalPoints - a.totalPoints);
 }
