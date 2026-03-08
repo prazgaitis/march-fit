@@ -12,6 +12,7 @@ import {
   previewHuntWeekEnd,
   previewPrWeekEnd,
 } from "../lib/miniGameCalculations";
+import { isPaymentRequired } from "../lib/payments";
 
 /**
  * List all mini-games for a challenge
@@ -461,32 +462,75 @@ export const previewStart = query({
       throw new Error("Can only preview start for draft mini-games");
     }
 
-    const leaderboard = await getLeaderboard(ctx, miniGame.challengeId);
+    const fullLeaderboard = await getLeaderboard(ctx, miniGame.challengeId);
 
-    if (leaderboard.length === 0) {
+    if (fullLeaderboard.length === 0) {
       throw new Error("No participants in challenge");
     }
 
+    // Check if payment is required and filter accordingly (matching start mutation logic)
+    const paymentConfig = await ctx.db
+      .query("challengePaymentConfig")
+      .withIndex("challengeId", (q) =>
+        q.eq("challengeId", miniGame.challengeId),
+      )
+      .first();
+
+    let leaderboard = fullLeaderboard;
+    let excludedUsers: {
+      user: { name?: string; username?: string } | null;
+      totalPoints: number;
+    }[] = [];
+
+    if (isPaymentRequired(paymentConfig)) {
+      const allParticipations = await ctx.db
+        .query("userChallenges")
+        .withIndex("challengeId", (q) =>
+          q.eq("challengeId", miniGame.challengeId),
+        )
+        .collect();
+
+      const unpaidUserIds = new Set(
+        allParticipations
+          .filter((p) => !p.leftAt && p.paymentStatus !== "paid")
+          .map((p) => p.userId),
+      );
+
+      leaderboard = fullLeaderboard.filter(
+        (entry) => !unpaidUserIds.has(entry.userId),
+      );
+
+      // Build excluded user list with details
+      const excluded = fullLeaderboard.filter((entry) =>
+        unpaidUserIds.has(entry.userId),
+      );
+      excludedUsers = await Promise.all(
+        excluded.map(async (entry) => {
+          const user = await ctx.db.get(entry.userId);
+          return {
+            user: user
+              ? { name: user.name, username: user.username }
+              : null,
+            totalPoints: entry.totalPoints,
+          };
+        }),
+      );
+    }
+
+    const base = {
+      gameId: miniGame._id,
+      gameName: miniGame.name,
+      config: miniGame.config,
+      participantCount: leaderboard.length,
+      excludedUsers,
+    };
+
     if (miniGame.type === "partner_week") {
       const assignments = await previewPartnerWeekStart(ctx, leaderboard);
-      return {
-        type: "partner_week" as const,
-        gameId: miniGame._id,
-        gameName: miniGame.name,
-        config: miniGame.config,
-        participantCount: leaderboard.length,
-        assignments,
-      };
+      return { ...base, type: "partner_week" as const, assignments };
     } else if (miniGame.type === "hunt_week") {
       const assignments = await previewHuntWeekStart(ctx, leaderboard);
-      return {
-        type: "hunt_week" as const,
-        gameId: miniGame._id,
-        gameName: miniGame.name,
-        config: miniGame.config,
-        participantCount: leaderboard.length,
-        assignments,
-      };
+      return { ...base, type: "hunt_week" as const, assignments };
     } else {
       // pr_week
       const assignments = await previewPrWeekStart(
@@ -495,14 +539,7 @@ export const previewStart = query({
         leaderboard,
         miniGame.startsAt,
       );
-      return {
-        type: "pr_week" as const,
-        gameId: miniGame._id,
-        gameName: miniGame.name,
-        config: miniGame.config,
-        participantCount: leaderboard.length,
-        assignments,
-      };
+      return { ...base, type: "pr_week" as const, assignments };
     }
   },
 });

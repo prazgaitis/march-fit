@@ -77,10 +77,16 @@ type EndPreviewOutcome = {
   hunterUser?: PreviewUser;
 };
 
+type ExcludedUser = {
+  user: PreviewUser;
+  totalPoints: number;
+};
+
 type StartPreviewData = {
   type: MiniGameType;
   participantCount: number;
   assignments: StartPreviewAssignment[];
+  excludedUsers: ExcludedUser[];
 };
 
 type EndPreviewData = {
@@ -369,6 +375,24 @@ export default function MiniGameDetailPage() {
                             </tbody>
                           </table>
                         </div>
+                        {startPreview.excludedUsers.length > 0 && (
+                          <div className="space-y-1.5">
+                            <div className="text-xs font-medium text-amber-400">
+                              {startPreview.excludedUsers.length} unpaid participant
+                              {startPreview.excludedUsers.length === 1 ? "" : "s"} excluded
+                            </div>
+                            <div className="flex flex-wrap gap-1.5">
+                              {startPreview.excludedUsers.map((excluded, i) => (
+                                <span
+                                  key={i}
+                                  className="rounded bg-zinc-800 px-2 py-0.5 text-xs text-zinc-400"
+                                >
+                                  {displayName(excluded.user)}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                         <div className="text-xs text-zinc-500">
                           This preview is read-only. Starting the game will lock these assignments.
                         </div>
