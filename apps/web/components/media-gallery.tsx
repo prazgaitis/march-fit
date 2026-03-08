@@ -1,11 +1,18 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { MediaLightbox } from "@/components/ui/media-lightbox";
+import { useOptimizedMedia } from "@/hooks/use-optimized-media";
+import {
+  getOptimizedMediaUrl,
+  isOptimizedVideo,
+} from "@/lib/media-optimizer";
 
 interface MediaGalleryProps {
   urls: string[];
+  /** Optimized media public IDs (from Cloudinary). Preferred over raw urls when available. */
+  optimizedMediaIds?: string[];
   /** Use compact aspect ratios for feed cards vs full for detail pages */
   variant?: "feed" | "detail";
 }
@@ -19,10 +26,33 @@ function isVideoUrl(url: string) {
   );
 }
 
-export function MediaGallery({ urls, variant = "feed" }: MediaGalleryProps) {
+export function MediaGallery({
+  urls,
+  optimizedMediaIds,
+  variant = "feed",
+}: MediaGalleryProps) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const showOptimized = useOptimizedMedia();
 
-  if (!urls || urls.length === 0) return null;
+  // Decide which URLs to render
+  const useOptimizedUrls =
+    showOptimized && optimizedMediaIds && optimizedMediaIds.length > 0;
+
+  const displayUrls = useOptimizedUrls
+    ? optimizedMediaIds.map((id) =>
+        getOptimizedMediaUrl(id, variant === "feed" ? "feed" : "full"),
+      )
+    : urls;
+
+  const fullUrls = useOptimizedUrls
+    ? optimizedMediaIds.map((id) => getOptimizedMediaUrl(id, "full"))
+    : urls;
+
+  const isVideoAtIndex = useOptimizedUrls
+    ? (index: number) => isOptimizedVideo(optimizedMediaIds[index])
+    : (index: number) => isVideoUrl(displayUrls[index]);
+
+  if (!displayUrls || displayUrls.length === 0) return null;
 
   const handleMediaClick = (e: React.MouseEvent, index: number) => {
     e.stopPropagation();
@@ -34,14 +64,14 @@ export function MediaGallery({ urls, variant = "feed" }: MediaGalleryProps) {
       <div
         className={cn(
           "grid gap-2",
-          urls.length === 1 && "grid-cols-1",
-          urls.length === 2 && "grid-cols-2",
-          urls.length >= 3 && "grid-cols-2",
+          displayUrls.length === 1 && "grid-cols-1",
+          displayUrls.length === 2 && "grid-cols-2",
+          displayUrls.length >= 3 && "grid-cols-2",
         )}
       >
-        {urls.slice(0, 4).map((url, index) => {
-          const isVideo = isVideoUrl(url);
-          const isLastWithMore = index === 3 && urls.length > 4;
+        {displayUrls.slice(0, 4).map((url, index) => {
+          const isVideo = isVideoAtIndex(index);
+          const isLastWithMore = index === 3 && displayUrls.length > 4;
 
           return (
             <button
@@ -49,11 +79,11 @@ export function MediaGallery({ urls, variant = "feed" }: MediaGalleryProps) {
               type="button"
               className={cn(
                 "relative overflow-hidden rounded-lg bg-zinc-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                urls.length === 1 ? "aspect-video" : "aspect-square",
-                urls.length === 3 && index === 0 && "row-span-2",
+                displayUrls.length === 1 ? "aspect-video" : "aspect-square",
+                displayUrls.length === 3 && index === 0 && "row-span-2",
               )}
               onClick={(e) => handleMediaClick(e, index)}
-              aria-label={`View ${isVideo ? "video" : "photo"} ${index + 1} of ${urls.length}`}
+              aria-label={`View ${isVideo ? "video" : "photo"} ${index + 1} of ${displayUrls.length}`}
             >
               {isVideo ? (
                 <video
@@ -74,7 +104,7 @@ export function MediaGallery({ urls, variant = "feed" }: MediaGalleryProps) {
               {isLastWithMore && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/60">
                   <span className="text-lg font-semibold text-white">
-                    +{urls.length - 4}
+                    +{displayUrls.length - 4}
                   </span>
                 </div>
               )}
@@ -84,7 +114,7 @@ export function MediaGallery({ urls, variant = "feed" }: MediaGalleryProps) {
       </div>
 
       <MediaLightbox
-        urls={urls}
+        urls={fullUrls}
         initialIndex={lightboxIndex ?? 0}
         open={lightboxIndex !== null}
         onClose={() => setLightboxIndex(null)}

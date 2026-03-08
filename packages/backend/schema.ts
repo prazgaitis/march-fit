@@ -146,6 +146,7 @@ export default defineSchema({
     ),
     imageUrl: v.optional(v.string()), // Legacy field for backward compatibility
     mediaIds: v.optional(v.array(v.id("_storage"))), // New field for media attachments
+    cloudinaryPublicIds: v.optional(v.array(v.string())), // Optimized media (Cloudinary)
     notes: v.optional(v.string()),
     flagged: v.boolean(),
     flaggedAt: v.optional(v.number()),
@@ -174,6 +175,7 @@ export default defineSchema({
       v.literal("strava"),
       v.literal("apple_health"),
       v.literal("mini_game"),
+      v.literal("category_leader"),
     ),
     externalId: v.optional(v.string()),
     externalData: v.optional(v.any()),
@@ -336,6 +338,7 @@ export default defineSchema({
     paymentReference: v.optional(v.string()),
     dismissedAnnouncementAt: v.optional(v.number()), // When user dismissed the announcement
     inviteCount: v.optional(v.number()), // Number of people who joined via this user's invite
+    leftAt: v.optional(v.number()), // When user left or was removed from the challenge
     updatedAt: v.number(),
   })
     .index("userId", ["userId"])

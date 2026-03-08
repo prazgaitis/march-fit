@@ -48,10 +48,14 @@ import { useIsMobile } from "@/hooks/use-media-query";
 import { useMentionableUsers } from "@/hooks/use-mentionable-users";
 import { isEditorContentEmpty } from "@/lib/rich-text-utils";
 import { cn } from "@/lib/utils";
+import {
+  isMediaOptimizationEnabled,
+  uploadOptimizedMedia,
+} from "@/lib/media-optimizer";
 import { PointsDisplay } from "@/components/ui/points-display";
 import { formatPoints } from "@/lib/points";
 import { format, isToday, isSameDay, subDays } from "date-fns";
-import { formatDateOnlyFromLocalDate, formatDateShortFromDateOnly } from "@/lib/date-only";
+import { formatDateOnlyFromLocalDate, formatDateShortFromDateOnly, parseDateOnlyToUtcMs } from "@/lib/date-only";
 
 interface ActivityLogDialogProps {
   challengeId: string;
@@ -316,14 +320,25 @@ export function ActivityLogDialog({ challengeId, challengeStartDate, trigger }: 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dismissTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Derive the user's local date as UTC-midnight ms so week boundaries are
+  // evaluated against the date being logged, not raw server time.  A user in
+  // an earlier timezone may still be in week N when the server has already
+  // ticked over to week N+1.
+  const loggedDateMs = useMemo(() => {
+    const d = form.loggedDate ?? new Date();
+    return parseDateOnlyToUtcMs(formatDateOnlyFromLocalDate(d));
+  }, [form.loggedDate]);
+
   const activityTypes = useQuery(
     api.queries.activityTypes.getVisibleByChallengeId,
-    open ? { challengeId: challengeId as Id<"challenges"> } : "skip"
+    open ? { challengeId: challengeId as Id<"challenges">, todayDateMs: loggedDateMs } : "skip"
   );
 
+  const currentUser = useQuery(api.queries.users.current);
   const logActivity = useMutation(api.mutations.activities.log);
   const createCheckoutSession = useAction(api.actions.payments.createCheckoutSession);
   const generateUploadUrl = useMutation(api.mutations.activities.generateUploadUrl);
+  const useMediaOptimizer = isMediaOptimizationEnabled(currentUser?.email);
 
   const paymentInfo = useQuery(api.queries.paymentConfig.getPublicPaymentInfo, {
     challengeId: challengeId as Id<"challenges">,
@@ -635,25 +650,40 @@ export function ActivityLogDialog({ challengeId, challengeStartDate, trigger }: 
     setSuccessState(null);
 
     try {
-      // Upload media files first
+      // Upload media files
+      let cloudinaryPublicIds: string[] | undefined;
       let mediaIds: Id<"_storage">[] | undefined;
+      let optimizedMediaIds: string[] | undefined;
       if (mediaFiles.length > 0) {
         setUploadProgress(`Uploading ${mediaFiles.length} file(s)...`);
-        mediaIds = [];
-        for (let i = 0; i < mediaFiles.length; i++) {
-          setUploadProgress(`Uploading file ${i + 1} of ${mediaFiles.length}...`);
-          const uploadUrl = await generateUploadUrl();
-          const response = await fetch(uploadUrl, {
-            method: "POST",
-            headers: { "Content-Type": mediaFiles[i].file.type },
-            body: mediaFiles[i].file,
-          });
-          if (!response.ok) {
-            throw new Error(`Failed to upload file ${i + 1}`);
+
+        if (useMediaOptimizer) {
+          // Upload to optimized media provider (Cloudinary)
+          optimizedMediaIds = [];
+          for (let i = 0; i < mediaFiles.length; i++) {
+            setUploadProgress(`Uploading file ${i + 1} of ${mediaFiles.length}...`);
+            const result = await uploadOptimizedMedia(mediaFiles[i].file);
+            optimizedMediaIds.push(result.publicId);
           }
-          const { storageId } = await response.json();
-          mediaIds.push(storageId);
+        } else {
+          // Fallback: upload to Convex storage
+          mediaIds = [];
+          for (let i = 0; i < mediaFiles.length; i++) {
+            setUploadProgress(`Uploading file ${i + 1} of ${mediaFiles.length}...`);
+            const uploadUrl = await generateUploadUrl();
+            const response = await fetch(uploadUrl, {
+              method: "POST",
+              headers: { "Content-Type": mediaFiles[i].file.type },
+              body: mediaFiles[i].file,
+            });
+            if (!response.ok) {
+              throw new Error(`Failed to upload file ${i + 1}`);
+            }
+            const { storageId } = await response.json();
+            mediaIds.push(storageId);
+          }
         }
+
         setUploadProgress(null);
       }
 
@@ -669,6 +699,7 @@ export function ActivityLogDialog({ challengeId, challengeStartDate, trigger }: 
         metrics,
         notes: !notesIsEmpty && form.notes && !isEditorContentEmpty(form.notes) ? form.notes : undefined,
         mediaIds,
+        cloudinaryPublicIds: optimizedMediaIds,
         timezone: browserTimezone,
         localTime,
         source: "manual",

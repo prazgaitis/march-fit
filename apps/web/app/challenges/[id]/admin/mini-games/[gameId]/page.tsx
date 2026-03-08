@@ -160,6 +160,7 @@ export default function MiniGameDetailPage() {
   const startMiniGame = useMutation(api.mutations.miniGames.start);
   const endMiniGame = useMutation(api.mutations.miniGames.end);
   const deleteMiniGame = useMutation(api.mutations.miniGames.remove);
+  const cancelMiniGame = useMutation(api.mutations.miniGames.cancel);
 
   const displayName = (user?: PreviewUser) =>
     user?.name || user?.username || "Unknown";
@@ -189,6 +190,16 @@ export default function MiniGameDetailPage() {
     } catch (error) {
       console.error("Failed to delete mini-game:", error);
       alert(error instanceof Error ? error.message : "Failed to delete mini-game");
+    }
+  };
+
+  const handleCancel = async () => {
+    try {
+      await cancelMiniGame({ miniGameId });
+      router.push(`/challenges/${challengeId}/admin/mini-games`);
+    } catch (error) {
+      console.error("Failed to cancel mini-game:", error);
+      alert(error instanceof Error ? error.message : "Failed to cancel mini-game");
     }
   };
 
@@ -401,6 +412,42 @@ export default function MiniGameDetailPage() {
 
             {miniGame.status === "active" && (
               <>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-8 text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                    >
+                      <X className="mr-1 h-3 w-3" />
+                      Cancel Game
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent className="border-zinc-800 bg-zinc-900">
+                    <AlertDialogHeader>
+                      <AlertDialogTitle className="text-zinc-100">
+                        Cancel Mini-Game?
+                      </AlertDialogTitle>
+                      <AlertDialogDescription className="text-zinc-400">
+                        This will cancel &quot;{miniGame.name}&quot; without awarding any
+                        bonus points. All participant assignments will be deleted. This
+                        action cannot be undone.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel className="border-zinc-700 bg-zinc-800 text-zinc-300 hover:bg-zinc-700">
+                        Keep Game
+                      </AlertDialogCancel>
+                      <AlertDialogAction
+                        onClick={handleCancel}
+                        className="bg-red-500 text-white hover:bg-red-600"
+                      >
+                        Cancel Game
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+
                 <Dialog open={isEndPreviewOpen} onOpenChange={setIsEndPreviewOpen}>
                   <DialogTrigger asChild>
                     <Button

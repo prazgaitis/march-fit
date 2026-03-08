@@ -17,6 +17,7 @@ const ROLLUP_TYPES = new Set([
   "like", "comment", "comment_like", "feedback_comment",
   "mini_game_partner_activity", "mini_game_hunter_activity", "mini_game_prey_activity",
   "strava_import",
+  "strava_update",
 ]);
 
 type Ctx = { db: any };
@@ -51,7 +52,7 @@ export async function insertNotification(
       .order("desc")
       .take(50);
 
-    const dedupByActor = notification.type.startsWith("mini_game_") || notification.type === "strava_import";
+    const dedupByActor = notification.type.startsWith("mini_game_") || notification.type === "strava_import" || notification.type === "strava_update";
     const isDuplicate = recent.some(
       (n: any) =>
         n.type === notification.type &&

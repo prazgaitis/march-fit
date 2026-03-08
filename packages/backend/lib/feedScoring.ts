@@ -9,7 +9,7 @@
 // ── Content score ──────────────────────────────────────────────
 
 export interface ContentScoreInput {
-  notesLength: number;
+  hasDescription: boolean;
   mediaCount: number;
   pointsEarned: number;
   triggeredBonusCount: number;
@@ -18,13 +18,7 @@ export interface ContentScoreInput {
 
 const BASE_SCORE = 1;
 const FLAG_PENALTY = -100;
-
-function descriptionBoost(length: number): number {
-  if (length >= 100) return 16;
-  if (length >= 50) return 10;
-  if (length >= 20) return 4;
-  return 0;
-}
+const DESCRIPTION_BOOST = 10;
 
 function mediaBoost(count: number): number {
   return Math.min(count * 10, 30);
@@ -44,7 +38,7 @@ export function computeContentScore(input: ContentScoreInput): number {
 
   return (
     BASE_SCORE +
-    descriptionBoost(input.notesLength) +
+    (input.hasDescription ? DESCRIPTION_BOOST : 0) +
     mediaBoost(input.mediaCount) +
     pointsBoost(input.pointsEarned) +
     bonusBoost(input.triggeredBonusCount)
@@ -135,7 +129,7 @@ export function computePersonalizedRank(
   );
 }
 
-// ── Final display score (query time) ───────────────────────────
+// ── Final display score (query time, no decay) ─────────────────
 
 export function computeDisplayScore(
   feedScore: number,
@@ -144,6 +138,41 @@ export function computeDisplayScore(
 ): number {
   return (
     feedScore +
+    (isFollowing ? FOLLOWING_BOOST : 0) +
+    computeAffinityBoost(affinityScore)
+  );
+}
+
+// ── Decayed display score (query time, for "For You" feed) ─────
+//
+// Quality decay: feedScore × 0.5^(ageHours / QUALITY_HALF_LIFE_HOURS)
+// Freshness bonus: FRESHNESS_BONUS × 0.5^(ageHours / FRESHNESS_HALF_LIFE_HOURS)
+// Final: (feedScore + freshnessBonus) × qualityDecay + social boosts
+
+export const QUALITY_HALF_LIFE_HOURS = 18;
+export const FRESHNESS_BONUS = 15;
+export const FRESHNESS_HALF_LIFE_HOURS = 6;
+
+function halfLifeDecay(ageHours: number, halfLifeHours: number): number {
+  if (ageHours <= 0) return 1;
+  return Math.pow(0.5, ageHours / halfLifeHours);
+}
+
+export function computeDecayedScore(
+  feedScore: number,
+  ageMs: number,
+  isFollowing: boolean,
+  affinityScore: number = 0,
+): number {
+  const ageHours = Math.max(0, ageMs) / (1000 * 60 * 60);
+  const qualityDecay = halfLifeDecay(ageHours, QUALITY_HALF_LIFE_HOURS);
+  const freshnessBonus =
+    FRESHNESS_BONUS * halfLifeDecay(ageHours, FRESHNESS_HALF_LIFE_HOURS);
+
+  const decayed = (feedScore + freshnessBonus) * qualityDecay;
+
+  return (
+    decayed +
     (isFollowing ? FOLLOWING_BOOST : 0) +
     computeAffinityBoost(affinityScore)
   );

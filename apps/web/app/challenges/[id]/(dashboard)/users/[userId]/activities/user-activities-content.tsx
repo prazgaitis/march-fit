@@ -68,7 +68,7 @@ export function UserActivitiesContent({
               </div>
               <p className="font-semibold text-primary">
                 {item.activity.pointsEarned >= 0 ? "+" : ""}
-                {item.activity.pointsEarned.toFixed(0)} pts
+                {item.activity.pointsEarned.toFixed(2)} pts
               </p>
             </Link>
           ))}

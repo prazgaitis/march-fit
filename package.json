@@ -34,7 +34,7 @@
     "db:migrate:run": "pnpm -F backend exec npx convex run migrations:run",
     "db:seed": "pnpm -F backend reset",
     "db:seed:if-missing": "pnpm -F backend seed:if-missing",
-    "db:export": "pnpm -F backend exec npx convex export --path ${CONVEX_EXPORT_PATH:-./scripts/seed-data/export.zip}",
+    "db:export": "pnpm -F backend exec npx convex export --include-file-storage --path ${CONVEX_EXPORT_PATH:-./scripts/seed-data/export.zip}",
     "db:import": "pnpm -F backend exec npx convex import ${CONVEX_EXPORT_PATH:-./scripts/seed-data/export.zip} --replace-all -y",
     "strava:webhook": "dotenv -e .env.local -- npx tsx scripts/strava-webhook.ts",
     "storybook": "pnpm -F web storybook",

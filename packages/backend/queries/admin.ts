@@ -6,7 +6,7 @@ import { getCurrentUser } from "../lib/ids";
 import {
   FOLLOWING_BOOST,
   computeAffinityBoost,
-  computeDisplayScore,
+  computeDecayedScore,
 } from "../lib/feedScoring";
 import type { Id } from "../_generated/dataModel";
 
@@ -559,8 +559,11 @@ export const getMonitoringDashboard = query({
           affinityByAuthor.get(activity.userId as string) ?? 0;
         const affinityBoostApplied = computeAffinityBoost(affinityScore);
         const feedScore = activity.feedScore ?? 0;
-        const displayScore = computeDisplayScore(
+        const now = Date.now();
+        const ageMs = now - activity.createdAt;
+        const displayScore = computeDecayedScore(
           feedScore,
+          ageMs,
           isFollowing,
           affinityScore,
         );

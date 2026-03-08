@@ -62,6 +62,7 @@ function getNotificationIcon(type: string) {
     case "mini_game_prey_activity":
       return <Swords className="h-4 w-4 text-red-500" />;
     case "strava_import":
+    case "strava_update":
       return <Activity className="h-4 w-4 text-orange-500" />;
     default:
       return <Bell className="h-4 w-4 text-zinc-400" />;
@@ -134,6 +135,21 @@ export function getNotificationMessage(notification: Notification) {
         return `Strava activity "${activityName}" imported — ${points} pts earned`;
       }
       return "Your Strava activity was imported";
+    }
+    case "strava_update": {
+      const activityName = notification.data?.activityName as string | undefined;
+      const points = notification.data?.pointsEarned as number | undefined;
+      const prevPoints = notification.data?.previousPointsEarned as number | undefined;
+      const hasNewMedia = notification.data?.hasNewMedia as boolean | undefined;
+      const label = activityName ? `"${activityName}"` : "Your activity";
+      const mediaSuffix = hasNewMedia ? " with photos" : "";
+      if (points != null && prevPoints != null && prevPoints !== points) {
+        return `Strava activity ${label} updated${mediaSuffix} — ${points} pts (was ${prevPoints})`;
+      }
+      if (points != null) {
+        return `Strava activity ${label} updated${mediaSuffix} — ${points} pts`;
+      }
+      return `Your Strava activity was updated${mediaSuffix}`;
     }
     default:
       return `${actorName} interacted with you`;

@@ -5,7 +5,7 @@ import { notDeleted } from "../lib/activityFilters";
 import {
   FOLLOWING_BOOST,
   computeAffinityBoost,
-  computeDisplayScore,
+  computeDecayedScore,
 } from "../lib/feedScoring";
 
 /**
@@ -137,8 +137,11 @@ export const getAlgorithmicFeed = query({
           ? affinityByAuthor.get(activity.userId as string) ?? 0
           : 0;
 
-        const displayScore = computeDisplayScore(
+        const now = Date.now();
+        const ageMs = now - activity.createdAt;
+        const displayScore = computeDecayedScore(
           activity.feedScore ?? 0,
+          ageMs,
           isFollowing,
           affinityScore,
         );
@@ -163,6 +166,7 @@ export const getAlgorithmicFeed = query({
           comments: commentCount,
           likedByUser: userLike !== null,
           mediaUrls,
+          cloudinaryPublicIds: activity.cloudinaryPublicIds ?? [],
           recentLikers,
           displayScore,
           affinityScore,

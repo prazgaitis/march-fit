@@ -137,6 +137,30 @@ describe('getVisibleByChallengeId', () => {
     expect(names).not.toContain('Week 1 Final Days');
   });
 
+  it('respects todayDateMs over server time for week filtering', async () => {
+    // Challenge started 8 days ago → server is in week 2.
+    // But we pass todayDateMs = day 6 (still week 1) to simulate a user
+    // whose local date is still Saturday while the server has ticked to Sunday.
+    const startUtcMs = Date.now() - 8 * DAY_MS;
+    const { challengeId } = await setupChallenge({ startUtcMs });
+
+    await insertActivityType(challengeId, 'Week 1 Only', { validWeeks: [1] });
+    await insertActivityType(challengeId, 'Week 2 Only', { validWeeks: [2] });
+    await insertActivityType(challengeId, 'Always Visible');
+
+    // Pass a todayDateMs that lands in week 1 (day 6 = 7 days ago)
+    const week1DateMs = startUtcMs + 6 * DAY_MS;
+    const result = await t.query(api.queries.activityTypes.getVisibleByChallengeId, {
+      challengeId,
+      todayDateMs: week1DateMs,
+    });
+    const names = result.map((r: any) => r.name);
+
+    expect(names).toContain('Week 1 Only');     // week 1 date → should be visible ✓
+    expect(names).not.toContain('Week 2 Only'); // not yet ✗
+    expect(names).toContain('Always Visible');
+  });
+
   it('returns results sorted by displayOrder', async () => {
     const { challengeId } = await setupChallenge({ startUtcMs: Date.now() - 5 * DAY_MS });
 

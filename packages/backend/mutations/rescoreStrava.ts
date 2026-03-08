@@ -55,7 +55,7 @@ export const rescoreZeroPointActivities = internalMutation({
       const metrics = (activity.metrics ?? {}) as Record<string, unknown>;
       const loggedDate = new Date(activity.loggedDate);
 
-      const hasMedia = !!(activity.mediaIds?.length || activity.imageUrl);
+      const hasMedia = !!(activity.mediaIds?.length || activity.cloudinaryPublicIds?.length || activity.imageUrl);
       const score = await calculateFinalActivityScore(
         activityType,
         {

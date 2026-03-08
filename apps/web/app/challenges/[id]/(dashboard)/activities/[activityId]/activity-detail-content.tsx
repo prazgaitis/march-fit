@@ -443,7 +443,7 @@ export function ActivityDetailContent({
       setEditNewMedia([]);
 
       toast.success(
-        `Activity updated! ${formatPoints(result.pointsEarned, 1)} pts.`,
+        `Activity updated! ${formatPoints(result.pointsEarned, 2)} pts.`,
       );
       setShowEditDialog(false);
     } catch (err) {
@@ -495,6 +495,7 @@ export function ActivityDetailContent({
     comments,
     likedByUser,
     mediaUrls,
+    cloudinaryPublicIds,
     recentLikers,
     adminComment,
     isAdmin,
@@ -566,7 +567,7 @@ export function ActivityDetailContent({
                 <PointsDisplay
                   points={activity.pointsEarned}
                   isNegative={activityType.isNegative}
-                  decimals={1}
+                  decimals={2}
                   size="lg"
                   showSign={true}
                   showLabel={true}
@@ -615,7 +616,7 @@ export function ActivityDetailContent({
             )}
 
             {/* Media Gallery */}
-            <MediaGallery urls={mediaUrls ?? []} variant="detail" />
+            <MediaGallery urls={mediaUrls ?? []} optimizedMediaIds={cloudinaryPublicIds} variant="detail" />
 
             {adminComment && (
               <div className="flex items-start gap-3 rounded-lg border border-amber-500/30 bg-amber-500/5 p-4">

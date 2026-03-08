@@ -22,7 +22,7 @@ const sizeClasses = {
 export function PointsDisplay({
   points,
   isNegative,
-  decimals = 0,
+  decimals = 2,
   size = "base",
   showSign = true,
   showLabel = true,

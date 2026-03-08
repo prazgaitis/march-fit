@@ -408,10 +408,11 @@ export const getParticipants = query({
     const limit = args.limit ?? 20;
     const offset = args.offset ?? 0;
 
-    const participations = await ctx.db
+    const allParticipations = await ctx.db
       .query("userChallenges")
       .withIndex("challengeId", (q) => q.eq("challengeId", args.challengeId))
       .collect();
+    const participations = allParticipations.filter((p) => !p.leftAt);
     // Sort by denormalized totalPoints descending
     participations.sort((a, b) => b.totalPoints - a.totalPoints);
 

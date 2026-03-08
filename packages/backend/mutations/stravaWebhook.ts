@@ -172,6 +172,7 @@ export const createFromStrava = internalMutation({
           metrics: mappedActivity.metrics,
           pointsEarned,
           triggeredBonuses: triggeredBonuses.length > 0 ? triggeredBonuses : undefined,
+          notes: mappedActivity.notes ?? existing.notes,
           imageUrl: mappedActivity.imageUrl ?? existing.imageUrl,
           localTime: mappedActivity.localTime ?? undefined,
           timezone: mappedActivity.timezone ?? undefined,
@@ -196,6 +197,21 @@ export const createFromStrava = internalMutation({
           challengeStartDate: challenge.startDate,
         });
 
+        // Notify user their previously-deleted Strava activity was re-imported
+        await insertNotification(ctx, {
+          userId: args.userId,
+          actorId: args.userId,
+          type: "strava_update",
+          data: {
+            activityId: existing._id,
+            challengeId: args.challengeId,
+            activityName: stravaActivity.name,
+            pointsEarned,
+            activityTypeName: activityType.name,
+          },
+          createdAt: Date.now(),
+        });
+
         return existing._id;
       }
 
@@ -206,6 +222,7 @@ export const createFromStrava = internalMutation({
         metrics: mappedActivity.metrics,
         pointsEarned,
         triggeredBonuses: triggeredBonuses.length > 0 ? triggeredBonuses : undefined,
+        notes: mappedActivity.notes ?? existing.notes,
         imageUrl: mappedActivity.imageUrl ?? existing.imageUrl,
         localTime: mappedActivity.localTime ?? undefined,
         timezone: mappedActivity.timezone ?? undefined,
@@ -271,6 +288,24 @@ export const createFromStrava = internalMutation({
           pointsDelta: pointsEarned,
         });
       }
+
+      // Notify user their Strava activity was updated
+      const hasNewMedia = hasMedia && !existing.imageUrl;
+      await insertNotification(ctx, {
+        userId: args.userId,
+        actorId: args.userId,
+        type: "strava_update",
+        data: {
+          activityId: existing._id,
+          challengeId: args.challengeId,
+          activityName: stravaActivity.name,
+          pointsEarned,
+          previousPointsEarned: existing.pointsEarned,
+          activityTypeName: activityType.name,
+          hasNewMedia,
+        },
+        createdAt: Date.now(),
+      });
 
       return existing._id;
     }

@@ -135,10 +135,11 @@ export const getChallengeLeaderboard = query({
     paginationOpts: paginationOptsValidator,
   },
   handler: async (ctx, args) => {
-    const participations = await ctx.db
+    const allParticipations = await ctx.db
       .query("userChallenges")
       .withIndex("challengeId", (q) => q.eq("challengeId", args.challengeId))
       .collect();
+    const participations = allParticipations.filter((p) => !p.leftAt);
 
     // Sort by denormalized totalPoints descending
     const sorted = [...participations].sort(
@@ -188,10 +189,11 @@ export const getFullLeaderboard = query({
   },
   handler: async (ctx, args) => {
     // Get all participations
-    const participations = await ctx.db
+    const allParticipations = await ctx.db
       .query("userChallenges")
       .withIndex("challengeId", (q) => q.eq("challengeId", args.challengeId))
       .collect();
+    const participations = allParticipations.filter((p) => !p.leftAt);
 
     // Sort by denormalized totalPoints descending
     const sorted = [...participations].sort(
@@ -747,14 +749,14 @@ export const getInviteLeaderboard = query({
     challengeId: v.id("challenges"),
   },
   handler: async (ctx, args) => {
-    const participations = await ctx.db
+    const allParticipations = await ctx.db
       .query("userChallenges")
       .withIndex("challengeId", (q) => q.eq("challengeId", args.challengeId))
       .collect();
 
-    // Filter to users with at least 1 invite, sort by inviteCount descending
-    const withInvites = participations
-      .filter((p) => (p.inviteCount ?? 0) > 0)
+    // Filter to active users with at least 1 invite, sort by inviteCount descending
+    const withInvites = allParticipations
+      .filter((p) => !p.leftAt && (p.inviteCount ?? 0) > 0)
       .sort((a, b) => (b.inviteCount ?? 0) - (a.inviteCount ?? 0));
 
     const entries = await Promise.all(
