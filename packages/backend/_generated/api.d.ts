@@ -37,6 +37,7 @@ import type * as lib_activityFilters from "../lib/activityFilters.js";
 import type * as lib_activityPointsAggregate from "../lib/activityPointsAggregate.js";
 import type * as lib_activityWrites from "../lib/activityWrites.js";
 import type * as lib_apiKey from "../lib/apiKey.js";
+import type * as lib_categoryLeaderPoints from "../lib/categoryLeaderPoints.js";
 import type * as lib_categoryPoints from "../lib/categoryPoints.js";
 import type * as lib_challengePoints from "../lib/challengePoints.js";
 import type * as lib_dateOnly from "../lib/dateOnly.js";
@@ -74,6 +75,7 @@ import type * as mutations_backfillFeedScore from "../mutations/backfillFeedScor
 import type * as mutations_backfillInviteCount from "../mutations/backfillInviteCount.js";
 import type * as mutations_backfillWeeklyCategoryPoints from "../mutations/backfillWeeklyCategoryPoints.js";
 import type * as mutations_categories from "../mutations/categories.js";
+import type * as mutations_categoryLeaderAwards from "../mutations/categoryLeaderAwards.js";
 import type * as mutations_challengeInvites from "../mutations/challengeInvites.js";
 import type * as mutations_challenges from "../mutations/challenges.js";
 import type * as mutations_cleanup from "../mutations/cleanup.js";
@@ -110,6 +112,7 @@ import type * as queries_backfillCategoryPoints from "../queries/backfillCategor
 import type * as queries_backfillCloudinary from "../queries/backfillCloudinary.js";
 import type * as queries_backfillWeeklyCategoryPoints from "../queries/backfillWeeklyCategoryPoints.js";
 import type * as queries_categories from "../queries/categories.js";
+import type * as queries_categoryLeaderAwards from "../queries/categoryLeaderAwards.js";
 import type * as queries_challengeInvites from "../queries/challengeInvites.js";
 import type * as queries_challenges from "../queries/challenges.js";
 import type * as queries_comments from "../queries/comments.js";
@@ -174,6 +177,7 @@ declare const fullApi: ApiFromModules<{
   "lib/activityPointsAggregate": typeof lib_activityPointsAggregate;
   "lib/activityWrites": typeof lib_activityWrites;
   "lib/apiKey": typeof lib_apiKey;
+  "lib/categoryLeaderPoints": typeof lib_categoryLeaderPoints;
   "lib/categoryPoints": typeof lib_categoryPoints;
   "lib/challengePoints": typeof lib_challengePoints;
   "lib/dateOnly": typeof lib_dateOnly;
@@ -211,6 +215,7 @@ declare const fullApi: ApiFromModules<{
   "mutations/backfillInviteCount": typeof mutations_backfillInviteCount;
   "mutations/backfillWeeklyCategoryPoints": typeof mutations_backfillWeeklyCategoryPoints;
   "mutations/categories": typeof mutations_categories;
+  "mutations/categoryLeaderAwards": typeof mutations_categoryLeaderAwards;
   "mutations/challengeInvites": typeof mutations_challengeInvites;
   "mutations/challenges": typeof mutations_challenges;
   "mutations/cleanup": typeof mutations_cleanup;
@@ -247,6 +252,7 @@ declare const fullApi: ApiFromModules<{
   "queries/backfillCloudinary": typeof queries_backfillCloudinary;
   "queries/backfillWeeklyCategoryPoints": typeof queries_backfillWeeklyCategoryPoints;
   "queries/categories": typeof queries_categories;
+  "queries/categoryLeaderAwards": typeof queries_categoryLeaderAwards;
   "queries/challengeInvites": typeof queries_challengeInvites;
   "queries/challenges": typeof queries_challenges;
   "queries/comments": typeof queries_comments;

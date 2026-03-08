@@ -1399,7 +1399,8 @@ export const createMiniGameForUser = internalMutation({
 });
 
 /**
- * Update a draft mini-game on behalf of an admin user (API key authenticated).
+ * Update a mini-game on behalf of an admin user (API key authenticated).
+ * Draft games allow full edits. Active games only allow endsAt changes.
  */
 export const updateMiniGameForUser = internalMutation({
   args: {
@@ -1414,8 +1415,17 @@ export const updateMiniGameForUser = internalMutation({
     const miniGame = await ctx.db.get(args.miniGameId);
     if (!miniGame) throw new Error("Mini-game not found");
 
-    if (miniGame.status !== "draft") {
-      throw new Error("Can only edit draft mini-games");
+    if (miniGame.status !== "draft" && miniGame.status !== "active") {
+      throw new Error("Can only edit draft or active mini-games");
+    }
+
+    if (miniGame.status === "active") {
+      if (args.startsAt !== undefined) {
+        throw new Error("Cannot change start date of an active mini-game");
+      }
+      if (args.name !== undefined || args.config !== undefined) {
+        throw new Error("Can only change end date of an active mini-game");
+      }
     }
 
     const challenge = await ctx.db.get(miniGame.challengeId);
@@ -1457,6 +1467,38 @@ export const removeMiniGameForUser = internalMutation({
 
     if (miniGame.status !== "draft") {
       throw new Error("Can only delete draft mini-games");
+    }
+
+    await ctx.db.delete(args.miniGameId);
+    return { success: true };
+  },
+});
+
+/**
+ * Cancel an active mini-game without awarding points (API key authenticated).
+ * Deletes all participant records and the game itself.
+ */
+export const cancelMiniGameForUser = internalMutation({
+  args: {
+    userId: v.id("users"),
+    miniGameId: v.id("miniGames"),
+  },
+  handler: async (ctx, args) => {
+    const miniGame = await ctx.db.get(args.miniGameId);
+    if (!miniGame) throw new Error("Mini-game not found");
+
+    if (miniGame.status !== "active") {
+      throw new Error("Can only cancel active mini-games");
+    }
+
+    // Delete all participant records
+    const participants = await ctx.db
+      .query("miniGameParticipants")
+      .withIndex("miniGameId", (q: any) => q.eq("miniGameId", args.miniGameId))
+      .collect();
+
+    for (const participant of participants) {
+      await ctx.db.delete(participant._id);
     }
 
     await ctx.db.delete(args.miniGameId);

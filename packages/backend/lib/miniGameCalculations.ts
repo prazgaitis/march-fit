@@ -100,11 +100,12 @@ export async function getLeaderboard(
   ctx: ReadCtx,
   challengeId: Id<"challenges">,
 ): Promise<LeaderboardEntry[]> {
-  const participations = await ctx.db
+  const allParticipations = await ctx.db
     .query("userChallenges")
     .withIndex("challengeId", (q) => q.eq("challengeId", challengeId))
     .collect();
 
+  const participations = allParticipations.filter((p) => !p.leftAt);
   participations.sort((a, b) => b.totalPoints - a.totalPoints);
 
   return participations.map((p) => ({

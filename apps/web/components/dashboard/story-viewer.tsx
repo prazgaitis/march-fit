@@ -148,6 +148,35 @@ export function StoryViewer({
     };
   }, [open, paused, storyIndex, slideIndex, goToNextSlide]);
 
+  // Preload upcoming slide images so transitions feel instant
+  useEffect(() => {
+    if (!open || !story) return;
+
+    const urlsToPreload: string[] = [];
+
+    // Next slides in current story
+    for (let i = slideIndex + 1; i < Math.min(slideIndex + 3, story.slides.length); i++) {
+      const url = story.slides[i]?.mediaUrl;
+      if (url && !url.includes(".mp4") && !url.includes(".mov") && !url.includes(".webm") && !url.includes("video")) {
+        urlsToPreload.push(url);
+      }
+    }
+
+    // First slides of the next story
+    if (storyIndex < stories.length - 1) {
+      const nextStory = stories[storyIndex + 1];
+      const url = nextStory?.slides[0]?.mediaUrl;
+      if (url && !url.includes(".mp4") && !url.includes(".mov") && !url.includes(".webm") && !url.includes("video")) {
+        urlsToPreload.push(url);
+      }
+    }
+
+    for (const url of urlsToPreload) {
+      const img = new Image();
+      img.src = url;
+    }
+  }, [open, story, storyIndex, slideIndex, stories]);
+
   // Keyboard
   useEffect(() => {
     if (!open) return;

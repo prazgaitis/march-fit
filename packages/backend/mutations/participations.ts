@@ -317,3 +317,74 @@ export const updateRole = mutation({
     await ctx.db.patch(participation._id, { role: args.role });
   },
 });
+
+/**
+ * Leave a challenge (self-service).
+ * Soft-deletes participation so data is preserved but user is no longer active.
+ */
+export const leave = mutation({
+  args: {
+    challengeId: v.id("challenges"),
+  },
+  handler: async (ctx, args) => {
+    const user = await requireCurrentUser(ctx);
+
+    const participation = await ctx.db
+      .query("userChallenges")
+      .withIndex("userChallengeUnique", (q) =>
+        q.eq("userId", user._id).eq("challengeId", args.challengeId)
+      )
+      .first();
+
+    if (!participation) {
+      throw new Error("You are not in this challenge");
+    }
+
+    // Prevent challenge creator from leaving
+    const challenge = await ctx.db.get(args.challengeId);
+    if (challenge && challenge.creatorId === user._id) {
+      throw new Error("Challenge creator cannot leave the challenge");
+    }
+
+    await ctx.db.patch(participation._id, {
+      leftAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+  },
+});
+
+/**
+ * Remove a participant from a challenge (admin only).
+ * Soft-deletes participation so data is preserved.
+ */
+export const removeParticipant = mutation({
+  args: {
+    challengeId: v.id("challenges"),
+    userId: v.id("users"),
+  },
+  handler: async (ctx, args) => {
+    await requireChallengeAdmin(ctx, args.challengeId);
+
+    const participation = await ctx.db
+      .query("userChallenges")
+      .withIndex("userChallengeUnique", (q) =>
+        q.eq("userId", args.userId).eq("challengeId", args.challengeId)
+      )
+      .first();
+
+    if (!participation) {
+      throw new Error("Participation not found");
+    }
+
+    // Prevent removing the challenge creator
+    const challenge = await ctx.db.get(args.challengeId);
+    if (challenge && challenge.creatorId === args.userId) {
+      throw new Error("Cannot remove the challenge creator");
+    }
+
+    await ctx.db.patch(participation._id, {
+      leftAt: Date.now(),
+      updatedAt: Date.now(),
+    });
+  },
+});

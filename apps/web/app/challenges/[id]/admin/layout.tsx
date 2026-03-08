@@ -63,6 +63,7 @@ export default async function ChallengeAdminLayout({
         { href: `${base}/categories`, label: "Categories", segment: "categories" },
         { href: `${base}/integrations`, label: "Integrations", segment: "integrations" },
         { href: `${base}/achievements`, label: "Achievements", segment: "achievements" },
+        { href: `${base}/category-leaders`, label: "Cat Leaders", segment: "category-leaders" },
       ],
     },
     {

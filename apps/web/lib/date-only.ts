@@ -83,6 +83,19 @@ export function formatMonthDayFromUtcMs(
   }).format(new Date(timestampMs));
 }
 
+export function formatDateShortFromUtcMs(
+  timestampMs: number,
+  locale = "en-US",
+): string {
+  if (!Number.isFinite(timestampMs)) return "";
+  return new Intl.DateTimeFormat(locale, {
+    timeZone: "UTC",
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  }).format(new Date(timestampMs));
+}
+
 export function formatDateLongFromUtcMs(
   timestampMs: number,
   locale = "en-US",

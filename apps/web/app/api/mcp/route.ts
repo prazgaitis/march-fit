@@ -1,6 +1,7 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { createMcpHandler } from "mcp-handler";
 import { z } from "zod";
+import * as Sentry from "@sentry/nextjs";
 
 export const runtime = "nodejs";
 
@@ -103,6 +104,22 @@ async function apiRequest(
       typeof (payload as { error: unknown }).error === "string"
         ? (payload as { error: string }).error
         : `Request failed with status ${response.status}`;
+
+    Sentry.captureMessage(`MCP API call failed: ${options.method ?? "GET"} ${path}`, {
+      level: response.status >= 500 ? "error" : "warning",
+      tags: {
+        subsystem: "mcp",
+        mcpEvent: "api_error",
+        apiMethod: options.method ?? "GET",
+        apiPath: path,
+        statusCode: String(response.status),
+      },
+      extra: {
+        errorMessage: message,
+        statusCode: response.status,
+      },
+    });
+
     throw new Error(message);
   }
 
@@ -899,8 +916,13 @@ const mcpHandler = createMcpHandler(
 );
 
 async function authenticatedMcpHandler(request: Request): Promise<Response> {
+  const startedAt = Date.now();
   const token = getBearerToken(request);
   if (!token) {
+    Sentry.captureMessage("MCP auth failed: missing token", {
+      level: "warning",
+      tags: { subsystem: "mcp", mcpEvent: "auth_failure" },
+    });
     return new Response(
       JSON.stringify({
         error: "Missing or invalid Authorization header. Use: Bearer <api-key>",
@@ -914,9 +936,14 @@ async function authenticatedMcpHandler(request: Request): Promise<Response> {
     );
   }
 
+  let meData: Record<string, unknown> | null = null;
   try {
-    await apiRequest(token, "/me");
+    meData = (await apiRequest(token, "/me")) as Record<string, unknown>;
   } catch {
+    Sentry.captureMessage("MCP auth failed: invalid API key", {
+      level: "warning",
+      tags: { subsystem: "mcp", mcpEvent: "auth_failure" },
+    });
     return new Response(JSON.stringify({ error: "Invalid or revoked API key" }), {
       status: 401,
       headers: {
@@ -925,7 +952,34 @@ async function authenticatedMcpHandler(request: Request): Promise<Response> {
     });
   }
 
-  return apiTokenStorage.run(token, () => mcpHandler(request));
+  // Set Sentry user context for this request
+  if (meData) {
+    Sentry.setUser({
+      id: meData.id as string,
+      username: meData.username as string,
+    });
+    Sentry.setTag("mcpUser", meData.username as string);
+  }
+
+  const response = await apiTokenStorage.run(token, () => mcpHandler(request));
+
+  const durationMs = Date.now() - startedAt;
+  Sentry.captureMessage(`MCP request ${request.method} → ${response.status}`, {
+    level: "info",
+    tags: {
+      subsystem: "mcp",
+      mcpEvent: "request",
+      method: request.method,
+      statusCode: String(response.status),
+    },
+    extra: {
+      durationMs,
+      userId: meData?.id,
+      username: meData?.username,
+    },
+  });
+
+  return response;
 }
 
 export async function GET(request: Request) {

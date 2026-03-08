@@ -44,6 +44,7 @@ export default function AdminParticipantsPage() {
 
   const updateRole = useMutation(api.mutations.participations.updateRole);
   const clearTestPayment = useMutation(api.mutations.payments.clearTestPayment);
+  const removeParticipant = useMutation(api.mutations.participations.removeParticipant);
 
   const paymentConfig = useQuery(api.queries.paymentConfig.getPaymentConfig, {
     challengeId: challengeId as Id<"challenges">,
@@ -320,6 +321,22 @@ export default function AdminParticipantsPage() {
                     )}
                   >
                     {participant.role === "admin" ? "Remove Admin" : "Make Admin"}
+                  </button>
+                  <button
+                    onClick={async () => {
+                      if (!confirm(`Remove ${participant.user.name || participant.user.username} from this challenge?`)) return;
+                      try {
+                        await removeParticipant({
+                          challengeId: challengeId as Id<"challenges">,
+                          userId: participant.user.id,
+                        });
+                      } catch (error) {
+                        alert(error instanceof Error ? error.message : "Failed to remove participant");
+                      }
+                    }}
+                    className="text-xs text-red-400 hover:text-red-300 hover:underline"
+                  >
+                    Remove
                   </button>
                 </div>
               </div>
