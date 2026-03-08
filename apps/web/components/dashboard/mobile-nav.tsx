@@ -33,7 +33,7 @@ export function MobileNav({ challengeId, currentUserId, challengeStartDate }: Mo
       className="fixed inset-x-0 bottom-0 z-50 border-t border-white/10 bg-zinc-950 lg:hidden"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
-      <div className="grid grid-cols-5 items-center py-2">
+      <div className="grid grid-cols-5 items-center">
         {leftItems.map((item) => {
           const href = item.href(challengeId, currentUserId);
           const isActive = pathname === href ||
@@ -44,7 +44,7 @@ export function MobileNav({ challengeId, currentUserId, challengeStartDate }: Mo
               key={item.label}
               href={href}
               className={cn(
-                "relative flex flex-col items-center gap-1 py-2 transition-colors",
+                "relative flex flex-col items-center gap-1 py-3 transition-colors active:opacity-70",
                 isActive
                   ? "text-white"
                   : "text-zinc-500 hover:text-zinc-300"
@@ -67,7 +67,7 @@ export function MobileNav({ challengeId, currentUserId, challengeStartDate }: Mo
             challengeId={challengeId}
             challengeStartDate={challengeStartDate}
             trigger={
-              <button className="flex h-12 w-12 items-center justify-center rounded-full border border-white/15 bg-transparent text-zinc-100 transition hover:bg-white/10 hover:text-white">
+              <button className="flex h-12 w-12 items-center justify-center rounded-full border border-white/15 bg-transparent text-zinc-100 transition hover:bg-white/10 hover:text-white active:scale-95">
                 <Plus className="h-6 w-6" />
               </button>
             }
@@ -83,7 +83,7 @@ export function MobileNav({ challengeId, currentUserId, challengeStartDate }: Mo
               key={item.label}
               href={href}
               className={cn(
-                "flex flex-col items-center gap-1 py-2 transition-colors",
+                "flex flex-col items-center gap-1 py-3 transition-colors active:opacity-70",
                 isActive
                   ? "text-white"
                   : "text-zinc-500 hover:text-zinc-300"
@@ -99,7 +99,7 @@ export function MobileNav({ challengeId, currentUserId, challengeStartDate }: Mo
           <DropdownMenuTrigger asChild>
             <button
               className={cn(
-                "flex flex-col items-center gap-1 py-2 transition-colors w-full",
+                "flex flex-col items-center gap-1 py-3 transition-colors w-full active:opacity-70",
                 menuActive ? "text-white" : "text-zinc-500 hover:text-zinc-300"
               )}
               aria-label="More navigation"

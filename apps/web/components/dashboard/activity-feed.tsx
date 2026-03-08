@@ -536,7 +536,7 @@ export function ActivityFeed({
           <button
             onClick={() => setFeedFilter("for_you")}
             className={cn(
-              "relative flex-1 py-4 text-center text-sm font-medium transition-colors hover:bg-zinc-900/50",
+              "relative min-h-[44px] flex-1 py-4 text-center text-sm font-medium transition-colors hover:bg-zinc-900/50 active:bg-zinc-800/50",
               feedFilter === "for_you" ? "text-white" : "text-zinc-500",
             )}
           >
@@ -548,7 +548,7 @@ export function ActivityFeed({
           <button
             onClick={() => setFeedFilter("all")}
             className={cn(
-              "relative flex-1 py-4 text-center text-sm font-medium transition-colors hover:bg-zinc-900/50",
+              "relative min-h-[44px] flex-1 py-4 text-center text-sm font-medium transition-colors hover:bg-zinc-900/50 active:bg-zinc-800/50",
               feedFilter === "all" ? "text-white" : "text-zinc-500",
             )}
           >
@@ -560,7 +560,7 @@ export function ActivityFeed({
           <button
             onClick={() => setFeedFilter("following")}
             className={cn(
-              "relative flex-1 py-4 text-center text-sm font-medium transition-colors hover:bg-zinc-900/50",
+              "relative min-h-[44px] flex-1 py-4 text-center text-sm font-medium transition-colors hover:bg-zinc-900/50 active:bg-zinc-800/50",
               feedFilter === "following" ? "text-white" : "text-zinc-500",
             )}
           >
@@ -1113,14 +1113,18 @@ const ActivityCard = memo(function ActivityCard({
   ) : null;
 
   return (
-    <div className="cursor-pointer" onClick={handleCardClick}>
+    <article
+      className="cursor-pointer transition-colors active:bg-zinc-900/50"
+      style={{ contentVisibility: "auto", containIntrinsicSize: "auto 200px" }}
+      onClick={handleCardClick}
+    >
       <div className="px-4 pt-3 pb-1" onClick={(e) => e.stopPropagation()}>{headerContent}</div>
       <div className="space-y-2 px-4">{bodyContent}</div>
       {likesDisplay && <div className="px-4 pt-2">{likesDisplay}</div>}
       <div className="px-4 py-2">{actionBar}</div>
       <div className="px-4 pb-3">{commentsSection}</div>
       <div className="border-b border-zinc-800" />
-    </div>
+    </article>
   );
 });
 
