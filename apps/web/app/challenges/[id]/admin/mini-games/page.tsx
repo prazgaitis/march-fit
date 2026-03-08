@@ -15,9 +15,12 @@ import {
   Zap,
 } from "lucide-react";
 
-import { format } from "date-fns";
+import {
+  dateOnlyToUtcMs,
+  formatDateOnlyFromUtcMs,
+  formatMonthDayFromUtcMs,
+} from "@/lib/date-only";
 import { cn } from "@/lib/utils";
-import { dateOnlyToUtcMs, formatDateOnlyFromUtcMs } from "@/lib/date-only";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -423,8 +426,8 @@ export default function MiniGamesAdminPage() {
                   <div className="text-right">
                     <div className="flex items-center gap-1 text-xs text-zinc-400">
                       <Calendar className="h-3 w-3" />
-                      {format(new Date(game.startsAt), "MMM d")} -{" "}
-                      {format(new Date(game.endsAt), "MMM d")}
+                      {formatMonthDayFromUtcMs(game.startsAt)} -{" "}
+                      {formatMonthDayFromUtcMs(game.endsAt)}
                     </div>
                     <div className="mt-1 flex items-center justify-end gap-1 text-xs text-zinc-500">
                       <Users className="h-3 w-3" />

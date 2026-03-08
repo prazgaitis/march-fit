@@ -5,7 +5,10 @@ import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation } from "@/lib/convex-auth-react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
-import { format } from "date-fns";
+import {
+  formatMonthDayFromUtcMs,
+  formatDateShortFromUtcMs,
+} from "@/lib/date-only";
 import {
   ArrowLeft,
   Calendar,
@@ -613,8 +616,8 @@ export default function MiniGameDetailPage() {
             <Calendar className="h-4 w-4 text-zinc-500" />
             <span className="text-zinc-400">Period:</span>
             <span className="text-zinc-200">
-              {format(new Date(miniGame.startsAt), "MMM d")} -{" "}
-              {format(new Date(miniGame.endsAt), "MMM d, yyyy")}
+              {formatMonthDayFromUtcMs(miniGame.startsAt)} -{" "}
+              {formatDateShortFromUtcMs(miniGame.endsAt)}
             </span>
           </div>
           <div className="flex items-center gap-2 text-sm">

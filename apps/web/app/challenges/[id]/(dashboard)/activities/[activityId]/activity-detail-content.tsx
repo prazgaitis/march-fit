@@ -3,7 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { formatDistanceToNow, format } from "date-fns";
+import { formatDistanceToNow } from "date-fns";
 import {
   formatDateOnlyFromUtcMs,
   formatDateShortFromDateOnly,
@@ -1318,7 +1318,7 @@ function AdminEditSection({
   const [points, setPoints] = useState(String(currentPoints));
   const [notes, setNotes] = useState(currentNotes);
   const [loggedDate, setLoggedDate] = useState(
-    format(new Date(currentLoggedDate), "yyyy-MM-dd"),
+    formatDateOnlyFromUtcMs(currentLoggedDate),
   );
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -1352,7 +1352,7 @@ function AdminEditSection({
         payload.notes = notes || null;
       }
 
-      const currentDateStr = format(new Date(currentLoggedDate), "yyyy-MM-dd");
+      const currentDateStr = formatDateOnlyFromUtcMs(currentLoggedDate);
       if (loggedDate !== currentDateStr) {
         payload.loggedDate = loggedDate;
       }

@@ -3,7 +3,10 @@
 import { useQuery } from "convex/react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
-import { format } from "date-fns";
+import {
+  formatMonthDayFromUtcMs,
+  formatDateShortFromUtcMs,
+} from "@/lib/date-only";
 import {
   Check,
   Gamepad2,
@@ -115,8 +118,8 @@ export function UserMiniGames({ challengeId, userId }: UserMiniGamesProps) {
 
               {/* Date range */}
               <div className="mt-1 text-xs text-zinc-500">
-                {format(new Date(miniGame.startsAt), "MMM d")} -{" "}
-                {format(new Date(miniGame.endsAt), "MMM d, yyyy")}
+                {formatMonthDayFromUtcMs(miniGame.startsAt)} -{" "}
+                {formatDateShortFromUtcMs(miniGame.endsAt)}
               </div>
 
               {/* Game-specific details */}

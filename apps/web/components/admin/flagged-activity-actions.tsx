@@ -6,7 +6,7 @@ import { useMutation, useQuery } from "@/lib/convex-auth-react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
 
-import { format } from "date-fns";
+import { formatDateOnlyFromUtcMs } from "@/lib/date-only";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -59,7 +59,7 @@ export function FlaggedActivityActions({
   const [notes, setNotes] = useState(currentNotesContent ?? "");
   const [activityTypeId, setActivityTypeId] = useState(currentActivityTypeId);
   const [loggedDate, setLoggedDate] = useState(
-    format(new Date(currentLoggedDate), "yyyy-MM-dd")
+    formatDateOnlyFromUtcMs(currentLoggedDate)
   );
   const [isPending, setIsPending] = useState(false);
 
@@ -153,7 +153,7 @@ export function FlaggedActivityActions({
 
       payload.notes = notes || null;
 
-      const currentDateStr = format(new Date(currentLoggedDate), "yyyy-MM-dd");
+      const currentDateStr = formatDateOnlyFromUtcMs(currentLoggedDate);
       if (loggedDate !== currentDateStr) {
         payload.loggedDate = loggedDate;
       }
