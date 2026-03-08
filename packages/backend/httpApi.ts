@@ -8,7 +8,10 @@ import { httpAction } from "./_generated/server";
 import { internal, api } from "./_generated/api";
 import type { Id, Doc } from "./_generated/dataModel";
 import { hashApiKey } from "./lib/apiKey";
-import { reportBackendSentryEvent } from "./lib/latencyMonitoring";
+import {
+  reportBackendSentryEvent,
+  reportLatencyIfExceeded,
+} from "./lib/latencyMonitoring";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -2126,6 +2129,7 @@ const routes: RouteEntry[] = [
  */
 export const apiV1Router = httpAction(async (ctx, request) => {
   const method = request.method;
+  const startedAt = Date.now();
 
   if (method === "OPTIONS") {
     return corsPreflightResponse();
@@ -2145,21 +2149,54 @@ export const apiV1Router = httpAction(async (ctx, request) => {
     const params = matchRoute(path, route.pattern);
     if (params !== null) {
       try {
-        return await route.handler(ctx, request, params);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
+        const response = await route.handler(ctx, request, params);
+
+        // Log API request metrics
+        const durationMs = Date.now() - startedAt;
         reportBackendSentryEvent({
-          message: "Unhandled API v1 route error",
-          operation: "httpApi.apiV1Router",
-          level: "error",
+          message: `API ${method} ${route.pattern} → ${response.status}`,
+          operation: `api.${method}.${route.pattern}`,
+          level: "info",
+          sampleRate: 0.25,
           tags: {
+            subsystem: "api",
             routePattern: route.pattern,
             method,
+            statusCode: String(response.status),
+          },
+          extra: {
+            path,
+            params,
+            durationMs,
+            statusCode: response.status,
+          },
+        });
+
+        // Also report latency if it exceeds threshold
+        reportLatencyIfExceeded({
+          operation: `api.${method}.${route.pattern}`,
+          startedAt,
+        });
+
+        return response;
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        const durationMs = Date.now() - startedAt;
+        reportBackendSentryEvent({
+          message: "Unhandled API v1 route error",
+          operation: `api.${method}.${route.pattern}`,
+          level: "error",
+          tags: {
+            subsystem: "api",
+            routePattern: route.pattern,
+            method,
+            statusCode: "500",
           },
           extra: {
             path,
             params,
             errorMessage: message,
+            durationMs,
           },
         });
         console.error("[httpApi] unhandled route error", {
