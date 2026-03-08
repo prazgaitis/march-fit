@@ -5,6 +5,7 @@ import { requireCurrentUser } from "../lib/ids";
 import { dateOnlyToUtcMs, formatDateOnlyFromUtcMs } from "../lib/dateOnly";
 import { insertActivity } from "../lib/activityWrites";
 import { notDeleted } from "../lib/activityFilters";
+import { isPaymentRequired } from "../lib/payments";
 
 // Helper to check if user is challenge admin
 async function requireChallengeAdmin(
@@ -85,7 +86,8 @@ export const create = mutation({
 });
 
 /**
- * Update a draft mini-game
+ * Update a mini-game. Draft games allow full edits.
+ * Active games only allow endsAt changes (pairings are already locked).
  */
 export const update = mutation({
   args: {
@@ -101,8 +103,17 @@ export const update = mutation({
       throw new Error("Mini-game not found");
     }
 
-    if (miniGame.status !== "draft") {
-      throw new Error("Can only edit draft mini-games");
+    if (miniGame.status !== "draft" && miniGame.status !== "active") {
+      throw new Error("Can only edit draft or active mini-games");
+    }
+
+    if (miniGame.status === "active") {
+      if (args.startsAt !== undefined) {
+        throw new Error("Cannot change start date of an active mini-game");
+      }
+      if (args.name !== undefined || args.config !== undefined) {
+        throw new Error("Can only change end date of an active mini-game");
+      }
     }
 
     await requireChallengeAdmin(ctx, miniGame.challengeId);
@@ -184,15 +195,33 @@ export const start = mutation({
     await requireChallengeAdmin(ctx, miniGame.challengeId);
 
     // Get all participants sorted by points (leaderboard)
-    const participations = await ctx.db
+    const allParticipations = await ctx.db
       .query("userChallenges")
       .withIndex("challengeId", (q: any) =>
         q.eq("challengeId", miniGame.challengeId),
       )
       .collect();
 
+    // Exclude users who left and unpaid users if challenge requires payment
+    const activeParticipations = allParticipations.filter(
+      (p: { leftAt?: number }) => !p.leftAt,
+    );
+
+    const paymentConfig = await ctx.db
+      .query("challengePaymentConfig")
+      .withIndex("challengeId", (q: any) =>
+        q.eq("challengeId", miniGame.challengeId),
+      )
+      .first();
+
+    const participations = isPaymentRequired(paymentConfig)
+      ? activeParticipations.filter(
+          (p: { paymentStatus: string }) => p.paymentStatus === "paid",
+        )
+      : activeParticipations;
+
     if (participations.length === 0) {
-      throw new Error("No participants in challenge");
+      throw new Error("No eligible participants in challenge");
     }
 
     // Sort by totalPoints descending
@@ -281,6 +310,43 @@ export const end = mutation({
       status: "completed",
       updatedAt: Date.now(),
     });
+
+    return { success: true };
+  },
+});
+
+/**
+ * Cancel an active mini-game without awarding points.
+ * Deletes all participant records and the game itself.
+ */
+export const cancel = mutation({
+  args: {
+    miniGameId: v.id("miniGames"),
+  },
+  handler: async (ctx, args) => {
+    const miniGame = await ctx.db.get(args.miniGameId);
+    if (!miniGame) {
+      throw new Error("Mini-game not found");
+    }
+
+    if (miniGame.status !== "active") {
+      throw new Error("Can only cancel active mini-games");
+    }
+
+    await requireChallengeAdmin(ctx, miniGame.challengeId);
+
+    // Delete all participant records
+    const participants = await ctx.db
+      .query("miniGameParticipants")
+      .withIndex("miniGameId", (q: any) => q.eq("miniGameId", args.miniGameId))
+      .collect();
+
+    for (const participant of participants) {
+      await ctx.db.delete(participant._id);
+    }
+
+    // Delete the game itself
+    await ctx.db.delete(args.miniGameId);
 
     return { success: true };
   },
