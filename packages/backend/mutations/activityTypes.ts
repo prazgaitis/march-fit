@@ -164,6 +164,37 @@ export const updateActivityType = mutation({
   },
 });
 
+// Public mutation for deleting an activity type (admin UI)
+// Blocked if any activities have been logged against this type.
+export const deleteActivityType = mutation({
+  args: {
+    activityTypeId: v.id("activityTypes"),
+  },
+  handler: async (ctx, args) => {
+    const activityType = await ctx.db.get(args.activityTypeId);
+    if (!activityType) throw new Error("Activity type not found");
+
+    // Count activities referencing this type (non-deleted)
+    const linked = await ctx.db
+      .query("activities")
+      .withIndex("activityTypeId", (q) =>
+        q.eq("activityTypeId", args.activityTypeId)
+      )
+      .filter((q) => q.eq(q.field("deletedAt"), undefined))
+      .collect();
+
+    if (linked.length > 0) {
+      throw new Error(
+        `Cannot delete: ${linked.length} activit${linked.length === 1 ? "y has" : "ies have"} been logged against this type.`
+      );
+    }
+
+    // Safe to delete
+    await ctx.db.delete(args.activityTypeId);
+    return { success: true };
+  },
+});
+
 export const batchAssignCategories = internalMutation({
   args: {
     assignments: v.array(

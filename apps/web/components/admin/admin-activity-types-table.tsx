@@ -58,6 +58,7 @@ export function AdminActivityTypesTable({
   const categoryMap = new Map(categories.map((c) => [c._id, c.name]));
   const createActivityType = useMutation(api.mutations.activityTypes.createActivityType);
   const updateActivityType = useMutation(api.mutations.activityTypes.updateActivityType);
+  const deleteActivityType = useMutation(api.mutations.activityTypes.deleteActivityType);
 
   const [showCreate, setShowCreate] = useState(false);
   const [createName, setCreateName] = useState("");
@@ -83,8 +84,26 @@ export function AdminActivityTypesTable({
 
   const [statusMessage, setStatusMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [isPending, setIsPending] = useState(false);
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
 
   const clearStatus = () => setTimeout(() => setStatusMessage(null), 3000);
+
+  const handleDelete = async (activityTypeId: string) => {
+    setIsPending(true);
+    try {
+      await deleteActivityType({ activityTypeId: activityTypeId as Id<"activityTypes"> });
+      setDeleteConfirmId(null);
+      setEditingId(null);
+      setStatusMessage({ type: "success", text: "Deleted" });
+      clearStatus();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to delete";
+      setStatusMessage({ type: "error", text: msg });
+      setDeleteConfirmId(null);
+    } finally {
+      setIsPending(false);
+    }
+  };
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -669,28 +688,69 @@ export function AdminActivityTypesTable({
                             </div>
 
                             {/* Actions */}
-                            <div className="mt-3 flex items-center justify-end gap-2 border-t border-zinc-800 pt-3">
-                              <Button
-                                type="button"
-                                size="sm"
-                                variant="ghost"
-                                onClick={cancelEditing}
-                                className="h-7 text-xs text-zinc-500"
-                              >
-                                Cancel
-                              </Button>
-                              <Button
-                                type="submit"
-                                size="sm"
-                                disabled={isPending}
-                                className="h-7 bg-amber-500 text-xs text-black hover:bg-amber-400"
-                              >
-                                {isPending ? (
-                                  <Loader2 className="h-3 w-3 animate-spin" />
+                            <div className="mt-3 flex items-center justify-between border-t border-zinc-800 pt-3">
+                              {/* Delete — left side */}
+                              <div className="flex items-center gap-2">
+                                {deleteConfirmId === item._id ? (
+                                  <>
+                                    <span className="text-[10px] text-red-400">Delete forever?</span>
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      disabled={isPending}
+                                      onClick={() => handleDelete(item._id)}
+                                      className="h-7 bg-red-600 text-xs text-white hover:bg-red-500"
+                                    >
+                                      {isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Yes, delete"}
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      size="sm"
+                                      variant="ghost"
+                                      onClick={() => setDeleteConfirmId(null)}
+                                      className="h-7 text-xs text-zinc-500"
+                                    >
+                                      Cancel
+                                    </Button>
+                                  </>
                                 ) : (
-                                  "Save Changes"
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => setDeleteConfirmId(item._id)}
+                                    className="h-7 text-xs text-red-500 hover:text-red-400 hover:bg-red-500/10"
+                                  >
+                                    <Trash2 className="mr-1 h-3 w-3" />
+                                    Delete
+                                  </Button>
                                 )}
-                              </Button>
+                              </div>
+
+                              {/* Save / Cancel — right side */}
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={cancelEditing}
+                                  className="h-7 text-xs text-zinc-500"
+                                >
+                                  Cancel
+                                </Button>
+                                <Button
+                                  type="submit"
+                                  size="sm"
+                                  disabled={isPending}
+                                  className="h-7 bg-amber-500 text-xs text-black hover:bg-amber-400"
+                                >
+                                  {isPending ? (
+                                    <Loader2 className="h-3 w-3 animate-spin" />
+                                  ) : (
+                                    "Save Changes"
+                                  )}
+                                </Button>
+                              </div>
                             </div>
                           </form>
                         </td>
