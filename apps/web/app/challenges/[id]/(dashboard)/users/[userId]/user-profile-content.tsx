@@ -48,6 +48,7 @@ import { PointsDisplay } from "@/components/ui/points-display";
 import { StoryViewer } from "@/components/dashboard/story-viewer";
 import { buildUserStory } from "@/lib/story-utils";
 import { useOptimizedMedia } from "@/hooks/use-optimized-media";
+import { getOptimizedMediaUrl } from "@/lib/media-optimizer";
 
 interface UserProfileContentProps {
   challengeId: string;
@@ -608,31 +609,57 @@ export function UserProfileContent({
                 pointsEarned: number;
                 createdAt: number;
                 isNegative?: boolean;
-              }) => (
-                <Link
-                  key={activity._id}
-                  href={`/challenges/${challengeId}/activities/${activity._id}`}
-                  className="flex items-center justify-between px-4 py-3 transition-colors hover:bg-muted/40"
-                >
-                  <div className="flex-1 min-w-0">
-                    <p className="font-medium">{activity.activityTypeName}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {formatMonthDayFromUtcMs(activity.loggedDate)} ·{" "}
-                      {formatDistanceToNow(new Date(activity.createdAt), {
-                        addSuffix: true,
-                      })}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <PointsDisplay
-                      points={activity.pointsEarned}
-                      isNegative={activity.isNegative}
-                      size="base"
-                    />
-                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
-                  </div>
-                </Link>
-              ),
+                mediaUrls: string[];
+                cloudinaryPublicIds: string[];
+              }) => {
+                const hasOptimized =
+                  showOptimized &&
+                  activity.cloudinaryPublicIds.length > 0;
+                const thumbUrl = hasOptimized
+                  ? getOptimizedMediaUrl(
+                      activity.cloudinaryPublicIds[0],
+                      "feed",
+                    )
+                  : activity.mediaUrls[0] ?? null;
+
+                return (
+                  <Link
+                    key={activity._id}
+                    href={`/challenges/${challengeId}/activities/${activity._id}`}
+                    className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/40"
+                  >
+                    {thumbUrl && (
+                      <img
+                        src={thumbUrl}
+                        alt=""
+                        className="h-12 w-12 shrink-0 rounded-lg object-cover bg-zinc-900"
+                        loading="lazy"
+                        decoding="async"
+                      />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium">
+                        {activity.activityTypeName}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        {formatMonthDayFromUtcMs(activity.loggedDate)} ·{" "}
+                        {formatDistanceToNow(
+                          new Date(activity.createdAt),
+                          { addSuffix: true },
+                        )}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <PointsDisplay
+                        points={activity.pointsEarned}
+                        isNegative={activity.isNegative}
+                        size="base"
+                      />
+                      <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                    </div>
+                  </Link>
+                );
+              },
             )}
           </div>
         ) : (

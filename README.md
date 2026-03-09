@@ -36,7 +36,7 @@ git clone https://github.com/prazgaitis/march-fitness-2026.git
 cd march-fitness-2026
 pnpm install
 cp .env.example .env.local   # fill in required values
-pnpm convex:start        # start local Convex containers
+pnpm convex:start        # start local Convex containers (make sure Docker or similar is running)
 pnpm convex:admin-key    # generate admin key → .env.local
 pnpm dev
 ```

@@ -22,13 +22,19 @@ const geistMono = Geist_Mono({
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
   viewportFit: "cover",
+  themeColor: "#000000",
 };
 
 export const metadata: Metadata = {
   title: "March Fitness - Challenge Yourself",
   description: "Join fitness challenges, track your progress, and compete with friends",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "March Fitness",
+  },
 };
 
 export default async function RootLayout({

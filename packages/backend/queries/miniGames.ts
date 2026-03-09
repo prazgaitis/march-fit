@@ -5,6 +5,7 @@ import { notDeleted } from "../lib/activityFilters";
 import { formatDateOnlyFromUtcMs } from "../lib/dateOnly";
 import {
   getLeaderboard,
+  getPointsInPeriod,
   previewPartnerWeekStart,
   previewHuntWeekStart,
   previewPrWeekStart,
@@ -261,17 +262,19 @@ export const getUserStatus = query({
           currentWeekMax = values.length > 0 ? Math.max(...values) : 0;
         }
 
-        // Get partner's initial state for partner week bonus calculation
-        let partnerInitialPoints = 0;
+        // Get partner's points earned during game period for partner week
+        // Use loggedDate-based calculation (same as end-game scoring) so the
+        // live sidebar preview stays accurate even when the game was started
+        // after its configured startsAt date.
+        let partnerPeriodPoints = 0;
         if (game.type === "partner_week" && participation.partnerUserId) {
-          const partnerParticipation = await ctx.db
-            .query("miniGameParticipants")
-            .withIndex("miniGameUser", (q) =>
-              q.eq("miniGameId", game._id).eq("userId", participation.partnerUserId!),
-            )
-            .first();
-          partnerInitialPoints =
-            (partnerParticipation?.initialState as { points?: number })?.points ?? 0;
+          partnerPeriodPoints = await getPointsInPeriod(
+            ctx,
+            participation.partnerUserId,
+            args.challengeId,
+            game.startsAt,
+            game.endsAt,
+          );
         }
 
         return {
@@ -314,7 +317,7 @@ export const getUserStatus = query({
           liveData: {
             userCurrentPoints,
             partnerCurrentPoints,
-            partnerInitialPoints,
+            partnerPeriodPoints,
             preyCurrentPoints,
             hunterCurrentPoints,
             currentWeekMax,

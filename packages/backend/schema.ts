@@ -147,6 +147,7 @@ export default defineSchema({
     imageUrl: v.optional(v.string()), // Legacy field for backward compatibility
     mediaIds: v.optional(v.array(v.id("_storage"))), // New field for media attachments
     cloudinaryPublicIds: v.optional(v.array(v.string())), // Optimized media (Cloudinary)
+    pendingMediaCount: v.optional(v.number()), // Photos expected from Strava but not yet available
     notes: v.optional(v.string()),
     flagged: v.boolean(),
     flaggedAt: v.optional(v.number()),

@@ -29,7 +29,11 @@ export default async function UserActivitiesPage({
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-6">
-      <UserActivitiesContent challengeId={id} profileUserId={userId} />
+      <UserActivitiesContent
+        challengeId={id}
+        profileUserId={userId}
+        currentUserId={currentUser._id}
+      />
     </div>
   );
 }

@@ -161,6 +161,7 @@ export const getChallengeFeed = query({
   args: {
     challengeId: v.id("challenges"),
     followingOnly: v.optional(v.boolean()),
+    userId: v.optional(v.id("users")),
     includeEngagementCounts: v.optional(v.boolean()),
     includeMediaUrls: v.optional(v.boolean()),
     paginationOpts: paginationOptsValidator,
@@ -227,7 +228,11 @@ export const getChallengeFeed = query({
       .filter(notDeleted)
       .order("desc");
 
-    if (args.followingOnly && followingIds) {
+    if (args.userId) {
+      activitiesQuery = activitiesQuery.filter((q) =>
+        q.eq(q.field("userId"), args.userId!)
+      );
+    } else if (args.followingOnly && followingIds) {
       const followedUserIds = Array.from(followingIds);
       if (followedUserIds.length === 1) {
         const [followedUserId] = followedUserIds;

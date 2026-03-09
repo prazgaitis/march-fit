@@ -40,6 +40,7 @@ export interface StravaActivity {
   achievement_count: number;
   athlete_count: number;
   photo_count: number;
+  total_photo_count?: number;
   private: boolean;
   flagged: boolean;
   // Location data from detailed activity response
