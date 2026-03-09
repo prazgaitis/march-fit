@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 
 export function useMediaQuery(query: string): boolean {
   const [matches, setMatches] = useState(false);
@@ -26,6 +26,23 @@ export function useMediaQuery(query: string): boolean {
   return matches;
 }
 
+/**
+ * Returns `true` on mobile viewports (<=767px).
+ *
+ * Uses `useSyncExternalStore` with a server snapshot of `false` so that the
+ * first client render matches the server (no hydration mismatch), and then
+ * immediately syncs to the real value on the client. Components that need to
+ * avoid a layout flash should hide mobile-only UI with CSS (`lg:hidden`)
+ * rather than conditionally rendering based on this hook.
+ */
 export function useIsMobile(): boolean {
-  return useMediaQuery("(max-width: 767px)");
+  return useSyncExternalStore(
+    (callback) => {
+      const mql = window.matchMedia("(max-width: 767px)");
+      mql.addEventListener("change", callback);
+      return () => mql.removeEventListener("change", callback);
+    },
+    () => window.matchMedia("(max-width: 767px)").matches,
+    () => false, // server snapshot
+  );
 }

@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ActiveMiniGames } from '@/components/mini-games';
 import { OnboardingCard } from './onboarding-card';
 import { dateOnlyToUtcMs } from '@/lib/date-only';
-import { formatPoints, formatPointsCompact } from '@/lib/points';
+import { formatPoints } from '@/lib/points';
 import { cn } from '@/lib/utils';
 
 interface ChallengeSidebarProps {
@@ -36,7 +36,7 @@ export function ChallengeSidebar({ challengeId, currentUserId, challengeStartDat
             Status
           </div>
           <CardTitle className="text-2xl font-bold text-white">
-            {formatPointsCompact(stats.totalPoints)} total points
+            {formatPoints(stats.totalPoints)} total points
           </CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-2 gap-3 text-sm">
