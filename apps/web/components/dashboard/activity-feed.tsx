@@ -100,7 +100,7 @@ interface BonusThreshold {
   description: string;
 }
 
-interface ActivityFeedItem {
+export interface ActivityFeedItem {
   activity: {
     _id: string;
     id?: string; // mapped from _id for compatibility if needed
@@ -585,7 +585,7 @@ export function ActivityFeed({
           <button
             onClick={() => {
               acknowledgeActivity();
-              void fetchAlgoFeed();
+              setFeedFilter("all");
               window.scrollTo({ top: 0, behavior: "smooth" });
             }}
             className="flex items-center gap-1.5 rounded-full bg-indigo-500 px-4 py-2 text-sm font-medium text-white shadow-lg transition-transform hover:scale-105 active:scale-95"
@@ -785,7 +785,7 @@ interface ActivityCardProps {
   isFollowing: boolean;
 }
 
-const ActivityCard = memo(function ActivityCard({
+export const ActivityCard = memo(function ActivityCard({
   challengeId,
   challengeName,
   item,
