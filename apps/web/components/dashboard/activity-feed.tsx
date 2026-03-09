@@ -126,6 +126,7 @@ export interface ActivityFeedItem {
   comments: number;
   likedByUser: boolean;
   mediaUrls: string[];
+  cloudinaryPublicIds?: string[];
   recentLikers: Array<{ id: string; name: string | null; username: string }>;
 }
 
@@ -158,6 +159,7 @@ interface AlgoFeedItem {
   comments: number;
   likedByUser: boolean;
   mediaUrls: string[];
+  cloudinaryPublicIds?: string[];
   recentLikers: Array<{ id: string; name: string | null; username: string }>;
   displayScore: number;
 }
