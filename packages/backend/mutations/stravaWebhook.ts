@@ -137,6 +137,9 @@ export const createFromStrava = internalMutation({
     const loggedDateTs = dateOnlyToUtcMs(mappedActivity.loggedDate);
     // Calculate media bonus (+1 point for Strava activities with photos)
     const hasMedia = mappedActivity.stravaPhotoUrls.length > 0 || !!mappedActivity.imageUrl;
+    // Track photos that Strava reported but hasn't made available yet
+    const expectedPhotos = (stravaActivity as any).total_photo_count ?? stravaActivity.photo_count ?? 0;
+    const pendingMediaCount = !hasMedia && expectedPhotos > 0 ? expectedPhotos : undefined;
     const score = await calculateFinalActivityScore(
       activityType,
       {
@@ -174,6 +177,7 @@ export const createFromStrava = internalMutation({
           triggeredBonuses: triggeredBonuses.length > 0 ? triggeredBonuses : undefined,
           notes: mappedActivity.notes ?? existing.notes,
           imageUrl: mappedActivity.imageUrl ?? existing.imageUrl,
+          pendingMediaCount,
           localTime: mappedActivity.localTime ?? undefined,
           timezone: mappedActivity.timezone ?? undefined,
           locationCity: mappedActivity.locationCity ?? undefined,
@@ -224,6 +228,7 @@ export const createFromStrava = internalMutation({
         triggeredBonuses: triggeredBonuses.length > 0 ? triggeredBonuses : undefined,
         notes: mappedActivity.notes ?? existing.notes,
         imageUrl: mappedActivity.imageUrl ?? existing.imageUrl,
+        pendingMediaCount,
         localTime: mappedActivity.localTime ?? undefined,
         timezone: mappedActivity.timezone ?? undefined,
         locationCity: mappedActivity.locationCity ?? undefined,
@@ -319,6 +324,7 @@ export const createFromStrava = internalMutation({
       metrics: mappedActivity.metrics,
       notes: mappedActivity.notes ?? undefined,
       imageUrl: mappedActivity.imageUrl ?? undefined,
+      pendingMediaCount,
       localTime: mappedActivity.localTime ?? undefined,
       timezone: mappedActivity.timezone ?? undefined,
       locationCity: mappedActivity.locationCity ?? undefined,
