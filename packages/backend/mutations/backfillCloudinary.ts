@@ -12,6 +12,7 @@ export const patchCloudinaryIds = internalMutation({
   handler: async (ctx, args) => {
     await ctx.db.patch(args.activityId, {
       cloudinaryPublicIds: args.cloudinaryPublicIds,
+      pendingMediaCount: undefined,
     });
   },
 });
