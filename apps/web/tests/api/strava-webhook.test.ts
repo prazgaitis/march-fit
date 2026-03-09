@@ -815,3 +815,226 @@ describe("Webhook Payloads: store and updateStatus", () => {
     expect(payload!.eventType).toBe("checkout.session.completed");
   });
 });
+
+// ===========================
+// pendingMediaCount tracking tests
+// ===========================
+
+describe("Strava Webhook: pendingMediaCount tracking", () => {
+  let t: ReturnType<typeof createTestContext>;
+
+  beforeEach(() => {
+    t = createTestContext();
+  });
+
+  it("should set pendingMediaCount when total_photo_count > 0 but no photo URLs available", async () => {
+    const { userId, challengeId } = await setupChallengeWithRunning(t);
+
+    const activityId = await t.mutation(
+      internal.mutations.stravaWebhook.createFromStrava,
+      {
+        userId,
+        challengeId,
+        stravaActivity: makeStravaActivity({
+          id: 333,
+          total_photo_count: 3,
+          photo_count: 0,
+          // No photos.primary — Strava hasn't processed them yet
+        }),
+      }
+    );
+
+    const activity = await getActivity(t, activityId!);
+    expect(activity!.pendingMediaCount).toBe(3);
+  });
+
+  it("should not set pendingMediaCount when photos are already available", async () => {
+    const { userId, challengeId } = await setupChallengeWithRunning(t);
+
+    const activityId = await t.mutation(
+      internal.mutations.stravaWebhook.createFromStrava,
+      {
+        userId,
+        challengeId,
+        stravaActivity: makeStravaActivity({
+          id: 444,
+          photo_count: 1,
+          total_photo_count: 1,
+          photos: {
+            primary: { urls: { "600": "https://example.com/photo.jpg" } },
+            count: 1,
+          },
+        }),
+      }
+    );
+
+    const activity = await getActivity(t, activityId!);
+    expect(activity!.pendingMediaCount).toBeUndefined();
+  });
+
+  it("should not set pendingMediaCount when total_photo_count is 0", async () => {
+    const { userId, challengeId } = await setupChallengeWithRunning(t);
+
+    const activityId = await t.mutation(
+      internal.mutations.stravaWebhook.createFromStrava,
+      {
+        userId,
+        challengeId,
+        stravaActivity: makeStravaActivity({ id: 555 }),
+      }
+    );
+
+    const activity = await getActivity(t, activityId!);
+    expect(activity!.pendingMediaCount).toBeUndefined();
+  });
+
+  it("should set pendingMediaCount on upsert when photos still pending", async () => {
+    const { userId, challengeId } = await setupChallengeWithRunning(t);
+
+    // First create without photos
+    const activityId = await t.mutation(
+      internal.mutations.stravaWebhook.createFromStrava,
+      {
+        userId,
+        challengeId,
+        stravaActivity: makeStravaActivity({ id: 666 }),
+      }
+    );
+
+    // Update with total_photo_count but no actual photo URLs
+    await t.mutation(internal.mutations.stravaWebhook.createFromStrava, {
+      userId,
+      challengeId,
+      stravaActivity: makeStravaActivity({
+        id: 666,
+        total_photo_count: 2,
+        photo_count: 0,
+      }),
+    });
+
+    const activity = await getActivity(t, activityId!);
+    expect(activity!.pendingMediaCount).toBe(2);
+  });
+
+  it("should clear pendingMediaCount on upsert when photos become available", async () => {
+    const { userId, challengeId } = await setupChallengeWithRunning(t);
+
+    // First create with pending photos
+    const activityId = await t.mutation(
+      internal.mutations.stravaWebhook.createFromStrava,
+      {
+        userId,
+        challengeId,
+        stravaActivity: makeStravaActivity({
+          id: 777,
+          total_photo_count: 1,
+          photo_count: 0,
+        }),
+      }
+    );
+
+    const before = await getActivity(t, activityId!);
+    expect(before!.pendingMediaCount).toBe(1);
+
+    // Update: now photos are available
+    await t.mutation(internal.mutations.stravaWebhook.createFromStrava, {
+      userId,
+      challengeId,
+      stravaActivity: makeStravaActivity({
+        id: 777,
+        total_photo_count: 1,
+        photo_count: 1,
+        photos: {
+          primary: { urls: { "600": "https://example.com/photo.jpg" } },
+          count: 1,
+        },
+      }),
+    });
+
+    const after = await getActivity(t, activityId!);
+    expect(after!.pendingMediaCount).toBeUndefined();
+  });
+});
+
+// ===========================
+// patchCloudinaryIds tests
+// ===========================
+
+describe("Strava Webhook: patchCloudinaryIds", () => {
+  let t: ReturnType<typeof createTestContext>;
+
+  beforeEach(() => {
+    t = createTestContext();
+  });
+
+  it("should patch activity with cloudinaryPublicIds and clear pendingMediaCount", async () => {
+    const { userId, challengeId } = await setupChallengeWithRunning(t);
+
+    // Create activity with pending photos
+    const activityId = await t.mutation(
+      internal.mutations.stravaWebhook.createFromStrava,
+      {
+        userId,
+        challengeId,
+        stravaActivity: makeStravaActivity({
+          id: 888,
+          total_photo_count: 2,
+          photo_count: 0,
+        }),
+      }
+    );
+
+    const before = await getActivity(t, activityId!);
+    expect(before!.pendingMediaCount).toBe(2);
+    expect(before!.cloudinaryPublicIds).toBeUndefined();
+
+    // Simulate Cloudinary upload completing
+    await t.mutation(internal.mutations.backfillCloudinary.patchCloudinaryIds, {
+      activityId: activityId!,
+      cloudinaryPublicIds: ["march-fit/abc123", "march-fit/def456"],
+    });
+
+    const after = await getActivity(t, activityId!);
+    expect(after!.cloudinaryPublicIds).toEqual(["march-fit/abc123", "march-fit/def456"]);
+    expect(after!.pendingMediaCount).toBeUndefined();
+  });
+
+  it("should overwrite existing cloudinaryPublicIds when new photos are uploaded", async () => {
+    const { userId, challengeId } = await setupChallengeWithRunning(t);
+
+    const activityId = await t.mutation(
+      internal.mutations.stravaWebhook.createFromStrava,
+      {
+        userId,
+        challengeId,
+        stravaActivity: makeStravaActivity({
+          id: 999,
+          photo_count: 1,
+          photos: {
+            primary: { urls: { "600": "https://example.com/photo.jpg" } },
+            count: 1,
+          },
+        }),
+      }
+    );
+
+    // First Cloudinary upload (1 photo)
+    await t.mutation(internal.mutations.backfillCloudinary.patchCloudinaryIds, {
+      activityId: activityId!,
+      cloudinaryPublicIds: ["march-fit/photo1"],
+    });
+
+    // Second upload with more photos (user added photos to Strava)
+    await t.mutation(internal.mutations.backfillCloudinary.patchCloudinaryIds, {
+      activityId: activityId!,
+      cloudinaryPublicIds: ["march-fit/photo1", "march-fit/photo2", "march-fit/photo3"],
+    });
+
+    const activity = await getActivity(t, activityId!);
+    expect(activity!.cloudinaryPublicIds).toEqual([
+      "march-fit/photo1",
+      "march-fit/photo2",
+      "march-fit/photo3",
+    ]);
+  });
+});
