@@ -29,6 +29,7 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   title: "March Fitness - Challenge Yourself",
   description: "Join fitness challenges, track your progress, and compete with friends",
+  manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
