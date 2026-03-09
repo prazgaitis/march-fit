@@ -796,6 +796,8 @@ const ActivityCard = memo(function ActivityCard({
   const activityId = item.activity.id ?? item.activity._id;
   const router = useRouter();
   const [isLiking, setIsLiking] = useState(false);
+  const [optimisticLike, setOptimisticLike] = useState<boolean | null>(null);
+  const [optimisticLikeDelta, setOptimisticLikeDelta] = useState(0);
   const [showComments, setShowComments] = useState(false);
   const [showFlagDialog, setShowFlagDialog] = useState(false);
   const [flagCategory, setFlagCategory] = useState("");
@@ -807,19 +809,33 @@ const ActivityCard = memo(function ActivityCard({
 
   const { summary } = useChallengeSummary();
 
+  const displayLiked = optimisticLike ?? item.likedByUser;
+  const displayLikes = item.likes + optimisticLikeDelta;
+
   const toggleLike = useMutation(api.mutations.likes.toggle);
   const flagActivity = useMutation(api.mutations.activities.flagActivity);
 
   const handleToggleLike = useCallback(async () => {
+    if (isLiking) return;
     setIsLiking(true);
+    const wasLiked = displayLiked;
+    // Optimistic update
+    setOptimisticLike(!wasLiked);
+    setOptimisticLikeDelta((prev) => prev + (wasLiked ? -1 : 1));
     try {
       await toggleLike({ activityId: activityId as Id<"activities"> });
+      // Clear optimistic state — Convex reactive sync will provide the real values
+      setOptimisticLike(null);
+      setOptimisticLikeDelta(0);
     } catch (error) {
       console.error("Failed to toggle like", error);
+      // Revert optimistic update
+      setOptimisticLike(wasLiked);
+      setOptimisticLikeDelta((prev) => prev + (wasLiked ? 1 : -1));
     } finally {
       setIsLiking(false);
     }
-  }, [activityId, toggleLike]);
+  }, [activityId, toggleLike, isLiking, displayLiked]);
 
   const activityUrl = `/challenges/${challengeId}/activities/${activityId}`;
 
@@ -902,7 +918,7 @@ const ActivityCard = memo(function ActivityCard({
         onClick={handleToggleLike}
         className={cn(
           "flex items-center gap-1.5 text-sm transition-colors",
-          item.likedByUser
+          displayLiked
             ? "text-red-500"
             : "hover:text-red-500",
         )}
@@ -910,11 +926,11 @@ const ActivityCard = memo(function ActivityCard({
         <Heart
           className={cn(
             "h-[18px] w-[18px]",
-            item.likedByUser && "fill-current",
+            displayLiked && "fill-current",
           )}
         />
-        {showEngagementCounts && item.likes > 0 && (
-          <span>{item.likes}</span>
+        {showEngagementCounts && displayLikes > 0 && (
+          <span>{displayLikes}</span>
         )}
       </button>
       <button
@@ -1113,13 +1129,13 @@ const ActivityCard = memo(function ActivityCard({
     </>
   );
 
-  const likesDisplay = showEngagementCounts && item.likes > 0 ? (
+  const likesDisplay = showEngagementCounts && displayLikes > 0 ? (
     <div onClick={(e) => e.stopPropagation()}>
       <LikesDisplay
         activityId={activityId}
         challengeId={challengeId}
-        likes={item.likes}
-        likedByUser={item.likedByUser}
+        likes={displayLikes}
+        likedByUser={displayLiked}
         recentLikers={item.recentLikers ?? []}
         currentUserId={currentUserId}
       />

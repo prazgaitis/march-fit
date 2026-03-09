@@ -5,13 +5,19 @@ import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation } from "@/lib/convex-auth-react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
-import { format } from "date-fns";
+import {
+  dateOnlyToUtcMs,
+  formatDateOnlyFromUtcMs,
+  formatMonthDayFromUtcMs,
+  formatDateShortFromUtcMs,
+} from "@/lib/date-only";
 import {
   ArrowLeft,
   Calendar,
   Check,
   Eye,
   Loader2,
+  Pencil,
   Play,
   Square,
   Target,
@@ -74,10 +80,16 @@ type EndPreviewOutcome = {
   hunterUser?: PreviewUser;
 };
 
+type ExcludedUser = {
+  user: PreviewUser;
+  totalPoints: number;
+};
+
 type StartPreviewData = {
   type: MiniGameType;
   participantCount: number;
   assignments: StartPreviewAssignment[];
+  excludedUsers: ExcludedUser[];
 };
 
 type EndPreviewData = {
@@ -161,6 +173,11 @@ export default function MiniGameDetailPage() {
   const endMiniGame = useMutation(api.mutations.miniGames.end);
   const deleteMiniGame = useMutation(api.mutations.miniGames.remove);
   const cancelMiniGame = useMutation(api.mutations.miniGames.cancel);
+  const updateMiniGame = useMutation(api.mutations.miniGames.update);
+
+  const [isEditingDates, setIsEditingDates] = useState(false);
+  const [editStartsAt, setEditStartsAt] = useState("");
+  const [editEndsAt, setEditEndsAt] = useState("");
 
   const displayName = (user?: PreviewUser) =>
     user?.name || user?.username || "Unknown";
@@ -366,6 +383,24 @@ export default function MiniGameDetailPage() {
                             </tbody>
                           </table>
                         </div>
+                        {startPreview.excludedUsers.length > 0 && (
+                          <div className="space-y-1.5">
+                            <div className="text-xs font-medium text-amber-400">
+                              {startPreview.excludedUsers.length} unpaid participant
+                              {startPreview.excludedUsers.length === 1 ? "" : "s"} excluded
+                            </div>
+                            <div className="flex flex-wrap gap-1.5">
+                              {startPreview.excludedUsers.map((excluded, i) => (
+                                <span
+                                  key={i}
+                                  className="rounded bg-zinc-800 px-2 py-0.5 text-xs text-zinc-400"
+                                >
+                                  {displayName(excluded.user)}
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                         <div className="text-xs text-zinc-500">
                           This preview is read-only. Starting the game will lock these assignments.
                         </div>
@@ -612,10 +647,74 @@ export default function MiniGameDetailPage() {
           <div className="flex items-center gap-2 text-sm">
             <Calendar className="h-4 w-4 text-zinc-500" />
             <span className="text-zinc-400">Period:</span>
-            <span className="text-zinc-200">
-              {format(new Date(miniGame.startsAt), "MMM d")} -{" "}
-              {format(new Date(miniGame.endsAt), "MMM d, yyyy")}
-            </span>
+            {isEditingDates ? (
+              <div className="flex items-center gap-2">
+                <input
+                  type="date"
+                  value={editStartsAt}
+                  onChange={(e) => setEditStartsAt(e.target.value)}
+                  className="rounded border border-zinc-700 bg-zinc-800 px-2 py-0.5 text-xs text-zinc-200"
+                  disabled={miniGame.status === "active"}
+                />
+                <span className="text-zinc-500">-</span>
+                <input
+                  type="date"
+                  value={editEndsAt}
+                  onChange={(e) => setEditEndsAt(e.target.value)}
+                  className="rounded border border-zinc-700 bg-zinc-800 px-2 py-0.5 text-xs text-zinc-200"
+                />
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 w-6 p-0 text-emerald-400 hover:text-emerald-300"
+                  onClick={async () => {
+                    try {
+                      await updateMiniGame({
+                        miniGameId,
+                        ...(miniGame.status !== "active" && editStartsAt
+                          ? { startsAt: dateOnlyToUtcMs(editStartsAt) }
+                          : {}),
+                        ...(editEndsAt
+                          ? { endsAt: dateOnlyToUtcMs(editEndsAt) }
+                          : {}),
+                      });
+                      setIsEditingDates(false);
+                    } catch (err) {
+                      alert(
+                        err instanceof Error ? err.message : "Failed to update dates"
+                      );
+                    }
+                  }}
+                >
+                  <Check className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="h-6 w-6 p-0 text-zinc-400 hover:text-zinc-300"
+                  onClick={() => setIsEditingDates(false)}
+                >
+                  <X className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            ) : (
+              <span className="flex items-center gap-1.5 text-zinc-200">
+                {formatMonthDayFromUtcMs(miniGame.startsAt)} -{" "}
+                {formatDateShortFromUtcMs(miniGame.endsAt)}
+                {(miniGame.status === "draft" || miniGame.status === "active") && (
+                  <button
+                    onClick={() => {
+                      setEditStartsAt(formatDateOnlyFromUtcMs(miniGame.startsAt));
+                      setEditEndsAt(formatDateOnlyFromUtcMs(miniGame.endsAt));
+                      setIsEditingDates(true);
+                    }}
+                    className="text-zinc-500 hover:text-zinc-300"
+                  >
+                    <Pencil className="h-3 w-3" />
+                  </button>
+                )}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-2 text-sm">
             <Users className="h-4 w-4 text-zinc-500" />
