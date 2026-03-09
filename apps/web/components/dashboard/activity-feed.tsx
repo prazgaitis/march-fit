@@ -53,6 +53,7 @@ import {
 } from "./challenge-realtime-context";
 import { ActivityShareDialog } from "@/components/activity-share-dialog";
 import type { ShareCardData } from "@/lib/share-card-renderer";
+import { getOptimizedMediaUrl } from "@/lib/media-optimizer";
 import { UserChallengeDisplay } from "@/components/user-challenge-display";
 import { Button } from "@/components/ui/button";
 import {
@@ -891,22 +892,38 @@ const ActivityCard = memo(function ActivityCard({
     }
   };
 
-  const shareCardData: ShareCardData = useMemo(() => ({
-    activityTypeName: item.activityType?.name ?? "Activity",
-    pointsEarned: item.activity.pointsEarned,
-    loggedDate: new Date(item.activity.loggedDate).toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    }),
-    metrics: item.activity.metrics,
-    userName: item.user.name ?? item.user.username,
-    challengeName: challengeName ?? "Challenge",
-    rank: summary.stats.userRank,
-    totalParticipants: summary.stats.totalParticipants,
-    totalPoints: summary.stats.userPoints,
-    currentStreak: summary.stats.userStreak,
-  }), [item, challengeName, summary.stats]);
+  const shareCardData: ShareCardData = useMemo(() => {
+    // Pick the first non-video image for the share card background
+    let mediaUrl: string | null = null;
+    if (item.cloudinaryPublicIds?.length) {
+      const imageId = item.cloudinaryPublicIds.find((id) => !id.startsWith("v/"));
+      if (imageId) {
+        mediaUrl = getOptimizedMediaUrl(imageId, "full");
+      }
+    }
+    if (!mediaUrl && item.mediaUrls.length > 0) {
+      mediaUrl = item.mediaUrls[0];
+    }
+
+    return {
+      activityTypeName: item.activityType?.name ?? "Activity",
+      pointsEarned: item.activity.pointsEarned,
+      loggedDate: new Date(item.activity.loggedDate).toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      }),
+      metrics: item.activity.metrics,
+      userName: item.user.name ?? item.user.username,
+      challengeName: challengeName ?? "Challenge",
+      mediaUrl,
+      triggeredBonuses: item.activity.triggeredBonuses,
+      rank: summary.stats.userRank,
+      totalParticipants: summary.stats.totalParticipants,
+      totalPoints: summary.stats.userPoints,
+      currentStreak: summary.stats.userStreak,
+    };
+  }, [item, challengeName, summary.stats]);
 
   const actionBar = (
     <div

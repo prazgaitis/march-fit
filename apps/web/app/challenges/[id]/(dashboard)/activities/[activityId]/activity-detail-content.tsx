@@ -106,6 +106,7 @@ import { MediaGallery } from "@/components/media-gallery";
 import { LikesDisplay } from "@/components/likes-display";
 import { ActivityShareDialog } from "@/components/activity-share-dialog";
 import type { ShareCardData } from "@/lib/share-card-renderer";
+import { getOptimizedMediaUrl } from "@/lib/media-optimizer";
 import { useChallengeSummary } from "@/components/dashboard/challenge-realtime-context";
 
 interface MediaPreview {
@@ -260,6 +261,21 @@ export function ActivityDetailContent({
   const shareCardData: ShareCardData | null = useMemo(() => {
     if (!activityData) return null;
     const { activity: act, user: u, activityType: at, challenge: ch } = activityData;
+
+    // Pick the first non-video image for the share card background
+    let mediaUrl: string | null = null;
+    const cIds = (activityData as { cloudinaryPublicIds?: string[] }).cloudinaryPublicIds;
+    if (cIds?.length) {
+      const imageId = cIds.find((id: string) => !id.startsWith("v/"));
+      if (imageId) {
+        mediaUrl = getOptimizedMediaUrl(imageId, "full");
+      }
+    }
+    const mUrls = (activityData as { mediaUrls?: string[] }).mediaUrls;
+    if (!mediaUrl && mUrls?.length) {
+      mediaUrl = mUrls[0];
+    }
+
     return {
       activityTypeName: at.name,
       pointsEarned: act.pointsEarned,
@@ -271,6 +287,8 @@ export function ActivityDetailContent({
       metrics: act.metrics as Record<string, unknown> | undefined,
       userName: u.name ?? u.username,
       challengeName: ch.name,
+      mediaUrl,
+      triggeredBonuses: act.triggeredBonuses as { metric: string; threshold: number; bonusPoints: number }[] | undefined,
       rank: summary.stats.userRank,
       totalParticipants: summary.stats.totalParticipants,
       totalPoints: summary.stats.userPoints,
