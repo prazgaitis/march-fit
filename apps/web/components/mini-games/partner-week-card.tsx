@@ -14,11 +14,8 @@ interface PartnerWeekCardProps {
     username: string;
     avatarUrl: string | null;
   } | null;
-  initialState: {
-    rank?: number;
-    points?: number;
-  };
-  partnerCurrentPoints: number | null;
+  partnerRank?: number;
+  partnerPeriodPoints: number;
   bonusPercentage?: number;
 }
 
@@ -27,16 +24,11 @@ export function PartnerWeekCard({
   endsAt,
   challengeId,
   partner,
-  initialState,
-  partnerCurrentPoints,
+  partnerRank,
+  partnerPeriodPoints,
   bonusPercentage = 10,
 }: PartnerWeekCardProps) {
-  const partnerInitialPoints = initialState?.points ?? 0;
-  const partnerWeekPoints =
-    partnerCurrentPoints !== null
-      ? partnerCurrentPoints - partnerInitialPoints
-      : 0;
-  const potentialBonus = Math.round(partnerWeekPoints * (bonusPercentage / 100));
+  const potentialBonus = Math.round(partnerPeriodPoints * (bonusPercentage / 100));
 
   const daysLeft = Math.max(
     0,
@@ -85,13 +77,13 @@ export function PartnerWeekCard({
               showName
             >
               <p className="text-xs text-zinc-500">
-                Rank #{initialState?.rank ?? "?"}
+                Rank #{partnerRank ?? "?"}
               </p>
             </UserAvatar>
             <div className="text-right">
               <p className="text-xs text-zinc-500">Week Points</p>
               <p className="text-xl font-bold text-indigo-400">
-                {partnerWeekPoints.toFixed(0)}
+                {partnerPeriodPoints.toFixed(0)}
               </p>
             </div>
           </div>

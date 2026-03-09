@@ -84,6 +84,7 @@ import type * as mutations_commentLikes from "../mutations/commentLikes.js";
 import type * as mutations_comments from "../mutations/comments.js";
 import type * as mutations_emailSequences from "../mutations/emailSequences.js";
 import type * as mutations_feedback from "../mutations/feedback.js";
+import type * as mutations_fixDoubleBonuses from "../mutations/fixDoubleBonuses.js";
 import type * as mutations_fixStreak from "../mutations/fixStreak.js";
 import type * as mutations_follows from "../mutations/follows.js";
 import type * as mutations_forumPosts from "../mutations/forumPosts.js";
@@ -224,6 +225,7 @@ declare const fullApi: ApiFromModules<{
   "mutations/comments": typeof mutations_comments;
   "mutations/emailSequences": typeof mutations_emailSequences;
   "mutations/feedback": typeof mutations_feedback;
+  "mutations/fixDoubleBonuses": typeof mutations_fixDoubleBonuses;
   "mutations/fixStreak": typeof mutations_fixStreak;
   "mutations/follows": typeof mutations_follows;
   "mutations/forumPosts": typeof mutations_forumPosts;

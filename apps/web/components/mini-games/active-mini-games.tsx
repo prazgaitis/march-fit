@@ -37,11 +37,8 @@ export function ActiveMiniGames({ challengeId, userId }: ActiveMiniGamesProps) {
               endsAt={miniGame.endsAt}
               challengeId={challengeId}
               partner={participation.partnerUser}
-              initialState={{
-                rank: (participation.initialState as { rank?: number })?.rank,
-                points: liveData.partnerInitialPoints ?? 0,
-              }}
-              partnerCurrentPoints={liveData.partnerCurrentPoints}
+              partnerRank={(participation.initialState as { rank?: number })?.rank}
+              partnerPeriodPoints={liveData.partnerPeriodPoints ?? 0}
               bonusPercentage={config?.bonusPercentage ?? 10}
             />
           );
