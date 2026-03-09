@@ -17,9 +17,10 @@ Copy `.env.example` to `.env.local` and fill in required values.
 
 ## Development Flow
 
-1. Create a branch from `main`.
-2. Make changes with focused commits.
-3. Run checks before opening a PR:
+1. Fork the repository and clone your fork.
+2. Create a branch from `main`.
+3. Make changes with focused commits.
+4. Run checks before opening a PR:
 
 ```bash
 pnpm lint
@@ -37,6 +38,7 @@ Project tests are still evolving. If you add functionality, include tests when p
 
 ## Pull Requests
 
+- Submit PRs from your fork — do not push branches to the main repository.
 - Keep PRs focused and small.
 - Include screenshots for UI changes.
 - Explain any breaking changes clearly.

@@ -168,14 +168,31 @@ export const getProfile = query({
       .sort((a, b) => b.createdAt - a.createdAt)
       .slice(0, 5);
 
-    // Enrich recent activities with activity type names
-    const enrichedActivities = recentActivities.map((activity) => ({
-      ...activity,
-      activityTypeName:
-        activityTypeMap.get(activity.activityTypeId)?.name ?? "Unknown",
-      isNegative:
-        activityTypeMap.get(activity.activityTypeId)?.isNegative ?? false,
-    }));
+    // Enrich recent activities with activity type names and resolved media URLs
+    const enrichedActivities = await Promise.all(
+      recentActivities.map(async (activity) => {
+        const mediaUrls =
+          activity.mediaIds && activity.mediaIds.length > 0
+            ? (
+                await Promise.all(
+                  activity.mediaIds.map((storageId) =>
+                    ctx.storage.getUrl(storageId),
+                  ),
+                )
+              ).filter((url): url is string => url !== null)
+            : [];
+
+        return {
+          ...activity,
+          activityTypeName:
+            activityTypeMap.get(activity.activityTypeId)?.name ?? "Unknown",
+          isNegative:
+            activityTypeMap.get(activity.activityTypeId)?.isNegative ?? false,
+          mediaUrls,
+          cloudinaryPublicIds: activity.cloudinaryPublicIds ?? [],
+        };
+      }),
+    );
 
     // Compute PR day (the day with the highest total points).
     const totalsByDay = new Map<string, number>();
