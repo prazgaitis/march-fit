@@ -7,12 +7,6 @@ import type { Id } from "@repo/backend/_generated/dataModel";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
   Select,
   SelectContent,
   SelectItem,
@@ -32,16 +26,15 @@ import {
   Mail,
   User,
   ChevronDown,
-  ChevronUp,
 } from "lucide-react";
 
 function computeOnboardingTitle(startDate: string): string {
   const startMs = parseDateOnlyToUtcMs(startDate);
   const now = Date.now();
   const daysUntilStart = Math.ceil((startMs - now) / (1000 * 60 * 60 * 24));
-  if (daysUntilStart > 1) return `${daysUntilStart} days until the challenge`;
-  if (daysUntilStart === 1) return "Challenge starts tomorrow";
-  return "Getting started";
+  if (daysUntilStart > 1) return `${daysUntilStart} days to go`;
+  if (daysUntilStart === 1) return "Starts tomorrow";
+  return "Prep checklist";
 }
 
 interface OnboardingCardProps {
@@ -166,57 +159,49 @@ export function OnboardingCard({ challengeId, userId, challengeStartDate }: Onbo
   };
 
   return (
-    <Card className="border-indigo-500/30 bg-indigo-500/5">
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <div>
-            <CardTitle className="text-base">{title}</CardTitle>
-          </div>
-          {allCompletableStepsDone && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setDismissed(true)}
-              className="text-xs text-muted-foreground"
-            >
-              Dismiss
-            </Button>
-          )}
-        </div>
-      </CardHeader>
-      <CardContent className="space-y-2">
+    <div>
+      <div className="mb-3 flex items-center justify-between">
+        <h3 className="text-xs font-medium uppercase tracking-widest text-zinc-500">
+          {title}
+        </h3>
+        {allCompletableStepsDone && (
+          <button
+            onClick={() => setDismissed(true)}
+            className="text-xs text-zinc-600 transition-colors hover:text-zinc-400"
+          >
+            Dismiss
+          </button>
+        )}
+      </div>
+      <div className="space-y-0.5">
         {steps.map((step, index) => (
-          <div key={step.key} className="rounded-lg border border-zinc-800">
+          <div key={step.key}>
             <button
               onClick={() => toggleStep(index)}
-              className="flex w-full items-center gap-3 p-3 text-left"
+              className="flex w-full items-center gap-3 rounded-lg p-2 text-left transition-colors hover:bg-zinc-900/60"
             >
               {step.complete ? (
-                <CheckCircle2 className="h-5 w-5 shrink-0 text-green-400" />
+                <CheckCircle2 className="h-4 w-4 shrink-0 text-green-400" />
               ) : (
-                <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-zinc-600 text-xs text-muted-foreground">
+                <div className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full border border-indigo-500/60 text-[10px] font-semibold text-indigo-400">
                   {index + 1}
                 </div>
               )}
               <div className="flex-1 min-w-0">
-                <div
-                  className={`text-sm font-medium ${step.complete ? "text-muted-foreground line-through" : ""}`}
+                <span
+                  className={`text-sm ${step.complete ? "text-zinc-600 line-through" : "text-zinc-300"}`}
                 >
                   {step.label}
-                </div>
-                <div className="text-xs text-muted-foreground">
-                  {step.description}
-                </div>
+                </span>
               </div>
-              {expandedStep === index ? (
-                <ChevronUp className="h-4 w-4 text-muted-foreground" />
-              ) : (
-                <ChevronDown className="h-4 w-4 text-muted-foreground" />
-              )}
+              <ChevronDown
+                className={`h-3.5 w-3.5 text-zinc-600 transition-transform ${expandedStep === index ? "rotate-180" : ""}`}
+              />
             </button>
 
             {expandedStep === index && (
-              <div className="border-t border-zinc-800 p-3">
+              <div className="ml-7 pb-2 pt-1">
+                <p className="mb-2 text-xs text-zinc-600">{step.description}</p>
                 {step.key === "bio" && (
                   <BioForm
                     userId={userId}
@@ -249,8 +234,8 @@ export function OnboardingCard({ challengeId, userId, challengeStartDate }: Onbo
             )}
           </div>
         ))}
-      </CardContent>
-    </Card>
+      </div>
+    </div>
   );
 }
 
@@ -295,7 +280,7 @@ function GenderPrizesStep({
   return (
     <div className="space-y-3">
       <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-200">
-        <p className="font-medium mb-1">🏆 Prize categories</p>
+        <p className="font-medium mb-1">Prize categories</p>
         <p className="text-xs">
           This challenge awards prizes by gender. If you&apos;d like to compete in the Women&apos;s
           category, please set your gender below. If you choose not to set a gender, you&apos;ll be
@@ -367,9 +352,10 @@ function BioForm({
     }
   };
 
+  const [skipped, setSkipped] = useState(false);
+
   const handleSkip = async () => {
-    // Just collapse — no action needed
-    setSaved(true);
+    setSkipped(true);
   };
 
   if (saved) {
@@ -379,6 +365,10 @@ function BioForm({
         Saved!
       </div>
     );
+  }
+
+  if (skipped) {
+    return null;
   }
 
   return (

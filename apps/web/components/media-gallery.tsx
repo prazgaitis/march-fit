@@ -63,10 +63,11 @@ export function MediaGallery({
     <>
       <div
         className={cn(
-          "grid gap-2",
+          "grid gap-1.5",
           displayUrls.length === 1 && "grid-cols-1",
           displayUrls.length === 2 && "grid-cols-2",
-          displayUrls.length >= 3 && "grid-cols-2",
+          displayUrls.length === 3 && "aspect-[3/2] grid-cols-2 grid-rows-2",
+          displayUrls.length >= 4 && "grid-cols-2",
         )}
       >
         {displayUrls.slice(0, 4).map((url, index) => {
@@ -79,8 +80,10 @@ export function MediaGallery({
               type="button"
               className={cn(
                 "relative overflow-hidden rounded-lg bg-zinc-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                displayUrls.length === 1 ? "aspect-video" : "aspect-square",
+                displayUrls.length === 1 && "aspect-video",
+                displayUrls.length === 2 && "aspect-square",
                 displayUrls.length === 3 && index === 0 && "row-span-2",
+                displayUrls.length >= 4 && "aspect-square",
               )}
               onClick={(e) => handleMediaClick(e, index)}
               aria-label={`View ${isVideo ? "video" : "photo"} ${index + 1} of ${displayUrls.length}`}

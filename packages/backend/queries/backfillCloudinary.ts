@@ -2,6 +2,23 @@ import { internalQuery } from "../_generated/server";
 import { v } from "convex/values";
 
 /**
+ * Find users whose avatarUrl points to Supabase storage.
+ */
+export const findUsersWithSupabaseAvatars = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const users = await ctx.db.query("users").collect();
+    return users
+      .filter((u) => u.avatarUrl?.includes("supabase.co"))
+      .map((u) => ({
+        _id: u._id,
+        name: u.name,
+        avatarUrl: u.avatarUrl!,
+      }));
+  },
+});
+
+/**
  * Find activities that have Convex mediaIds but no cloudinaryPublicIds.
  * Used by the backfill action to process existing media.
  */

@@ -252,6 +252,7 @@ export const getSuggestions = query({
       username: string;
       name: string | null;
       avatarUrl: string | null;
+      location: string | null;
       affinityScore: number;
     }> = [];
 
@@ -271,6 +272,7 @@ export const getSuggestions = query({
         username: user.username,
         name: user.name ?? null,
         avatarUrl: user.avatarUrl ?? null,
+        location: user.location ?? null,
         affinityScore: affinity.score,
       });
     }
