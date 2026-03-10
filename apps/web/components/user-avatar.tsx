@@ -19,7 +19,7 @@ interface UserAvatarProps {
   /** When true, never render a Link (e.g. when inside another link to avoid nested <a>) */
   disableLink?: boolean;
   /** Size variant */
-  size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl';
+  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl';
   /** Show name next to avatar */
   showName?: boolean;
   /** Show @username below or next to name */
@@ -35,6 +35,7 @@ interface UserAvatarProps {
 }
 
 const sizeClasses = {
+  xs: 'h-5 w-5',
   sm: 'h-8 w-8',
   md: 'h-10 w-10',
   lg: 'h-12 w-12',
@@ -43,6 +44,7 @@ const sizeClasses = {
 };
 
 const textSizeClasses = {
+  xs: 'text-[10px]',
   sm: 'text-sm',
   md: 'text-base',
   lg: 'text-lg',
@@ -161,7 +163,7 @@ export function UserAvatar({
 interface UserAvatarInlineProps {
   user: UserAvatarUser;
   challengeId?: string;
-  size?: 'sm' | 'md' | 'lg' | 'xl' | '2xl';
+  size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl' | '2xl';
   /** Additional info to show after the username (e.g., timestamp) */
   suffix?: React.ReactNode;
   className?: string;

@@ -49,40 +49,39 @@ export function NewPostForm({ challengeId }: NewPostFormProps) {
     <div>
       <Link
         href={`/challenges/${challengeId}/forum`}
-        className="mb-4 inline-flex items-center gap-1 text-sm text-zinc-400 hover:text-white"
+        className="mb-4 inline-flex items-center gap-1 text-xs text-zinc-500 transition-colors hover:text-white"
       >
-        <ArrowLeft className="h-4 w-4" />
-        Back to Forum
+        <ArrowLeft className="h-3.5 w-3.5" />
+        Forum
       </Link>
 
-      <div className="rounded-lg border border-zinc-800 p-5">
-        <h1 className="mb-4 text-xl font-bold text-white">New Post</h1>
+      <h1 className="mb-5 text-lg font-bold text-white">New Post</h1>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <Input
-            placeholder="Post title"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            required
-          />
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <Input
+          placeholder="Post title"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          className="border-zinc-800 bg-transparent text-base font-semibold placeholder:text-zinc-600"
+          required
+        />
 
-          <RichTextEditor
-            placeholder="What's on your mind?"
-            value={content}
-            onChange={setContent}
-            mentionOptions={mentionOptions}
-          />
+        <RichTextEditor
+          placeholder="What's on your mind?"
+          value={content}
+          onChange={setContent}
+          mentionOptions={mentionOptions}
+        />
 
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" asChild>
-              <Link href={`/challenges/${challengeId}/forum`}>Cancel</Link>
-            </Button>
-            <Button type="submit" disabled={submitting || !title.trim() || contentEmpty}>
-              {submitting ? "Posting..." : "Post"}
-            </Button>
-          </div>
-        </form>
-      </div>
+        <div className="flex justify-end gap-2">
+          <Button type="button" variant="ghost" size="sm" asChild>
+            <Link href={`/challenges/${challengeId}/forum`}>Cancel</Link>
+          </Button>
+          <Button type="submit" size="sm" disabled={submitting || !title.trim() || contentEmpty}>
+            {submitting ? "Posting..." : "Post"}
+          </Button>
+        </div>
+      </form>
     </div>
   );
 }

@@ -21,6 +21,7 @@ import { RichTextViewer } from "@/components/editor/rich-text-viewer";
 import { useMentionableUsers } from "@/hooks/use-mentionable-users";
 import { isEditorContentEmpty } from "@/lib/rich-text-utils";
 import { ActivityLinkCard } from "./activity-link-card";
+import { cn } from "@/lib/utils";
 
 interface ForumPostDetailProps {
   postId: string;
@@ -41,12 +42,12 @@ export function ForumPostDetail({ postId, challengeId }: ForumPostDetailProps) {
   const { users: mentionOptions } = useMentionableUsers(challengeId);
 
   if (data === undefined) {
-    return <div className="py-12 text-center text-zinc-500">Loading...</div>;
+    return <div className="py-12 text-center text-sm text-zinc-500">Loading...</div>;
   }
 
   if (data === null) {
     return (
-      <div className="py-12 text-center text-zinc-500">Post not found</div>
+      <div className="py-12 text-center text-sm text-zinc-500">Post not found</div>
     );
   }
 
@@ -87,73 +88,79 @@ export function ForumPostDetail({ postId, challengeId }: ForumPostDetailProps) {
       {/* Back link */}
       <Link
         href={`/challenges/${challengeId}/forum`}
-        className="mb-4 inline-flex items-center gap-1 text-sm text-zinc-400 hover:text-white"
+        className="mb-4 inline-flex items-center gap-1 text-xs text-zinc-500 transition-colors hover:text-white"
       >
-        <ArrowLeft className="h-4 w-4" />
-        Back to Forum
+        <ArrowLeft className="h-3.5 w-3.5" />
+        Forum
       </Link>
 
       {/* Main post */}
-      <div className="rounded-lg border border-zinc-800 p-5">
-        <div className="flex gap-3">
-          {/* Upvote */}
-          <div className="flex flex-col items-center gap-1">
-            <button
-              onClick={() => handleUpvote(data.post._id)}
-              className={`rounded p-1 transition-colors ${
-                data.upvotedByUser
-                  ? "text-indigo-400 hover:text-indigo-300"
-                  : "text-zinc-500 hover:text-zinc-300"
-              }`}
-            >
-              <ArrowBigUp
-                className="h-6 w-6"
-                fill={data.upvotedByUser ? "currentColor" : "none"}
-              />
-            </button>
-            <span
-              className={`text-sm font-medium ${
-                data.upvotedByUser ? "text-indigo-400" : "text-zinc-500"
-              }`}
-            >
-              {data.upvoteCount}
+      <div className="flex gap-3">
+        {/* Upvote column */}
+        <div className="flex w-10 shrink-0 flex-col items-center pt-1">
+          <button
+            onClick={() => handleUpvote(data.post._id)}
+            className={cn(
+              "rounded p-1 transition-colors active:scale-95",
+              data.upvotedByUser
+                ? "text-indigo-400"
+                : "text-zinc-600 hover:text-zinc-400",
+            )}
+          >
+            <ArrowBigUp
+              className="h-6 w-6"
+              fill={data.upvotedByUser ? "currentColor" : "none"}
+            />
+          </button>
+          <span
+            className={cn(
+              "text-sm font-mono font-medium",
+              data.upvotedByUser ? "text-indigo-400" : "text-zinc-500",
+            )}
+          >
+            {data.upvoteCount}
+          </span>
+        </div>
+
+        {/* Content */}
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start gap-2">
+            {data.post.isPinned && (
+              <Pin className="mt-1 h-4 w-4 shrink-0 rotate-45 text-amber-400" />
+            )}
+            <h1 className="break-words text-lg font-bold text-white">
+              {data.post.title}
+            </h1>
+          </div>
+
+          {/* Meta */}
+          <div className="mt-1.5 flex items-center gap-2 text-xs text-zinc-500">
+            <UserAvatar
+              user={data.user}
+              challengeId={challengeId}
+              size="xs"
+            />
+            <span className="font-medium text-zinc-400">
+              {data.user.username}
+            </span>
+            <span>·</span>
+            <span>
+              {formatDistanceToNow(new Date(data.post.createdAt), {
+                addSuffix: true,
+              })}
             </span>
           </div>
 
-          {/* Content */}
-          <div className="min-w-0 flex-1">
-            <div className="flex items-start gap-2">
-              {data.post.isPinned && (
-                <Pin className="mt-1 h-4 w-4 flex-shrink-0 text-amber-400" />
-              )}
-              <h1 className="break-words text-xl font-bold text-white">
-                {data.post.title}
-              </h1>
-            </div>
+          {/* Body */}
+          <div className="mt-4 break-words text-sm text-zinc-300">
+            <PostContent content={data.post.content} />
+          </div>
 
-            <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-500">
-              <UserAvatar
-                user={data.user}
-                challengeId={challengeId}
-                size="sm"
-                showName
-                className="text-xs"
-              />
-              <span>
-                {formatDistanceToNow(new Date(data.post.createdAt), {
-                  addSuffix: true,
-                })}
-              </span>
-            </div>
-
-            <div className="mt-4 break-words text-sm text-zinc-300">
-              <PostContent content={data.post.content} />
-            </div>
-
-            {/* Actions */}
-            <div className="mt-4 flex items-center gap-2">
+          {/* Actions */}
+          {(data.isAdmin || data.isAuthor) && (
+            <div className="mt-3 flex items-center gap-1 border-t border-zinc-800/50 pt-3">
               {data.isAdmin && (
-                <Button variant="ghost" size="sm" onClick={handlePin}>
+                <Button variant="ghost" size="sm" className="h-7 text-xs text-zinc-500 hover:text-white" onClick={handlePin}>
                   <Pin className="h-3 w-3" />
                   {data.post.isPinned ? "Unpin" : "Pin"}
                 </Button>
@@ -162,114 +169,117 @@ export function ForumPostDetail({ postId, challengeId }: ForumPostDetailProps) {
                 <Button
                   variant="ghost"
                   size="sm"
+                  className="h-7 text-xs text-red-400/70 hover:text-red-300"
                   onClick={() => handleDelete(data.post._id)}
-                  className="text-red-400 hover:text-red-300"
                 >
                   <Trash2 className="h-3 w-3" />
                   Delete
                 </Button>
               )}
             </div>
-          </div>
+          )}
         </div>
       </div>
+
+      {/* Divider */}
+      <div className="my-5 border-t border-zinc-800" />
+
+      {/* Reply count */}
+      <h2 className="mb-4 text-xs font-medium uppercase tracking-widest text-zinc-500">
+        {data.replies.length} {data.replies.length === 1 ? "Reply" : "Replies"}
+      </h2>
 
       {/* Replies */}
-      <div className="mt-6">
-        <h2 className="mb-4 text-lg font-semibold">
-          {data.replies.length} {data.replies.length === 1 ? "Reply" : "Replies"}
-        </h2>
-
-        <div className="space-y-3">
-          {data.replies.map((reply: typeof data.replies[number]) => (
-            <div
-              key={reply.post._id}
-              className="rounded-lg border border-zinc-800/50 p-4"
-            >
-              <div className="flex gap-3">
-                {/* Upvote */}
-                <div className="flex flex-col items-center gap-1">
-                  <button
-                    onClick={() => handleUpvote(reply.post._id)}
-                    className={`rounded p-1 transition-colors ${
-                      reply.upvotedByUser
-                        ? "text-indigo-400 hover:text-indigo-300"
-                        : "text-zinc-500 hover:text-zinc-300"
-                    }`}
-                  >
-                    <ArrowBigUp
-                      className="h-5 w-5"
-                      fill={reply.upvotedByUser ? "currentColor" : "none"}
-                    />
-                  </button>
-                  <span
-                    className={`text-xs font-medium ${
-                      reply.upvotedByUser ? "text-indigo-400" : "text-zinc-500"
-                    }`}
-                  >
-                    {reply.upvoteCount}
-                  </span>
-                </div>
-
-                {/* Content */}
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-500">
-                    {reply.user && (
-                      <UserAvatar
-                        user={reply.user}
-                        challengeId={challengeId}
-                        size="sm"
-                        showName
-                        className="text-xs"
-                      />
-                    )}
-                    <span>
-                      {formatDistanceToNow(new Date(reply.post.createdAt), {
-                        addSuffix: true,
-                      })}
-                    </span>
-                  </div>
-                  <div className="mt-2 break-words text-sm text-zinc-300">
-                    <PostContent content={reply.post.content} />
-                  </div>
-                  {(data.isAdmin || (reply.user && data.isAuthor)) && (
-                    <div className="mt-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => handleDelete(reply.post._id)}
-                        className="text-red-400 hover:text-red-300"
-                      >
-                        <Trash2 className="h-3 w-3" />
-                        Delete
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              </div>
+      <div className="space-y-0 divide-y divide-zinc-800/50">
+        {data.replies.map((reply: typeof data.replies[number]) => (
+          <div key={reply.post._id} className="flex gap-3 py-3">
+            {/* Upvote column */}
+            <div className="flex w-10 shrink-0 flex-col items-center pt-0.5">
+              <button
+                onClick={() => handleUpvote(reply.post._id)}
+                className={cn(
+                  "rounded p-1 transition-colors active:scale-95",
+                  reply.upvotedByUser
+                    ? "text-indigo-400"
+                    : "text-zinc-600 hover:text-zinc-400",
+                )}
+              >
+                <ArrowBigUp
+                  className="h-5 w-5"
+                  fill={reply.upvotedByUser ? "currentColor" : "none"}
+                />
+              </button>
+              <span
+                className={cn(
+                  "text-xs font-mono font-medium",
+                  reply.upvotedByUser ? "text-indigo-400" : "text-zinc-500",
+                )}
+              >
+                {reply.upvoteCount}
+              </span>
             </div>
-          ))}
-        </div>
 
-        {/* Reply form */}
-        <form onSubmit={handleReply} className="mt-4">
-          <RichTextEditor
-            placeholder="Write a reply..."
-            value={replyContent}
-            onChange={setReplyContent}
-            mentionOptions={mentionOptions}
-          />
-          <div className="mt-2 flex justify-end">
-            <Button
-              type="submit"
-              size="sm"
-              disabled={submitting || replyEmpty}
-            >
-              {submitting ? "Replying..." : "Reply"}
-            </Button>
+            {/* Content */}
+            <div className="min-w-0 flex-1">
+              <div className="flex items-center gap-2 text-xs text-zinc-500">
+                {reply.user && (
+                  <>
+                    <UserAvatar
+                      user={reply.user}
+                      challengeId={challengeId}
+                      size="xs"
+                    />
+                    <span className="font-medium text-zinc-400">
+                      {reply.user.username}
+                    </span>
+                    <span>·</span>
+                  </>
+                )}
+                <span>
+                  {formatDistanceToNow(new Date(reply.post.createdAt), {
+                    addSuffix: true,
+                  })}
+                </span>
+              </div>
+              <div className="mt-1.5 break-words text-sm text-zinc-300">
+                <PostContent content={reply.post.content} />
+              </div>
+              {(data.isAdmin || (reply.user && data.isAuthor)) && (
+                <div className="mt-1.5">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 text-xs text-red-400/70 hover:text-red-300"
+                    onClick={() => handleDelete(reply.post._id)}
+                  >
+                    <Trash2 className="h-3 w-3" />
+                    Delete
+                  </Button>
+                </div>
+              )}
+            </div>
           </div>
-        </form>
+        ))}
       </div>
+
+      {/* Reply form */}
+      <form onSubmit={handleReply} className="mt-5 border-t border-zinc-800 pt-5">
+        <RichTextEditor
+          placeholder="Write a reply..."
+          value={replyContent}
+          onChange={setReplyContent}
+          mentionOptions={mentionOptions}
+        />
+        <div className="mt-2 flex justify-end">
+          <Button
+            type="submit"
+            size="sm"
+            disabled={submitting || replyEmpty}
+          >
+            {submitting ? "Replying..." : "Reply"}
+          </Button>
+        </div>
+      </form>
     </div>
   );
 }
@@ -327,13 +337,9 @@ function PostActivityCards({
 
   return (
     <div className="space-y-2">
-      {activityIds.map((activityId) => {
-        return (
-          <div key={activityId}>
-            <ActivityLinkCard activityId={activityId} />
-          </div>
-        );
-      })}
+      {activityIds.map((activityId) => (
+        <ActivityLinkCard key={activityId} activityId={activityId} />
+      ))}
     </div>
   );
 }

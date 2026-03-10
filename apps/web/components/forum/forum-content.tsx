@@ -10,7 +10,7 @@ import { formatDistanceToNow } from "date-fns";
 
 import { Button } from "@/components/ui/button";
 import { UserAvatar } from "@/components/user-avatar";
-import { RichTextViewer } from "@/components/editor/rich-text-viewer";
+import { cn } from "@/lib/utils";
 
 interface ForumContentProps {
   challengeId: string;
@@ -27,7 +27,7 @@ export function ForumContent({ challengeId }: ForumContentProps) {
     <div>
       <div className="mb-6 flex items-center justify-between">
         <h1 className="text-2xl font-bold">Forum</h1>
-        <Button asChild>
+        <Button asChild size="sm">
           <Link href={`/challenges/${challengeId}/forum/new`}>
             <Plus className="h-4 w-4" />
             New Post
@@ -35,7 +35,7 @@ export function ForumContent({ challengeId }: ForumContentProps) {
         </Button>
       </div>
 
-      <div className="space-y-2">
+      <div className="divide-y divide-zinc-800/70">
         {results.map((item) => (
           <ForumPostCard
             key={item.post._id}
@@ -43,26 +43,26 @@ export function ForumContent({ challengeId }: ForumContentProps) {
             challengeId={challengeId}
           />
         ))}
-
-        {status === "CanLoadMore" && (
-          <div className="pt-4 text-center">
-            <Button variant="outline" onClick={() => loadMore(20)}>
-              Load more
-            </Button>
-          </div>
-        )}
-
-        {results.length === 0 && status !== "LoadingFirstPage" && (
-          <div className="py-12 text-center text-zinc-500">
-            <MessageSquare className="mx-auto mb-3 h-8 w-8" />
-            <p>No posts yet. Start the conversation!</p>
-          </div>
-        )}
-
-        {status === "LoadingFirstPage" && (
-          <div className="py-12 text-center text-zinc-500">Loading...</div>
-        )}
       </div>
+
+      {status === "CanLoadMore" && (
+        <div className="pt-6 text-center">
+          <Button variant="outline" size="sm" onClick={() => loadMore(20)}>
+            Load more
+          </Button>
+        </div>
+      )}
+
+      {results.length === 0 && status !== "LoadingFirstPage" && (
+        <div className="py-16 text-center text-zinc-500">
+          <MessageSquare className="mx-auto mb-3 h-8 w-8" />
+          <p className="text-sm">No posts yet. Start the conversation!</p>
+        </div>
+      )}
+
+      {status === "LoadingFirstPage" && (
+        <div className="py-16 text-center text-zinc-500 text-sm">Loading...</div>
+      )}
     </div>
   );
 }
@@ -109,18 +109,22 @@ const ForumPostCard = memo(function ForumPostCard({ item, challengeId }: ForumPo
   return (
     <Link
       href={`/challenges/${challengeId}/forum/${item.post._id}`}
-      className="flex gap-3 rounded-lg border border-zinc-800 p-4 transition-colors hover:border-zinc-700 hover:bg-zinc-900/50"
+      className={cn(
+        "flex gap-3 py-3 transition-colors hover:bg-zinc-900/40",
+        item.post.isPinned && "bg-amber-500/[0.02]",
+      )}
     >
       {/* Upvote column */}
-      <div className="flex flex-col items-center gap-1">
+      <div className="flex w-10 shrink-0 flex-col items-center pt-0.5">
         <button
           onClick={handleUpvote}
           disabled={isUpvoting}
-          className={`rounded p-1 transition-colors ${
+          className={cn(
+            "rounded p-1 transition-colors active:scale-95",
             item.upvotedByUser
-              ? "text-indigo-400 hover:text-indigo-300"
-              : "text-zinc-500 hover:text-zinc-300"
-          }`}
+              ? "text-indigo-400"
+              : "text-zinc-600 hover:text-zinc-400",
+          )}
         >
           <ArrowBigUp
             className="h-5 w-5"
@@ -128,51 +132,47 @@ const ForumPostCard = memo(function ForumPostCard({ item, challengeId }: ForumPo
           />
         </button>
         <span
-          className={`text-xs font-medium ${
-            item.upvotedByUser ? "text-indigo-400" : "text-zinc-500"
-          }`}
+          className={cn(
+            "text-xs font-mono font-medium",
+            item.upvotedByUser ? "text-indigo-400" : "text-zinc-500",
+          )}
         >
           {item.upvoteCount}
         </span>
       </div>
 
-      {/* Content column */}
+      {/* Content */}
       <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
+        {/* Title row */}
+        <div className="flex items-center gap-1.5">
           {item.post.isPinned && (
-            <Pin className="h-3 w-3 flex-shrink-0 text-amber-400" />
+            <Pin className="h-3 w-3 shrink-0 rotate-45 text-amber-400" />
           )}
-          <h3 className="truncate font-semibold text-white">
+          <h3 className="truncate text-sm font-semibold text-zinc-100">
             {item.post.title}
           </h3>
         </div>
 
-        <div className="mt-1 line-clamp-2 text-sm text-zinc-400 [&_*]:text-zinc-400">
-          <RichTextViewer content={item.post.content} />
-        </div>
-
-        <div className="mt-2 flex items-center gap-2 text-xs text-zinc-500">
+        {/* Meta line */}
+        <div className="mt-1 flex items-center gap-1.5 text-xs text-zinc-500">
           {item.user && (
-            <UserAvatar
-              user={item.user}
-              size="sm"
-            />
-          )}
-          <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            {item.user && (
+            <>
+              <UserAvatar user={item.user} size="xs" disableLink />
               <span className="font-medium text-zinc-400">
-                {item.user.name || item.user.username}
+                {item.user.username}
               </span>
-            )}
-            <span>
-              {formatDistanceToNow(new Date(item.post.createdAt), {
-                addSuffix: true,
-              })}
-            </span>
-            <span className="flex items-center gap-1">
-              <MessageSquare className="h-3 w-3" />
-              {item.replyCount}
-            </span>
+              <span>·</span>
+            </>
+          )}
+          <span>
+            {formatDistanceToNow(new Date(item.post.createdAt), {
+              addSuffix: true,
+            })}
+          </span>
+          <span>·</span>
+          <span className="flex items-center gap-1">
+            <MessageSquare className="h-3 w-3" />
+            {item.replyCount}
           </span>
         </div>
       </div>
