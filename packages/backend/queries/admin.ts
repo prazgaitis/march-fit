@@ -760,3 +760,270 @@ export const getManualActivitiesForDateRange = internalQuery({
     }));
   },
 });
+
+// ── Engagement Mission Control ────────────────────────────────────────
+
+/** Max likes/comments to scan from the global createdAt index per request. */
+const ENGAGEMENT_SCAN_CAP = 8_000;
+/** Max activities returned in the feed-score-sorted table. */
+const FEED_PAGE_SIZE_MAX = 100;
+
+/**
+ * Engagement Mission Control dashboard.
+ *
+ * Returns hourly distributions for activities, likes, and comments;
+ * intra-challenge follow network stats; and a paginated activity list
+ * sortable by feed score.
+ *
+ * DB safety:
+ * - Activities: uses `challengeId` index (scoped).
+ * - Likes / comments: uses `createdAt` index with bounded take(), then
+ *   filtered to challenge activity IDs in-memory.
+ * - Follows: one indexed query per participant (bounded by participant count).
+ * - Feed-score list: uses `challengeFeedScore` index with order + take().
+ */
+export const getEngagementDashboard = query({
+  args: {
+    challengeId: v.id("challenges"),
+    feedPageSize: v.optional(v.number()),
+    feedCursor: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const adminUser = await getChallengeAdminUser(ctx, args.challengeId);
+    if (!adminUser) return null;
+
+    const feedPageSize = Math.min(
+      Math.max(args.feedPageSize ?? 50, 10),
+      FEED_PAGE_SIZE_MAX,
+    );
+    const feedOffset = args.feedCursor ?? 0;
+
+    // 1. Activities scoped to challenge (indexed)
+    const activities = await ctx.db
+      .query("activities")
+      .withIndex("challengeId", (q) => q.eq("challengeId", args.challengeId))
+      .filter(notDeleted)
+      .collect();
+
+    const activityIdSet = new Set(activities.map((a) => a._id as string));
+
+    // 2. Hourly activity distribution (by createdAt)
+    const activityHourlyCounts = Array.from({ length: 24 }, (_, hour) => ({
+      hour,
+      label: `${hour.toString().padStart(2, "0")}:00`,
+      count: 0,
+    }));
+    for (const a of activities) {
+      activityHourlyCounts[new Date(a.createdAt).getUTCHours()].count += 1;
+    }
+
+    // 3. Likes – scan recent via createdAt index, filter to challenge
+    const recentLikes = await ctx.db
+      .query("likes")
+      .withIndex("createdAt")
+      .order("desc")
+      .take(ENGAGEMENT_SCAN_CAP);
+
+    const challengeLikes = recentLikes.filter((l) =>
+      activityIdSet.has(l.activityId as string),
+    );
+
+    const likeHourlyCounts = Array.from({ length: 24 }, (_, hour) => ({
+      hour,
+      label: `${hour.toString().padStart(2, "0")}:00`,
+      count: 0,
+    }));
+    for (const l of challengeLikes) {
+      likeHourlyCounts[new Date(l.createdAt).getUTCHours()].count += 1;
+    }
+
+    // 4. Comments – scan recent via createdAt index, filter to challenge
+    const recentComments = await ctx.db
+      .query("comments")
+      .withIndex("createdAt")
+      .order("desc")
+      .take(ENGAGEMENT_SCAN_CAP);
+
+    const challengeComments = recentComments.filter(
+      (c) => c.activityId && activityIdSet.has(c.activityId as string),
+    );
+
+    const commentHourlyCounts = Array.from({ length: 24 }, (_, hour) => ({
+      hour,
+      label: `${hour.toString().padStart(2, "0")}:00`,
+      count: 0,
+    }));
+    for (const c of challengeComments) {
+      commentHourlyCounts[new Date(c.createdAt).getUTCHours()].count += 1;
+    }
+
+    // 5. Follows – intra-challenge network
+    const participations = await ctx.db
+      .query("userChallenges")
+      .withIndex("challengeId", (q) => q.eq("challengeId", args.challengeId))
+      .collect();
+    const participantIds = new Set(participations.map((p) => p.userId));
+    const participantIdArr = Array.from(participantIds);
+
+    // Query follows per participant (bounded by participant count)
+    const allFollowRows = (
+      await Promise.all(
+        participantIdArr.map((uid) =>
+          ctx.db
+            .query("follows")
+            .withIndex("followerId", (q) => q.eq("followerId", uid))
+            .collect(),
+        ),
+      )
+    ).flat();
+
+    // Filter to intra-challenge follows only
+    const intraChallengeFollows = allFollowRows.filter((f) =>
+      participantIds.has(f.followingId),
+    );
+
+    // Aggregate per-user follower / following counts
+    const followerCounts = new Map<string, number>();
+    const followingCounts = new Map<string, number>();
+    for (const f of intraChallengeFollows) {
+      followerCounts.set(
+        f.followingId as string,
+        (followerCounts.get(f.followingId as string) ?? 0) + 1,
+      );
+      followingCounts.set(
+        f.followerId as string,
+        (followingCounts.get(f.followerId as string) ?? 0) + 1,
+      );
+    }
+
+    // Build user lookup
+    const userMap = new Map(
+      (
+        await Promise.all(
+          participantIdArr.map(async (uid) => {
+            const user = await ctx.db.get(uid);
+            if (!user) return null;
+            return [
+              uid as string,
+              { id: user._id, name: user.name ?? null, username: user.username },
+            ] as const;
+          }),
+        )
+      ).filter(
+        (e): e is readonly [string, { id: Id<"users">; name: string | null; username: string }] =>
+          e !== null,
+      ),
+    );
+
+    // Top followed / least followed
+    const followNetwork = participantIdArr
+      .map((uid) => {
+        const u = userMap.get(uid as string);
+        return {
+          userId: uid,
+          name: u?.name ?? u?.username ?? "?",
+          username: u?.username ?? "?",
+          followers: followerCounts.get(uid as string) ?? 0,
+          following: followingCounts.get(uid as string) ?? 0,
+        };
+      })
+      .sort((a, b) => b.followers - a.followers);
+
+    // Follow hourly distribution
+    const followHourlyCounts = Array.from({ length: 24 }, (_, hour) => ({
+      hour,
+      label: `${hour.toString().padStart(2, "0")}:00`,
+      count: 0,
+    }));
+    for (const f of intraChallengeFollows) {
+      followHourlyCounts[new Date(f.createdAt).getUTCHours()].count += 1;
+    }
+
+    // 6. Activities sorted by feed score (paginated via index)
+    const feedScoreSorted = await ctx.db
+      .query("activities")
+      .withIndex("challengeFeedScore", (q) =>
+        q.eq("challengeId", args.challengeId),
+      )
+      .filter(notDeleted)
+      .order("desc")
+      .collect();
+
+    const feedPage = feedScoreSorted.slice(feedOffset, feedOffset + feedPageSize);
+
+    // Resolve activity types for feed page
+    const atIds = new Set(feedPage.map((a) => a.activityTypeId));
+    const atMap = new Map(
+      (
+        await Promise.all(
+          Array.from(atIds).map(async (atId) => {
+            const at = await ctx.db.get(atId);
+            return at ? ([at._id, at.name] as const) : null;
+          }),
+        )
+      ).filter((e): e is readonly [Id<"activityTypes">, string] => e !== null),
+    );
+
+    // Count likes/comments per activity in feed page
+    const feedRows = await Promise.all(
+      feedPage.map(async (a) => {
+        const [likes, comments] = await Promise.all([
+          ctx.db
+            .query("likes")
+            .withIndex("activityId", (q) => q.eq("activityId", a._id))
+            .collect(),
+          ctx.db
+            .query("comments")
+            .withIndex("activityId", (q) => q.eq("activityId", a._id))
+            .filter((q) =>
+              q.or(
+                q.eq(q.field("parentType"), undefined),
+                q.eq(q.field("parentType"), "activity"),
+              ),
+            )
+            .collect(),
+        ]);
+
+        const user = userMap.get(a.userId as string);
+
+        return {
+          activityId: a._id,
+          createdAt: a.createdAt,
+          loggedDate: a.loggedDate,
+          pointsEarned: a.pointsEarned,
+          feedScore: a.feedScore ?? 0,
+          feedRank: a.feedRank ?? 0,
+          source: a.source,
+          hasMedia: (a.mediaIds?.length ?? 0) > 0 || (a.cloudinaryPublicIds?.length ?? 0) > 0,
+          hasNotes: !!a.notes,
+          likeCount: likes.length,
+          commentCount: comments.length,
+          repostCount: a.repostCount ?? 0,
+          user: user ?? { id: a.userId, name: null, username: "?" },
+          activityTypeName: atMap.get(a.activityTypeId) ?? "?",
+        };
+      }),
+    );
+
+    return {
+      stats: {
+        totalActivities: activities.length,
+        totalLikes: challengeLikes.length,
+        totalComments: challengeComments.length,
+        totalIntraChallengeFollows: intraChallengeFollows.length,
+        totalParticipants: participantIds.size,
+        likeScanCapped: recentLikes.length >= ENGAGEMENT_SCAN_CAP,
+        commentScanCapped: recentComments.length >= ENGAGEMENT_SCAN_CAP,
+      },
+      activityHourlyCounts,
+      likeHourlyCounts,
+      commentHourlyCounts,
+      followHourlyCounts,
+      followNetwork,
+      feedRows,
+      feedTotal: feedScoreSorted.length,
+      feedOffset,
+      feedPageSize,
+    };
+  },
+});
