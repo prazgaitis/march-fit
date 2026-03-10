@@ -34,6 +34,8 @@ export interface UserChallengeDisplayProps {
   streak?: number;
   /** Size variant */
   size?: 'sm' | 'md' | 'lg';
+  /** Layout: stacked (default) or inline (name+username+suffix on one line) */
+  layout?: 'stacked' | 'inline';
   /** Highlight this row (e.g. for current user) */
   highlight?: boolean;
   /** Additional content rendered after the user info (e.g. timestamp) */
@@ -72,6 +74,7 @@ export function UserChallengeDisplay({
   points,
   streak,
   size = 'md',
+  layout = 'stacked',
   highlight = false,
   suffix,
   children,
@@ -178,13 +181,33 @@ export function UserChallengeDisplay({
       {LinkedAvatar}
 
       <div className="flex-1 min-w-0">
-        <div className={nameSizeClasses[size]}>{nameElement}</div>
-        <div className="flex flex-wrap items-center gap-2 text-muted-foreground">
-          {usernameElement}
-          {locationElement}
-          {suffix}
-        </div>
-        {children}
+        {layout === 'inline' ? (
+          <>
+            <div className="flex items-center gap-1.5 min-w-0">
+              <span className="shrink-0">{nameElement}</span>
+              {showUsername && (
+                <span className="text-sm text-muted-foreground truncate">@{user.username}</span>
+              )}
+              {suffix}
+            </div>
+            {(children || locationElement) && (
+              <div className="flex items-center gap-2 text-muted-foreground">
+                {children}
+                {locationElement}
+              </div>
+            )}
+          </>
+        ) : (
+          <>
+            <div className={nameSizeClasses[size]}>{nameElement}</div>
+            <div className="flex flex-wrap items-center gap-2 text-muted-foreground">
+              {usernameElement}
+              {locationElement}
+              {suffix}
+            </div>
+            {children}
+          </>
+        )}
       </div>
 
       {pointsElement}

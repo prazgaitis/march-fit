@@ -137,85 +137,85 @@ function MediaCarousel({
   };
 
   return (
-    <div
-      className="relative overflow-hidden rounded-lg bg-zinc-900"
-      onClick={(e) => e.stopPropagation()}
-    >
-      {/* Slides container */}
-      <div
-        ref={containerRef}
-        className={cn(
-          "flex",
-          !isDragging && "transition-transform duration-300 ease-out",
+    <div onClick={(e) => e.stopPropagation()}>
+      {/* Image area */}
+      <div className="relative overflow-hidden bg-zinc-900">
+        {/* Slides container */}
+        <div
+          ref={containerRef}
+          className={cn(
+            "flex",
+            !isDragging && "transition-transform duration-300 ease-out",
+          )}
+          style={{
+            transform: `translateX(calc(-${currentIndex * 100}% + ${isDragging ? touchDelta : 0}px))`,
+          }}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+        >
+          {displayUrls.map((url, index) => {
+            const isVideo = isVideoAtIndex(index);
+            return (
+              <button
+                key={index}
+                type="button"
+                className="aspect-square w-full flex-shrink-0 focus-visible:outline-none"
+                onClick={(e) => onMediaClick(e, index)}
+                aria-label={`View ${isVideo ? "video" : "photo"} ${index + 1} of ${displayUrls.length}`}
+              >
+                {isVideo ? (
+                  <video
+                    src={url}
+                    className="h-full w-full object-cover"
+                    preload="metadata"
+                    muted
+                  />
+                ) : (
+                  <img
+                    src={url}
+                    alt={`Activity photo ${index + 1}`}
+                    className="h-full w-full object-cover"
+                    loading={index === 0 ? "eager" : "lazy"}
+                    decoding="async"
+                  />
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Desktop navigation arrows */}
+        {hasMultiple && currentIndex > 0 && (
+          <button
+            onClick={() => goTo(currentIndex - 1)}
+            className="absolute left-2 top-1/2 z-10 hidden -translate-y-1/2 items-center justify-center rounded-full bg-black/60 p-1.5 text-white transition-colors hover:bg-black/80 sm:flex"
+            aria-label="Previous photo"
+          >
+            <ChevronLeft className="h-5 w-5" />
+          </button>
         )}
-        style={{
-          transform: `translateX(calc(-${currentIndex * 100}% + ${isDragging ? touchDelta : 0}px))`,
-        }}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
-      >
-        {displayUrls.map((url, index) => {
-          const isVideo = isVideoAtIndex(index);
-          return (
-            <button
-              key={index}
-              type="button"
-              className="aspect-square w-full flex-shrink-0 focus-visible:outline-none"
-              onClick={(e) => onMediaClick(e, index)}
-              aria-label={`View ${isVideo ? "video" : "photo"} ${index + 1} of ${displayUrls.length}`}
-            >
-              {isVideo ? (
-                <video
-                  src={url}
-                  className="h-full w-full object-cover"
-                  preload="metadata"
-                  muted
-                />
-              ) : (
-                <img
-                  src={url}
-                  alt={`Activity photo ${index + 1}`}
-                  className="h-full w-full object-cover"
-                  loading={index === 0 ? "eager" : "lazy"}
-                  decoding="async"
-                />
-              )}
-            </button>
-          );
-        })}
+        {hasMultiple && currentIndex < displayUrls.length - 1 && (
+          <button
+            onClick={() => goTo(currentIndex + 1)}
+            className="absolute right-2 top-1/2 z-10 hidden -translate-y-1/2 items-center justify-center rounded-full bg-black/60 p-1.5 text-white transition-colors hover:bg-black/80 sm:flex"
+            aria-label="Next photo"
+          >
+            <ChevronRight className="h-5 w-5" />
+          </button>
+        )}
+
+        {/* Image counter badge (desktop) */}
+        {hasMultiple && (
+          <div className="absolute right-3 top-3 z-10 hidden rounded-full bg-black/60 px-2.5 py-0.5 text-xs font-medium text-white sm:block">
+            {currentIndex + 1}/{displayUrls.length}
+          </div>
+        )}
       </div>
 
-      {/* Desktop navigation arrows */}
-      {hasMultiple && currentIndex > 0 && (
-        <button
-          onClick={() => goTo(currentIndex - 1)}
-          className="absolute left-2 top-1/2 z-10 hidden -translate-y-1/2 items-center justify-center rounded-full bg-black/60 p-1.5 text-white transition-colors hover:bg-black/80 sm:flex"
-          aria-label="Previous photo"
-        >
-          <ChevronLeft className="h-5 w-5" />
-        </button>
-      )}
-      {hasMultiple && currentIndex < displayUrls.length - 1 && (
-        <button
-          onClick={() => goTo(currentIndex + 1)}
-          className="absolute right-2 top-1/2 z-10 hidden -translate-y-1/2 items-center justify-center rounded-full bg-black/60 p-1.5 text-white transition-colors hover:bg-black/80 sm:flex"
-          aria-label="Next photo"
-        >
-          <ChevronRight className="h-5 w-5" />
-        </button>
-      )}
-
-      {/* Image counter badge (desktop) */}
+      {/* Dot indicators — below image, IG-style */}
       {hasMultiple && (
-        <div className="absolute right-3 top-3 z-10 hidden rounded-full bg-black/60 px-2.5 py-0.5 text-xs font-medium text-white sm:block">
-          {currentIndex + 1}/{displayUrls.length}
-        </div>
-      )}
-
-      {/* Dot indicators */}
-      {hasMultiple && (
-        <div className="absolute bottom-3 left-1/2 z-10 flex -translate-x-1/2 gap-1.5">
+        <div className="flex justify-center gap-1.5 py-2">
           {displayUrls.map((_, i) => (
             <button
               key={i}
@@ -223,8 +223,8 @@ function MediaCarousel({
               className={cn(
                 "h-1.5 rounded-full transition-all",
                 i === currentIndex
-                  ? "w-4 bg-white"
-                  : "w-1.5 bg-white/40 hover:bg-white/60",
+                  ? "w-1.5 bg-blue-500"
+                  : "w-1.5 bg-zinc-600 hover:bg-zinc-500",
               )}
               aria-label={`Go to photo ${i + 1}`}
             />

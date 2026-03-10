@@ -2,7 +2,7 @@
 
 import { useCallback } from "react";
 import { useRouter } from "next/navigation";
-import { formatDistanceToNow } from "date-fns";
+import { formatTimeAgo } from "@/lib/date-only";
 import { Loader2, ThumbsUp, MessageCircle, Zap } from "lucide-react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@repo/backend";
@@ -186,14 +186,13 @@ function AlgoFeedCard({
             user={item.user}
             challengeId={challengeId}
             size="sm"
-            show={{ name: true, username: true, location: true }}
+            layout="inline"
+            show={{ name: true, username: true }}
             suffix={
               <>
-                <span aria-hidden="true">&middot;</span>
-                <span className="text-sm">
-                  {formatDistanceToNow(new Date(item.activity.createdAt), {
-                    addSuffix: true,
-                  })}
+                <span className="text-xs text-muted-foreground" aria-hidden="true">·</span>
+                <span className="text-xs text-muted-foreground shrink-0">
+                  {formatTimeAgo(item.activity.createdAt)}
                 </span>
               </>
             }

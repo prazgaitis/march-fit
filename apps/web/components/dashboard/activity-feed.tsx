@@ -9,7 +9,7 @@ import {
   useState,
 } from "react";
 import { useRouter } from "next/navigation";
-import { formatDistanceToNow } from "date-fns";
+import { formatTimeAgo } from "@/lib/date-only";
 import {
   ArrowUp,
   Flag,
@@ -20,7 +20,6 @@ import {
   RefreshCw,
   Repeat2,
   Share2,
-  Zap,
 } from "lucide-react";
 import {
   useConvexConnectionState,
@@ -91,6 +90,66 @@ import { captureAppException, captureAppMessage } from "@/lib/sentry";
 import { isLatestActivityVisibleInFeed } from "@/lib/feed-notification";
 import { SuggestedFollows } from "./suggested-follows";
 import { ActiveMiniGames } from "@/components/mini-games";
+
+// ── Skeleton loader matching IG-style card layout ──────────────
+
+function SkeletonBar({ className }: { className?: string }) {
+  return (
+    <div
+      className={cn(
+        "rounded bg-zinc-800 animate-pulse",
+        className,
+      )}
+    />
+  );
+}
+
+function FeedItemSkeleton({ showMedia = false }: { showMedia?: boolean }) {
+  return (
+    <div className="border-b border-zinc-800">
+      {/* Header: avatar + name/username/time */}
+      <div className="flex items-center gap-2 px-4 pt-3 pb-2">
+        <SkeletonBar className="h-8 w-8 shrink-0 rounded-full" />
+        <div className="flex-1 space-y-1.5">
+          <div className="flex items-center gap-2">
+            <SkeletonBar className="h-3.5 w-24" />
+            <SkeletonBar className="h-3 w-20" />
+            <SkeletonBar className="h-3 w-8" />
+          </div>
+          <SkeletonBar className="h-3 w-16" />
+        </div>
+      </div>
+      {/* Notes (text-only card) or media placeholder */}
+      {showMedia ? (
+        <SkeletonBar className="mx-0 h-0 w-full rounded-none pb-[100%]" />
+      ) : (
+        <div className="space-y-1.5 px-4 pb-2">
+          <SkeletonBar className="h-3.5 w-full" />
+          <SkeletonBar className="h-3.5 w-3/4" />
+        </div>
+      )}
+      {/* Stats row */}
+      <div className="flex items-center gap-3 px-4 pt-2">
+        <SkeletonBar className="h-3.5 w-14" />
+        <SkeletonBar className="h-3.5 w-10" />
+      </div>
+      {/* Action bar */}
+      <div className="flex items-center gap-5 px-4 py-2.5">
+        <SkeletonBar className="h-4 w-4 rounded-full" />
+        <SkeletonBar className="h-4 w-4 rounded-full" />
+        <SkeletonBar className="h-4 w-4 rounded-full" />
+        <SkeletonBar className="h-4 w-4 rounded-full" />
+      </div>
+      {/* Caption line (for media cards) */}
+      {showMedia && (
+        <div className="flex items-center gap-2 px-4 pb-3">
+          <SkeletonBar className="h-3.5 w-20" />
+          <SkeletonBar className="h-3.5 w-40" />
+        </div>
+      )}
+    </div>
+  );
+}
 
 interface BonusThreshold {
   metric: string;
@@ -474,17 +533,11 @@ export function ActivityFeed({
     effectiveIsLoading &&
     (displayResults?.length ?? 0) === 0;
 
-  const feedStatus = useMemo(() => {
+  const showFeedSkeleton = useMemo(() => {
     const hasInitialFeed =
       (feedFilter === "all" && (displayResults?.length ?? 0) > 0) ||
       (feedFilter === "for_you" && visibleAlgoIds.length > 0);
-    if (effectiveIsLoading && !hasInitialFeed) {
-      if (feedFilter === "following")
-        return "Loading activity from people you follow...";
-      if (feedFilter === "for_you") return "Loading your personalized feed...";
-      return "Loading recent activities...";
-    }
-    return null;
+    return effectiveIsLoading && !hasInitialFeed;
   }, [displayResults, effectiveIsLoading, feedFilter, visibleAlgoIds.length]);
 
   return (
@@ -561,10 +614,11 @@ export function ActivityFeed({
         </Alert>
       )}
 
-      {feedStatus && (
-        <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          {feedStatus}
+      {showFeedSkeleton && (
+        <div className="space-y-0">
+          {[0, 1, 2].map((i) => (
+            <FeedItemSkeleton key={i} showMedia={i === 0} />
+          ))}
         </div>
       )}
 
@@ -746,24 +800,12 @@ function ActivityStats({ item }: { item: ActivityFeedItem }) {
         hasBonuses={!!hasBonuses}
         className="font-mono font-medium"
       />
-      {hasBonuses && (
-        <span className="text-xs text-muted-foreground">
-          (+{bonusTotal} bonus)
-        </span>
-      )}
-      {hasBonuses && (
-        <div className="flex flex-wrap gap-1.5">
-          {item.activity.triggeredBonuses!.map((bonus, i) => (
-            <span
-              key={i}
-              className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-xs text-amber-500"
-            >
-              <Zap className="h-3 w-3" />
-              {bonus.description}
-            </span>
-          ))}
-        </div>
-      )}
+      {hasBonuses &&
+        item.activity.triggeredBonuses!.map((bonus, i) => (
+          <span key={i} className="text-xs text-amber-500">
+            +{bonus.bonusPoints} {bonus.description.replace(/ bonus$/i, "").toLowerCase()}
+          </span>
+        ))}
     </div>
   );
 }
@@ -1171,19 +1213,18 @@ export const ActivityCard = memo(function ActivityCard({
           user={item.user}
           challengeId={challengeId}
           size="sm"
-          show={{ name: true, username: true, location: true }}
+          layout="inline"
+          show={{ name: true, username: true }}
           suffix={
             <>
-              <span aria-hidden="true">•</span>
-              <span className="text-sm">
-                {formatDistanceToNow(new Date(item.activity.createdAt), {
-                  addSuffix: true,
-                })}
+              <span className="text-xs text-muted-foreground" aria-hidden="true">·</span>
+              <span className="text-xs text-muted-foreground shrink-0">
+                {formatTimeAgo(item.activity.createdAt)}
               </span>
             </>
           }
         >
-          <span className="text-sm font-semibold text-primary">
+          <span className="text-xs text-muted-foreground">
             {item.activityType?.name ?? "Activity"}
           </span>
         </UserChallengeDisplay>
@@ -1196,16 +1237,24 @@ export const ActivityCard = memo(function ActivityCard({
 
   const hasMedia = item.mediaUrls.length > 0 || (item.cloudinaryPublicIds && item.cloudinaryPublicIds.length > 0);
 
-  const bodyContent = (
-    <>
-      {item.activity.notes ? (
+  const bodyContent = item.activity.notes ? (
+    hasMedia ? (
+      <div className="text-sm leading-snug">
+        <span className="font-semibold text-foreground">
+          {item.user.username}
+        </span>{" "}
         <RichTextViewer
           content={item.activity.notes}
-          className="text-sm text-muted-foreground"
+          className="inline text-sm text-muted-foreground [&_p]:inline"
         />
-      ) : null}
-    </>
-  );
+      </div>
+    ) : (
+      <RichTextViewer
+        content={item.activity.notes}
+        className="text-sm text-muted-foreground"
+      />
+    )
+  ) : null;
 
   const mediaContent = hasMedia ? (
     <MediaGallery
@@ -1235,11 +1284,12 @@ export const ActivityCard = memo(function ActivityCard({
       onClick={handleCardClick}
     >
       <div className="px-4 pt-3 pb-1" onClick={(e) => e.stopPropagation()}>{headerContent}</div>
-      <div className="space-y-2 px-4">{bodyContent}</div>
+      {!hasMedia && <div className="space-y-2 px-4">{bodyContent}</div>}
       {mediaContent && <div className="mt-2">{mediaContent}</div>}
       <div className="px-4 pt-1"><ActivityStats item={item} /></div>
-      {likesDisplay && <div className="px-4 pt-2">{likesDisplay}</div>}
-      <div className="px-4 py-2">{actionBar}</div>
+      <div className="px-4 py-1">{actionBar}</div>
+      {likesDisplay && <div className="px-4">{likesDisplay}</div>}
+      {hasMedia && bodyContent && <div className="px-4">{bodyContent}</div>}
       <div className="px-4 pb-3">{commentsSection}</div>
       <div className="border-b border-zinc-800" />
     </article>
