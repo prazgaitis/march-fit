@@ -41,6 +41,14 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  ResponsiveDialog,
+  ResponsiveDialogBody,
+  ResponsiveDialogContent,
+  ResponsiveDialogDescription,
+  ResponsiveDialogHeader,
+  ResponsiveDialogTitle,
+} from "@/components/ui/responsive-dialog";
 import { StravaConnectButton } from "@/components/integrations/strava-connect-button";
 import { ApiKeySection } from "@/components/api-key-section";
 import { cn } from "@/lib/utils";
@@ -63,6 +71,7 @@ export function UserProfileContent({
   const [showPrDayModal, setShowPrDayModal] = useState(false);
   const [showInvitedModal, setShowInvitedModal] = useState(false);
   const [storyViewerOpen, setStoryViewerOpen] = useState(false);
+  const [followModalTab, setFollowModalTab] = useState<"followers" | "following" | null>(null);
 
   const profileData = useQuery(api.queries.users.getProfile, {
     userId: profileUserId as Id<"users">,
@@ -264,18 +273,26 @@ export function UserProfileContent({
             {/* Follower/Following Counts */}
             {followData && (
               <div className="mt-3 flex flex-wrap justify-center gap-4 text-sm sm:justify-start">
-                <span>
+                <button
+                  type="button"
+                  onClick={() => setFollowModalTab("followers")}
+                  className="hover:underline"
+                >
                   <strong>{followData.followersCount}</strong>{" "}
                   <span className="text-muted-foreground">
                     {followData.followersCount === 1
                       ? "follower"
                       : "followers"}
                   </span>
-                </span>
-                <span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFollowModalTab("following")}
+                  className="hover:underline"
+                >
                   <strong>{followData.followingCount}</strong>{" "}
                   <span className="text-muted-foreground">following</span>
-                </span>
+                </button>
                 {participation && (participation.inviteCount ?? 0) > 0 && (
                   <button
                     type="button"
@@ -556,6 +573,15 @@ export function UserProfileContent({
         </DialogContent>
       </Dialog>
 
+      {/* Followers / Following Modal */}
+      <FollowListModal
+        profileUserId={profileUserId}
+        challengeId={challengeId}
+        tab={followModalTab}
+        onClose={() => setFollowModalTab(null)}
+        onTabChange={setFollowModalTab}
+      />
+
       {/* Mini-Games */}
       <div className="px-4 py-4">
         <UserMiniGames challengeId={challengeId} userId={profileUserId} />
@@ -684,6 +710,117 @@ export function UserProfileContent({
         onClose={() => setStoryViewerOpen(false)}
       />
     </div>
+  );
+}
+
+// ─── Follow list modal ───────────────────────────────────────────────────────
+
+function FollowListModal({
+  profileUserId,
+  challengeId,
+  tab,
+  onClose,
+  onTabChange,
+}: {
+  profileUserId: string;
+  challengeId: string;
+  tab: "followers" | "following" | null;
+  onClose: () => void;
+  onTabChange: (tab: "followers" | "following") => void;
+}) {
+  const followers = useQuery(
+    api.queries.follows.getFollowers,
+    tab !== null ? { userId: profileUserId as Id<"users"> } : "skip",
+  );
+  const following = useQuery(
+    api.queries.follows.getFollowing,
+    tab !== null ? { userId: profileUserId as Id<"users"> } : "skip",
+  );
+
+  const list = tab === "followers" ? followers : following;
+
+  return (
+    <ResponsiveDialog open={tab !== null} onOpenChange={(open) => { if (!open) onClose(); }}>
+      <ResponsiveDialogContent>
+        <ResponsiveDialogHeader>
+          <ResponsiveDialogTitle>
+            {tab === "followers" ? "Followers" : "Following"}
+          </ResponsiveDialogTitle>
+          <ResponsiveDialogDescription className="sr-only">
+            {tab === "followers" ? "People who follow this user" : "People this user follows"}
+          </ResponsiveDialogDescription>
+        </ResponsiveDialogHeader>
+
+        {/* Tabs */}
+        <div className="flex border-b border-zinc-800">
+          <button
+            onClick={() => onTabChange("followers")}
+            className={cn(
+              "relative flex-1 py-2.5 text-center text-sm font-medium transition-colors",
+              tab === "followers" ? "text-white" : "text-zinc-500 hover:text-zinc-300",
+            )}
+          >
+            Followers
+            {tab === "followers" && (
+              <div className="absolute bottom-0 left-1/2 h-0.5 w-12 -translate-x-1/2 rounded-full bg-indigo-500" />
+            )}
+          </button>
+          <button
+            onClick={() => onTabChange("following")}
+            className={cn(
+              "relative flex-1 py-2.5 text-center text-sm font-medium transition-colors",
+              tab === "following" ? "text-white" : "text-zinc-500 hover:text-zinc-300",
+            )}
+          >
+            Following
+            {tab === "following" && (
+              <div className="absolute bottom-0 left-1/2 h-0.5 w-12 -translate-x-1/2 rounded-full bg-indigo-500" />
+            )}
+          </button>
+        </div>
+
+        {/* List */}
+        <ResponsiveDialogBody>
+          {list === undefined ? (
+            <div className="flex justify-center py-8">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          ) : list.length === 0 ? (
+            <p className="py-8 text-center text-sm text-muted-foreground">
+              {tab === "followers" ? "No followers yet." : "Not following anyone yet."}
+            </p>
+          ) : (
+            <div className="space-y-1 py-2">
+              {list.map(
+                (person: {
+                  id: string;
+                  username: string;
+                  name: string | null;
+                  avatarUrl: string | null;
+                }) => (
+                  <Link
+                    key={person.id}
+                    href={`/challenges/${challengeId}/users/${person.id}`}
+                    onClick={onClose}
+                    className="flex items-center gap-3 rounded-lg p-2 transition-colors hover:bg-zinc-900/60"
+                  >
+                    <UserAvatar user={person} size="sm" disableLink />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium truncate">
+                        {person.name ?? person.username}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        @{person.username}
+                      </p>
+                    </div>
+                  </Link>
+                ),
+              )}
+            </div>
+          )}
+        </ResponsiveDialogBody>
+      </ResponsiveDialogContent>
+    </ResponsiveDialog>
   );
 }
 

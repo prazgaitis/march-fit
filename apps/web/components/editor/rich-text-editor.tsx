@@ -98,6 +98,7 @@ const MentionList = forwardRef<MentionListHandle, MentionListProps>(
                   isActive && 'bg-muted text-foreground',
                   !isActive && 'hover:bg-muted/80',
                 )}
+                onMouseDown={(e) => e.preventDefault()}
                 onClick={() => selectItem(index)}
               >
                 <span className="font-medium leading-tight">

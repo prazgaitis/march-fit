@@ -88,6 +88,8 @@ import { FollowButton } from "@/components/follow-button";
 import { LikesDisplay } from "@/components/likes-display";
 import { captureAppException, captureAppMessage } from "@/lib/sentry";
 import { isLatestActivityVisibleInFeed } from "@/lib/feed-notification";
+import { SuggestedFollows } from "./suggested-follows";
+import { ActiveMiniGames } from "@/components/mini-games";
 
 interface BonusThreshold {
   metric: string;
@@ -201,6 +203,34 @@ export function ActivityFeed({
     () => ((rankedIds ?? []) as Id<"activities">[]).slice(0, algoVisibleCount),
     [rankedIds, algoVisibleCount],
   );
+
+  // Compute stable random injection positions for mobile feed widgets.
+  // Seeded by today's date so positions stay consistent within a session
+  // but vary day-to-day. The two widgets are never adjacent.
+  const injectionSlots = useMemo(() => {
+    if (!isMobileClient || visibleAlgoIds.length < 5) return null;
+    // Simple seed from date string
+    const seed = new Date().toDateString();
+    let hash = 0;
+    for (let i = 0; i < seed.length; i++) {
+      hash = ((hash << 5) - hash + seed.charCodeAt(i)) | 0;
+    }
+    const rand = (n: number) => ((Math.abs(hash = ((hash << 13) ^ hash) - (hash >>> 7)) % n));
+
+    // First widget: position 4–7 (after 5th–8th card)
+    const pos1 = 4 + rand(4);
+    // Second widget: at least 3 cards after the first, up to pos1+6
+    const minPos2 = pos1 + 3;
+    const maxPos2 = Math.min(pos1 + 6, visibleAlgoIds.length - 1);
+    const pos2 = minPos2 <= maxPos2 ? minPos2 + rand(maxPos2 - minPos2 + 1) : minPos2;
+
+    // Randomize which widget goes first
+    const swapped = rand(2) === 0;
+    return {
+      miniGamesAt: swapped ? pos2 : pos1,
+      suggestedAt: swapped ? pos1 : pos2,
+    };
+  }, [isMobileClient, visibleAlgoIds.length]);
   const algoCanLoadMore = (rankedIds?.length ?? 0) > algoVisibleCount;
   const algoIsLoading = feedFilter === "for_you" && rankedIds === undefined;
 
@@ -532,16 +562,27 @@ export function ActivityFeed({
 
       {/* For You tab: each card subscribes reactively to its own data */}
       {feedFilter === "for_you" &&
-        visibleAlgoIds.map((activityId) => (
-          <ReactiveActivityCard
-            key={activityId}
-            activityId={activityId}
-            challengeId={challengeId}
-            showEngagementCounts={!lightweightFeedMode}
-            mentionOptions={mentionUsers}
-            currentUserId={currentUserId}
-            followingSet={followingSet}
-          />
+        visibleAlgoIds.map((activityId, index) => (
+          <div key={activityId}>
+            <ReactiveActivityCard
+              activityId={activityId}
+              challengeId={challengeId}
+              showEngagementCounts={!lightweightFeedMode}
+              mentionOptions={mentionUsers}
+              currentUserId={currentUserId}
+              followingSet={followingSet}
+            />
+            {injectionSlots?.miniGamesAt === index && (
+              <div className="py-3">
+                <ActiveMiniGames challengeId={challengeId} userId={currentUserId ?? ""} />
+              </div>
+            )}
+            {injectionSlots?.suggestedAt === index && (
+              <div className="py-3">
+                <SuggestedFollows challengeId={challengeId} />
+              </div>
+            )}
+          </div>
         ))}
 
       {/* All / Following tabs: render from paginated query results */}
