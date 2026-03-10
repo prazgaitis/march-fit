@@ -308,22 +308,16 @@ export function ActivityFeed({
 
       const hasNew = fresh.some((e) => !prevIds.has(e.id));
       if (!hasNew && fresh.length > 0) {
-        // No new For You activities — pull a few recent ones from the "all" feed
-        const allRaw = await convexClient.query(
-          api.queries.activities.getChallengeFeed,
-          {
-            challengeId: challengeId as Id<"challenges">,
-            followingOnly: false,
-            includeEngagementCounts: true,
-            includeMediaUrls: true,
-            paginationOpts: { numItems: 5, cursor: null },
-          },
+        // No new For You activities — backfill with recent entries
+        const recentIds = await convexClient.query(
+          api.queries.algorithmicFeed.getRecentActivityIds,
+          { challengeId: challengeId as Id<"challenges">, limit: 5 },
         );
         const existingIds = new Set(fresh.map((e) => e.id));
-        const backfill: FeedEntry[] = (allRaw as any).page
-          ?.filter((item: any) => !existingIds.has(item.activity._id))
+        const backfill: FeedEntry[] = (recentIds as Id<"activities">[])
+          .filter((id) => !existingIds.has(id))
           .slice(0, 3)
-          .map((item: any): FeedEntry => ({ id: item.activity._id })) ?? [];
+          .map((id): FeedEntry => ({ id }));
 
         if (backfill.length > 0) {
           setRankedEntries([...backfill, ...fresh]);
