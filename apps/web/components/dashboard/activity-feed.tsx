@@ -22,7 +22,6 @@ import {
   Zap,
 } from "lucide-react";
 import {
-  useConvex,
   useConvexConnectionState,
   useMutation,
   usePaginatedQuery,
@@ -130,66 +129,10 @@ export interface ActivityFeedItem {
   recentLikers: Array<{ id: string; name: string | null; username: string }>;
 }
 
-interface AlgoFeedItem {
-  activity: {
-    _id: string;
-    notes: string | null;
-    pointsEarned: number;
-    loggedDate: number;
-    createdAt: number;
-    metrics?: Record<string, unknown>;
-    triggeredBonuses?: BonusThreshold[];
-    _creationTime: number;
-  };
-  user: {
-    id: string;
-    name: string | null;
-    username: string;
-    avatarUrl: string | null;
-    location?: string | null;
-  };
-  activityType: {
-    id: string | null;
-    name: string | null;
-    categoryId: string | null;
-    scoringConfig?: Record<string, unknown>;
-    isNegative?: boolean;
-  } | null;
-  likes: number;
-  comments: number;
-  likedByUser: boolean;
-  mediaUrls: string[];
-  cloudinaryPublicIds?: string[];
-  recentLikers: Array<{ id: string; name: string | null; username: string }>;
-  displayScore: number;
-}
-
-function mapAlgoItem(item: AlgoFeedItem): ActivityFeedItem {
-  return {
-    activity: {
-      _id: item.activity._id,
-      notes: item.activity.notes,
-      pointsEarned: item.activity.pointsEarned,
-      loggedDate: item.activity.loggedDate,
-      createdAt: item.activity.createdAt,
-      metrics: item.activity.metrics,
-      triggeredBonuses: item.activity.triggeredBonuses,
-    },
-    user: item.user,
-    activityType: item.activityType,
-    likes: item.likes,
-    comments: item.comments,
-    likedByUser: item.likedByUser,
-    mediaUrls: item.mediaUrls,
-    recentLikers: item.recentLikers ?? [],
-  };
-}
-
 interface ActivityFeedProps {
   challengeId: string;
   currentUserId?: string;
   initialItems?: ActivityFeedItem[];
-  initialAlgoItems?: AlgoFeedItem[];
   initialLightweightMode?: boolean;
 }
 
@@ -201,11 +144,12 @@ interface FeedPageResponse {
   isDone: boolean;
 }
 
+const ALGO_PAGE_SIZE = 10;
+
 export function ActivityFeed({
   challengeId,
   currentUserId,
   initialItems = [],
-  initialAlgoItems = [],
   initialLightweightMode = false,
 }: ActivityFeedProps) {
   const connectionState = useConvexConnectionState();
@@ -213,7 +157,7 @@ export function ActivityFeed({
   const { hasNewActivity, acknowledgeActivity } = useActivityNotification();
   const { users: mentionUsers } = useMentionableUsers(challengeId);
   const followingIds = useQuery(api.queries.follows.getFollowingIds);
-  const followingSet = useMemo(() => new Set(followingIds ?? []), [followingIds]);
+  const followingSet = useMemo(() => new Set<string>((followingIds ?? []) as string[]), [followingIds]);
   const [feedFilter, setFeedFilter] = useState<FeedFilter>("for_you");
   const [hasLoadedFollowingFeed, setHasLoadedFollowingFeed] = useState(false);
   const [useHttpFallback, setUseHttpFallback] = useState(false);
@@ -245,48 +189,20 @@ export function ActivityFeed({
     { initialNumItems: 10 },
   );
 
-  // Snapshot-based algo feed: fetch once on mount/tab switch, re-fetch on explicit refresh only
-  const convexClient = useConvex();
-  const [algoSnapshot, setAlgoSnapshot] = useState<AlgoFeedItem[]>(
-    () => (initialAlgoItems ?? []) as AlgoFeedItem[],
+  // For You: reactive ranked IDs + client-side pagination
+  const rankedIds = useQuery(
+    api.queries.algorithmicFeed.getRankedActivityIds,
+    feedFilter === "for_you"
+      ? { challengeId: challengeId as Id<"challenges"> }
+      : "skip",
   );
-  const [algoSnapshotLoading, setAlgoSnapshotLoading] = useState(false);
-  const algoFetchIdRef = useRef(0);
-
-  const fetchAlgoFeed = useCallback(async () => {
-    const fetchId = ++algoFetchIdRef.current;
-    setAlgoSnapshotLoading(true);
-    try {
-      const result = await convexClient.query(
-        api.queries.algorithmicFeed.getAlgorithmicFeed,
-        {
-          challengeId: challengeId as Id<"challenges">,
-          includeEngagementCounts: !lightweightFeedMode,
-          includeMediaUrls: true,
-        },
-      );
-      if (fetchId !== algoFetchIdRef.current) return;
-      setAlgoSnapshot((result?.page ?? []) as AlgoFeedItem[]);
-    } catch (error) {
-      if (fetchId !== algoFetchIdRef.current) return;
-      console.error("Failed to fetch algo feed", error);
-    } finally {
-      if (fetchId === algoFetchIdRef.current) {
-        setAlgoSnapshotLoading(false);
-      }
-    }
-  }, [convexClient, challengeId, lightweightFeedMode]);
-
-  // Fetch algo feed when switching to "For You" tab
-  useEffect(() => {
-    if (feedFilter !== "for_you") return;
-    // Only fetch if we don't have initial data
-    if (algoSnapshot.length > 0 && algoFetchIdRef.current === 0) return;
-    void fetchAlgoFeed();
-  }, [feedFilter]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const algoResults = algoSnapshot;
-  const algoIsLoading = algoSnapshotLoading && algoSnapshot.length === 0;
+  const [algoVisibleCount, setAlgoVisibleCount] = useState(ALGO_PAGE_SIZE);
+  const visibleAlgoIds = useMemo(
+    () => ((rankedIds ?? []) as Id<"activities">[]).slice(0, algoVisibleCount),
+    [rankedIds, algoVisibleCount],
+  );
+  const algoCanLoadMore = (rankedIds?.length ?? 0) > algoVisibleCount;
+  const algoIsLoading = feedFilter === "for_you" && rankedIds === undefined;
 
   const loadHttpPage = useCallback(
     async (cursor: string | null, append: boolean) => {
@@ -411,6 +327,7 @@ export function ActivityFeed({
 
   const handleLoadMore = () => {
     if (feedFilter === "for_you") {
+      setAlgoVisibleCount((prev) => prev + ALGO_PAGE_SIZE);
       return;
     }
 
@@ -432,15 +349,9 @@ export function ActivityFeed({
     // effectively this just hides the alert.
   };
 
-  const algoDisplayResults = useMemo((): ActivityFeedItem[] => {
-    if (feedFilter !== "for_you") return [];
-    return algoResults.map(mapAlgoItem);
-  }, [algoResults, feedFilter]);
-
-
   const liveDisplayResults = useMemo(() => {
     if (feedFilter === "for_you") {
-      return algoDisplayResults;
+      return []; // For You tab renders via ReactiveActivityCard, not displayResults
     }
 
     if (feedFilter !== "all") {
@@ -452,7 +363,7 @@ export function ActivityFeed({
     }
 
     return results;
-  }, [algoDisplayResults, feedFilter, initialItems, results]);
+  }, [feedFilter, initialItems, results]);
 
   const displayResults = useMemo(() => {
     if (!useHttpFallback) {
@@ -500,7 +411,7 @@ export function ActivityFeed({
         : isLoading;
   const canLoadMore =
     feedFilter === "for_you"
-      ? false
+      ? algoCanLoadMore
       : useHttpFallback
         ? !httpIsDone && !httpLoading && httpCursor !== null
         : status === "CanLoadMore";
@@ -519,8 +430,8 @@ export function ActivityFeed({
 
   const feedStatus = useMemo(() => {
     const hasInitialFeed =
-      (feedFilter === "all" || feedFilter === "for_you") &&
-      (displayResults?.length ?? 0) > 0;
+      (feedFilter === "all" && (displayResults?.length ?? 0) > 0) ||
+      (feedFilter === "for_you" && visibleAlgoIds.length > 0);
     if (effectiveIsLoading && !hasInitialFeed) {
       if (feedFilter === "following")
         return "Loading activity from people you follow...";
@@ -528,7 +439,7 @@ export function ActivityFeed({
       return "Loading recent activities...";
     }
     return null;
-  }, [displayResults, effectiveIsLoading, feedFilter]);
+  }, [displayResults, effectiveIsLoading, feedFilter, visibleAlgoIds.length]);
 
   return (
     <div>
@@ -619,49 +530,72 @@ export function ActivityFeed({
 
       <div className="h-2" />
 
-      {displayResults
-        ?.filter(
-          (
-            item,
-          ): item is NonNullable<typeof item> & {
-            user: NonNullable<(typeof item)["user"]>;
-          } => item.user !== null,
-        )
-        .map((item) => (
-          <ActivityCard
-            key={item.activity._id}
+      {/* For You tab: each card subscribes reactively to its own data */}
+      {feedFilter === "for_you" &&
+        visibleAlgoIds.map((activityId) => (
+          <ReactiveActivityCard
+            key={activityId}
+            activityId={activityId}
             challengeId={challengeId}
             showEngagementCounts={!lightweightFeedMode}
-            item={{
-              ...item,
-              activity: {
-                ...item.activity,
-                id: item.activity._id,
-              },
-              mediaUrls: item.mediaUrls ?? [],
-            }}
             mentionOptions={mentionUsers}
             currentUserId={currentUserId}
-            isFollowing={followingSet.has(item.user.id)}
+            followingSet={followingSet}
           />
         ))}
 
-      {!effectiveIsLoading && (displayResults?.length ?? 0) === 0 && (
+      {/* All / Following tabs: render from paginated query results */}
+      {feedFilter !== "for_you" &&
+        displayResults
+          ?.filter(
+            (
+              item,
+            ): item is NonNullable<typeof item> & {
+              user: NonNullable<(typeof item)["user"]>;
+            } => item.user !== null,
+          )
+          .map((item) => (
+            <ActivityCard
+              key={item.activity._id}
+              challengeId={challengeId}
+              showEngagementCounts={!lightweightFeedMode}
+              item={{
+                ...item,
+                activity: {
+                  ...item.activity,
+                  id: item.activity._id,
+                },
+                mediaUrls: item.mediaUrls ?? [],
+              }}
+              mentionOptions={mentionUsers}
+              currentUserId={currentUserId}
+              isFollowing={followingSet.has(item.user.id)}
+            />
+          ))}
+
+      {!effectiveIsLoading && feedFilter === "for_you" && visibleAlgoIds.length === 0 && rankedIds !== undefined && (
+        <Card className="border-dashed text-center">
+          <CardHeader>
+            <CardTitle>No activity yet</CardTitle>
+            <CardDescription>
+              Activities will appear here once people start logging workouts.
+            </CardDescription>
+          </CardHeader>
+        </Card>
+      )}
+
+      {!effectiveIsLoading && feedFilter !== "for_you" && (displayResults?.length ?? 0) === 0 && (
         <Card className="border-dashed text-center">
           <CardHeader>
             <CardTitle>
               {feedFilter === "following"
                 ? "No activity from people you follow"
-                : feedFilter === "for_you"
-                  ? "No activity yet"
-                  : "No activity yet"}
+                : "No activity yet"}
             </CardTitle>
             <CardDescription>
               {feedFilter === "following"
                 ? "Follow other participants to see their activities here."
-                : feedFilter === "for_you"
-                  ? "Activities will appear here once people start logging workouts."
-                  : "Be the first to log a workout for this challenge."}
+                : "Be the first to log a workout for this challenge."}
             </CardDescription>
           </CardHeader>
         </Card>
@@ -767,6 +701,76 @@ function ActivityStats({ item }: { item: ActivityFeedItem }) {
   );
 }
 
+/**
+ * Wrapper that subscribes to a single activity by ID via useQuery.
+ * Each card is independently reactive — likes, comments, etc. update instantly.
+ */
+const ReactiveActivityCard = memo(function ReactiveActivityCard({
+  activityId,
+  challengeId,
+  showEngagementCounts,
+  mentionOptions,
+  currentUserId,
+  followingSet,
+}: {
+  activityId: Id<"activities">;
+  challengeId: string;
+  showEngagementCounts: boolean;
+  mentionOptions: MentionableUser[];
+  currentUserId?: string;
+  followingSet: Set<string>;
+}) {
+  const data = useQuery(api.queries.activities.getById, { activityId });
+
+  if (!data) return null;
+
+  const item: ActivityFeedItem = {
+    activity: {
+      _id: data.activity._id as string,
+      id: data.activity._id as string,
+      notes: data.activity.notes ?? null,
+      pointsEarned: data.activity.pointsEarned,
+      loggedDate: data.activity.loggedDate,
+      createdAt: data.activity.createdAt,
+      metrics: data.activity.metrics as Record<string, unknown> | undefined,
+      triggeredBonuses: data.activity.triggeredBonuses as BonusThreshold[] | undefined,
+    },
+    user: {
+      id: data.user.id as string,
+      name: data.user.name ?? null,
+      username: data.user.username,
+      avatarUrl: data.user.avatarUrl ?? null,
+      location: data.user.location ?? null,
+    },
+    activityType: data.activityType
+      ? {
+          id: data.activityType.id as string,
+          name: data.activityType.name,
+          categoryId: data.activityType.categoryId as string | null,
+          scoringConfig: data.activityType.scoringConfig as Record<string, unknown> | undefined,
+          isNegative: data.activityType.isNegative,
+        }
+      : null,
+    likes: data.likes,
+    comments: data.comments,
+    likedByUser: data.likedByUser,
+    mediaUrls: data.mediaUrls,
+    cloudinaryPublicIds: data.cloudinaryPublicIds,
+    recentLikers: data.recentLikers,
+  };
+
+  return (
+    <ActivityCard
+      challengeId={challengeId}
+      showEngagementCounts={showEngagementCounts}
+      item={item}
+      mentionOptions={mentionOptions}
+      currentUserId={currentUserId}
+      isFollowing={followingSet.has(data.user.id as string)}
+    />
+  );
+});
+
 interface ActivityCardProps {
   challengeId: string;
   item: ActivityFeedItem;
@@ -774,6 +778,7 @@ interface ActivityCardProps {
   mentionOptions: MentionableUser[];
   currentUserId?: string;
   isFollowing: boolean;
+  onLikeToggle?: (activityId: string, liked: boolean) => void;
 }
 
 export const ActivityCard = memo(function ActivityCard({

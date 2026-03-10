@@ -21,14 +21,12 @@ interface StoriesSectionProps {
     username: string;
     avatarUrl: string | null;
   };
-  initialAlgoItems?: any[];
 }
 
 export function StoriesSection({
   challengeId,
   challengeStartDate,
   currentUser,
-  initialAlgoItems = [],
 }: StoriesSectionProps) {
   const [viewerOpen, setViewerOpen] = useState(false);
   const [viewerIndex, setViewerIndex] = useState(0);
@@ -47,13 +45,13 @@ export function StoriesSection({
   const stories = useMemo(
     () =>
       buildStoriesFromFeed(
-        (algoFeedResult?.page ?? initialAlgoItems) as any[],
+        (algoFeedResult?.page ?? []) as any[],
         challengeId,
         STORIES_MAX_AGE_MS,
         20,
         showOptimized,
       ),
-    [algoFeedResult, initialAlgoItems, challengeId, showOptimized],
+    [algoFeedResult, challengeId, showOptimized],
   );
 
   const handleStoryPress = (index: number) => {
