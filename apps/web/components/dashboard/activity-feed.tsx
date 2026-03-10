@@ -22,6 +22,7 @@ import {
   Share2,
 } from "lucide-react";
 import {
+  useConvex,
   useConvexConnectionState,
   useMutation,
   usePaginatedQuery,
@@ -238,7 +239,7 @@ export function ActivityFeed({
       navigator.userAgent,
     );
   }, []);
-  const lightweightFeedMode = initialLightweightMode || isMobileClient;
+  const lightweightFeedMode = initialLightweightMode;
 
   const { results, status, loadMore, isLoading } = usePaginatedQuery(
     api.queries.activities.getChallengeFeed,
@@ -253,25 +254,94 @@ export function ActivityFeed({
     { initialNumItems: 10 },
   );
 
-  // For You: reactive ranked entries + client-side pagination
-  // Entries are either bare activity IDs or { id, repostedBy } objects
-  const rankedEntries = useQuery(
-    api.queries.algorithmicFeed.getRankedActivityIds,
-    feedFilter === "for_you"
-      ? { challengeId: challengeId as Id<"challenges"> }
-      : "skip",
-  );
-  const [algoVisibleCount, setAlgoVisibleCount] = useState(ALGO_PAGE_SIZE);
-
+  // For You: one-shot fetch of ranked entries (not reactive) so that
+  // likes/comments/reposts don't re-sort the feed while the user is scrolling.
+  // Each card subscribes to its own data reactively via getById.
+  const convexClient = useConvex();
   type FeedEntry = { id: Id<"activities">; repostedBy?: string };
-  const visibleAlgoEntries = useMemo(() => {
-    const raw = (rankedEntries ?? []) as Array<Id<"activities"> | { id: Id<"activities">; repostedBy: string }>;
-    return raw.slice(0, algoVisibleCount).map((entry): FeedEntry =>
-      typeof entry === "string"
-        ? { id: entry }
-        : { id: entry.id as Id<"activities">, repostedBy: entry.repostedBy },
+  const [rankedEntries, setRankedEntries] = useState<FeedEntry[] | undefined>(undefined);
+  const algoFetchIdRef = useRef(0);
+
+  const parseRankedEntries = useCallback(
+    (raw: Array<Id<"activities"> | { id: Id<"activities">; repostedBy: string }>): FeedEntry[] =>
+      raw.map((entry): FeedEntry =>
+        typeof entry === "string"
+          ? { id: entry }
+          : { id: entry.id as Id<"activities">, repostedBy: entry.repostedBy },
+      ),
+    [],
+  );
+
+  const fetchForYou = useCallback(async () => {
+    const fetchId = ++algoFetchIdRef.current;
+    const raw = await convexClient.query(
+      api.queries.algorithmicFeed.getRankedActivityIds,
+      { challengeId: challengeId as Id<"challenges"> },
     );
-  }, [rankedEntries, algoVisibleCount]);
+    if (fetchId !== algoFetchIdRef.current) return; // stale
+    const entries = parseRankedEntries(
+      raw as Array<Id<"activities"> | { id: Id<"activities">; repostedBy: string }>,
+    );
+    setRankedEntries(entries);
+    return entries;
+  }, [convexClient, challengeId, parseRankedEntries]);
+
+  useEffect(() => {
+    if (feedFilter !== "for_you") {
+      setRankedEntries(undefined);
+      return;
+    }
+    fetchForYou();
+  }, [feedFilter, fetchForYou]);
+
+  const [algoVisibleCount, setAlgoVisibleCount] = useState(ALGO_PAGE_SIZE);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Pull-to-refresh: re-fetch the For You ranking. If no new entries
+  // appeared, surface a few unseen entries from deeper in the ranking
+  // so the refresh always feels productive.
+  const handlePullRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    const minSpinner = new Promise((r) => setTimeout(r, 600));
+    try {
+      // Build a key set that accounts for reposts (same activity ID,
+      // different reposter = different entry).
+      const entryKey = (e: FeedEntry) =>
+        e.repostedBy ? `${e.id}:${e.repostedBy}` : e.id;
+      const prevKeys = new Set((rankedEntries ?? []).map(entryKey));
+      const prevVisibleKeys = new Set(
+        (rankedEntries ?? []).slice(0, algoVisibleCount).map(entryKey),
+      );
+
+      const fresh = await fetchForYou();
+      if (!fresh) return;
+
+      const hasNew = fresh.some((e) => !prevKeys.has(entryKey(e)));
+
+      if (!hasNew && fresh.length > algoVisibleCount) {
+        // No genuinely new entries — pull a few unseen items from deeper
+        // in the ranking and promote them to the top of the feed.
+        const unseen = fresh.filter((e) => !prevVisibleKeys.has(entryKey(e)));
+        const backfill = unseen.slice(0, 3);
+
+        if (backfill.length > 0) {
+          const backfillKeys = new Set(backfill.map(entryKey));
+          const rest = fresh.filter((e) => !backfillKeys.has(entryKey(e)));
+          setRankedEntries([...backfill, ...rest]);
+        }
+      }
+
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } finally {
+      await minSpinner;
+      setIsRefreshing(false);
+    }
+  }, [fetchForYou, rankedEntries, algoVisibleCount]);
+
+  const visibleAlgoEntries = useMemo(
+    () => (rankedEntries ?? []).slice(0, algoVisibleCount),
+    [rankedEntries, algoVisibleCount],
+  );
 
   // Compat: bare ID list for injection slot calculations, load-more, etc.
   const visibleAlgoIds = useMemo(
@@ -505,6 +575,19 @@ export function ActivityFeed({
   const showRefreshPrompt =
     feedFilter === "all" && hasNewActivity && !latestActivityVisible;
 
+  // Listen for home-tab-tap event (fired when user taps home while already on home)
+  useEffect(() => {
+    const handler = () => {
+      if (feedFilter === "for_you") {
+        handlePullRefresh();
+      } else {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    };
+    window.addEventListener("home-tab-tap", handler);
+    return () => window.removeEventListener("home-tab-tap", handler);
+  }, [feedFilter, handlePullRefresh]);
+
   const showForYouNewBanner =
     feedFilter === "for_you" && hasNewActivity;
 
@@ -540,8 +623,67 @@ export function ActivityFeed({
     return effectiveIsLoading && !hasInitialFeed;
   }, [displayResults, effectiveIsLoading, feedFilter, visibleAlgoIds.length]);
 
+  // Pull-to-refresh touch gesture
+  const pullStartY = useRef<number | null>(null);
+  const [pullDistance, setPullDistance] = useState(0);
+  const pullThreshold = 80;
+
+  const handleTouchStart = useCallback(
+    (e: React.TouchEvent) => {
+      if (feedFilter !== "for_you" || isRefreshing) return;
+      if (window.scrollY <= 0) {
+        pullStartY.current = e.touches[0].clientY;
+      }
+    },
+    [feedFilter, isRefreshing],
+  );
+
+  const handleTouchMove = useCallback(
+    (e: React.TouchEvent) => {
+      if (pullStartY.current === null) return;
+      const delta = e.touches[0].clientY - pullStartY.current;
+      if (delta > 0) {
+        // Dampen the pull distance for a natural feel
+        setPullDistance(Math.min(delta * 0.4, pullThreshold * 1.5));
+      }
+    },
+    [],
+  );
+
+  const handleTouchEnd = useCallback(() => {
+    if (pullStartY.current === null) return;
+    if (pullDistance >= pullThreshold) {
+      handlePullRefresh();
+    }
+    pullStartY.current = null;
+    setPullDistance(0);
+  }, [pullDistance, handlePullRefresh]);
+
   return (
-    <div>
+    <div
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
+      {/* Pull-to-refresh indicator */}
+      {feedFilter === "for_you" && (pullDistance > 0 || isRefreshing) && (
+        <div
+          className="flex items-center justify-center overflow-hidden transition-all"
+          style={{ height: isRefreshing ? 48 : pullDistance }}
+        >
+          <Loader2
+            className={cn(
+              "h-5 w-5 text-zinc-400 transition-opacity",
+              isRefreshing
+                ? "animate-spin opacity-100"
+                : pullDistance >= pullThreshold
+                  ? "opacity-100"
+                  : "opacity-40",
+            )}
+          />
+        </div>
+      )}
+
       {/* Twitter-like Feed Filter Tabs */}
       <div className="sticky top-[env(safe-area-inset-top)] z-10 -mx-4 border-b border-zinc-800 bg-black/80 backdrop-blur">
         <div className="flex">
@@ -589,8 +731,7 @@ export function ActivityFeed({
           <button
             onClick={() => {
               acknowledgeActivity();
-              setFeedFilter("all");
-              window.scrollTo({ top: 0, behavior: "smooth" });
+              handlePullRefresh();
             }}
             className="flex items-center gap-1.5 rounded-full bg-indigo-500 px-4 py-2 text-sm font-medium text-white shadow-lg transition-transform hover:scale-105 active:scale-95"
           >
@@ -1011,14 +1152,14 @@ export const ActivityCard = memo(function ActivityCard({
 
   const actionBar = (
     <div
-      className="flex items-center gap-4 text-muted-foreground"
+      className="flex items-center gap-6 sm:gap-4 text-muted-foreground"
       onClick={(e) => e.stopPropagation()}
     >
       <button
         disabled={isLiking}
         onClick={handleToggleLike}
         className={cn(
-          "flex items-center gap-1.5 text-sm transition-colors",
+          "flex items-center gap-1.5 text-sm transition-colors py-2",
           item.likedByUser
             ? "text-red-500"
             : "hover:text-red-500",
@@ -1026,7 +1167,7 @@ export const ActivityCard = memo(function ActivityCard({
       >
         <Heart
           className={cn(
-            "h-[18px] w-[18px]",
+            "h-5 w-5 sm:h-[18px] sm:w-[18px]",
             item.likedByUser && "fill-current",
           )}
         />
@@ -1037,11 +1178,11 @@ export const ActivityCard = memo(function ActivityCard({
       <button
         onClick={() => setShowComments((prev) => !prev)}
         className={cn(
-          "flex items-center gap-1.5 text-sm transition-colors",
+          "flex items-center gap-1.5 text-sm transition-colors py-2",
           showComments ? "text-foreground" : "hover:text-foreground",
         )}
       >
-        <MessageCircle className="h-[18px] w-[18px]" />
+        <MessageCircle className="h-5 w-5 sm:h-[18px] sm:w-[18px]" />
         {showEngagementCounts && item.comments > 0 && (
           <span>{item.comments}</span>
         )}
@@ -1050,16 +1191,14 @@ export const ActivityCard = memo(function ActivityCard({
         disabled={isReposting}
         onClick={handleToggleRepost}
         className={cn(
-          "flex items-center gap-1.5 text-sm transition-colors",
+          "flex items-center gap-1.5 text-sm transition-colors py-2",
           item.repostedByUser
             ? "text-emerald-500"
             : "hover:text-emerald-500",
         )}
       >
         <Repeat2
-          className={cn(
-            "h-[18px] w-[18px]",
-          )}
+          className="h-5 w-5 sm:h-[18px] sm:w-[18px]"
         />
         {showEngagementCounts && item.reposts > 0 && (
           <span>{item.reposts}</span>
@@ -1067,9 +1206,9 @@ export const ActivityCard = memo(function ActivityCard({
       </button>
       <button
         onClick={handleShare}
-        className="flex items-center gap-1.5 text-sm transition-colors hover:text-foreground"
+        className="flex items-center gap-1.5 text-sm transition-colors hover:text-foreground py-2"
       >
-        <Share2 className="h-[18px] w-[18px]" />
+        <Share2 className="h-5 w-5 sm:h-[18px] sm:w-[18px]" />
       </button>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>

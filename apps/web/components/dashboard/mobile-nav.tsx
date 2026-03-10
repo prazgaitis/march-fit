@@ -43,6 +43,12 @@ export function MobileNav({ challengeId, currentUserId, challengeStartDate }: Mo
             <Link
               key={item.label}
               href={href}
+              onClick={(e) => {
+                if (item.label === "Home" && isActive) {
+                  e.preventDefault();
+                  window.dispatchEvent(new CustomEvent("home-tab-tap"));
+                }
+              }}
               className={cn(
                 "relative flex flex-col items-center gap-1 py-3 transition-colors active:opacity-70",
                 isActive
