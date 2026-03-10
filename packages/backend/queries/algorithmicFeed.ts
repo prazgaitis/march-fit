@@ -9,6 +9,76 @@ import {
 } from "../lib/feedScoring";
 
 /**
+ * Lightweight ranking query: returns only sorted activity IDs.
+ * Each card subscribes to its own data reactively via getById.
+ */
+export const getRankedActivityIds = query({
+  args: {
+    challengeId: v.id("challenges"),
+    candidateLimit: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const candidateLimit = Math.min(Math.max(args.candidateLimit ?? 200, 10), 500);
+    const currentUser = await getCurrentUser(ctx);
+
+    let followingIds: Set<string> | null = null;
+    let affinityByAuthor: Map<string, number> | null = null;
+    if (currentUser) {
+      const [follows, affinities] = await Promise.all([
+        ctx.db
+          .query("follows")
+          .withIndex("followerId", (q) => q.eq("followerId", currentUser._id))
+          .collect(),
+        ctx.db
+          .query("userAffinities")
+          .withIndex("challengeViewer", (q) =>
+            q
+              .eq("challengeId", args.challengeId)
+              .eq("viewerUserId", currentUser._id),
+          )
+          .collect(),
+      ]);
+      followingIds = new Set(follows.map((f) => f.followingId));
+      affinityByAuthor = new Map(
+        affinities.map((affinity) => [affinity.authorUserId as string, affinity.score]),
+      );
+    }
+
+    const activities = await ctx.db
+      .query("activities")
+      .withIndex("challengeId", (q) =>
+        q.eq("challengeId", args.challengeId),
+      )
+      .filter(notDeleted)
+      .order("desc")
+      .take(candidateLimit);
+
+    const scored = activities
+      .map((activity) => {
+        const isFollowing = followingIds
+          ? followingIds.has(activity.userId as string)
+          : false;
+        const affinityScore = affinityByAuthor
+          ? affinityByAuthor.get(activity.userId as string) ?? 0
+          : 0;
+
+        const ageMs = Date.now() - activity.createdAt;
+        const displayScore = computeDecayedScore(
+          activity.feedScore ?? 0,
+          ageMs,
+          isFollowing,
+          affinityScore,
+        );
+
+        return { id: activity._id, displayScore };
+      })
+      .sort((a, b) => b.displayScore - a.displayScore);
+
+    return scored.map((s) => s.id);
+  },
+});
+
+/**
  * Algorithmic feed: fetch the N most recent activities, then rank
  * purely by interestingness (content quality + engagement + social
  * relevance). No time decay — recency is handled by the candidate

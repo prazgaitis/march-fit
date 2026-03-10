@@ -86,7 +86,7 @@ async function DashboardContent({ challengeSlug }: { challengeSlug: string }) {
     userAgent,
   );
 
-  const [challenge, initialFeed, initialAlgoFeed] = await Promise.all([
+  const [challenge, initialFeed] = await Promise.all([
     convex.query(api.queries.challenges.getById, { challengeId }),
     fetchAuthQuery<InitialFeedResponse>(
       api.queries.activities.getChallengeFeed,
@@ -102,17 +102,6 @@ async function DashboardContent({ challengeSlug }: { challengeSlug: string }) {
       },
     ).catch((error) => {
       console.error("[perf] dashboard initial feed preload failed", error);
-      return { page: [] };
-    }),
-    fetchAuthQuery<InitialFeedResponse>(
-      api.queries.algorithmicFeed.getAlgorithmicFeed,
-      {
-        challengeId,
-        includeEngagementCounts: !isMobileRequest,
-        includeMediaUrls: true,
-      },
-    ).catch((error) => {
-      console.error("[perf] dashboard algo feed preload failed", error);
       return { page: [] };
     }),
   ]);
@@ -141,13 +130,11 @@ async function DashboardContent({ challengeSlug }: { challengeSlug: string }) {
           username: user.username,
           avatarUrl: user.avatarUrl ?? null,
         }}
-        initialAlgoItems={initialAlgoFeed.page}
       />
       <ActivityFeed
         challengeId={challenge._id}
         currentUserId={user._id}
         initialItems={initialFeed.page}
-        initialAlgoItems={initialAlgoFeed.page}
         initialLightweightMode={isMobileRequest}
       />
     </div>

@@ -88,7 +88,7 @@ async function InstaContent({ challengeSlug }: { challengeSlug: string }) {
     userAgent,
   );
 
-  const [challenge, initialFeed, initialAlgoFeed] = await Promise.all([
+  const [challenge, initialFeed] = await Promise.all([
     convex.query(api.queries.challenges.getById, { challengeId }),
     fetchAuthQuery<InitialFeedResponse>(
       api.queries.activities.getChallengeFeed,
@@ -101,14 +101,6 @@ async function InstaContent({ challengeSlug }: { challengeSlug: string }) {
           numItems: 10,
           cursor: null,
         },
-      },
-    ).catch(() => ({ page: [] })),
-    fetchAuthQuery<InitialFeedResponse>(
-      api.queries.algorithmicFeed.getAlgorithmicFeed,
-      {
-        challengeId,
-        includeEngagementCounts: !isMobileRequest,
-        includeMediaUrls: true,
       },
     ).catch(() => ({ page: [] })),
   ]);
@@ -126,7 +118,6 @@ async function InstaContent({ challengeSlug }: { challengeSlug: string }) {
         avatarUrl: user.avatarUrl ?? null,
       }}
       initialItems={initialFeed.page}
-      initialAlgoItems={initialAlgoFeed.page}
       initialLightweightMode={isMobileRequest}
     />
   );

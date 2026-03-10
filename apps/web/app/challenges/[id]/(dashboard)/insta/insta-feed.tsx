@@ -13,7 +13,6 @@ interface InstaFeedProps {
     avatarUrl: string | null;
   };
   initialItems?: any[];
-  initialAlgoItems?: any[];
   initialLightweightMode?: boolean;
 }
 
@@ -22,7 +21,6 @@ export function InstaFeed({
   challengeStartDate,
   currentUser,
   initialItems = [],
-  initialAlgoItems = [],
   initialLightweightMode = false,
 }: InstaFeedProps) {
   return (
@@ -31,14 +29,12 @@ export function InstaFeed({
         challengeId={challengeId}
         challengeStartDate={challengeStartDate}
         currentUser={currentUser}
-        initialAlgoItems={initialAlgoItems}
       />
 
       <ActivityFeed
         challengeId={challengeId}
         currentUserId={currentUser?.id}
         initialItems={initialItems}
-        initialAlgoItems={initialAlgoItems}
         initialLightweightMode={initialLightweightMode}
       />
     </div>
