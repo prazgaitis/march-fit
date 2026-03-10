@@ -18,6 +18,7 @@ import type * as actions_clear from "../actions/clear.js";
 import type * as actions_createChallengeFromConfig from "../actions/createChallengeFromConfig.js";
 import type * as actions_fix2025ActivityTypes from "../actions/fix2025ActivityTypes.js";
 import type * as actions_fixContributesToStreak from "../actions/fixContributesToStreak.js";
+import type * as actions_migrateSupabaseAvatars from "../actions/migrateSupabaseAvatars.js";
 import type * as actions_payments from "../actions/payments.js";
 import type * as actions_rescoreStravaActivities from "../actions/rescoreStravaActivities.js";
 import type * as actions_seed from "../actions/seed.js";
@@ -159,6 +160,7 @@ declare const fullApi: ApiFromModules<{
   "actions/createChallengeFromConfig": typeof actions_createChallengeFromConfig;
   "actions/fix2025ActivityTypes": typeof actions_fix2025ActivityTypes;
   "actions/fixContributesToStreak": typeof actions_fixContributesToStreak;
+  "actions/migrateSupabaseAvatars": typeof actions_migrateSupabaseAvatars;
   "actions/payments": typeof actions_payments;
   "actions/rescoreStravaActivities": typeof actions_rescoreStravaActivities;
   "actions/seed": typeof actions_seed;
