@@ -1,7 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { Flame, Trophy, Users } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { Flame, Loader2, Users } from 'lucide-react';
+import { useMutation, useQuery } from 'convex/react';
+import { api } from '@repo/backend';
+import type { Id } from '@repo/backend/_generated/dataModel';
 
 import { useChallengeSummary } from './challenge-realtime-context';
 import { UserAvatar } from '@/components/user-avatar';
@@ -10,7 +13,6 @@ import { ActiveMiniGames } from '@/components/mini-games';
 import { OnboardingCard } from './onboarding-card';
 import { dateOnlyToUtcMs } from '@/lib/date-only';
 import { formatPoints } from '@/lib/points';
-import { cn } from '@/lib/utils';
 
 interface ChallengeSidebarProps {
   challengeId: string;
@@ -20,7 +22,7 @@ interface ChallengeSidebarProps {
 
 export function ChallengeSidebar({ challengeId, currentUserId, challengeStartDate }: ChallengeSidebarProps) {
   const { summary } = useChallengeSummary();
-  const { stats, leaderboard } = summary;
+  const { stats } = summary;
 
   // Compute client-side only to avoid hydration mismatch (Date.now() differs server vs client)
   const [challengeStarted, setChallengeStarted] = useState(false);
@@ -70,63 +72,105 @@ export function ChallengeSidebar({ challengeId, currentUserId, challengeStartDat
       {/* Active Mini-Games */}
       <ActiveMiniGames challengeId={challengeId} userId={currentUserId} />
 
-      <Card className="border-zinc-800 bg-transparent">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-lg text-white">
-            <Trophy className="h-5 w-5 text-amber-500" />
-            Live Leaderboard
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          {leaderboard.length === 0 && (
-            <p className="text-sm text-zinc-500">
-              No participants have logged points yet.
-            </p>
-          )}
-          {leaderboard.map((entry, index) => {
-            const isCurrentUser = entry.participantId === currentUserId;
-            return (
-              <div
-                key={entry.participantId}
-                className={cn(
-                  'flex items-center justify-between rounded-lg border border-zinc-800 bg-zinc-900/50 p-3 transition',
-                  isCurrentUser && 'border-indigo-500/50 bg-indigo-500/10',
-                )}
-              >
-                <div className="flex items-center gap-3">
-                  <span className="text-lg font-semibold text-zinc-500">
-                    #{index + 1}
-                  </span>
-                  <UserAvatar
-                    user={{
-                      id: entry.user.id,
-                      name: entry.user.name,
-                      username: entry.user.username,
-                      avatarUrl: entry.user.avatarUrl,
-                    }}
-                    challengeId={challengeId}
-                    size="md"
-                    showName
-                  >
-                    <p className="text-xs text-zinc-500">
-                      {formatPoints(entry.totalPoints)} pts · streak {entry.currentStreak}
-                    </p>
-                  </UserAvatar>
-                </div>
-                {isCurrentUser && (
-                  <span className="rounded-full bg-indigo-500 px-3 py-1 text-xs font-semibold text-white">
-                    You
-                  </span>
-                )}
-              </div>
-            );
-          })}
-        </CardContent>
-      </Card>
+      <SuggestedFollows challengeId={challengeId} />
 
       {challengeStarted && (
         <OnboardingCard challengeId={challengeId} userId={currentUserId} challengeStartDate={challengeStartDate} />
       )}
+    </div>
+  );
+}
+
+function affinityLabel(score: number): string {
+  if (score >= 40) return 'Active in your feed';
+  if (score >= 15) return "You've interacted";
+  return 'In your challenge';
+}
+
+function SuggestedFollows({ challengeId }: { challengeId: string }) {
+  const suggestions = useQuery(api.queries.follows.getSuggestions, {
+    challengeId: challengeId as Id<"challenges">,
+    limit: 5,
+  });
+
+  if (!suggestions || suggestions.length === 0) return null;
+
+  return (
+    <div>
+      <div className="mb-3 flex items-center justify-between">
+        <h3 className="text-xs font-medium uppercase tracking-widest text-zinc-500">
+          People to watch
+        </h3>
+      </div>
+      <div className="space-y-1.5">
+        {suggestions.map((user: { id: string; name: string | null; username: string; avatarUrl: string | null; affinityScore: number }) => (
+          <SuggestionRow
+            key={user.id}
+            user={user}
+            challengeId={challengeId}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SuggestionRow({
+  user,
+  challengeId,
+}: {
+  user: { id: string; name: string | null; username: string; avatarUrl: string | null; affinityScore: number };
+  challengeId: string;
+}) {
+  const [isToggling, setIsToggling] = useState(false);
+  const toggleFollow = useMutation(api.mutations.follows.toggle);
+
+  const handleFollow = useCallback(
+    async (e: React.MouseEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (isToggling) return;
+      setIsToggling(true);
+      try {
+        await toggleFollow({ userId: user.id as Id<"users"> });
+      } catch (error) {
+        console.error("Failed to follow:", error);
+      } finally {
+        setIsToggling(false);
+      }
+    },
+    [isToggling, toggleFollow, user.id],
+  );
+
+  return (
+    <div className="group flex items-center gap-3 rounded-lg p-2 transition-colors hover:bg-zinc-900/60">
+      <UserAvatar
+        user={{
+          id: user.id,
+          name: user.name,
+          username: user.username,
+          avatarUrl: user.avatarUrl,
+        }}
+        challengeId={challengeId}
+        size="md"
+        showName
+        showUsername
+      >
+        <p className="text-[10px] text-zinc-600">
+          {affinityLabel(user.affinityScore)}
+        </p>
+      </UserAvatar>
+      <button
+        onClick={handleFollow}
+        disabled={isToggling}
+        className="ml-auto shrink-0 rounded-full border border-indigo-500/60 px-3 py-1 text-xs font-semibold text-indigo-400 transition-all hover:bg-indigo-500 hover:text-white active:scale-95 disabled:opacity-50"
+      >
+        {isToggling ? (
+          <Loader2 className="h-3 w-3 animate-spin" />
+        ) : (
+          'Follow'
+        )}
+      </button>
     </div>
   );
 }
