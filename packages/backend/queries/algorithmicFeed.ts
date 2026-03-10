@@ -157,29 +157,6 @@ export const getRankedActivityIds = query({
 });
 
 /**
- * Lightweight query returning recent activity IDs for a challenge.
- * Used by pull-to-refresh backfill when the For You ranking has no new entries.
- */
-export const getRecentActivityIds = query({
-  args: {
-    challengeId: v.id("challenges"),
-    limit: v.optional(v.number()),
-  },
-  handler: async (ctx, args) => {
-    const limit = Math.min(args.limit ?? 5, 20);
-    const activities = await ctx.db
-      .query("activities")
-      .withIndex("challengeId", (q) =>
-        q.eq("challengeId", args.challengeId),
-      )
-      .filter(notDeleted)
-      .order("desc")
-      .take(limit);
-    return activities.map((a) => a._id);
-  },
-});
-
-/**
  * Algorithmic feed: fetch the N most recent activities, then rank
  * purely by interestingness (content quality + engagement + social
  * relevance). No time decay — recency is handled by the candidate

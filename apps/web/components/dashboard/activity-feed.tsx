@@ -297,37 +297,44 @@ export function ActivityFeed({
   const [algoVisibleCount, setAlgoVisibleCount] = useState(ALGO_PAGE_SIZE);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Pull-to-refresh: re-fetch the For You ranking. If no new activities
-  // appear, backfill with a few recent entries from the "all" feed.
+  // Pull-to-refresh: re-fetch the For You ranking. If no new entries
+  // appeared, surface a few unseen entries from deeper in the ranking
+  // so the refresh always feels productive.
   const handlePullRefresh = useCallback(async () => {
     setIsRefreshing(true);
     try {
-      const prevIds = new Set((rankedEntries ?? []).map((e) => e.id));
+      // Build a key set that accounts for reposts (same activity ID,
+      // different reposter = different entry).
+      const entryKey = (e: FeedEntry) =>
+        e.repostedBy ? `${e.id}:${e.repostedBy}` : e.id;
+      const prevKeys = new Set((rankedEntries ?? []).map(entryKey));
+      const prevVisibleKeys = new Set(
+        (rankedEntries ?? []).slice(0, algoVisibleCount).map(entryKey),
+      );
+
       const fresh = await fetchForYou();
       if (!fresh) return;
 
-      const hasNew = fresh.some((e) => !prevIds.has(e.id));
-      if (!hasNew && fresh.length > 0) {
-        // No new For You activities — backfill with recent entries
-        const recentIds = await convexClient.query(
-          api.queries.algorithmicFeed.getRecentActivityIds,
-          { challengeId: challengeId as Id<"challenges">, limit: 5 },
-        );
-        const existingIds = new Set(fresh.map((e) => e.id));
-        const backfill: FeedEntry[] = (recentIds as Id<"activities">[])
-          .filter((id) => !existingIds.has(id))
-          .slice(0, 3)
-          .map((id): FeedEntry => ({ id }));
+      const hasNew = fresh.some((e) => !prevKeys.has(entryKey(e)));
+
+      if (!hasNew && fresh.length > algoVisibleCount) {
+        // No genuinely new entries — pull a few unseen items from deeper
+        // in the ranking and promote them to the top of the feed.
+        const unseen = fresh.filter((e) => !prevVisibleKeys.has(entryKey(e)));
+        const backfill = unseen.slice(0, 3);
 
         if (backfill.length > 0) {
-          setRankedEntries([...backfill, ...fresh]);
+          const backfillKeys = new Set(backfill.map(entryKey));
+          const rest = fresh.filter((e) => !backfillKeys.has(entryKey(e)));
+          setRankedEntries([...backfill, ...rest]);
         }
       }
+
       window.scrollTo({ top: 0, behavior: "smooth" });
     } finally {
       setIsRefreshing(false);
     }
-  }, [fetchForYou, rankedEntries, convexClient, challengeId]);
+  }, [fetchForYou, rankedEntries, algoVisibleCount]);
 
   const visibleAlgoEntries = useMemo(
     () => (rankedEntries ?? []).slice(0, algoVisibleCount),
