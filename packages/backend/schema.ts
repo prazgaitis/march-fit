@@ -185,6 +185,8 @@ export default defineSchema({
     deletedReason: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
+    // Denormalized repost count for feed scoring
+    repostCount: v.optional(v.number()),
     // Algorithmic feed score (content + engagement, no personalization/decay)
     feedScore: v.optional(v.number()),
     // Time-bucketed feed rank: dayBucket * 100 + clamp(feedScore, 0, 99)
@@ -753,6 +755,18 @@ export default defineSchema({
       "weekNumber",
     ])
     .index("weekCategory", ["challengeId", "weekNumber", "categoryId"]),
+
+  // Reposts - user reposts of activities (shows in reposter's feed)
+  reposts: defineTable({
+    userId: v.id("users"), // The user who reposted
+    activityId: v.id("activities"), // The original activity
+    challengeId: v.id("challenges"), // Challenge context
+    createdAt: v.number(),
+  })
+    .index("activityId", ["activityId"])
+    .index("userId", ["userId"])
+    .index("activityUserUnique", ["activityId", "userId"])
+    .index("challengeCreatedAt", ["challengeId", "createdAt"]),
 
   // Activity External Data - companion table for large external payloads
   // (e.g. raw Strava API responses). Keeps the activities table lightweight

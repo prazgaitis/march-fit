@@ -3,20 +3,18 @@
 import { useState, useRef, useCallback, useEffect, useMemo } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { formatDistanceToNow } from "date-fns";
 import {
   formatDateOnlyFromUtcMs,
   formatDateShortFromDateOnly,
+  formatTimeAgo,
 } from "@/lib/date-only";
 import { useMutation, useQuery, usePaginatedQuery } from "convex/react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
 import {
   ArrowLeft,
-  Calendar,
   ChevronDown,
   ChevronUp,
-  Clock,
   Flag,
   Heart,
   ImagePlus,
@@ -26,8 +24,6 @@ import {
   Pencil,
   Share2,
   Shield,
-  ThumbsUp,
-  Trophy,
   Trash2,
   X,
 } from "lucide-react";
@@ -49,7 +45,8 @@ const RichTextEditor = dynamic(
     ),
   },
 );
-import { UserAvatar, UserAvatarInline } from "@/components/user-avatar";
+import { UserAvatar } from "@/components/user-avatar";
+import { UserChallengeDisplay } from "@/components/user-challenge-display";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -522,206 +519,250 @@ export function ActivityDetailContent({
 
   const metrics = activity.metrics as Record<string, unknown> | undefined;
 
+  const hasMedia = (mediaUrls ?? []).length > 0 || (cloudinaryPublicIds && cloudinaryPublicIds.length > 0);
+
   return (
-    <div className="mx-auto max-w-2xl px-4 py-6">
-      {/* Header */}
-      <div className="mb-6 flex items-center gap-4">
+    <div className="mx-auto max-w-2xl overflow-hidden">
+      {/* Nav header */}
+      <div className="flex items-center gap-3 px-4 py-3">
         <Button variant="ghost" size="icon" asChild>
           <Link href={`/challenges/${challengeId}/dashboard`}>
             <ArrowLeft className="h-5 w-5" />
           </Link>
         </Button>
-        <div>
-          <p className="text-sm text-muted-foreground">
-            <Link
-              href={`/challenges/${challengeId}/dashboard`}
-              className="hover:underline"
-            >
-              {challenge.name}
-            </Link>
-          </p>
-          <h1 className="text-xl font-bold">{activityType.name}</h1>
-        </div>
+        <p className="text-sm text-muted-foreground">
+          <Link
+            href={`/challenges/${challengeId}/dashboard`}
+            className="hover:underline"
+          >
+            {challenge.name}
+          </Link>
+        </p>
       </div>
 
-      <div className="space-y-6">
-        <div>
-          <div className="flex items-start gap-4">
-            <UserAvatarInline
-              user={user}
-              challengeId={challengeId}
-              size="xl"
-              suffix={
-                <>
-                  <span aria-hidden="true">·</span>
-                  <span>
-                    {formatDistanceToNow(new Date(activity.createdAt), {
-                      addSuffix: true,
-                    })}
-                  </span>
-                </>
-              }
-              className="flex-1"
-            />
-            {activityType.isNegative ? (
-              <Badge variant="destructive">Penalty</Badge>
-            ) : (
-              <Badge variant="secondary">{activityType.name}</Badge>
-            )}
-          </div>
-
-          <div className="mt-4 space-y-4">
-            {/* Points & date row */}
-            <div className="flex items-center gap-4 text-sm text-muted-foreground">
-              <span className="flex items-center gap-1.5">
-                <Trophy
-                  className={cn(
-                    "h-4 w-4",
-                    activityType.isNegative || activity.pointsEarned < 0
-                      ? "text-red-500"
-                      : "text-yellow-500",
-                  )}
-                />
-                <PointsDisplay
-                  points={activity.pointsEarned}
-                  isNegative={activityType.isNegative}
-                  decimals={2}
-                  size="lg"
-                  showSign={true}
-                  showLabel={true}
-                  className="font-semibold"
-                />
+      {/* User header */}
+      <div className="px-4 pb-2">
+        <UserChallengeDisplay
+          user={user}
+          challengeId={challengeId}
+          size="sm"
+          layout="inline"
+          show={{ name: true, username: true }}
+          suffix={
+            <>
+              <span className="text-xs text-muted-foreground" aria-hidden="true">·</span>
+              <span className="text-xs text-muted-foreground shrink-0">
+                {formatTimeAgo(activity.createdAt)}
               </span>
-              <span aria-hidden="true">·</span>
-              <span className="flex items-center gap-1.5">
-                <Calendar className="h-4 w-4 text-blue-500" />
-                {formatDateShortFromDateOnly(
-                  formatDateOnlyFromUtcMs(activity.loggedDate),
-                )}
+            </>
+          }
+        >
+          <span className="text-xs text-muted-foreground">
+            {activityType.name}
+            {activityType.isNegative && (
+              <Badge variant="destructive" className="ml-2 text-[10px] px-1.5 py-0">Penalty</Badge>
+            )}
+          </span>
+        </UserChallengeDisplay>
+      </div>
+
+      {/* Notes (no media) */}
+      {!hasMedia && activity.notes && (
+        <div className="px-4 pb-2">
+          <RichTextViewer content={activity.notes} className="text-sm" />
+        </div>
+      )}
+
+      {/* Media */}
+      <MediaGallery urls={mediaUrls ?? []} optimizedMediaIds={cloudinaryPublicIds} variant="detail" />
+
+      {/* Stats */}
+      <div className="space-y-2 px-4 pt-2">
+        {/* Points + date row */}
+        <div className="flex items-center gap-3 text-sm">
+          <PointsDisplay
+            points={activity.pointsEarned}
+            isNegative={activityType.isNegative}
+            decimals={2}
+            size="sm"
+            showSign={true}
+            showLabel={true}
+            className="font-mono font-semibold"
+          />
+          <span className="text-xs text-muted-foreground">
+            {formatDateShortFromDateOnly(
+              formatDateOnlyFromUtcMs(activity.loggedDate),
+            )}
+          </span>
+          {activity.source !== "manual" && (
+            <span className="text-xs text-muted-foreground">
+              via <span className="capitalize">{activity.source}</span>
+            </span>
+          )}
+        </div>
+        {/* Bonus breakdown */}
+        {activity.triggeredBonuses && (activity.triggeredBonuses as { bonusPoints: number; description: string }[]).length > 0 && (
+          <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs">
+            {(activity.triggeredBonuses as { bonusPoints: number; description: string }[]).map((bonus, i) => (
+              <span key={i} className="text-amber-500">
+                +{bonus.bonusPoints} {bonus.description.replace(/ bonus$/i, "").toLowerCase()}
               </span>
-              {activity.source !== "manual" && (
-                <>
-                  <span aria-hidden="true">·</span>
-                  <span className="flex items-center gap-1.5">
-                    <Clock className="h-4 w-4" />
-                    via <span className="capitalize">{activity.source}</span>
-                  </span>
-                </>
-              )}
-            </div>
-
-            {/* Metrics inline */}
-            {metrics && Object.keys(metrics).length > 0 && (
-              <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
-                {Object.entries(metrics).map(([key, value]) => (
-                  <span key={key} className="text-muted-foreground">
-                    <span className="font-medium text-foreground">
-                      {typeof value === "number"
-                        ? value.toLocaleString()
-                        : String(value)}
-                    </span>{" "}
-                    <span className="capitalize">{key.replace(/_/g, " ")}</span>
-                  </span>
-                ))}
-              </div>
-            )}
-
-            {activity.notes && (
-              <RichTextViewer
-                content={activity.notes}
-                className="text-base"
-              />
-            )}
-
-            {/* Media Gallery */}
-            <MediaGallery urls={mediaUrls ?? []} optimizedMediaIds={cloudinaryPublicIds} variant="detail" />
-
-            {adminComment && (
-              <div className="flex items-start gap-3 rounded-lg border border-amber-500/30 bg-amber-500/5 p-4">
-                <Shield className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
-                <div>
-                  <p className="text-sm font-medium text-amber-500">
-                    Admin Note
-                  </p>
-                  <p className="mt-1 text-sm text-muted-foreground">
-                    {adminComment}
-                  </p>
-                </div>
-              </div>
-            )}
+            ))}
           </div>
+        )}
+        {/* Metrics grid */}
+        {metrics && Object.keys(metrics).length > 0 && (
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+            {Object.entries(metrics).map(([key, value]) => {
+              if (typeof value !== "number" && typeof value !== "string") return null;
+              return (
+                <span key={key} className="text-muted-foreground">
+                  <span className="font-mono font-medium text-foreground">
+                    {typeof value === "number"
+                      ? value.toLocaleString()
+                      : String(value)}
+                  </span>{" "}
+                  <span className="capitalize">{key.replace(/_/g, " ")}</span>
+                </span>
+              );
+            })}
+          </div>
+        )}
+      </div>
 
-          <div className="mt-4 flex flex-wrap items-center gap-2 border-t pt-4">
-            <Button
-              variant={likedByUser ? "default" : "outline"}
-              size="sm"
-              disabled={pendingLike}
-              onClick={handleToggleLike}
-            >
-              <ThumbsUp
-                className={cn("mr-2 h-4 w-4", likedByUser && "fill-current")}
-              />
-              {likes} {likes === 1 ? "Like" : "Likes"}
-            </Button>
-            <Button variant="outline" size="sm" asChild>
-              <a href="#comments">
-                <MessageCircle className="mr-2 h-4 w-4" />
-                {comments} {comments === 1 ? "Comment" : "Comments"}
-              </a>
-            </Button>
-            <Button variant="ghost" size="sm" onClick={() => setShowShareDialog(true)}>
-              <Share2 className="mr-2 h-4 w-4" /> Share
-            </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="ml-auto h-8 w-8 p-0"
-                >
-                  <MoreHorizontal className="h-4 w-4" />
-                  <span className="sr-only">More options</span>
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {isOwner && (
-                  <DropdownMenuItem onClick={openEditDialog}>
-                    <Pencil className="mr-2 h-4 w-4" />
-                    Edit activity
-                  </DropdownMenuItem>
-                )}
-                {isOwner && (
-                  <DropdownMenuItem
-                    onClick={() => {
-                      setDeleteError(null);
-                      setShowDeleteDialog(true);
-                    }}
-                    className="text-destructive focus:text-destructive"
-                  >
-                    <Trash2 className="mr-2 h-4 w-4" />
-                    Delete activity
-                  </DropdownMenuItem>
-                )}
-                <DropdownMenuItem
-                  onClick={() => {
-                    setFlagSuccess(false);
-                    setFlagError(null);
-                    setFlagCategory("");
-                    setFlagReason("");
-                    setShowFlagDialog(true);
-                  }}
-                  className="text-destructive focus:text-destructive"
-                >
-                  <Flag className="mr-2 h-4 w-4" />
-                  Report activity
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-
-              {/* Edit Activity Dialog - ResponsiveDialog for mobile support */}
-              <ResponsiveDialog
-                open={showEditDialog}
-                onOpenChange={setShowEditDialog}
+      {/* Action bar — icon style matching the feed */}
+      <div className="flex items-center gap-4 px-4 py-2 text-muted-foreground">
+        <button
+          disabled={pendingLike}
+          onClick={handleToggleLike}
+          className={cn(
+            "flex items-center gap-1.5 text-sm transition-colors",
+            likedByUser ? "text-red-500" : "hover:text-red-500",
+          )}
+        >
+          <Heart className={cn("h-5 w-5", likedByUser && "fill-current")} />
+          {likes > 0 && <span>{likes}</span>}
+        </button>
+        <a
+          href="#comments"
+          className="flex items-center gap-1.5 text-sm transition-colors hover:text-foreground"
+        >
+          <MessageCircle className="h-5 w-5" />
+          {comments > 0 && <span>{comments}</span>}
+        </a>
+        <button
+          onClick={() => setShowShareDialog(true)}
+          className="flex items-center gap-1.5 text-sm transition-colors hover:text-foreground"
+        >
+          <Share2 className="h-5 w-5" />
+        </button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="ml-auto flex items-center transition-colors hover:text-foreground">
+              <MoreHorizontal className="h-5 w-5" />
+              <span className="sr-only">More options</span>
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {isOwner && (
+              <DropdownMenuItem onClick={openEditDialog}>
+                <Pencil className="mr-2 h-4 w-4" />
+                Edit activity
+              </DropdownMenuItem>
+            )}
+            {isOwner && (
+              <DropdownMenuItem
+                onClick={() => {
+                  setDeleteError(null);
+                  setShowDeleteDialog(true);
+                }}
+                className="text-destructive focus:text-destructive"
               >
+                <Trash2 className="mr-2 h-4 w-4" />
+                Delete activity
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuItem
+              onClick={() => {
+                setFlagSuccess(false);
+                setFlagError(null);
+                setFlagCategory("");
+                setFlagReason("");
+                setShowFlagDialog(true);
+              }}
+              className="text-destructive focus:text-destructive"
+            >
+              <Flag className="mr-2 h-4 w-4" />
+              Report activity
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
+      {/* Likes display */}
+      {likes > 0 && (
+        <div className="px-4">
+          <LikesDisplay
+            activityId={activityId}
+            challengeId={challengeId}
+            likes={likes}
+            likedByUser={likedByUser}
+            recentLikers={recentLikers ?? []}
+          />
+        </div>
+      )}
+
+      {/* Caption (IG-style: username + notes, below media) */}
+      {hasMedia && activity.notes && (
+        <div className="px-4 pt-1 text-sm leading-snug">
+          <span className="font-semibold text-foreground">
+            {user.username}
+          </span>{" "}
+          <RichTextViewer
+            content={activity.notes}
+            className="inline text-sm text-muted-foreground [&_p]:inline"
+          />
+        </div>
+      )}
+
+      {adminComment && (
+        <div className="mx-4 mt-2 flex items-start gap-3 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
+          <Shield className="mt-0.5 h-4 w-4 shrink-0 text-amber-500" />
+          <div>
+            <p className="text-xs font-medium text-amber-500">Admin Note</p>
+            <p className="mt-0.5 text-sm text-muted-foreground">{adminComment}</p>
+          </div>
+        </div>
+      )}
+
+      {/* Comments */}
+      <div id="comments" className="px-4 pt-4 pb-6">
+        <ActivityComments
+          activityId={activityId}
+          challengeId={challengeId}
+          mentionOptions={mentionUsers}
+          highlightCommentId={highlightCommentId}
+        />
+      </div>
+
+      {isAdmin && (
+        <div className="border-t border-zinc-800 px-4 py-4">
+          <AdminEditSection
+            activityId={activityId}
+            challengeId={challengeId}
+            currentActivityTypeId={activityType.id}
+            currentPoints={activity.pointsEarned}
+            currentNotes={activity.notes ?? ""}
+            currentLoggedDate={activity.loggedDate}
+          />
+        </div>
+      )}
+
+      {/* Dialogs */}
+      <ResponsiveDialog
+        open={showEditDialog}
+        onOpenChange={setShowEditDialog}
+      >
                 <ResponsiveDialogContent>
                   <ResponsiveDialogHeader>
                     <ResponsiveDialogTitle>Edit Activity</ResponsiveDialogTitle>
@@ -942,182 +983,129 @@ export function ActivityDetailContent({
                   </ResponsiveDialogFooter>
                 </ResponsiveDialogContent>
               </ResponsiveDialog>
-            </DropdownMenu>
-          </div>
 
-          <Dialog open={showFlagDialog} onOpenChange={setShowFlagDialog}>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Report Activity</DialogTitle>
-                  <DialogDescription>
-                    Flag this activity for admin review. Please describe why you
-                    think this activity should be reviewed.
-                  </DialogDescription>
-                </DialogHeader>
-                {flagSuccess ? (
-                  <div className="py-4 text-center">
-                    <p className="text-sm text-muted-foreground">
-                      Thank you for your report. An admin will review this
-                      activity.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                    <RadioGroup
-                      value={flagCategory}
-                      onValueChange={setFlagCategory}
-                    >
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem
-                          value="incorrect_type"
-                          id="flag-incorrect"
-                        />
-                        <Label htmlFor="flag-incorrect">
-                          Logged as incorrect type
-                        </Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem
-                          value="impossible"
-                          id="flag-impossible"
-                        />
-                        <Label htmlFor="flag-impossible">
-                          Seems like an impossible feat of athleticism
-                        </Label>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <RadioGroupItem value="other" id="flag-other" />
-                        <Label htmlFor="flag-other">Other</Label>
-                      </div>
-                    </RadioGroup>
-                    <Textarea
-                      value={flagReason}
-                      onChange={(e) => setFlagReason(e.target.value)}
-                      placeholder="Add additional context (optional)..."
-                      rows={3}
-                      maxLength={2000}
-                    />
-                    {flagError && (
-                      <p className="text-sm text-destructive">{flagError}</p>
-                    )}
-                  </div>
-                )}
-                <DialogFooter>
-                  {flagSuccess ? (
-                    <Button
-                      variant="outline"
-                      onClick={() => setShowFlagDialog(false)}
-                    >
-                      Close
-                    </Button>
-                  ) : (
+      <Dialog open={showFlagDialog} onOpenChange={setShowFlagDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Report Activity</DialogTitle>
+            <DialogDescription>
+              Flag this activity for admin review. Please describe why you
+              think this activity should be reviewed.
+            </DialogDescription>
+          </DialogHeader>
+          {flagSuccess ? (
+            <div className="py-4 text-center">
+              <p className="text-sm text-muted-foreground">
+                Thank you for your report. An admin will review this activity.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <RadioGroup
+                value={flagCategory}
+                onValueChange={setFlagCategory}
+              >
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="incorrect_type" id="flag-incorrect" />
+                  <Label htmlFor="flag-incorrect">Logged as incorrect type</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="impossible" id="flag-impossible" />
+                  <Label htmlFor="flag-impossible">Seems like an impossible feat of athleticism</Label>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <RadioGroupItem value="other" id="flag-other" />
+                  <Label htmlFor="flag-other">Other</Label>
+                </div>
+              </RadioGroup>
+              <Textarea
+                value={flagReason}
+                onChange={(e) => setFlagReason(e.target.value)}
+                placeholder="Add additional context (optional)..."
+                rows={3}
+                maxLength={2000}
+              />
+              {flagError && (
+                <p className="text-sm text-destructive">{flagError}</p>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            {flagSuccess ? (
+              <Button variant="outline" onClick={() => setShowFlagDialog(false)}>
+                Close
+              </Button>
+            ) : (
+              <>
+                <Button variant="outline" onClick={() => setShowFlagDialog(false)}>
+                  Cancel
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={handleFlagSubmit}
+                  disabled={
+                    flagSubmitting ||
+                    !flagCategory ||
+                    (flagCategory === "other" && !flagReason.trim())
+                  }
+                >
+                  {flagSubmitting ? (
                     <>
-                      <Button
-                        variant="outline"
-                        onClick={() => setShowFlagDialog(false)}
-                      >
-                        Cancel
-                      </Button>
-                      <Button
-                        variant="destructive"
-                        onClick={handleFlagSubmit}
-                        disabled={
-                          flagSubmitting ||
-                          !flagCategory ||
-                          (flagCategory === "other" && !flagReason.trim())
-                        }
-                      >
-                        {flagSubmitting ? (
-                          <>
-                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Submitting
-                          </>
-                        ) : (
-                          "Submit Report"
-                        )}
-                      </Button>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Submitting
                     </>
+                  ) : (
+                    "Submit Report"
                   )}
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
+                </Button>
+              </>
+            )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-            <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
-              <DialogContent className="sm:max-w-md">
-                <DialogHeader>
-                  <DialogTitle>Delete activity?</DialogTitle>
-                  <DialogDescription>
-                    This removes the activity from your logs and leaderboards.
-                    This action cannot be undone.
-                  </DialogDescription>
-                </DialogHeader>
-                {deleteError && (
-                  <Alert variant="destructive">
-                    <AlertDescription>{deleteError}</AlertDescription>
-                  </Alert>
-                )}
-                <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-end">
-                  <Button
-                    variant="outline"
-                    className="w-full sm:w-auto"
-                    onClick={() => setShowDeleteDialog(false)}
-                    disabled={deleteSubmitting}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    className="w-full sm:w-auto"
-                    onClick={handleDelete}
-                    disabled={deleteSubmitting}
-                  >
-                    {deleteSubmitting ? (
-                      <>
-                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Deleting
-                      </>
-                    ) : (
-                      "Delete activity"
-                    )}
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-        </div>
-        {likes > 0 && (
-          <LikesDisplay
-            activityId={activityId}
-            challengeId={challengeId}
-            likes={likes}
-            likedByUser={likedByUser}
-            recentLikers={recentLikers ?? []}
-          />
-        )}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete activity?</DialogTitle>
+            <DialogDescription>
+              This removes the activity from your logs and leaderboards.
+              This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          {deleteError && (
+            <Alert variant="destructive">
+              <AlertDescription>{deleteError}</AlertDescription>
+            </Alert>
+          )}
+          <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-end">
+            <Button
+              variant="outline"
+              className="w-full sm:w-auto"
+              onClick={() => setShowDeleteDialog(false)}
+              disabled={deleteSubmitting}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              className="w-full sm:w-auto"
+              onClick={handleDelete}
+              disabled={deleteSubmitting}
+            >
+              {deleteSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Deleting
+                </>
+              ) : (
+                "Delete activity"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
-        {isAdmin && (
-          <AdminEditSection
-            activityId={activityId}
-            challengeId={challengeId}
-            currentActivityTypeId={activityType.id}
-            currentPoints={activity.pointsEarned}
-            currentNotes={activity.notes ?? ""}
-            currentLoggedDate={activity.loggedDate}
-          />
-        )}
-
-        <div id="comments" className="border-t pt-6">
-          <h2 className="text-lg font-semibold">Comments</h2>
-          <p className="mb-4 text-sm text-muted-foreground">
-            Leave an encouraging message for {user.name ?? user.username}
-          </p>
-          <ActivityComments
-            activityId={activityId}
-            challengeId={challengeId}
-            mentionOptions={mentionUsers}
-            highlightCommentId={highlightCommentId}
-          />
-        </div>
-      </div>
       {shareCardData && (
         <ActivityShareDialog
           open={showShareDialog}
@@ -1273,9 +1261,7 @@ function ActivityComments({
                     {entry.author.name ?? entry.author.username}
                   </p>
                   <span className="text-xs text-muted-foreground">
-                    {formatDistanceToNow(new Date(entry.comment.createdAt), {
-                      addSuffix: true,
-                    })}
+                    {formatTimeAgo(new Date(entry.comment.createdAt))}
                   </span>
                 </div>
                 <RichTextViewer

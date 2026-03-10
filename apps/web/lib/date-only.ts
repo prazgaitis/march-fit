@@ -108,3 +108,26 @@ export function formatDateLongFromUtcMs(
     year: "numeric",
   }).format(new Date(timestampMs));
 }
+
+/** Compact relative time: "2m", "5h", "3d", "2w", "Jan 5" */
+export function formatTimeAgo(date: Date | number): string {
+  const now = Date.now();
+  const ts = typeof date === "number" ? date : date.getTime();
+  const diffMs = now - ts;
+  const seconds = Math.floor(diffMs / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+  const days = Math.floor(hours / 24);
+  const weeks = Math.floor(days / 7);
+
+  if (seconds < 60) return "just now";
+  if (minutes < 60) return `${minutes}m`;
+  if (hours < 24) return `${hours}h`;
+  if (days < 7) return `${days}d`;
+  if (weeks < 4) return `${weeks}w`;
+
+  return new Intl.DateTimeFormat("en-US", {
+    month: "short",
+    day: "numeric",
+  }).format(new Date(ts));
+}

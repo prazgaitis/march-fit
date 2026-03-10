@@ -11,9 +11,11 @@ import { PrWeekCard } from "./pr-week-card";
 interface ActiveMiniGamesProps {
   challengeId: string;
   userId: string;
+  /** "compact" for sidebar, "feed" for inline feed injection */
+  variant?: "compact" | "feed";
 }
 
-export function ActiveMiniGames({ challengeId, userId }: ActiveMiniGamesProps) {
+export function ActiveMiniGames({ challengeId, userId, variant = "compact" }: ActiveMiniGamesProps) {
   const miniGameStatus = useQuery(api.queries.miniGames.getUserStatus, {
     challengeId: challengeId as Id<"challenges">,
     userId: userId as Id<"users">,
@@ -40,6 +42,7 @@ export function ActiveMiniGames({ challengeId, userId }: ActiveMiniGamesProps) {
               partnerRank={(participation.initialState as { rank?: number })?.rank}
               partnerPeriodPoints={liveData.partnerPeriodPoints ?? 0}
               bonusPercentage={config?.bonusPercentage ?? 10}
+              variant={variant}
             />
           );
         }

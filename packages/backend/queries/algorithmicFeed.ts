@@ -1,5 +1,6 @@
 import { query } from "../_generated/server";
 import { v } from "convex/values";
+import type { Id } from "../_generated/dataModel";
 import { getCurrentUser } from "../lib/ids";
 import { notDeleted } from "../lib/activityFilters";
 import {
@@ -9,8 +10,9 @@ import {
 } from "../lib/feedScoring";
 
 /**
- * Lightweight ranking query: returns only sorted activity IDs.
+ * Lightweight ranking query: returns sorted activity entries.
  * Each card subscribes to its own data reactively via getById.
+ * Includes activities reposted by people the viewer follows.
  */
 export const getRankedActivityIds = query({
   args: {
@@ -53,28 +55,104 @@ export const getRankedActivityIds = query({
       .order("desc")
       .take(candidateLimit);
 
-    const scored = activities
-      .map((activity) => {
-        const isFollowing = followingIds
-          ? followingIds.has(activity.userId as string)
-          : false;
-        const affinityScore = affinityByAuthor
-          ? affinityByAuthor.get(activity.userId as string) ?? 0
-          : 0;
+    const activityIds = new Set(activities.map((a) => a._id as string));
 
-        const ageMs = Date.now() - activity.createdAt;
-        const displayScore = computeDecayedScore(
-          activity.feedScore ?? 0,
-          ageMs,
-          isFollowing,
-          affinityScore,
-        );
+    // Build scored list from organic activities
+    type ScoredEntry = { id: string; displayScore: number; repostedBy?: string };
+    const scored: ScoredEntry[] = activities.map((activity) => {
+      const isFollowing = followingIds
+        ? followingIds.has(activity.userId as string)
+        : false;
+      const affinityScore = affinityByAuthor
+        ? affinityByAuthor.get(activity.userId as string) ?? 0
+        : 0;
 
-        return { id: activity._id, displayScore };
-      })
-      .sort((a, b) => b.displayScore - a.displayScore);
+      const ageMs = Date.now() - activity.createdAt;
+      const displayScore = computeDecayedScore(
+        activity.feedScore ?? 0,
+        ageMs,
+        isFollowing,
+        affinityScore,
+      );
 
-    return scored.map((s) => s.id);
+      return { id: activity._id, displayScore };
+    });
+
+    // Inject reposts from followed users that aren't already in the candidate set.
+    // Use the repost timestamp for decay so they appear fresh when reposted.
+    if (followingIds && followingIds.size > 0) {
+      const recentReposts = await ctx.db
+        .query("reposts")
+        .withIndex("challengeCreatedAt", (q) =>
+          q.eq("challengeId", args.challengeId),
+        )
+        .order("desc")
+        .take(candidateLimit);
+
+      // Collect reposts by followed users, grouped by activity
+      const repostsByActivity = new Map<string, { userId: string; createdAt: number }>();
+      for (const repost of recentReposts) {
+        const isOwnRepost = currentUser && repost.userId === currentUser._id;
+        if (!isOwnRepost && !followingIds.has(repost.userId as string)) continue;
+        const actId = repost.activityId as string;
+        // Keep only the most recent repost per activity
+        if (!repostsByActivity.has(actId)) {
+          repostsByActivity.set(actId, { userId: repost.userId as string, createdAt: repost.createdAt });
+        }
+      }
+
+      // Look up reposter usernames in bulk
+      const reposterNames = new Map<string, string>();
+      for (const [, repost] of repostsByActivity) {
+        if (!reposterNames.has(repost.userId)) {
+          const reposter = await ctx.db.get(repost.userId as Id<"users">);
+          if (reposter) reposterNames.set(repost.userId, reposter.username);
+        }
+      }
+
+      // Annotate existing organic entries or add new ones for older activities
+      for (const [actId, repost] of repostsByActivity) {
+        const repostedBy = reposterNames.get(repost.userId);
+        const existingIdx = scored.findIndex((s) => s.id === actId);
+
+        if (existingIdx !== -1) {
+          // Activity already in feed — annotate it and boost score using repost time
+          scored[existingIdx].repostedBy = repostedBy;
+          const ageMs = Date.now() - repost.createdAt;
+          const boostedScore = computeDecayedScore(
+            scored[existingIdx].displayScore * 1.5, // extra weight
+            ageMs,
+            true,
+            0,
+          );
+          scored[existingIdx].displayScore = Math.max(scored[existingIdx].displayScore, boostedScore);
+        } else {
+          // Activity not in organic set — fetch and add it
+          const activity = await ctx.db.get(actId as Id<"activities">);
+          if (!activity || activity.deletedAt) continue;
+
+          const ageMs = Date.now() - repost.createdAt;
+          const displayScore = computeDecayedScore(
+            activity.feedScore ?? 0,
+            ageMs,
+            true,
+            0,
+          );
+
+          scored.push({
+            id: activity._id,
+            displayScore,
+            repostedBy,
+          });
+          activityIds.add(actId);
+        }
+      }
+    }
+
+    scored.sort((a, b) => b.displayScore - a.displayScore);
+    return scored.map((s) =>
+      s.repostedBy ? { id: s.id, repostedBy: s.repostedBy } : s.id,
+    );
   },
 });
 

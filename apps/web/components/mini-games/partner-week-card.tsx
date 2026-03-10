@@ -3,6 +3,9 @@
 import { Users } from "lucide-react";
 import { UserAvatar } from "@/components/user-avatar";
 import { formatPointsCompact } from "@/lib/points";
+import { cn } from "@/lib/utils";
+
+import { MiniGameCardShell } from "./mini-game-card-shell";
 
 interface PartnerWeekCardProps {
   gameName: string;
@@ -17,6 +20,8 @@ interface PartnerWeekCardProps {
   partnerRank?: number;
   partnerPeriodPoints: number;
   bonusPercentage?: number;
+  /** "compact" for sidebar, "feed" for inline feed injection */
+  variant?: "compact" | "feed";
 }
 
 export function PartnerWeekCard({
@@ -27,6 +32,7 @@ export function PartnerWeekCard({
   partnerRank,
   partnerPeriodPoints,
   bonusPercentage = 10,
+  variant = "compact",
 }: PartnerWeekCardProps) {
   const potentialBonus = Math.round(partnerPeriodPoints * (bonusPercentage / 100));
 
@@ -35,44 +41,52 @@ export function PartnerWeekCard({
     Math.ceil((endsAt - Date.now()) / (1000 * 60 * 60 * 24))
   );
 
-  return (
-    <div className="rounded-lg border border-zinc-800 p-3">
-      {/* Header row: game name + days left + bonus */}
-      <div className="mb-3 flex items-center justify-between">
-        <div className="flex items-center gap-1.5">
-          <Users className="h-3.5 w-3.5 text-indigo-400" />
-          <span className="text-xs font-medium uppercase tracking-widest text-zinc-500">
-            {gameName}
-          </span>
-          <span className="text-xs text-zinc-700">·</span>
-          <span className="text-xs text-zinc-600">
-            {daysLeft}d left
-          </span>
-        </div>
-        <div className="flex items-baseline gap-1">
-          <span className="font-mono text-xl font-bold text-emerald-400">
-            +{formatPointsCompact(potentialBonus)}
-          </span>
-          <span className="text-[10px] text-zinc-600">bonus</span>
-        </div>
-      </div>
+  const isFeed = variant === "feed";
 
-      {/* Partner row */}
+  return (
+    <MiniGameCardShell
+      icon={Users}
+      title={gameName}
+      meta={`${daysLeft}d left`}
+      iconClassName={cn(isFeed ? "h-4 w-4" : "h-3.5 w-3.5", "text-indigo-400")}
+      compact={!isFeed}
+      headerRight={
+        <div className="text-right">
+          <div
+            className={cn(
+              "font-mono font-bold text-emerald-400",
+              isFeed ? "text-2xl" : "text-xl",
+            )}
+          >
+            +{formatPointsCompact(potentialBonus)}
+          </div>
+          <div className={cn(isFeed ? "text-xs" : "text-[10px]", "text-zinc-600")}>
+            bonus
+          </div>
+        </div>
+      }
+      bodyClassName={cn(isFeed && "space-y-0")}
+      footer={
+        isFeed
+          ? `Your partner earns points, you earn ${bonusPercentage}% as a bonus. Help each other out!`
+          : undefined
+      }
+    >
       {partner && (
         <div className="flex items-center justify-between">
           <UserAvatar
             user={partner}
             challengeId={challengeId}
-            size="md"
+            size={isFeed ? "lg" : "md"}
             showName
             showUsername
           >
-            <p className="text-[10px] text-zinc-600">
+            <p className={cn(isFeed ? "text-xs" : "text-[10px]", "text-zinc-600")}>
               #{partnerRank ?? "?"} · {formatPointsCompact(partnerPeriodPoints)} pts this week
             </p>
           </UserAvatar>
         </div>
       )}
-    </div>
+    </MiniGameCardShell>
   );
 }

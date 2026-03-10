@@ -50,11 +50,14 @@ export function computeContentScore(input: ContentScoreInput): number {
 export interface EngagementScoreInput {
   likeCount: number;
   commentCount: number;
+  repostCount?: number;
 }
 
 export function computeEngagementScore(input: EngagementScoreInput): number {
   return (
-    Math.min(input.likeCount * 3, 30) + Math.min(input.commentCount * 5, 30)
+    Math.min(input.likeCount * 3, 30) +
+    Math.min(input.commentCount * 5, 30) +
+    Math.min((input.repostCount ?? 0) * 8, 40)
   );
 }
 

@@ -9,7 +9,7 @@ import {
   useState,
 } from "react";
 import { useRouter } from "next/navigation";
-import { formatDistanceToNow } from "date-fns";
+import { formatTimeAgo } from "@/lib/date-only";
 import {
   ArrowUp,
   Flag,
@@ -18,8 +18,8 @@ import {
   MessageCircle,
   MoreHorizontal,
   RefreshCw,
+  Repeat2,
   Share2,
-  Zap,
 } from "lucide-react";
 import {
   useConvexConnectionState,
@@ -91,6 +91,66 @@ import { isLatestActivityVisibleInFeed } from "@/lib/feed-notification";
 import { SuggestedFollows } from "./suggested-follows";
 import { ActiveMiniGames } from "@/components/mini-games";
 
+// ── Skeleton loader matching IG-style card layout ──────────────
+
+function SkeletonBar({ className }: { className?: string }) {
+  return (
+    <div
+      className={cn(
+        "rounded bg-zinc-800 animate-pulse",
+        className,
+      )}
+    />
+  );
+}
+
+function FeedItemSkeleton({ showMedia = false }: { showMedia?: boolean }) {
+  return (
+    <div className="border-b border-zinc-800">
+      {/* Header: avatar + name/username/time */}
+      <div className="flex items-center gap-2 px-4 pt-3 pb-2">
+        <SkeletonBar className="h-8 w-8 shrink-0 rounded-full" />
+        <div className="flex-1 space-y-1.5">
+          <div className="flex items-center gap-2">
+            <SkeletonBar className="h-3.5 w-24" />
+            <SkeletonBar className="h-3 w-20" />
+            <SkeletonBar className="h-3 w-8" />
+          </div>
+          <SkeletonBar className="h-3 w-16" />
+        </div>
+      </div>
+      {/* Notes (text-only card) or media placeholder */}
+      {showMedia ? (
+        <SkeletonBar className="mx-0 h-0 w-full rounded-none pb-[100%]" />
+      ) : (
+        <div className="space-y-1.5 px-4 pb-2">
+          <SkeletonBar className="h-3.5 w-full" />
+          <SkeletonBar className="h-3.5 w-3/4" />
+        </div>
+      )}
+      {/* Stats row */}
+      <div className="flex items-center gap-3 px-4 pt-2">
+        <SkeletonBar className="h-3.5 w-14" />
+        <SkeletonBar className="h-3.5 w-10" />
+      </div>
+      {/* Action bar */}
+      <div className="flex items-center gap-5 px-4 py-2.5">
+        <SkeletonBar className="h-4 w-4 rounded-full" />
+        <SkeletonBar className="h-4 w-4 rounded-full" />
+        <SkeletonBar className="h-4 w-4 rounded-full" />
+        <SkeletonBar className="h-4 w-4 rounded-full" />
+      </div>
+      {/* Caption line (for media cards) */}
+      {showMedia && (
+        <div className="flex items-center gap-2 px-4 pb-3">
+          <SkeletonBar className="h-3.5 w-20" />
+          <SkeletonBar className="h-3.5 w-40" />
+        </div>
+      )}
+    </div>
+  );
+}
+
 interface BonusThreshold {
   metric: string;
   threshold: number;
@@ -125,7 +185,9 @@ export interface ActivityFeedItem {
   } | null;
   likes: number;
   comments: number;
+  reposts: number;
   likedByUser: boolean;
+  repostedByUser: boolean;
   mediaUrls: string[];
   cloudinaryPublicIds?: string[];
   recentLikers: Array<{ id: string; name: string | null; username: string }>;
@@ -191,17 +253,30 @@ export function ActivityFeed({
     { initialNumItems: 10 },
   );
 
-  // For You: reactive ranked IDs + client-side pagination
-  const rankedIds = useQuery(
+  // For You: reactive ranked entries + client-side pagination
+  // Entries are either bare activity IDs or { id, repostedBy } objects
+  const rankedEntries = useQuery(
     api.queries.algorithmicFeed.getRankedActivityIds,
     feedFilter === "for_you"
       ? { challengeId: challengeId as Id<"challenges"> }
       : "skip",
   );
   const [algoVisibleCount, setAlgoVisibleCount] = useState(ALGO_PAGE_SIZE);
+
+  type FeedEntry = { id: Id<"activities">; repostedBy?: string };
+  const visibleAlgoEntries = useMemo(() => {
+    const raw = (rankedEntries ?? []) as Array<Id<"activities"> | { id: Id<"activities">; repostedBy: string }>;
+    return raw.slice(0, algoVisibleCount).map((entry): FeedEntry =>
+      typeof entry === "string"
+        ? { id: entry }
+        : { id: entry.id as Id<"activities">, repostedBy: entry.repostedBy },
+    );
+  }, [rankedEntries, algoVisibleCount]);
+
+  // Compat: bare ID list for injection slot calculations, load-more, etc.
   const visibleAlgoIds = useMemo(
-    () => ((rankedIds ?? []) as Id<"activities">[]).slice(0, algoVisibleCount),
-    [rankedIds, algoVisibleCount],
+    () => visibleAlgoEntries.map((e) => e.id),
+    [visibleAlgoEntries],
   );
 
   // Compute stable random injection positions for mobile feed widgets.
@@ -231,8 +306,8 @@ export function ActivityFeed({
       suggestedAt: swapped ? pos1 : pos2,
     };
   }, [isMobileClient, visibleAlgoIds.length]);
-  const algoCanLoadMore = (rankedIds?.length ?? 0) > algoVisibleCount;
-  const algoIsLoading = feedFilter === "for_you" && rankedIds === undefined;
+  const algoCanLoadMore = (rankedEntries?.length ?? 0) > algoVisibleCount;
+  const algoIsLoading = feedFilter === "for_you" && rankedEntries === undefined;
 
   const loadHttpPage = useCallback(
     async (cursor: string | null, append: boolean) => {
@@ -458,17 +533,11 @@ export function ActivityFeed({
     effectiveIsLoading &&
     (displayResults?.length ?? 0) === 0;
 
-  const feedStatus = useMemo(() => {
+  const showFeedSkeleton = useMemo(() => {
     const hasInitialFeed =
       (feedFilter === "all" && (displayResults?.length ?? 0) > 0) ||
       (feedFilter === "for_you" && visibleAlgoIds.length > 0);
-    if (effectiveIsLoading && !hasInitialFeed) {
-      if (feedFilter === "following")
-        return "Loading activity from people you follow...";
-      if (feedFilter === "for_you") return "Loading your personalized feed...";
-      return "Loading recent activities...";
-    }
-    return null;
+    return effectiveIsLoading && !hasInitialFeed;
   }, [displayResults, effectiveIsLoading, feedFilter, visibleAlgoIds.length]);
 
   return (
@@ -545,10 +614,11 @@ export function ActivityFeed({
         </Alert>
       )}
 
-      {feedStatus && (
-        <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" />
-          {feedStatus}
+      {showFeedSkeleton && (
+        <div className="space-y-0">
+          {[0, 1, 2].map((i) => (
+            <FeedItemSkeleton key={i} showMedia={i === 0} />
+          ))}
         </div>
       )}
 
@@ -562,10 +632,18 @@ export function ActivityFeed({
 
       {/* For You tab: each card subscribes reactively to its own data */}
       {feedFilter === "for_you" &&
-        visibleAlgoIds.map((activityId, index) => (
-          <div key={activityId}>
+        visibleAlgoEntries.map((entry, index) => (
+          <div key={entry.repostedBy ? `${entry.id}-repost-${entry.repostedBy}` : entry.id}>
+            {entry.repostedBy && (
+              <div className="flex items-center gap-1.5 px-4 pb-1 pt-2 text-xs text-zinc-500">
+                <Repeat2 className="h-3.5 w-3.5" />
+                <span>
+                  <span className="font-medium text-zinc-400">@{entry.repostedBy}</span> reposted
+                </span>
+              </div>
+            )}
             <ReactiveActivityCard
-              activityId={activityId}
+              activityId={entry.id}
               challengeId={challengeId}
               showEngagementCounts={!lightweightFeedMode}
               mentionOptions={mentionUsers}
@@ -574,12 +652,12 @@ export function ActivityFeed({
             />
             {injectionSlots?.miniGamesAt === index && (
               <div className="py-3">
-                <ActiveMiniGames challengeId={challengeId} userId={currentUserId ?? ""} />
+                <ActiveMiniGames challengeId={challengeId} userId={currentUserId ?? ""} variant="feed" />
               </div>
             )}
             {injectionSlots?.suggestedAt === index && (
               <div className="py-3">
-                <SuggestedFollows challengeId={challengeId} />
+                <SuggestedFollows challengeId={challengeId} variant="feed" />
               </div>
             )}
           </div>
@@ -606,6 +684,8 @@ export function ActivityFeed({
                   ...item.activity,
                   id: item.activity._id,
                 },
+                reposts: ("reposts" in item ? (item as any).reposts : 0) ?? 0,
+                repostedByUser: ("repostedByUser" in item ? (item as any).repostedByUser : false) ?? false,
                 mediaUrls: item.mediaUrls ?? [],
               }}
               mentionOptions={mentionUsers}
@@ -614,7 +694,7 @@ export function ActivityFeed({
             />
           ))}
 
-      {!effectiveIsLoading && feedFilter === "for_you" && visibleAlgoIds.length === 0 && rankedIds !== undefined && (
+      {!effectiveIsLoading && feedFilter === "for_you" && visibleAlgoIds.length === 0 && rankedEntries !== undefined && (
         <Card className="border-dashed text-center">
           <CardHeader>
             <CardTitle>No activity yet</CardTitle>
@@ -720,24 +800,12 @@ function ActivityStats({ item }: { item: ActivityFeedItem }) {
         hasBonuses={!!hasBonuses}
         className="font-mono font-medium"
       />
-      {hasBonuses && (
-        <span className="text-xs text-muted-foreground">
-          (+{bonusTotal} bonus)
-        </span>
-      )}
-      {hasBonuses && (
-        <div className="flex flex-wrap gap-1.5">
-          {item.activity.triggeredBonuses!.map((bonus, i) => (
-            <span
-              key={i}
-              className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2 py-0.5 text-xs text-amber-500"
-            >
-              <Zap className="h-3 w-3" />
-              {bonus.description}
-            </span>
-          ))}
-        </div>
-      )}
+      {hasBonuses &&
+        item.activity.triggeredBonuses!.map((bonus, i) => (
+          <span key={i} className="text-xs text-amber-500">
+            +{bonus.bonusPoints} {bonus.description.replace(/ bonus$/i, "").toLowerCase()}
+          </span>
+        ))}
     </div>
   );
 }
@@ -794,7 +862,9 @@ const ReactiveActivityCard = memo(function ReactiveActivityCard({
       : null,
     likes: data.likes,
     comments: data.comments,
+    reposts: data.reposts ?? 0,
     likedByUser: data.likedByUser,
+    repostedByUser: data.repostedByUser ?? false,
     mediaUrls: data.mediaUrls,
     cloudinaryPublicIds: data.cloudinaryPublicIds,
     recentLikers: data.recentLikers,
@@ -833,6 +903,7 @@ export const ActivityCard = memo(function ActivityCard({
   const activityId = item.activity.id ?? item.activity._id;
   const router = useRouter();
   const [isLiking, setIsLiking] = useState(false);
+  const [isReposting, setIsReposting] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const [showFlagDialog, setShowFlagDialog] = useState(false);
   const [flagCategory, setFlagCategory] = useState("");
@@ -842,6 +913,7 @@ export const ActivityCard = memo(function ActivityCard({
   const [flagSuccess, setFlagSuccess] = useState(false);
 
   const toggleLike = useMutation(api.mutations.likes.toggle);
+  const toggleRepost = useMutation(api.mutations.reposts.toggle);
   const flagActivity = useMutation(api.mutations.activities.flagActivity);
 
   const handleToggleLike = useCallback(async () => {
@@ -854,6 +926,17 @@ export const ActivityCard = memo(function ActivityCard({
       setIsLiking(false);
     }
   }, [activityId, toggleLike]);
+
+  const handleToggleRepost = useCallback(async () => {
+    setIsReposting(true);
+    try {
+      await toggleRepost({ activityId: activityId as Id<"activities"> });
+    } catch (error) {
+      console.error("Failed to toggle repost", error);
+    } finally {
+      setIsReposting(false);
+    }
+  }, [activityId, toggleRepost]);
 
   const activityUrl = `/challenges/${challengeId}/activities/${activityId}`;
 
@@ -961,6 +1044,25 @@ export const ActivityCard = memo(function ActivityCard({
         <MessageCircle className="h-[18px] w-[18px]" />
         {showEngagementCounts && item.comments > 0 && (
           <span>{item.comments}</span>
+        )}
+      </button>
+      <button
+        disabled={isReposting}
+        onClick={handleToggleRepost}
+        className={cn(
+          "flex items-center gap-1.5 text-sm transition-colors",
+          item.repostedByUser
+            ? "text-emerald-500"
+            : "hover:text-emerald-500",
+        )}
+      >
+        <Repeat2
+          className={cn(
+            "h-[18px] w-[18px]",
+          )}
+        />
+        {showEngagementCounts && item.reposts > 0 && (
+          <span>{item.reposts}</span>
         )}
       </button>
       <button
@@ -1111,19 +1213,18 @@ export const ActivityCard = memo(function ActivityCard({
           user={item.user}
           challengeId={challengeId}
           size="sm"
-          show={{ name: true, username: true, location: true }}
+          layout="inline"
+          show={{ name: true, username: true }}
           suffix={
             <>
-              <span aria-hidden="true">•</span>
-              <span className="text-sm">
-                {formatDistanceToNow(new Date(item.activity.createdAt), {
-                  addSuffix: true,
-                })}
+              <span className="text-xs text-muted-foreground" aria-hidden="true">·</span>
+              <span className="text-xs text-muted-foreground shrink-0">
+                {formatTimeAgo(item.activity.createdAt)}
               </span>
             </>
           }
         >
-          <span className="text-sm font-semibold text-primary">
+          <span className="text-xs text-muted-foreground">
             {item.activityType?.name ?? "Activity"}
           </span>
         </UserChallengeDisplay>
@@ -1134,18 +1235,34 @@ export const ActivityCard = memo(function ActivityCard({
     </div>
   );
 
-  const bodyContent = (
-    <>
-      {item.activity.notes ? (
+  const hasMedia = item.mediaUrls.length > 0 || (item.cloudinaryPublicIds && item.cloudinaryPublicIds.length > 0);
+
+  const bodyContent = item.activity.notes ? (
+    hasMedia ? (
+      <div className="text-sm leading-snug">
+        <span className="font-semibold text-foreground">
+          {item.user.username}
+        </span>{" "}
         <RichTextViewer
           content={item.activity.notes}
-          className="text-sm text-muted-foreground"
+          className="inline text-sm text-muted-foreground [&_p]:inline"
         />
-      ) : null}
-      <MediaGallery urls={item.mediaUrls} variant="feed" />
-      <ActivityStats item={item} />
-    </>
-  );
+      </div>
+    ) : (
+      <RichTextViewer
+        content={item.activity.notes}
+        className="text-sm text-muted-foreground"
+      />
+    )
+  ) : null;
+
+  const mediaContent = hasMedia ? (
+    <MediaGallery
+      urls={item.mediaUrls}
+      optimizedMediaIds={item.cloudinaryPublicIds}
+      variant="feed"
+    />
+  ) : null;
 
   const likesDisplay = showEngagementCounts && item.likes > 0 ? (
     <div onClick={(e) => e.stopPropagation()}>
@@ -1167,9 +1284,12 @@ export const ActivityCard = memo(function ActivityCard({
       onClick={handleCardClick}
     >
       <div className="px-4 pt-3 pb-1" onClick={(e) => e.stopPropagation()}>{headerContent}</div>
-      <div className="space-y-2 px-4">{bodyContent}</div>
-      {likesDisplay && <div className="px-4 pt-2">{likesDisplay}</div>}
-      <div className="px-4 py-2">{actionBar}</div>
+      {!hasMedia && <div className="space-y-2 px-4">{bodyContent}</div>}
+      {mediaContent && <div className="mt-2">{mediaContent}</div>}
+      <div className="px-4 pt-1"><ActivityStats item={item} /></div>
+      <div className="px-4 py-1">{actionBar}</div>
+      {likesDisplay && <div className="px-4">{likesDisplay}</div>}
+      {hasMedia && bodyContent && <div className="px-4">{bodyContent}</div>}
       <div className="px-4 pb-3">{commentsSection}</div>
       <div className="border-b border-zinc-800" />
     </article>

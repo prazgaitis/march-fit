@@ -24,7 +24,7 @@ async function getEngagementCounts(
   ctx: Ctx,
   activityId: Id<"activities">,
 ): Promise<EngagementScoreInput> {
-  const [likes, comments] = await Promise.all([
+  const [likes, comments, reposts] = await Promise.all([
     ctx.db
       .query("likes")
       .withIndex("activityId", (q) => q.eq("activityId", activityId))
@@ -35,8 +35,13 @@ async function getEngagementCounts(
       .withIndex("activityId", (q) => q.eq("activityId", activityId))
       .collect()
       .then((rows) => rows.filter(r => !r.parentType || r.parentType === "activity").length),
+    ctx.db
+      .query("reposts")
+      .withIndex("activityId", (q) => q.eq("activityId", activityId))
+      .collect()
+      .then((rows) => rows.length),
   ]);
-  return { likeCount: likes, commentCount: comments };
+  return { likeCount: likes, commentCount: comments, repostCount: reposts };
 }
 
 /**

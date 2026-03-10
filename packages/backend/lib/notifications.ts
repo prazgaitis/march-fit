@@ -18,6 +18,7 @@ const ROLLUP_TYPES = new Set([
   "mini_game_partner_activity", "mini_game_hunter_activity", "mini_game_prey_activity",
   "strava_import",
   "strava_update",
+  "repost",
 ]);
 
 type Ctx = { db: any };
