@@ -65,6 +65,7 @@ export function UserSearch({ challengeId }: UserSearchProps) {
                       }}
                       challengeId={challengeId}
                       size="sm"
+                      disableLink
                     />
                     <div className="flex-1 overflow-hidden">
                       <p className="truncate text-sm font-medium text-white">

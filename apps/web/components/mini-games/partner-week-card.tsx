@@ -2,7 +2,7 @@
 
 import { Users } from "lucide-react";
 import { UserAvatar } from "@/components/user-avatar";
-import { cn } from "@/lib/utils";
+import { formatPointsCompact } from "@/lib/points";
 
 interface PartnerWeekCardProps {
   gameName: string;
@@ -36,66 +36,43 @@ export function PartnerWeekCard({
   );
 
   return (
-    <div className="rounded-lg border border-zinc-800 bg-gradient-to-br from-indigo-950/50 to-zinc-900 p-4">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-500/20">
-            <Users className="h-4 w-4 text-indigo-400" />
-          </div>
-          <div>
-            <h3 className="text-sm font-semibold text-zinc-100">{gameName}</h3>
-            <p className="text-xs text-zinc-500">
-              {daysLeft} day{daysLeft !== 1 ? "s" : ""} left
-            </p>
-          </div>
+    <div className="rounded-lg border border-zinc-800 p-3">
+      {/* Header row: game name + days left + bonus */}
+      <div className="mb-3 flex items-center justify-between">
+        <div className="flex items-center gap-1.5">
+          <Users className="h-3.5 w-3.5 text-indigo-400" />
+          <span className="text-xs font-medium uppercase tracking-widest text-zinc-500">
+            {gameName}
+          </span>
+          <span className="text-xs text-zinc-700">·</span>
+          <span className="text-xs text-zinc-600">
+            {daysLeft}d left
+          </span>
         </div>
-        <div className="text-right">
-          <p className="text-xs text-zinc-500">Potential Bonus</p>
-          <p
-            className={cn(
-              "text-lg font-bold",
-              potentialBonus > 0 ? "text-emerald-400" : "text-zinc-500"
-            )}
-          >
-            +{potentialBonus}
-          </p>
+        <div className="flex items-baseline gap-1">
+          <span className="font-mono text-xl font-bold text-emerald-400">
+            +{formatPointsCompact(potentialBonus)}
+          </span>
+          <span className="text-[10px] text-zinc-600">bonus</span>
         </div>
       </div>
 
-      {/* Partner Info */}
+      {/* Partner row */}
       {partner && (
-        <div className="mt-4 rounded-lg bg-zinc-900/50 p-3">
-          <p className="mb-2 text-xs font-medium uppercase tracking-wider text-zinc-500">
-            Your Partner
-          </p>
-          <div className="flex items-center justify-between">
-            <UserAvatar
-              user={partner}
-              challengeId={challengeId}
-              size="md"
-              showName
-            >
-              <p className="text-xs text-zinc-500">
-                Rank #{partnerRank ?? "?"}
-              </p>
-            </UserAvatar>
-            <div className="text-right">
-              <p className="text-xs text-zinc-500">Week Points</p>
-              <p className="text-xl font-bold text-indigo-400">
-                {partnerPeriodPoints.toFixed(0)}
-              </p>
-            </div>
-          </div>
+        <div className="flex items-center justify-between">
+          <UserAvatar
+            user={partner}
+            challengeId={challengeId}
+            size="md"
+            showName
+            showUsername
+          >
+            <p className="text-[10px] text-zinc-600">
+              #{partnerRank ?? "?"} · {formatPointsCompact(partnerPeriodPoints)} pts this week
+            </p>
+          </UserAvatar>
         </div>
       )}
-
-      {/* Bonus Calculation */}
-      <div className="mt-3 flex items-center justify-between text-xs text-zinc-500">
-        <span>
-          {bonusPercentage}% of partner&apos;s points = your bonus
-        </span>
-      </div>
     </div>
   );
 }
