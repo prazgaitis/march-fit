@@ -572,6 +572,19 @@ export function ActivityFeed({
   const showRefreshPrompt =
     feedFilter === "all" && hasNewActivity && !latestActivityVisible;
 
+  // Listen for home-tab-tap event (fired when user taps home while already on home)
+  useEffect(() => {
+    const handler = () => {
+      if (feedFilter === "for_you") {
+        handlePullRefresh();
+      } else {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+    };
+    window.addEventListener("home-tab-tap", handler);
+    return () => window.removeEventListener("home-tab-tap", handler);
+  }, [feedFilter, handlePullRefresh]);
+
   const showForYouNewBanner =
     feedFilter === "for_you" && hasNewActivity;
 
