@@ -261,29 +261,79 @@ export function ActivityFeed({
   type FeedEntry = { id: Id<"activities">; repostedBy?: string };
   const [rankedEntries, setRankedEntries] = useState<FeedEntry[] | undefined>(undefined);
   const algoFetchIdRef = useRef(0);
+
+  const parseRankedEntries = useCallback(
+    (raw: Array<Id<"activities"> | { id: Id<"activities">; repostedBy: string }>): FeedEntry[] =>
+      raw.map((entry): FeedEntry =>
+        typeof entry === "string"
+          ? { id: entry }
+          : { id: entry.id as Id<"activities">, repostedBy: entry.repostedBy },
+      ),
+    [],
+  );
+
+  const fetchForYou = useCallback(async () => {
+    const fetchId = ++algoFetchIdRef.current;
+    const raw = await convexClient.query(
+      api.queries.algorithmicFeed.getRankedActivityIds,
+      { challengeId: challengeId as Id<"challenges"> },
+    );
+    if (fetchId !== algoFetchIdRef.current) return; // stale
+    const entries = parseRankedEntries(
+      raw as Array<Id<"activities"> | { id: Id<"activities">; repostedBy: string }>,
+    );
+    setRankedEntries(entries);
+    return entries;
+  }, [convexClient, challengeId, parseRankedEntries]);
+
   useEffect(() => {
     if (feedFilter !== "for_you") {
       setRankedEntries(undefined);
       return;
     }
-    const fetchId = ++algoFetchIdRef.current;
-    convexClient
-      .query(api.queries.algorithmicFeed.getRankedActivityIds, {
-        challengeId: challengeId as Id<"challenges">,
-      })
-      .then((raw) => {
-        if (fetchId !== algoFetchIdRef.current) return; // stale
-        const entries = (raw as Array<Id<"activities"> | { id: Id<"activities">; repostedBy: string }>).map(
-          (entry): FeedEntry =>
-            typeof entry === "string"
-              ? { id: entry }
-              : { id: entry.id as Id<"activities">, repostedBy: entry.repostedBy },
-        );
-        setRankedEntries(entries);
-      });
-  }, [feedFilter, challengeId, convexClient]);
+    fetchForYou();
+  }, [feedFilter, fetchForYou]);
 
   const [algoVisibleCount, setAlgoVisibleCount] = useState(ALGO_PAGE_SIZE);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  // Pull-to-refresh: re-fetch the For You ranking. If no new activities
+  // appear, backfill with a few recent entries from the "all" feed.
+  const handlePullRefresh = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      const prevIds = new Set((rankedEntries ?? []).map((e) => e.id));
+      const fresh = await fetchForYou();
+      if (!fresh) return;
+
+      const hasNew = fresh.some((e) => !prevIds.has(e.id));
+      if (!hasNew && fresh.length > 0) {
+        // No new For You activities — pull a few recent ones from the "all" feed
+        const allRaw = await convexClient.query(
+          api.queries.activities.getChallengeFeed,
+          {
+            challengeId: challengeId as Id<"challenges">,
+            followingOnly: false,
+            includeEngagementCounts: true,
+            includeMediaUrls: true,
+            paginationOpts: { numItems: 5, cursor: null },
+          },
+        );
+        const existingIds = new Set(fresh.map((e) => e.id));
+        const backfill: FeedEntry[] = (allRaw as any).page
+          ?.filter((item: any) => !existingIds.has(item.activity._id))
+          .slice(0, 3)
+          .map((item: any): FeedEntry => ({ id: item.activity._id })) ?? [];
+
+        if (backfill.length > 0) {
+          setRankedEntries([...backfill, ...fresh]);
+        }
+      }
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [fetchForYou, rankedEntries, convexClient, challengeId]);
 
   const visibleAlgoEntries = useMemo(
     () => (rankedEntries ?? []).slice(0, algoVisibleCount),
@@ -557,8 +607,67 @@ export function ActivityFeed({
     return effectiveIsLoading && !hasInitialFeed;
   }, [displayResults, effectiveIsLoading, feedFilter, visibleAlgoIds.length]);
 
+  // Pull-to-refresh touch gesture
+  const pullStartY = useRef<number | null>(null);
+  const [pullDistance, setPullDistance] = useState(0);
+  const pullThreshold = 80;
+
+  const handleTouchStart = useCallback(
+    (e: React.TouchEvent) => {
+      if (feedFilter !== "for_you" || isRefreshing) return;
+      if (window.scrollY <= 0) {
+        pullStartY.current = e.touches[0].clientY;
+      }
+    },
+    [feedFilter, isRefreshing],
+  );
+
+  const handleTouchMove = useCallback(
+    (e: React.TouchEvent) => {
+      if (pullStartY.current === null) return;
+      const delta = e.touches[0].clientY - pullStartY.current;
+      if (delta > 0) {
+        // Dampen the pull distance for a natural feel
+        setPullDistance(Math.min(delta * 0.4, pullThreshold * 1.5));
+      }
+    },
+    [],
+  );
+
+  const handleTouchEnd = useCallback(() => {
+    if (pullStartY.current === null) return;
+    if (pullDistance >= pullThreshold) {
+      handlePullRefresh();
+    }
+    pullStartY.current = null;
+    setPullDistance(0);
+  }, [pullDistance, handlePullRefresh]);
+
   return (
-    <div>
+    <div
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+    >
+      {/* Pull-to-refresh indicator */}
+      {feedFilter === "for_you" && (pullDistance > 0 || isRefreshing) && (
+        <div
+          className="flex items-center justify-center overflow-hidden transition-all"
+          style={{ height: isRefreshing ? 48 : pullDistance }}
+        >
+          <Loader2
+            className={cn(
+              "h-5 w-5 text-zinc-400 transition-opacity",
+              isRefreshing
+                ? "animate-spin opacity-100"
+                : pullDistance >= pullThreshold
+                  ? "opacity-100"
+                  : "opacity-40",
+            )}
+          />
+        </div>
+      )}
+
       {/* Twitter-like Feed Filter Tabs */}
       <div className="sticky top-[env(safe-area-inset-top)] z-10 -mx-4 border-b border-zinc-800 bg-black/80 backdrop-blur">
         <div className="flex">
@@ -606,8 +715,7 @@ export function ActivityFeed({
           <button
             onClick={() => {
               acknowledgeActivity();
-              setFeedFilter("all");
-              window.scrollTo({ top: 0, behavior: "smooth" });
+              handlePullRefresh();
             }}
             className="flex items-center gap-1.5 rounded-full bg-indigo-500 px-4 py-2 text-sm font-medium text-white shadow-lg transition-transform hover:scale-105 active:scale-95"
           >
