@@ -603,7 +603,7 @@ export function ActivityFeed({
             )}
             {injectionSlots?.suggestedAt === index && (
               <div className="py-3">
-                <SuggestedFollows challengeId={challengeId} />
+                <SuggestedFollows challengeId={challengeId} variant="feed" />
               </div>
             )}
           </div>
