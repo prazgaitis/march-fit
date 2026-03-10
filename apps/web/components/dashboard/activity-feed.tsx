@@ -598,7 +598,7 @@ export function ActivityFeed({
             />
             {injectionSlots?.miniGamesAt === index && (
               <div className="py-3">
-                <ActiveMiniGames challengeId={challengeId} userId={currentUserId ?? ""} />
+                <ActiveMiniGames challengeId={challengeId} userId={currentUserId ?? ""} variant="feed" />
               </div>
             )}
             {injectionSlots?.suggestedAt === index && (
