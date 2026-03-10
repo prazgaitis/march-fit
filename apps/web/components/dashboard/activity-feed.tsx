@@ -302,6 +302,7 @@ export function ActivityFeed({
   // so the refresh always feels productive.
   const handlePullRefresh = useCallback(async () => {
     setIsRefreshing(true);
+    const minSpinner = new Promise((r) => setTimeout(r, 600));
     try {
       // Build a key set that accounts for reposts (same activity ID,
       // different reposter = different entry).
@@ -332,6 +333,7 @@ export function ActivityFeed({
 
       window.scrollTo({ top: 0, behavior: "smooth" });
     } finally {
+      await minSpinner;
       setIsRefreshing(false);
     }
   }, [fetchForYou, rankedEntries, algoVisibleCount]);
