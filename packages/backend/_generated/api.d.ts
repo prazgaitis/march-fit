@@ -97,6 +97,7 @@ import type * as mutations_notifications from "../mutations/notifications.js";
 import type * as mutations_participations from "../mutations/participations.js";
 import type * as mutations_paymentConfig from "../mutations/paymentConfig.js";
 import type * as mutations_payments from "../mutations/payments.js";
+import type * as mutations_reposts from "../mutations/reposts.js";
 import type * as mutations_rescoreStrava from "../mutations/rescoreStrava.js";
 import type * as mutations_stravaWebhook from "../mutations/stravaWebhook.js";
 import type * as mutations_templates from "../mutations/templates.js";
@@ -239,6 +240,7 @@ declare const fullApi: ApiFromModules<{
   "mutations/participations": typeof mutations_participations;
   "mutations/paymentConfig": typeof mutations_paymentConfig;
   "mutations/payments": typeof mutations_payments;
+  "mutations/reposts": typeof mutations_reposts;
   "mutations/rescoreStrava": typeof mutations_rescoreStrava;
   "mutations/stravaWebhook": typeof mutations_stravaWebhook;
   "mutations/templates": typeof mutations_templates;

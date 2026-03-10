@@ -194,17 +194,30 @@ export function ActivityFeed({
     { initialNumItems: 10 },
   );
 
-  // For You: reactive ranked IDs + client-side pagination
-  const rankedIds = useQuery(
+  // For You: reactive ranked entries + client-side pagination
+  // Entries are either bare activity IDs or { id, repostedBy } objects
+  const rankedEntries = useQuery(
     api.queries.algorithmicFeed.getRankedActivityIds,
     feedFilter === "for_you"
       ? { challengeId: challengeId as Id<"challenges"> }
       : "skip",
   );
   const [algoVisibleCount, setAlgoVisibleCount] = useState(ALGO_PAGE_SIZE);
+
+  type FeedEntry = { id: Id<"activities">; repostedBy?: string };
+  const visibleAlgoEntries = useMemo(() => {
+    const raw = (rankedEntries ?? []) as Array<Id<"activities"> | { id: Id<"activities">; repostedBy: string }>;
+    return raw.slice(0, algoVisibleCount).map((entry): FeedEntry =>
+      typeof entry === "string"
+        ? { id: entry }
+        : { id: entry.id as Id<"activities">, repostedBy: entry.repostedBy },
+    );
+  }, [rankedEntries, algoVisibleCount]);
+
+  // Compat: bare ID list for injection slot calculations, load-more, etc.
   const visibleAlgoIds = useMemo(
-    () => ((rankedIds ?? []) as Id<"activities">[]).slice(0, algoVisibleCount),
-    [rankedIds, algoVisibleCount],
+    () => visibleAlgoEntries.map((e) => e.id),
+    [visibleAlgoEntries],
   );
 
   // Compute stable random injection positions for mobile feed widgets.
@@ -234,8 +247,8 @@ export function ActivityFeed({
       suggestedAt: swapped ? pos1 : pos2,
     };
   }, [isMobileClient, visibleAlgoIds.length]);
-  const algoCanLoadMore = (rankedIds?.length ?? 0) > algoVisibleCount;
-  const algoIsLoading = feedFilter === "for_you" && rankedIds === undefined;
+  const algoCanLoadMore = (rankedEntries?.length ?? 0) > algoVisibleCount;
+  const algoIsLoading = feedFilter === "for_you" && rankedEntries === undefined;
 
   const loadHttpPage = useCallback(
     async (cursor: string | null, append: boolean) => {
@@ -565,10 +578,18 @@ export function ActivityFeed({
 
       {/* For You tab: each card subscribes reactively to its own data */}
       {feedFilter === "for_you" &&
-        visibleAlgoIds.map((activityId, index) => (
-          <div key={activityId}>
+        visibleAlgoEntries.map((entry, index) => (
+          <div key={entry.repostedBy ? `${entry.id}-repost-${entry.repostedBy}` : entry.id}>
+            {entry.repostedBy && (
+              <div className="flex items-center gap-1.5 px-4 pb-1 pt-2 text-xs text-zinc-500">
+                <Repeat2 className="h-3.5 w-3.5" />
+                <span>
+                  <span className="font-medium text-zinc-400">@{entry.repostedBy}</span> reposted
+                </span>
+              </div>
+            )}
             <ReactiveActivityCard
-              activityId={activityId}
+              activityId={entry.id}
               challengeId={challengeId}
               showEngagementCounts={!lightweightFeedMode}
               mentionOptions={mentionUsers}
@@ -619,7 +640,7 @@ export function ActivityFeed({
             />
           ))}
 
-      {!effectiveIsLoading && feedFilter === "for_you" && visibleAlgoIds.length === 0 && rankedIds !== undefined && (
+      {!effectiveIsLoading && feedFilter === "for_you" && visibleAlgoIds.length === 0 && rankedEntries !== undefined && (
         <Card className="border-dashed text-center">
           <CardHeader>
             <CardTitle>No activity yet</CardTitle>
@@ -1173,7 +1194,7 @@ export const ActivityCard = memo(function ActivityCard({
     </div>
   );
 
-  const hasMedia = item.mediaUrls.length > 0;
+  const hasMedia = item.mediaUrls.length > 0 || (item.cloudinaryPublicIds && item.cloudinaryPublicIds.length > 0);
 
   const bodyContent = (
     <>
