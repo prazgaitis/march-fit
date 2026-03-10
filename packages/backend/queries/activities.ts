@@ -63,16 +63,26 @@ export const getById = query({
       return null;
     }
 
-    // Check like status
+    // Check like and repost status
     let likedByUser = false;
+    let repostedByUser = false;
     if (currentUser) {
-      const userLike = await ctx.db
-        .query("likes")
-        .withIndex("activityUserUnique", (q) =>
-          q.eq("activityId", activity._id).eq("userId", currentUser._id)
-        )
-        .first();
+      const [userLike, userRepost] = await Promise.all([
+        ctx.db
+          .query("likes")
+          .withIndex("activityUserUnique", (q) =>
+            q.eq("activityId", activity._id).eq("userId", currentUser._id)
+          )
+          .first(),
+        ctx.db
+          .query("reposts")
+          .withIndex("activityUserUnique", (q) =>
+            q.eq("activityId", activity._id).eq("userId", currentUser._id)
+          )
+          .first(),
+      ]);
       likedByUser = userLike !== null;
+      repostedByUser = userRepost !== null;
     }
 
     const isOwner = currentUser ? currentUser._id === activity.userId : false;
@@ -128,7 +138,9 @@ export const getById = query({
       },
       likes: likeCount,
       comments: commentCount,
+      reposts: activity.repostCount ?? 0,
       likedByUser,
+      repostedByUser,
       mediaUrls,
       cloudinaryPublicIds: activity.cloudinaryPublicIds ?? [],
       recentLikers,
@@ -263,12 +275,20 @@ export const getChallengeFeed = query({
         }
 
         // Core lookups per item
-        const [user, activityType, userLike] = await Promise.all([
+        const [user, activityType, userLike, userRepost] = await Promise.all([
           ctx.db.get(activity.userId),
           ctx.db.get(activity.activityTypeId),
           currentUser
             ? ctx.db
                 .query("likes")
+                .withIndex("activityUserUnique", (q) =>
+                  q.eq("activityId", activity._id).eq("userId", currentUser._id)
+                )
+                .first()
+            : null,
+          currentUser
+            ? ctx.db
+                .query("reposts")
                 .withIndex("activityUserUnique", (q) =>
                   q.eq("activityId", activity._id).eq("userId", currentUser._id)
                 )
@@ -344,7 +364,9 @@ export const getChallengeFeed = query({
             : null,
           likes: likeCount,
           comments: commentCount,
+          reposts: activity.repostCount ?? 0,
           likedByUser: userLike !== null,
+          repostedByUser: userRepost !== null,
           mediaUrls,
           cloudinaryPublicIds: activity.cloudinaryPublicIds ?? [],
           recentLikers,

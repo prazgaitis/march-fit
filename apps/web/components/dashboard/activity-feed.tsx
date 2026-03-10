@@ -18,6 +18,7 @@ import {
   MessageCircle,
   MoreHorizontal,
   RefreshCw,
+  Repeat2,
   Share2,
   Zap,
 } from "lucide-react";
@@ -125,7 +126,9 @@ export interface ActivityFeedItem {
   } | null;
   likes: number;
   comments: number;
+  reposts: number;
   likedByUser: boolean;
+  repostedByUser: boolean;
   mediaUrls: string[];
   cloudinaryPublicIds?: string[];
   recentLikers: Array<{ id: string; name: string | null; username: string }>;
@@ -606,6 +609,8 @@ export function ActivityFeed({
                   ...item.activity,
                   id: item.activity._id,
                 },
+                reposts: ("reposts" in item ? (item as any).reposts : 0) ?? 0,
+                repostedByUser: ("repostedByUser" in item ? (item as any).repostedByUser : false) ?? false,
                 mediaUrls: item.mediaUrls ?? [],
               }}
               mentionOptions={mentionUsers}
@@ -794,7 +799,9 @@ const ReactiveActivityCard = memo(function ReactiveActivityCard({
       : null,
     likes: data.likes,
     comments: data.comments,
+    reposts: data.reposts ?? 0,
     likedByUser: data.likedByUser,
+    repostedByUser: data.repostedByUser ?? false,
     mediaUrls: data.mediaUrls,
     cloudinaryPublicIds: data.cloudinaryPublicIds,
     recentLikers: data.recentLikers,
@@ -833,6 +840,7 @@ export const ActivityCard = memo(function ActivityCard({
   const activityId = item.activity.id ?? item.activity._id;
   const router = useRouter();
   const [isLiking, setIsLiking] = useState(false);
+  const [isReposting, setIsReposting] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const [showFlagDialog, setShowFlagDialog] = useState(false);
   const [flagCategory, setFlagCategory] = useState("");
@@ -842,6 +850,7 @@ export const ActivityCard = memo(function ActivityCard({
   const [flagSuccess, setFlagSuccess] = useState(false);
 
   const toggleLike = useMutation(api.mutations.likes.toggle);
+  const toggleRepost = useMutation(api.mutations.reposts.toggle);
   const flagActivity = useMutation(api.mutations.activities.flagActivity);
 
   const handleToggleLike = useCallback(async () => {
@@ -854,6 +863,17 @@ export const ActivityCard = memo(function ActivityCard({
       setIsLiking(false);
     }
   }, [activityId, toggleLike]);
+
+  const handleToggleRepost = useCallback(async () => {
+    setIsReposting(true);
+    try {
+      await toggleRepost({ activityId: activityId as Id<"activities"> });
+    } catch (error) {
+      console.error("Failed to toggle repost", error);
+    } finally {
+      setIsReposting(false);
+    }
+  }, [activityId, toggleRepost]);
 
   const activityUrl = `/challenges/${challengeId}/activities/${activityId}`;
 
@@ -961,6 +981,25 @@ export const ActivityCard = memo(function ActivityCard({
         <MessageCircle className="h-[18px] w-[18px]" />
         {showEngagementCounts && item.comments > 0 && (
           <span>{item.comments}</span>
+        )}
+      </button>
+      <button
+        disabled={isReposting}
+        onClick={handleToggleRepost}
+        className={cn(
+          "flex items-center gap-1.5 text-sm transition-colors",
+          item.repostedByUser
+            ? "text-emerald-500"
+            : "hover:text-emerald-500",
+        )}
+      >
+        <Repeat2
+          className={cn(
+            "h-[18px] w-[18px]",
+          )}
+        />
+        {showEngagementCounts && item.reposts > 0 && (
+          <span>{item.reposts}</span>
         )}
       </button>
       <button
@@ -1134,6 +1173,8 @@ export const ActivityCard = memo(function ActivityCard({
     </div>
   );
 
+  const hasMedia = item.mediaUrls.length > 0;
+
   const bodyContent = (
     <>
       {item.activity.notes ? (
@@ -1142,10 +1183,16 @@ export const ActivityCard = memo(function ActivityCard({
           className="text-sm text-muted-foreground"
         />
       ) : null}
-      <MediaGallery urls={item.mediaUrls} variant="feed" />
-      <ActivityStats item={item} />
     </>
   );
+
+  const mediaContent = hasMedia ? (
+    <MediaGallery
+      urls={item.mediaUrls}
+      optimizedMediaIds={item.cloudinaryPublicIds}
+      variant="feed"
+    />
+  ) : null;
 
   const likesDisplay = showEngagementCounts && item.likes > 0 ? (
     <div onClick={(e) => e.stopPropagation()}>
@@ -1168,6 +1215,8 @@ export const ActivityCard = memo(function ActivityCard({
     >
       <div className="px-4 pt-3 pb-1" onClick={(e) => e.stopPropagation()}>{headerContent}</div>
       <div className="space-y-2 px-4">{bodyContent}</div>
+      {mediaContent && <div className="mt-2">{mediaContent}</div>}
+      <div className="px-4 pt-1"><ActivityStats item={item} /></div>
       {likesDisplay && <div className="px-4 pt-2">{likesDisplay}</div>}
       <div className="px-4 py-2">{actionBar}</div>
       <div className="px-4 pb-3">{commentsSection}</div>
