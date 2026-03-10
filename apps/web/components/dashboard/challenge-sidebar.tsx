@@ -81,10 +81,11 @@ export function ChallengeSidebar({ challengeId, currentUserId, challengeStartDat
   );
 }
 
-function affinityLabel(score: number): string {
+function affinityLabel(score: number, location: string | null): string {
   if (score >= 40) return 'Active in your feed';
   if (score >= 15) return "You've interacted";
-  return 'In your challenge';
+  if (location) return location;
+  return '';
 }
 
 function SuggestedFollows({ challengeId }: { challengeId: string }) {
@@ -103,7 +104,7 @@ function SuggestedFollows({ challengeId }: { challengeId: string }) {
         </h3>
       </div>
       <div className="space-y-1.5">
-        {suggestions.map((user: { id: string; name: string | null; username: string; avatarUrl: string | null; affinityScore: number }) => (
+        {suggestions.map((user: { id: string; name: string | null; username: string; avatarUrl: string | null; location: string | null; affinityScore: number }) => (
           <SuggestionRow
             key={user.id}
             user={user}
@@ -119,7 +120,7 @@ function SuggestionRow({
   user,
   challengeId,
 }: {
-  user: { id: string; name: string | null; username: string; avatarUrl: string | null; affinityScore: number };
+  user: { id: string; name: string | null; username: string; avatarUrl: string | null; location: string | null; affinityScore: number };
   challengeId: string;
 }) {
   const [isToggling, setIsToggling] = useState(false);
@@ -156,9 +157,11 @@ function SuggestionRow({
         showName
         showUsername
       >
-        <p className="text-[10px] text-zinc-600">
-          {affinityLabel(user.affinityScore)}
-        </p>
+        {affinityLabel(user.affinityScore, user.location) && (
+          <p className="text-[10px] text-zinc-600">
+            {affinityLabel(user.affinityScore, user.location)}
+          </p>
+        )}
       </UserAvatar>
       <button
         onClick={handleFollow}
