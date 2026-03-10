@@ -5,6 +5,8 @@ import { UserAvatar } from "@/components/user-avatar";
 import { formatPointsCompact } from "@/lib/points";
 import { cn } from "@/lib/utils";
 
+import { MiniGameCardShell } from "./mini-game-card-shell";
+
 interface PartnerWeekCardProps {
   gameName: string;
   endsAt: number;
@@ -42,37 +44,34 @@ export function PartnerWeekCard({
   const isFeed = variant === "feed";
 
   return (
-    <div className={cn(
-      "rounded-lg border border-zinc-800",
-      isFeed ? "p-4" : "p-3",
-    )}>
-      {/* Header row: game name + days left + bonus */}
-      <div className={cn("flex items-center justify-between", isFeed ? "mb-4" : "mb-3")}>
-        <div className="flex items-center gap-1.5">
-          <Users className={cn(isFeed ? "h-4 w-4" : "h-3.5 w-3.5", "text-indigo-400")} />
-          <span className={cn(
-            "font-medium uppercase tracking-widest text-zinc-500",
-            isFeed ? "text-xs" : "text-xs",
-          )}>
-            {gameName}
-          </span>
-          <span className="text-xs text-zinc-700">·</span>
-          <span className="text-xs text-zinc-600">
-            {daysLeft}d left
-          </span>
-        </div>
-        <div className="flex items-baseline gap-1">
-          <span className={cn(
-            "font-mono font-bold text-emerald-400",
-            isFeed ? "text-2xl" : "text-xl",
-          )}>
+    <MiniGameCardShell
+      icon={Users}
+      title={gameName}
+      meta={`${daysLeft}d left`}
+      iconClassName={cn(isFeed ? "h-4 w-4" : "h-3.5 w-3.5", "text-indigo-400")}
+      compact={!isFeed}
+      headerRight={
+        <div className="text-right">
+          <div
+            className={cn(
+              "font-mono font-bold text-emerald-400",
+              isFeed ? "text-2xl" : "text-xl",
+            )}
+          >
             +{formatPointsCompact(potentialBonus)}
-          </span>
-          <span className={cn(isFeed ? "text-xs" : "text-[10px]", "text-zinc-600")}>bonus</span>
+          </div>
+          <div className={cn(isFeed ? "text-xs" : "text-[10px]", "text-zinc-600")}>
+            bonus
+          </div>
         </div>
-      </div>
-
-      {/* Partner row */}
+      }
+      bodyClassName={cn(isFeed && "space-y-0")}
+      footer={
+        isFeed
+          ? `Your partner earns points, you earn ${bonusPercentage}% as a bonus. Help each other out!`
+          : undefined
+      }
+    >
       {partner && (
         <div className="flex items-center justify-between">
           <UserAvatar
@@ -88,13 +87,6 @@ export function PartnerWeekCard({
           </UserAvatar>
         </div>
       )}
-
-      {/* Feed variant: extra context */}
-      {isFeed && (
-        <div className="mt-3 rounded-md bg-zinc-900/50 px-3 py-2 text-xs text-zinc-500">
-          Your partner earns points, you earn {bonusPercentage}% as a bonus. Help each other out!
-        </div>
-      )}
-    </div>
+    </MiniGameCardShell>
   );
 }
