@@ -22,6 +22,7 @@ import {
   Share2,
 } from "lucide-react";
 import {
+  useConvex,
   useConvexConnectionState,
   useMutation,
   usePaginatedQuery,
@@ -238,7 +239,7 @@ export function ActivityFeed({
       navigator.userAgent,
     );
   }, []);
-  const lightweightFeedMode = initialLightweightMode || isMobileClient;
+  const lightweightFeedMode = initialLightweightMode;
 
   const { results, status, loadMore, isLoading } = usePaginatedQuery(
     api.queries.activities.getChallengeFeed,
@@ -253,25 +254,41 @@ export function ActivityFeed({
     { initialNumItems: 10 },
   );
 
-  // For You: reactive ranked entries + client-side pagination
-  // Entries are either bare activity IDs or { id, repostedBy } objects
-  const rankedEntries = useQuery(
-    api.queries.algorithmicFeed.getRankedActivityIds,
-    feedFilter === "for_you"
-      ? { challengeId: challengeId as Id<"challenges"> }
-      : "skip",
-  );
+  // For You: one-shot fetch of ranked entries (not reactive) so that
+  // likes/comments/reposts don't re-sort the feed while the user is scrolling.
+  // Each card subscribes to its own data reactively via getById.
+  const convexClient = useConvex();
+  type FeedEntry = { id: Id<"activities">; repostedBy?: string };
+  const [rankedEntries, setRankedEntries] = useState<FeedEntry[] | undefined>(undefined);
+  const algoFetchIdRef = useRef(0);
+  useEffect(() => {
+    if (feedFilter !== "for_you") {
+      setRankedEntries(undefined);
+      return;
+    }
+    const fetchId = ++algoFetchIdRef.current;
+    convexClient
+      .query(api.queries.algorithmicFeed.getRankedActivityIds, {
+        challengeId: challengeId as Id<"challenges">,
+      })
+      .then((raw) => {
+        if (fetchId !== algoFetchIdRef.current) return; // stale
+        const entries = (raw as Array<Id<"activities"> | { id: Id<"activities">; repostedBy: string }>).map(
+          (entry): FeedEntry =>
+            typeof entry === "string"
+              ? { id: entry }
+              : { id: entry.id as Id<"activities">, repostedBy: entry.repostedBy },
+        );
+        setRankedEntries(entries);
+      });
+  }, [feedFilter, challengeId, convexClient]);
+
   const [algoVisibleCount, setAlgoVisibleCount] = useState(ALGO_PAGE_SIZE);
 
-  type FeedEntry = { id: Id<"activities">; repostedBy?: string };
-  const visibleAlgoEntries = useMemo(() => {
-    const raw = (rankedEntries ?? []) as Array<Id<"activities"> | { id: Id<"activities">; repostedBy: string }>;
-    return raw.slice(0, algoVisibleCount).map((entry): FeedEntry =>
-      typeof entry === "string"
-        ? { id: entry }
-        : { id: entry.id as Id<"activities">, repostedBy: entry.repostedBy },
-    );
-  }, [rankedEntries, algoVisibleCount]);
+  const visibleAlgoEntries = useMemo(
+    () => (rankedEntries ?? []).slice(0, algoVisibleCount),
+    [rankedEntries, algoVisibleCount],
+  );
 
   // Compat: bare ID list for injection slot calculations, load-more, etc.
   const visibleAlgoIds = useMemo(
@@ -1011,14 +1028,14 @@ export const ActivityCard = memo(function ActivityCard({
 
   const actionBar = (
     <div
-      className="flex items-center gap-4 text-muted-foreground"
+      className="flex items-center gap-6 sm:gap-4 text-muted-foreground"
       onClick={(e) => e.stopPropagation()}
     >
       <button
         disabled={isLiking}
         onClick={handleToggleLike}
         className={cn(
-          "flex items-center gap-1.5 text-sm transition-colors",
+          "flex items-center gap-1.5 text-sm transition-colors py-2",
           item.likedByUser
             ? "text-red-500"
             : "hover:text-red-500",
@@ -1026,7 +1043,7 @@ export const ActivityCard = memo(function ActivityCard({
       >
         <Heart
           className={cn(
-            "h-[18px] w-[18px]",
+            "h-5 w-5 sm:h-[18px] sm:w-[18px]",
             item.likedByUser && "fill-current",
           )}
         />
@@ -1037,11 +1054,11 @@ export const ActivityCard = memo(function ActivityCard({
       <button
         onClick={() => setShowComments((prev) => !prev)}
         className={cn(
-          "flex items-center gap-1.5 text-sm transition-colors",
+          "flex items-center gap-1.5 text-sm transition-colors py-2",
           showComments ? "text-foreground" : "hover:text-foreground",
         )}
       >
-        <MessageCircle className="h-[18px] w-[18px]" />
+        <MessageCircle className="h-5 w-5 sm:h-[18px] sm:w-[18px]" />
         {showEngagementCounts && item.comments > 0 && (
           <span>{item.comments}</span>
         )}
@@ -1050,16 +1067,14 @@ export const ActivityCard = memo(function ActivityCard({
         disabled={isReposting}
         onClick={handleToggleRepost}
         className={cn(
-          "flex items-center gap-1.5 text-sm transition-colors",
+          "flex items-center gap-1.5 text-sm transition-colors py-2",
           item.repostedByUser
             ? "text-emerald-500"
             : "hover:text-emerald-500",
         )}
       >
         <Repeat2
-          className={cn(
-            "h-[18px] w-[18px]",
-          )}
+          className="h-5 w-5 sm:h-[18px] sm:w-[18px]"
         />
         {showEngagementCounts && item.reposts > 0 && (
           <span>{item.reposts}</span>
@@ -1067,9 +1082,9 @@ export const ActivityCard = memo(function ActivityCard({
       </button>
       <button
         onClick={handleShare}
-        className="flex items-center gap-1.5 text-sm transition-colors hover:text-foreground"
+        className="flex items-center gap-1.5 text-sm transition-colors hover:text-foreground py-2"
       >
-        <Share2 className="h-[18px] w-[18px]" />
+        <Share2 className="h-5 w-5 sm:h-[18px] sm:w-[18px]" />
       </button>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
