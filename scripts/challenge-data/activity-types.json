@@ -243,13 +243,13 @@
   },
   {
     "name": "Workout with a Friend",
-    "description": "Log when you work out with a friend. 25 points. One-time, Week 3 only.",
+    "description": "Log when you work out with a friend. 25 points. One-time, Week 2 only.",
     "category": "Bonus",
     "scoringConfig": { "type": "completion", "fixedPoints": 25 },
     "contributesToStreak": false,
     "isNegative": false,
     "maxPerChallenge": 1,
-    "validWeeks": [3]
+    "validWeeks": [2]
   },
   {
     "name": "Retro Abs Bonus",
