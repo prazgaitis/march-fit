@@ -19,6 +19,7 @@ const ROLLUP_TYPES = new Set([
   "strava_import",
   "strava_update",
   "repost",
+  "poke",
 ]);
 
 type Ctx = { db: any };
@@ -53,7 +54,7 @@ export async function insertNotification(
       .order("desc")
       .take(50);
 
-    const dedupByActor = notification.type.startsWith("mini_game_") || notification.type === "strava_import" || notification.type === "strava_update";
+    const dedupByActor = notification.type.startsWith("mini_game_") || notification.type === "strava_import" || notification.type === "strava_update" || notification.type === "poke";
     const isDuplicate = recent.some(
       (n: any) =>
         n.type === notification.type &&

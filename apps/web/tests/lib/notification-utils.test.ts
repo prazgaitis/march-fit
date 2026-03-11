@@ -97,6 +97,11 @@ describe("getNotificationMessage", () => {
     expect(getNotificationMessage(n)).toBe("bob liked your activity");
   });
 
+  it("returns correct message for poke", () => {
+    const n = makeNotification({ type: "poke" });
+    expect(getNotificationMessage(n)).toBe("Alice poked you");
+  });
+
   it("returns generic message for unknown type", () => {
     const n = makeNotification({ type: "unknown_type" });
     expect(getNotificationMessage(n)).toBe("Alice interacted with you");
@@ -202,6 +207,23 @@ describe("getNotificationLink", () => {
 
   it("falls back to actor profile when no activityId", () => {
     const n = makeNotification({ type: "like" });
+    expect(getNotificationLink(n, challengeId)).toBe(
+      "/challenges/challenge-1/users/actor-1",
+    );
+  });
+
+  it("routes poke to actor profile using challengeId from data", () => {
+    const n = makeNotification({
+      type: "poke",
+      data: { challengeId: "c5" },
+    });
+    expect(getNotificationLink(n, challengeId)).toBe(
+      "/challenges/c5/users/actor-1",
+    );
+  });
+
+  it("routes poke to actor profile using current challengeId when data has none", () => {
+    const n = makeNotification({ type: "poke", data: {} });
     expect(getNotificationLink(n, challengeId)).toBe(
       "/challenges/challenge-1/users/actor-1",
     );
