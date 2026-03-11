@@ -8,7 +8,6 @@ import Link from "next/link";
 import { ChevronLeft, ChevronRight, Trophy, Loader2 } from "lucide-react";
 
 import { UserAvatar } from "@/components/user-avatar";
-import { PointsDisplay } from "@/components/ui/points-display";
 import { cn } from "@/lib/utils";
 
 interface WeeklyLeaderboardEntry {
@@ -20,14 +19,24 @@ interface WeeklyLeaderboardEntry {
     avatarUrl: string | null;
   };
   weeklyPoints: number;
+  totalMetricValue: number;
 }
 
 interface CategoryLeaderboard {
   category: {
     id: string;
     name: string;
+    unit: string | null;
   };
   entries: WeeklyLeaderboardEntry[];
+}
+
+function formatMetricDisplay(metricValue: number, unit: string | null, points: number): string {
+  if (metricValue > 0 && unit) {
+    const rounded = Math.round(metricValue * 100) / 100;
+    return `${rounded} ${unit}`;
+  }
+  return `${Math.round(points)} pts`;
 }
 
 interface WeeklyCategoryLeaderboardProps {
@@ -185,13 +194,9 @@ export function WeeklyCategoryLeaderboard({
                         </p>
                       </div>
 
-                      <PointsDisplay
-                        points={entry.weeklyPoints}
-                        size="sm"
-                        showSign={false}
-                        showLabel={false}
-                        className={cn("shrink-0 font-mono font-bold", entry.weeklyPoints >= 0 && "text-white")}
-                      />
+                      <span className="shrink-0 font-mono text-sm font-bold text-white">
+                        {formatMetricDisplay(entry.totalMetricValue, category.category.unit, entry.weeklyPoints)}
+                      </span>
                     </Link>
                   );
                 })}
