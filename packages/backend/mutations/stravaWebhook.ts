@@ -5,7 +5,7 @@ import {
   mapStravaActivity,
   type StravaActivity,
 } from "../lib/strava";
-import { calculateFinalActivityScore } from "../lib/scoring";
+import { calculateFinalActivityScore, extractActivityMetricValue } from "../lib/scoring";
 import { isPaymentRequired } from "../lib/payments";
 import { notDeleted } from "../lib/activityFilters";
 import { reportLatencyIfExceeded } from "../lib/latencyMonitoring";
@@ -191,12 +191,14 @@ export const createFromStrava = internalMutation({
           updatedAt: Date.now(),
         });
 
+        const reimportMetricValue = extractActivityMetricValue(activityType, mappedActivity.metrics as Record<string, unknown>);
         await applyParticipationScoreDeltaAndRecomputeStreak(ctx, {
           userId: args.userId,
           challengeId: args.challengeId,
           pointsDelta: pointsEarned,
           streakMinPoints: challenge.streakMinPoints,
           categoryId: activityType.categoryId,
+          metricDelta: reimportMetricValue,
           loggedDate: loggedDateTs,
           challengeStartDate: challenge.startDate,
         });
@@ -244,19 +246,32 @@ export const createFromStrava = internalMutation({
       const stravaDateChanged = loggedDateTs !== existing.loggedDate;
       const stravaWeeklyNeedsSwap = stravaTypeChanged || stravaDateChanged;
 
+      const newMetricVal = extractActivityMetricValue(activityType, mappedActivity.metrics as Record<string, unknown>);
+      const oldExistingMetrics = (existing.metrics ?? {}) as Record<string, unknown>;
+
       if (stravaTypeChanged) {
         const oldStravaType = await ctx.db.get(existing.activityTypeId);
+        const oldMetricVal = oldStravaType
+          ? extractActivityMetricValue(oldStravaType, oldExistingMetrics)
+          : 0;
         await applyCategoryPointsDelta(ctx, {
           userId: args.userId,
           challengeId: args.challengeId,
           categoryId: oldStravaType?.categoryId,
           pointsDelta: -existing.pointsEarned,
+          metricDelta: -oldMetricVal,
         });
       }
       if (stravaWeeklyNeedsSwap) {
         const oldCatId = stravaTypeChanged
           ? (await ctx.db.get(existing.activityTypeId))?.categoryId
           : activityType.categoryId;
+        const oldTypeForMetric = stravaTypeChanged
+          ? await ctx.db.get(existing.activityTypeId)
+          : activityType;
+        const oldMetricVal = oldTypeForMetric
+          ? extractActivityMetricValue(oldTypeForMetric, oldExistingMetrics)
+          : 0;
         await applyWeeklyCategoryPointsDeltaFromDate(ctx, {
           userId: args.userId,
           challengeId: args.challengeId,
@@ -264,14 +279,21 @@ export const createFromStrava = internalMutation({
           loggedDate: existing.loggedDate,
           challengeStartDate: challenge.startDate,
           pointsDelta: -existing.pointsEarned,
+          metricDelta: -oldMetricVal,
         });
       }
+
+      const oldMetricSameType = extractActivityMetricValue(activityType, oldExistingMetrics);
+      const metricDeltaCommon = stravaTypeChanged
+        ? undefined
+        : newMetricVal - oldMetricSameType;
       await applyParticipationScoreDeltaAndRecomputeStreak(ctx, {
         userId: args.userId,
         challengeId: args.challengeId,
         pointsDelta: pointsEarned - existing.pointsEarned,
         streakMinPoints: challenge.streakMinPoints,
         categoryId: stravaTypeChanged ? undefined : activityType.categoryId,
+        metricDelta: metricDeltaCommon,
         loggedDate: stravaWeeklyNeedsSwap ? undefined : loggedDateTs,
         challengeStartDate: stravaWeeklyNeedsSwap ? undefined : challenge.startDate,
       });
@@ -281,6 +303,7 @@ export const createFromStrava = internalMutation({
           challengeId: args.challengeId,
           categoryId: activityType.categoryId,
           pointsDelta: pointsEarned,
+          metricDelta: newMetricVal,
         });
       }
       if (stravaWeeklyNeedsSwap) {
@@ -291,6 +314,7 @@ export const createFromStrava = internalMutation({
           loggedDate: loggedDateTs,
           challengeStartDate: challenge.startDate,
           pointsDelta: pointsEarned,
+          metricDelta: newMetricVal,
         });
       }
 
@@ -343,12 +367,14 @@ export const createFromStrava = internalMutation({
       updatedAt: Date.now(),
     });
 
+    const newActivityMetricValue = extractActivityMetricValue(activityType, mappedActivity.metrics as Record<string, unknown>);
     await applyParticipationScoreDeltaAndRecomputeStreak(ctx, {
       userId: args.userId,
       challengeId: args.challengeId,
       pointsDelta: pointsEarned,
       streakMinPoints: challenge.streakMinPoints,
       categoryId: activityType.categoryId,
+      metricDelta: newActivityMetricValue,
       loggedDate: loggedDateTs,
       challengeStartDate: challenge.startDate,
     });
@@ -425,6 +451,9 @@ export const deleteFromStrava = internalMutation({
         updatedAt: now,
       });
       const deletedStravaType = await ctx.db.get(activity.activityTypeId);
+      const deletedStravaMetric = deletedStravaType
+        ? extractActivityMetricValue(deletedStravaType, (activity.metrics ?? {}) as Record<string, unknown>)
+        : 0;
       await applyParticipationScoreDeltaAndRecomputeStreak(ctx, {
         userId: activity.userId,
         challengeId: activity.challengeId,
@@ -432,6 +461,7 @@ export const deleteFromStrava = internalMutation({
         streakMinPoints: challenge.streakMinPoints,
         now,
         categoryId: deletedStravaType?.categoryId,
+        metricDelta: -deletedStravaMetric,
         loggedDate: activity.loggedDate,
         challengeStartDate: challenge.startDate,
       });

@@ -37,7 +37,7 @@ function normalizeMetricKey(key: string): string {
     .replace(/[\s-]+/g, "_");
 }
 
-function getMetricValueForUnit(
+export function getMetricValueForUnit(
   unit: string | undefined,
   metrics: Record<string, unknown>
 ): number | undefined {
@@ -602,4 +602,18 @@ export function calculateThresholdBonuses(
   const totalBonusPoints = triggeredBonuses.reduce((sum, t) => sum + t.bonusPoints, 0);
 
   return { totalBonusPoints, triggeredBonuses };
+}
+
+/**
+ * Extract the raw metric value for an activity based on its activity type's unit.
+ * Returns 0 when the activity type has no configured unit.
+ */
+export function extractActivityMetricValue(
+  activityType: { scoringConfig?: unknown },
+  metrics: Record<string, unknown>
+): number {
+  const config = (activityType.scoringConfig as Record<string, unknown>) ?? {};
+  const unit = config["unit"] as string | undefined;
+  if (!unit) return 0;
+  return getMetricValueForUnit(unit, metrics) ?? 0;
 }

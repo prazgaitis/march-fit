@@ -61,6 +61,8 @@ export async function applyParticipationScoreDeltaAndRecomputeStreak(
     now?: number;
     /** When provided, also increments the categoryPoints aggregation table. */
     categoryId?: Id<"categories">;
+    /** Raw metric delta (e.g. miles) for category leader rankings. */
+    metricDelta?: number;
     /** Pass alongside categoryId for weekly category aggregation. */
     loggedDate?: number;
     /** Pass alongside categoryId for weekly category aggregation. */
@@ -104,6 +106,7 @@ export async function applyParticipationScoreDeltaAndRecomputeStreak(
       challengeId: args.challengeId,
       categoryId: args.categoryId,
       pointsDelta: args.pointsDelta,
+      metricDelta: args.metricDelta,
       now,
     });
 
@@ -119,6 +122,7 @@ export async function applyParticipationScoreDeltaAndRecomputeStreak(
         loggedDate: args.loggedDate,
         challengeStartDate: args.challengeStartDate,
         pointsDelta: args.pointsDelta,
+        metricDelta: args.metricDelta,
         now,
       });
     }

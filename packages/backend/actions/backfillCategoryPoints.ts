@@ -8,12 +8,13 @@
  *   npx convex run actions/backfillCategoryPoints:backfillCategoryPoints --prod
  *
  * Safe to re-run — it clears existing categoryPoints for each challenge before
- * writing fresh aggregations.
+ * writing fresh aggregations. Now includes totalMetricValue for raw metric tracking.
  */
 
 import { action } from "../_generated/server";
 import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
+import { extractActivityMetricValue } from "../lib/scoring";
 
 export const backfillCategoryPoints = action({
   args: {},
@@ -28,23 +29,25 @@ export const backfillCategoryPoints = action({
 
     for (const challenge of challenges) {
       const challengeId = challenge._id;
-      console.log(`\n📋 Processing: ${challenge.name}`);
+      console.log(`\nProcessing: ${challenge.name}`);
 
-      // 2. Load activity types → build activityTypeId → categoryId map
+      // 2. Load activity types → build activityTypeId → categoryId map + scoringConfig
       const activityTypes = await ctx.runQuery(
         internal.queries.activityTypes.listByChallenge,
         { challengeId }
       );
 
       const categoryMap = new Map<string, Id<"categories">>();
+      const activityTypeMap = new Map<string, any>();
       for (const at of activityTypes) {
+        activityTypeMap.set(at._id as string, at);
         if (at.categoryId) {
           categoryMap.set(at._id as string, at.categoryId);
         }
       }
 
       if (categoryMap.size === 0) {
-        console.log("  ⏭️  No categorized activity types, skipping");
+        console.log("  No categorized activity types, skipping");
         continue;
       }
 
@@ -55,7 +58,7 @@ export const backfillCategoryPoints = action({
       );
       if (existing.length > 0) {
         console.log(
-          `  🗑️  Clearing ${existing.length} existing categoryPoints rows`
+          `  Clearing ${existing.length} existing categoryPoints rows`
         );
         const BATCH = 100;
         for (let i = 0; i < existing.length; i += BATCH) {
@@ -67,8 +70,8 @@ export const backfillCategoryPoints = action({
       }
 
       // 4. Page through all activities and aggregate
-      // Key: `${userId}|${categoryId}` → totalPoints
-      const aggregation = new Map<string, number>();
+      // Key: `${userId}|${categoryId}` → { points, metric }
+      const aggregation = new Map<string, { points: number; metric: number }>();
       let cursor: string | undefined;
       let activityCount = 0;
 
@@ -82,11 +85,17 @@ export const backfillCategoryPoints = action({
           const categoryId = categoryMap.get(activity.activityTypeId as string);
           if (!categoryId) continue;
 
+          const at = activityTypeMap.get(activity.activityTypeId as string);
+          const metricValue = at
+            ? extractActivityMetricValue(at, (activity.metrics ?? {}) as Record<string, unknown>)
+            : 0;
+
           const key = `${activity.userId}|${categoryId}`;
-          aggregation.set(
-            key,
-            (aggregation.get(key) ?? 0) + activity.pointsEarned
-          );
+          const existing = aggregation.get(key) ?? { points: 0, metric: 0 };
+          aggregation.set(key, {
+            points: existing.points + activity.pointsEarned,
+            metric: existing.metric + metricValue,
+          });
         }
 
         activityCount += result.page.length;
@@ -96,7 +105,7 @@ export const backfillCategoryPoints = action({
       }
 
       console.log(
-        `  📊 Scanned ${activityCount} activities → ${aggregation.size} (user, category) pairs`
+        `  Scanned ${activityCount} activities -> ${aggregation.size} (user, category) pairs`
       );
 
       // 5. Write aggregated rows in batches
@@ -105,15 +114,22 @@ export const backfillCategoryPoints = action({
         userId: Id<"users">;
         categoryId: Id<"categories">;
         totalPoints: number;
+        totalMetricValue: number;
       }> = [];
 
-      for (const [key, totalPoints] of aggregation) {
-        if (totalPoints <= 0) continue;
+      for (const [key, agg] of aggregation) {
+        if (agg.points <= 0 && agg.metric <= 0) continue;
         const [userId, categoryId] = key.split("|") as [
           Id<"users">,
           Id<"categories">,
         ];
-        rows.push({ challengeId, userId, categoryId, totalPoints });
+        rows.push({
+          challengeId,
+          userId,
+          categoryId,
+          totalPoints: agg.points,
+          totalMetricValue: agg.metric,
+        });
       }
 
       const WRITE_BATCH = 50;
@@ -125,11 +141,11 @@ export const backfillCategoryPoints = action({
         );
       }
 
-      console.log(`  ✅ Wrote ${rows.length} categoryPoints rows`);
+      console.log(`  Wrote ${rows.length} categoryPoints rows`);
       totalWritten += rows.length;
     }
 
-    console.log(`\n🎉 Backfill complete — ${totalWritten} total rows written`);
+    console.log(`\nBackfill complete — ${totalWritten} total rows written`);
     return { success: true, totalWritten };
   },
 });

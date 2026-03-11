@@ -8,13 +8,14 @@
  *   npx convex run actions/backfillWeeklyCategoryPoints:backfillWeeklyCategoryPoints --prod
  *
  * Safe to re-run — it clears existing weeklyCategoryPoints for each challenge before
- * writing fresh aggregations.
+ * writing fresh aggregations. Now includes totalMetricValue for raw metric tracking.
  */
 
 import { action } from "../_generated/server";
 import { internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import { getChallengeWeekNumber } from "../lib/weeks";
+import { extractActivityMetricValue } from "../lib/scoring";
 
 export const backfillWeeklyCategoryPoints = action({
   args: {},
@@ -32,23 +33,25 @@ export const backfillWeeklyCategoryPoints = action({
 
     for (const challenge of challenges) {
       const challengeId = challenge._id;
-      console.log(`\n📋 Processing: ${challenge.name}`);
+      console.log(`\nProcessing: ${challenge.name}`);
 
-      // 2. Load activity types → build activityTypeId → categoryId map
+      // 2. Load activity types → build activityTypeId → categoryId map + scoringConfig
       const activityTypes = await ctx.runQuery(
         internal.queries.activityTypes.listByChallenge,
         { challengeId }
       );
 
       const categoryMap = new Map<string, Id<"categories">>();
+      const activityTypeMap = new Map<string, any>();
       for (const at of activityTypes) {
+        activityTypeMap.set(at._id as string, at);
         if (at.categoryId) {
           categoryMap.set(at._id as string, at.categoryId);
         }
       }
 
       if (categoryMap.size === 0) {
-        console.log("  ⏭️  No categorized activity types, skipping");
+        console.log("  No categorized activity types, skipping");
         continue;
       }
 
@@ -59,7 +62,7 @@ export const backfillWeeklyCategoryPoints = action({
       );
       if (existing.length > 0) {
         console.log(
-          `  🗑️  Clearing ${existing.length} existing weeklyCategoryPoints rows`
+          `  Clearing ${existing.length} existing weeklyCategoryPoints rows`
         );
         const BATCH = 100;
         for (let i = 0; i < existing.length; i += BATCH) {
@@ -73,8 +76,8 @@ export const backfillWeeklyCategoryPoints = action({
       }
 
       // 4. Page through all activities and aggregate
-      // Key: `${userId}|${categoryId}|${weekNumber}` → totalPoints
-      const aggregation = new Map<string, number>();
+      // Key: `${userId}|${categoryId}|${weekNumber}` → { points, metric }
+      const aggregation = new Map<string, { points: number; metric: number }>();
       let cursor: string | undefined;
       let activityCount = 0;
 
@@ -96,11 +99,17 @@ export const backfillWeeklyCategoryPoints = action({
           );
           if (weekNumber <= 0) continue;
 
+          const at = activityTypeMap.get(activity.activityTypeId as string);
+          const metricValue = at
+            ? extractActivityMetricValue(at, (activity.metrics ?? {}) as Record<string, unknown>)
+            : 0;
+
           const key = `${activity.userId}|${categoryId}|${weekNumber}`;
-          aggregation.set(
-            key,
-            (aggregation.get(key) ?? 0) + activity.pointsEarned
-          );
+          const existing = aggregation.get(key) ?? { points: 0, metric: 0 };
+          aggregation.set(key, {
+            points: existing.points + activity.pointsEarned,
+            metric: existing.metric + metricValue,
+          });
         }
 
         activityCount += result.page.length;
@@ -110,7 +119,7 @@ export const backfillWeeklyCategoryPoints = action({
       }
 
       console.log(
-        `  📊 Scanned ${activityCount} activities → ${aggregation.size} (user, category, week) tuples`
+        `  Scanned ${activityCount} activities -> ${aggregation.size} (user, category, week) tuples`
       );
 
       // 5. Write aggregated rows in batches
@@ -120,10 +129,11 @@ export const backfillWeeklyCategoryPoints = action({
         categoryId: Id<"categories">;
         weekNumber: number;
         totalPoints: number;
+        totalMetricValue: number;
       }> = [];
 
-      for (const [key, totalPoints] of aggregation) {
-        if (totalPoints <= 0) continue;
+      for (const [key, agg] of aggregation) {
+        if (agg.points <= 0 && agg.metric <= 0) continue;
         const [userId, categoryId, weekStr] = key.split("|") as [
           Id<"users">,
           Id<"categories">,
@@ -134,7 +144,8 @@ export const backfillWeeklyCategoryPoints = action({
           userId,
           categoryId,
           weekNumber: Number(weekStr),
-          totalPoints,
+          totalPoints: agg.points,
+          totalMetricValue: agg.metric,
         });
       }
 
@@ -147,12 +158,12 @@ export const backfillWeeklyCategoryPoints = action({
         );
       }
 
-      console.log(`  ✅ Wrote ${rows.length} weeklyCategoryPoints rows`);
+      console.log(`  Wrote ${rows.length} weeklyCategoryPoints rows`);
       totalWritten += rows.length;
     }
 
     console.log(
-      `\n🎉 Backfill complete — ${totalWritten} total rows written`
+      `\nBackfill complete — ${totalWritten} total rows written`
     );
     return { success: true, totalWritten };
   },

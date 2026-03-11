@@ -12,6 +12,7 @@ import { extractMentionedUserIds } from "../lib/mentions";
 import { internal as internalApi } from "../_generated/api";
 import {
   calculateFinalActivityScore,
+  extractActivityMetricValue,
 } from "../lib/scoring";
 import { isPaymentRequired } from "../lib/payments";
 import {
@@ -164,12 +165,14 @@ export const logActivityForUser = internalMutation({
     });
 
     // Recompute streaks from all challenge days after any new activity.
+    const apiMetricValue = extractActivityMetricValue(activityType, metricsObj);
     const streakUpdate = await applyParticipationScoreDeltaAndRecomputeStreak(ctx, {
       userId: args.userId,
       challengeId: args.challengeId,
       pointsDelta: pointsEarned,
       streakMinPoints: challenge.streakMinPoints,
       categoryId: activityType.categoryId,
+      metricDelta: apiMetricValue,
       loggedDate: loggedDateTs,
       challengeStartDate: challenge.startDate,
     });
@@ -239,6 +242,9 @@ export const removeActivityForUser = internalMutation({
     });
 
     const deletedApiActivityType = await ctx.db.get(activity.activityTypeId);
+    const deletedApiMetric = deletedApiActivityType
+      ? extractActivityMetricValue(deletedApiActivityType, (activity.metrics ?? {}) as Record<string, unknown>)
+      : 0;
     await applyParticipationScoreDeltaAndRecomputeStreak(ctx, {
       userId: activity.userId,
       challengeId: activity.challengeId,
@@ -246,6 +252,7 @@ export const removeActivityForUser = internalMutation({
       streakMinPoints: challenge.streakMinPoints,
       now,
       categoryId: deletedApiActivityType?.categoryId,
+      metricDelta: -deletedApiMetric,
       loggedDate: activity.loggedDate,
       challengeStartDate: challenge.startDate,
     });
@@ -977,13 +984,20 @@ export const adminEditActivityForUser = internalMutation({
       const apiDateChanged = newApiLoggedDate !== activity.loggedDate;
       const apiWeeklyNeedsSwap = apiTypeChanged || apiDateChanged;
 
+      const oldApiMetrics = (activity.metrics ?? {}) as Record<string, unknown>;
+      const newApiMetrics = (updates.metrics ?? activity.metrics ?? {}) as Record<string, unknown>;
+
       if (apiTypeChanged) {
         const oldApiActivityType = await ctx.db.get(activity.activityTypeId);
+        const oldApiMetricVal = oldApiActivityType
+          ? extractActivityMetricValue(oldApiActivityType, oldApiMetrics)
+          : 0;
         await applyCategoryPointsDelta(ctx, {
           userId: activity.userId,
           challengeId: activity.challengeId,
           categoryId: oldApiActivityType?.categoryId,
           pointsDelta: -activity.pointsEarned,
+          metricDelta: -oldApiMetricVal,
           now,
         });
       }
@@ -991,6 +1005,10 @@ export const adminEditActivityForUser = internalMutation({
         const oldCatId = apiTypeChanged
           ? (await ctx.db.get(activity.activityTypeId))?.categoryId
           : (await ctx.db.get(activity.activityTypeId))?.categoryId;
+        const oldTypeForMetric = await ctx.db.get(activity.activityTypeId);
+        const oldApiMetricVal = oldTypeForMetric
+          ? extractActivityMetricValue(oldTypeForMetric, oldApiMetrics)
+          : 0;
         await applyWeeklyCategoryPointsDeltaFromDate(ctx, {
           userId: activity.userId,
           challengeId: activity.challengeId,
@@ -998,6 +1016,7 @@ export const adminEditActivityForUser = internalMutation({
           loggedDate: activity.loggedDate,
           challengeStartDate: challenge.startDate,
           pointsDelta: -activity.pointsEarned,
+          metricDelta: -oldApiMetricVal,
           now,
         });
       }
@@ -1006,6 +1025,16 @@ export const adminEditActivityForUser = internalMutation({
       const effectiveApiActivityType = await ctx.db.get(effectiveApiTypeId);
       const newApiPointsEarned = args.pointsEarned ?? activity.pointsEarned;
 
+      const newApiMetricVal = effectiveApiActivityType
+        ? extractActivityMetricValue(effectiveApiActivityType, newApiMetrics)
+        : 0;
+      const oldApiMetricValSameType = effectiveApiActivityType
+        ? extractActivityMetricValue(effectiveApiActivityType, oldApiMetrics)
+        : 0;
+      const apiMetricDeltaCommon = apiTypeChanged
+        ? undefined
+        : newApiMetricVal - oldApiMetricValSameType;
+
       await applyParticipationScoreDeltaAndRecomputeStreak(ctx, {
         userId: activity.userId,
         challengeId: activity.challengeId,
@@ -1013,6 +1042,7 @@ export const adminEditActivityForUser = internalMutation({
         streakMinPoints: challenge.streakMinPoints,
         now,
         categoryId: apiTypeChanged ? undefined : effectiveApiActivityType?.categoryId,
+        metricDelta: apiMetricDeltaCommon,
         loggedDate: apiWeeklyNeedsSwap ? undefined : newApiLoggedDate,
         challengeStartDate: apiWeeklyNeedsSwap ? undefined : challenge.startDate,
       });
@@ -1023,6 +1053,7 @@ export const adminEditActivityForUser = internalMutation({
           challengeId: activity.challengeId,
           categoryId: effectiveApiActivityType?.categoryId,
           pointsDelta: newApiPointsEarned,
+          metricDelta: newApiMetricVal,
           now,
         });
       }
@@ -1034,6 +1065,7 @@ export const adminEditActivityForUser = internalMutation({
           loggedDate: newApiLoggedDate,
           challengeStartDate: challenge.startDate,
           pointsDelta: newApiPointsEarned,
+          metricDelta: newApiMetricVal,
           now,
         });
       }

@@ -23,6 +23,7 @@ export const listActivitiesPage = internalQuery({
         activityTypeId: a.activityTypeId,
         pointsEarned: a.pointsEarned,
         loggedDate: a.loggedDate,
+        metrics: a.metrics,
       })),
       continueCursor: result.continueCursor,
       isDone: result.isDone,
