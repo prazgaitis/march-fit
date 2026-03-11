@@ -1,7 +1,8 @@
 "use client";
 
+import Link from "next/link";
 import ReactMarkdown from "react-markdown";
-import { Flame, TrendingDown, Clock, Route, Hash, Beer, AlertCircle, Calendar, Trophy, Zap, Lock } from "lucide-react";
+import { Flame, TrendingDown, Clock, Route, Hash, Beer, AlertCircle, Calendar, Trophy, Zap, Lock, Play } from "lucide-react";
 
 import { cn } from "@/lib/utils";
 
@@ -10,6 +11,52 @@ function htmlToMarkdown(text: string): string {
   return text
     .replace(/<br\s*\/?>/gi, "\n")
     .replace(/<\/?p>/gi, "\n");
+}
+
+function extractYouTubeVideoId(text: string): string | null {
+  const patterns = [
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/,
+    /^([a-zA-Z0-9_-]{11})$/,
+  ];
+
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match) return match[1];
+  }
+
+  return null;
+}
+
+function extractYouTubePreview(description: string): {
+  videoId: string | null;
+  cleanedDescription: string;
+} {
+  const markdownLinkPattern = /\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/i;
+  const markdownLinkMatch = description.match(markdownLinkPattern);
+  if (markdownLinkMatch) {
+    const [, label, url] = markdownLinkMatch;
+    const videoId = extractYouTubeVideoId(url);
+    if (videoId) {
+      return {
+        videoId,
+        cleanedDescription: description.replace(markdownLinkMatch[0], label).trim(),
+      };
+    }
+  }
+
+  const urlPattern = /https?:\/\/[^\s)]+/i;
+  const urlMatch = description.match(urlPattern);
+  if (urlMatch) {
+    const videoId = extractYouTubeVideoId(urlMatch[0]);
+    if (videoId) {
+      return {
+        videoId,
+        cleanedDescription: description.replace(urlMatch[0], "").trim(),
+      };
+    }
+  }
+
+  return { videoId: null, cleanedDescription: description };
 }
 
 interface ScoringConfig {
@@ -218,6 +265,15 @@ export function ActivityTypesList({
                 const unit = config.unit;
                 const examples = getExamples(config);
                 const hasVariants = config.variants && typeof config.variants === "object";
+                const youtubePreview = type.description
+                  ? extractYouTubePreview(type.description)
+                  : { videoId: null, cleanedDescription: "" };
+                const videoHref = youtubePreview.videoId
+                  ? `https://www.youtube.com/watch?v=${youtubePreview.videoId}`
+                  : null;
+                const thumbnailSrc = youtubePreview.videoId
+                  ? `https://img.youtube.com/vi/${youtubePreview.videoId}/hqdefault.jpg`
+                  : null;
 
                 return (
                   <article key={type._id} className="rounded-lg border border-zinc-800 bg-zinc-900/40 p-4">
@@ -258,9 +314,40 @@ export function ActivityTypesList({
                         {type.description && (
                           <div className="mt-2 text-sm text-zinc-400 prose prose-sm prose-invert prose-zinc max-w-none prose-p:my-1 prose-ul:my-1 prose-li:my-0">
                             <ReactMarkdown>
-                              {htmlToMarkdown(type.description)}
+                              {htmlToMarkdown(youtubePreview.cleanedDescription)}
                             </ReactMarkdown>
                           </div>
+                        )}
+
+                        {videoHref && thumbnailSrc && (
+                          <Link
+                            href={videoHref}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="mt-3 block overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950/70 transition-colors hover:border-zinc-700"
+                          >
+                            <div className="relative aspect-video w-full overflow-hidden bg-zinc-900">
+                              <img
+                                src={thumbnailSrc}
+                                alt={`${type.name} video thumbnail`}
+                                className="h-full w-full object-cover"
+                              />
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
+                              <div className="absolute inset-0 flex items-center justify-center">
+                                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-black/70 text-white shadow-lg">
+                                  <Play className="ml-0.5 h-5 w-5 fill-current" />
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center justify-between gap-3 px-3 py-2.5">
+                              <span className="text-sm font-medium text-white">
+                                Watch on YouTube
+                              </span>
+                              <span className="text-xs text-zinc-500">
+                                Opens in new tab
+                              </span>
+                            </div>
+                          </Link>
                         )}
 
                         {/* Restrictions badges */}
