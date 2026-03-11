@@ -6,6 +6,7 @@ import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
 import { Doc } from "@repo/backend/_generated/dataModel";
 import {
+  AlertTriangle,
   CheckCircle,
   ChevronDown,
   ChevronRight,
@@ -56,6 +57,43 @@ export function AdminActivityTypesTable({
 }: AdminActivityTypesTableProps) {
   const sortedCategories = [...categories].sort((a, b) => a.sortOrder - b.sortOrder);
   const categoryMap = new Map(categories.map((c) => [c._id, c.name]));
+
+  // Build a map of categoryId -> set of units used by activity types in that category
+  const categoryUnitsMap = new Map<string, Set<string>>();
+  for (const item of items) {
+    if (!item.categoryId) continue;
+    const catKey = item.categoryId as string;
+    const config = (item.scoringConfig as Record<string, unknown>) ?? {};
+    const unit = typeof config.unit === "string" ? config.unit : null;
+    if (!unit) continue;
+    if (!categoryUnitsMap.has(catKey)) categoryUnitsMap.set(catKey, new Set());
+    categoryUnitsMap.get(catKey)!.add(unit);
+  }
+
+  /** Returns a warning message if the given activity type's unit doesn't match others in the category, or null. */
+  const getUnitMismatchWarning = (
+    categoryId: string,
+    currentUnit: string | null,
+    currentItemId?: string
+  ): string | null => {
+    if (!categoryId) return null;
+    const existingUnits = new Set<string>();
+    for (const item of items) {
+      if ((item.categoryId as string) !== categoryId) continue;
+      if (currentItemId && item._id === currentItemId) continue;
+      const config = (item.scoringConfig as Record<string, unknown>) ?? {};
+      const unit = typeof config.unit === "string" ? config.unit : null;
+      if (unit) existingUnits.add(unit);
+    }
+    if (existingUnits.size === 0) return null;
+    if (currentUnit && existingUnits.has(currentUnit)) return null;
+    const unitsList = Array.from(existingUnits).join(", ");
+    if (!currentUnit) {
+      return `Other activity types in this category use: ${unitsList}. This activity type has no unit set — category metric totals may be incorrect.`;
+    }
+    return `Unit mismatch: this activity type uses "${currentUnit}" but others in this category use: ${unitsList}. Category metric totals will mix different units.`;
+  };
+
   const createActivityType = useMutation(api.mutations.activityTypes.createActivityType);
   const updateActivityType = useMutation(api.mutations.activityTypes.updateActivityType);
   const deleteActivityType = useMutation(api.mutations.activityTypes.deleteActivityType);
@@ -397,6 +435,15 @@ export function AdminActivityTypesTable({
               <X className="h-3 w-3" />
             </Button>
           </div>
+          {(() => {
+            const warning = getUnitMismatchWarning(createCategoryId, null);
+            return warning ? (
+              <div className="mt-2 flex items-start gap-1.5 rounded bg-amber-500/10 px-2.5 py-1.5 text-[11px] text-amber-400">
+                <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
+                <span>{warning}</span>
+              </div>
+            ) : null;
+          })()}
         </form>
       )}
 
@@ -579,6 +626,18 @@ export function AdminActivityTypesTable({
                                 />
                               </div>
                             </div>
+
+                            {/* Unit mismatch warning */}
+                            {(() => {
+                              const currentUnit = typeof editScoringConfig?.unit === "string" ? editScoringConfig.unit : null;
+                              const warning = getUnitMismatchWarning(editCategoryId, currentUnit, editingId ?? undefined);
+                              return warning ? (
+                                <div className="mt-2 flex items-start gap-1.5 rounded bg-amber-500/10 px-2.5 py-1.5 text-[11px] text-amber-400">
+                                  <AlertTriangle className="mt-0.5 h-3 w-3 shrink-0" />
+                                  <span>{warning}</span>
+                                </div>
+                              ) : null;
+                            })()}
 
                             {/* Description Field */}
                             <div className="mt-3">
