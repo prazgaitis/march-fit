@@ -1,6 +1,6 @@
 import { internalMutation } from "../_generated/server";
 import { v } from "convex/values";
-import { calculateFinalActivityScore } from "../lib/scoring";
+import { calculateFinalActivityScore, extractActivityMetricValue } from "../lib/scoring";
 import { notDeleted } from "../lib/activityFilters";
 import { reportLatencyIfExceeded } from "../lib/latencyMonitoring";
 import { applyParticipationScoreDeltaAndRecomputeStreak } from "../lib/participationScoring";
@@ -46,7 +46,7 @@ export const rescoreZeroPointActivities = internalMutation({
 
     // Track per-user point and category adjustments
     const userPointAdjustments = new Map<string, number>();
-    const userCategoryAdjustments = new Map<string, Map<string, number>>();
+    const userCategoryAdjustments = new Map<string, Map<string, { points: number; metric: number }>>();
 
     for (const activity of activities) {
       const activityType = await ctx.db.get(activity.activityTypeId);
@@ -100,7 +100,12 @@ export const rescoreZeroPointActivities = internalMutation({
               userCategoryAdjustments.set(activity.userId, new Map());
             }
             const catMap = userCategoryAdjustments.get(activity.userId)!;
-            catMap.set(catKey, (catMap.get(catKey) ?? 0) + newPoints);
+            const metricVal = extractActivityMetricValue(activityType, metrics);
+            const existing = catMap.get(catKey) ?? { points: 0, metric: 0 };
+            catMap.set(catKey, {
+              points: existing.points + newPoints,
+              metric: existing.metric + metricVal,
+            });
           }
         }
       }
@@ -123,7 +128,8 @@ export const rescoreZeroPointActivities = internalMutation({
               userId: userId as any,
               challengeId: args.challengeId,
               categoryId: categoryId as any,
-              pointsDelta: catDelta,
+              pointsDelta: catDelta.points,
+              metricDelta: catDelta.metric,
             });
           }
         }

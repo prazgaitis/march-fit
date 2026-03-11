@@ -732,6 +732,7 @@ export default defineSchema({
     userId: v.id("users"),
     categoryId: v.id("categories"),
     totalPoints: v.number(),
+    totalMetricValue: v.optional(v.number()),
     updatedAt: v.number(),
   })
     .index("challengeUserCategory", ["challengeId", "userId", "categoryId"])
@@ -746,6 +747,7 @@ export default defineSchema({
     categoryId: v.id("categories"),
     weekNumber: v.number(),
     totalPoints: v.number(),
+    totalMetricValue: v.optional(v.number()),
     updatedAt: v.number(),
   })
     .index("challengeUserCategoryWeek", [

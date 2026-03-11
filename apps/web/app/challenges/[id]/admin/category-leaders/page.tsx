@@ -262,9 +262,11 @@ export default function CategoryLeadersPage() {
                         </span>
                       </div>
 
-                      {/* Category points */}
+                      {/* Category metric value */}
                       <span className="font-mono text-xs text-zinc-500">
-                        {p.totalPoints} pts
+                        {p.totalMetricValue > 0
+                          ? `${Math.round(p.totalMetricValue * 100) / 100} ${award.category.unit ?? "pts"}`
+                          : `${p.totalPoints} pts`}
                       </span>
 
                       {/* Bonus */}

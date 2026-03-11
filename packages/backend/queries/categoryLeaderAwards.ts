@@ -13,6 +13,9 @@ import {
  *
  * weekNumber 1–N  → weekly awards (top 3 per category)
  * weekNumber 0    → cumulative awards (top 3 per category, all-time)
+ *
+ * Leaders are ranked by totalMetricValue (raw metric, e.g. miles) so that
+ * bonus points (marathon bonus, media bonus, etc.) don't distort rankings.
  */
 export const previewWeeklyAwards = query({
   args: {
@@ -100,6 +103,22 @@ export const previewWeeklyAwards = query({
       return userCache.get(key);
     };
 
+    // Look up the primary unit for each category (from the first activity type's scoringConfig)
+    const activityTypes = await ctx.db
+      .query("activityTypes")
+      .withIndex("challengeId", (q: any) => q.eq("challengeId", args.challengeId))
+      .collect();
+
+    const categoryUnitMap = new Map<string, string>();
+    for (const at of activityTypes) {
+      if (!at.categoryId) continue;
+      const catKey = at.categoryId as string;
+      if (categoryUnitMap.has(catKey)) continue;
+      const config = (at.scoringConfig as Record<string, unknown>) ?? {};
+      const unit = config["unit"] as string | undefined;
+      if (unit) categoryUnitMap.set(catKey, unit);
+    }
+
     const awards = await Promise.all(
       leaderboardCategories.map(async (cat) => {
         const sorted = isCumulative
@@ -121,13 +140,18 @@ export const previewWeeklyAwards = query({
               placement: index + 1,
               user,
               totalPoints: entry.totalPoints,
+              totalMetricValue: entry.totalMetricValue ?? 0,
               bonusPoints: placementPoints[index],
             };
           })
         );
 
         return {
-          category: { id: cat._id, name: cat.name },
+          category: {
+            id: cat._id,
+            name: cat.name,
+            unit: categoryUnitMap.get(cat._id as string) ?? null,
+          },
           placements: placements.filter(
             (p): p is NonNullable<typeof p> => p !== null
           ),
@@ -180,6 +204,23 @@ async function getLeaderboardCategories(
   );
 }
 
+/**
+ * Sort by totalMetricValue (raw metric like miles) so bonus points don't
+ * distort rankings. Falls back to totalPoints when metric data isn't
+ * populated yet (pre-backfill).
+ */
+function sortByMetric(entries: any[]): any[] {
+  const hasMetricData = entries.some((p: any) => (p.totalMetricValue ?? 0) > 0);
+  if (hasMetricData) {
+    return entries.sort(
+      (a: any, b: any) =>
+        (b.totalMetricValue ?? 0) - (a.totalMetricValue ?? 0)
+    );
+  }
+  // Fallback: no metric data yet, use totalPoints
+  return entries.sort((a: any, b: any) => b.totalPoints - a.totalPoints);
+}
+
 async function getWeeklyLeaders(
   ctx: { db: any },
   challengeId: Id<"challenges">,
@@ -196,9 +237,9 @@ async function getWeeklyLeaders(
     )
     .collect();
 
-  return points
-    .filter((p: any) => p.totalPoints > 0)
-    .sort((a: any, b: any) => b.totalPoints - a.totalPoints);
+  return sortByMetric(
+    points.filter((p: any) => p.totalPoints > 0 || (p.totalMetricValue ?? 0) > 0)
+  );
 }
 
 async function getCumulativeLeaders(
@@ -213,7 +254,7 @@ async function getCumulativeLeaders(
     )
     .collect();
 
-  return points
-    .filter((p: any) => p.totalPoints > 0)
-    .sort((a: any, b: any) => b.totalPoints - a.totalPoints);
+  return sortByMetric(
+    points.filter((p: any) => p.totalPoints > 0 || (p.totalMetricValue ?? 0) > 0)
+  );
 }

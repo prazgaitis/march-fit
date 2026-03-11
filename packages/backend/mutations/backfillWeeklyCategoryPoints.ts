@@ -25,6 +25,7 @@ export const upsertBatch = internalMutation({
         categoryId: v.id("categories"),
         weekNumber: v.number(),
         totalPoints: v.number(),
+        totalMetricValue: v.optional(v.number()),
       })
     ),
   },
@@ -37,6 +38,7 @@ export const upsertBatch = internalMutation({
         categoryId: row.categoryId,
         weekNumber: row.weekNumber,
         totalPoints: row.totalPoints,
+        totalMetricValue: row.totalMetricValue ?? 0,
         updatedAt: now,
       });
     }

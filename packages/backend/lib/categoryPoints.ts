@@ -16,10 +16,11 @@ export async function applyCategoryPointsDelta(
     challengeId: Id<"challenges">;
     categoryId: Id<"categories"> | undefined;
     pointsDelta: number;
+    metricDelta?: number;
     now?: number;
   }
 ) {
-  if (!args.categoryId || args.pointsDelta === 0) return;
+  if (!args.categoryId || (args.pointsDelta === 0 && (args.metricDelta ?? 0) === 0)) return;
 
   const existing = await ctx.db
     .query("categoryPoints")
@@ -32,18 +33,29 @@ export async function applyCategoryPointsDelta(
     .first();
 
   const ts = args.now ?? Date.now();
+  const metricDelta = args.metricDelta ?? 0;
 
   if (existing) {
-    await ctx.db.patch(existing._id, {
-      totalPoints: Math.max(0, existing.totalPoints + args.pointsDelta),
+    const patch: Record<string, unknown> = {
       updatedAt: ts,
-    });
-  } else if (args.pointsDelta > 0) {
+    };
+    if (args.pointsDelta !== 0) {
+      patch.totalPoints = Math.max(0, existing.totalPoints + args.pointsDelta);
+    }
+    if (metricDelta !== 0) {
+      patch.totalMetricValue = Math.max(
+        0,
+        (existing.totalMetricValue ?? 0) + metricDelta
+      );
+    }
+    await ctx.db.patch(existing._id, patch);
+  } else if (args.pointsDelta > 0 || metricDelta > 0) {
     await ctx.db.insert("categoryPoints", {
       challengeId: args.challengeId,
       userId: args.userId,
       categoryId: args.categoryId,
-      totalPoints: args.pointsDelta,
+      totalPoints: Math.max(0, args.pointsDelta),
+      totalMetricValue: Math.max(0, metricDelta),
       updatedAt: ts,
     });
   }

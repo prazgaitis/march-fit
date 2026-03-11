@@ -263,6 +263,22 @@ async function getOrCreateBonusActivityType(
   return bonusType;
 }
 
+/**
+ * Sort by totalMetricValue (raw metric like miles) so bonus points don't
+ * distort rankings. Falls back to totalPoints when metric data isn't
+ * populated yet (pre-backfill).
+ */
+function sortByMetric(entries: any[]): any[] {
+  const hasMetricData = entries.some((p: any) => (p.totalMetricValue ?? 0) > 0);
+  if (hasMetricData) {
+    return entries.sort(
+      (a: any, b: any) =>
+        (b.totalMetricValue ?? 0) - (a.totalMetricValue ?? 0)
+    );
+  }
+  return entries.sort((a: any, b: any) => b.totalPoints - a.totalPoints);
+}
+
 async function getWeeklyLeaders(
   ctx: MutationDbCtx,
   challengeId: Id<"challenges">,
@@ -279,9 +295,9 @@ async function getWeeklyLeaders(
     )
     .collect();
 
-  return points
-    .filter((p: any) => p.totalPoints > 0)
-    .sort((a: any, b: any) => b.totalPoints - a.totalPoints);
+  return sortByMetric(
+    points.filter((p: any) => p.totalPoints > 0 || (p.totalMetricValue ?? 0) > 0)
+  );
 }
 
 async function getCumulativeLeaders(
@@ -296,7 +312,7 @@ async function getCumulativeLeaders(
     )
     .collect();
 
-  return points
-    .filter((p: any) => p.totalPoints > 0)
-    .sort((a: any, b: any) => b.totalPoints - a.totalPoints);
+  return sortByMetric(
+    points.filter((p: any) => p.totalPoints > 0 || (p.totalMetricValue ?? 0) > 0)
+  );
 }

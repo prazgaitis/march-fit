@@ -1,6 +1,6 @@
 import { internalMutation, mutation } from "../_generated/server";
 import { ConvexError, v } from "convex/values";
-import { calculateFinalActivityScore } from "../lib/scoring";
+import { calculateFinalActivityScore, extractActivityMetricValue } from "../lib/scoring";
 import { requireCurrentUser } from "../lib/ids";
 import { isPaymentRequired } from "../lib/payments";
 import {
@@ -319,12 +319,14 @@ export const log = mutation({
     // Recompute streaks from all challenge days after any new activity.
     // This handles backfills and penalties that can invalidate earlier days.
     // categoryId is passed so the common write path also maintains categoryPoints.
+    const metricValue = extractActivityMetricValue(activityType, metricsObj);
     const streakUpdate = await applyParticipationScoreDeltaAndRecomputeStreak(ctx, {
       userId: user._id,
       challengeId: args.challengeId,
       pointsDelta: pointsEarned,
       streakMinPoints: challenge.streakMinPoints,
       categoryId: activityType.categoryId,
+      metricDelta: metricValue,
       loggedDate: loggedDateTs,
       challengeStartDate: challenge.startDate,
     });
@@ -725,13 +727,20 @@ export const editActivity = mutation({
     // Weekly aggregation needs a full swap when the week or category changes.
     const weeklyNeedsSwap = typeChanged || dateChanged;
 
+    const oldMetrics = (activity.metrics ?? {}) as Record<string, unknown>;
+    const newMetricValue = extractActivityMetricValue(activityType, metricsObj);
+
     if (typeChanged) {
       const oldActivityType = await ctx.db.get(activity.activityTypeId);
+      const oldMetricValue = oldActivityType
+        ? extractActivityMetricValue(oldActivityType, oldMetrics)
+        : 0;
       await applyCategoryPointsDelta(ctx, {
         userId: user._id,
         challengeId: activity.challengeId,
         categoryId: oldActivityType?.categoryId,
         pointsDelta: -oldPoints,
+        metricDelta: -oldMetricValue,
         now,
       });
     }
@@ -739,6 +748,12 @@ export const editActivity = mutation({
       const oldCatId = typeChanged
         ? (await ctx.db.get(activity.activityTypeId))?.categoryId
         : activityType.categoryId;
+      const oldTypeForMetric = typeChanged
+        ? await ctx.db.get(activity.activityTypeId)
+        : activityType;
+      const oldMetricValue = oldTypeForMetric
+        ? extractActivityMetricValue(oldTypeForMetric, oldMetrics)
+        : 0;
       await applyWeeklyCategoryPointsDeltaFromDate(ctx, {
         userId: user._id,
         challengeId: activity.challengeId,
@@ -746,9 +761,16 @@ export const editActivity = mutation({
         loggedDate: activity.loggedDate,
         challengeStartDate: challenge.startDate,
         pointsDelta: -oldPoints,
+        metricDelta: -oldMetricValue,
         now,
       });
     }
+
+    // Compute metric delta for the common path (same category, same week)
+    const oldMetricValueSameType = extractActivityMetricValue(activityType, oldMetrics);
+    const metricDeltaForCommonPath = typeChanged
+      ? undefined
+      : newMetricValue - oldMetricValueSameType;
 
     // Update participation totalPoints + streak after activity is updated.
     // categoryId routes through the common write path for aggregation.
@@ -760,6 +782,7 @@ export const editActivity = mutation({
       now,
       // When type changed: new category gets +newPoints; when same: apply delta
       categoryId: typeChanged ? undefined : activityType.categoryId,
+      metricDelta: metricDeltaForCommonPath,
       // Skip weekly in common path when a full swap is needed (handled explicitly).
       loggedDate: weeklyNeedsSwap ? undefined : newLoggedDateTs,
       challengeStartDate: weeklyNeedsSwap ? undefined : challenge.startDate,
@@ -771,6 +794,7 @@ export const editActivity = mutation({
         challengeId: activity.challengeId,
         categoryId: activityType.categoryId,
         pointsDelta: newPoints,
+        metricDelta: newMetricValue,
         now,
       });
     }
@@ -782,6 +806,7 @@ export const editActivity = mutation({
         loggedDate: newLoggedDateTs,
         challengeStartDate: challenge.startDate,
         pointsDelta: newPoints,
+        metricDelta: newMetricValue,
         now,
       });
     }
@@ -844,6 +869,9 @@ export const remove = mutation({
     });
 
     const deletedActivityType = await ctx.db.get(activity.activityTypeId);
+    const deletedMetricValue = deletedActivityType
+      ? extractActivityMetricValue(deletedActivityType, (activity.metrics ?? {}) as Record<string, unknown>)
+      : 0;
     await applyParticipationScoreDeltaAndRecomputeStreak(ctx, {
       userId: activity.userId,
       challengeId: activity.challengeId,
@@ -851,6 +879,7 @@ export const remove = mutation({
       streakMinPoints: challenge.streakMinPoints,
       now,
       categoryId: deletedActivityType?.categoryId,
+      metricDelta: -deletedMetricValue,
       loggedDate: activity.loggedDate,
       challengeStartDate: challenge.startDate,
     });
