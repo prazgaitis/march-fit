@@ -11,6 +11,7 @@ import {
   Award,
   Calendar,
   ChevronRight,
+  Hand,
   Loader2,
   MapPin,
   Medal,
@@ -123,6 +124,9 @@ export function UserProfileContent({
   });
 
   const toggleFollow = useMutation(api.mutations.follows.toggle);
+  const pokeMutation = useMutation(api.mutations.pokes.poke);
+  const [isPoking, setIsPoking] = useState(false);
+  const [didPoke, setDidPoke] = useState(false);
   const showOptimized = useOptimizedMedia();
 
   const stories = useMemo(() => {
@@ -148,6 +152,22 @@ export function UserProfileContent({
       console.error("Failed to toggle follow:", error);
     } finally {
       setIsTogglingFollow(false);
+    }
+  };
+
+  const handlePoke = async () => {
+    if (isPoking || didPoke) return;
+    setIsPoking(true);
+    try {
+      await pokeMutation({
+        userId: profileUserId as Id<"users">,
+        challengeId: challengeId as Id<"challenges">,
+      });
+      setDidPoke(true);
+    } catch (error) {
+      console.error("Failed to poke:", error);
+    } finally {
+      setIsPoking(false);
     }
   };
 
@@ -237,32 +257,54 @@ export function UserProfileContent({
                   </Button>
                 ) : (
                   <div className="flex flex-col items-center gap-1.5 sm:items-end">
-                    <Button
-                      variant={followData.isFollowing ? "outline" : "default"}
-                      size="sm"
-                      onClick={handleToggleFollow}
-                      disabled={isTogglingFollow}
-                      className="min-w-[100px]"
-                    >
-                      {isTogglingFollow ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : followData.isFollowing ? (
-                        <>
-                          <UserMinus className="mr-2 h-4 w-4" />
-                          Unfollow
-                        </>
-                      ) : followData.isFollowedBy ? (
-                        <>
-                          <UserPlus className="mr-2 h-4 w-4" />
-                          Follow back
-                        </>
-                      ) : (
-                        <>
-                          <UserPlus className="mr-2 h-4 w-4" />
-                          Follow
-                        </>
-                      )}
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant={followData.isFollowing ? "outline" : "default"}
+                        size="sm"
+                        onClick={handleToggleFollow}
+                        disabled={isTogglingFollow}
+                        className="min-w-[100px]"
+                      >
+                        {isTogglingFollow ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : followData.isFollowing ? (
+                          <>
+                            <UserMinus className="mr-2 h-4 w-4" />
+                            Unfollow
+                          </>
+                        ) : followData.isFollowedBy ? (
+                          <>
+                            <UserPlus className="mr-2 h-4 w-4" />
+                            Follow back
+                          </>
+                        ) : (
+                          <>
+                            <UserPlus className="mr-2 h-4 w-4" />
+                            Follow
+                          </>
+                        )}
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={handlePoke}
+                        disabled={isPoking || didPoke}
+                      >
+                        {isPoking ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : didPoke ? (
+                          <>
+                            <Hand className="mr-2 h-4 w-4" />
+                            Poked!
+                          </>
+                        ) : (
+                          <>
+                            <Hand className="mr-2 h-4 w-4" />
+                            Poke
+                          </>
+                        )}
+                      </Button>
+                    </div>
                     {followData.isFollowedBy && (
                       <span className="text-xs text-muted-foreground">Follows you</span>
                     )}

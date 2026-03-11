@@ -6,7 +6,7 @@ import { formatDistanceToNow } from "date-fns";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
-import { Heart, MessageCircle, MessageSquare, UserPlus, Trophy, Bell, Shield, Loader2, Swords, Users, Activity, Repeat2 } from "lucide-react";
+import { Heart, MessageCircle, MessageSquare, UserPlus, Trophy, Bell, Shield, Loader2, Swords, Users, Activity, Repeat2, Hand } from "lucide-react";
 
 import { UserAvatar } from "@/components/user-avatar";
 import { Button } from "@/components/ui/button";
@@ -66,6 +66,8 @@ function getNotificationIcon(type: string) {
     case "strava_import":
     case "strava_update":
       return <Activity className="h-4 w-4 text-orange-500" />;
+    case "poke":
+      return <Hand className="h-4 w-4 text-amber-400" />;
     default:
       return <Bell className="h-4 w-4 text-zinc-400" />;
   }
@@ -130,6 +132,8 @@ export function getNotificationMessage(notification: Notification) {
         ? `Your prey ${actorName} logged an activity during ${gameName}`
         : `Your prey ${actorName} logged an activity`;
     }
+    case "poke":
+      return `${actorName} poked you`;
     case "repost":
       return `${actorName} reposted your activity`;
     case "strava_import": {
@@ -175,6 +179,10 @@ export function getNotificationLink(notification: Notification, challengeId: str
     return `/challenges/${cId}/forum/${notification.data.postId}`;
   }
   if (notification.type === "invite_accepted" || notification.type === "join") {
+    const cId = notification.data?.challengeId ?? challengeId;
+    return `/challenges/${cId}/users/${notification.actor.id}`;
+  }
+  if (notification.type === "poke") {
     const cId = notification.data?.challengeId ?? challengeId;
     return `/challenges/${cId}/users/${notification.actor.id}`;
   }
@@ -235,6 +243,52 @@ function FollowBackButton({ actorId }: { actorId: string }) {
   );
 }
 
+function PokeBackButton({ actorId, challengeId }: { actorId: string; challengeId: string }) {
+  const [isLoading, setIsLoading] = useState(false);
+  const [didPoke, setDidPoke] = useState(false);
+  const pokeMutation = useMutation(api.mutations.pokes.poke);
+
+  if (didPoke) {
+    return (
+      <span className="text-xs text-zinc-500 whitespace-nowrap">Poked back</span>
+    );
+  }
+
+  return (
+    <Button
+      variant="outline"
+      size="sm"
+      className="h-7 text-xs shrink-0"
+      disabled={isLoading}
+      onClick={async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsLoading(true);
+        try {
+          await pokeMutation({
+            userId: actorId as Id<"users">,
+            challengeId: challengeId as Id<"challenges">,
+          });
+          setDidPoke(true);
+        } catch (error) {
+          console.error("Failed to poke back:", error);
+        } finally {
+          setIsLoading(false);
+        }
+      }}
+    >
+      {isLoading ? (
+        <Loader2 className="h-3 w-3 animate-spin" />
+      ) : (
+        <>
+          <Hand className="mr-1 h-3 w-3" />
+          Poke back
+        </>
+      )}
+    </Button>
+  );
+}
+
 export function NotificationsList({ notifications, challengeId, userId }: NotificationsListProps) {
   const markAllAsRead = useMutation(api.mutations.notifications.markAllAsRead);
   const markedRef = useRef(false);
@@ -270,6 +324,7 @@ export function NotificationsList({ notifications, challengeId, userId }: Notifi
           notification.type === "follow" || notification.type === "new_follower";
         const showFollowBack =
           isFollowNotification && !followingSet.has(notification.actor.id);
+        const isPokeNotification = notification.type === "poke";
 
         const content = (
           <div
@@ -300,7 +355,7 @@ export function NotificationsList({ notifications, challengeId, userId }: Notifi
                 <p className="text-sm text-white">
                   {getNotificationMessage(notification)}
                 </p>
-                {!showFollowBack && !notification.readAt && (
+                {!showFollowBack && !isPokeNotification && !notification.readAt && (
                   <div className="mt-1 h-2 w-2 shrink-0 rounded-full bg-indigo-500" />
                 )}
               </div>
@@ -310,6 +365,11 @@ export function NotificationsList({ notifications, challengeId, userId }: Notifi
               {showFollowBack && (
                 <div className="mt-2">
                   <FollowBackButton actorId={notification.actor.id} />
+                </div>
+              )}
+              {isPokeNotification && (
+                <div className="mt-2">
+                  <PokeBackButton actorId={notification.actor.id} challengeId={challengeId} />
                 </div>
               )}
             </div>

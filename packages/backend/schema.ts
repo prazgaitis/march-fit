@@ -408,6 +408,16 @@ export default defineSchema({
     .index("followingId", ["followingId"])
     .index("followerFollowing", ["followerId", "followingId"]),
 
+  // Pokes (lightweight user interactions, precursor to chat)
+  pokes: defineTable({
+    pokerId: v.id("users"),
+    pokedId: v.id("users"),
+    challengeId: v.id("challenges"),
+    createdAt: v.number(),
+  })
+    .index("pokerPokedChallenge", ["pokerId", "pokedId", "challengeId"])
+    .index("pokedId", ["pokedId"]),
+
   // Mini Games
   miniGames: defineTable({
     challengeId: v.id("challenges"),
