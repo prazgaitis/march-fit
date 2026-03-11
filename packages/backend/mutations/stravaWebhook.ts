@@ -168,6 +168,12 @@ export const createFromStrava = internalMutation({
       .first();
 
     if (existing) {
+      // Respect user's decision to remove Strava-imported media
+      const mediaDismissed = existing.stravaMediaDismissed === true;
+      const effectiveImageUrl = mediaDismissed
+        ? existing.imageUrl
+        : (mappedActivity.imageUrl ?? existing.imageUrl);
+
       if (existing.deletedAt) {
         await patchActivity(ctx, existing._id, {
           activityTypeId,
@@ -176,8 +182,8 @@ export const createFromStrava = internalMutation({
           pointsEarned,
           triggeredBonuses: triggeredBonuses.length > 0 ? triggeredBonuses : undefined,
           notes: mappedActivity.notes ?? existing.notes,
-          imageUrl: mappedActivity.imageUrl ?? existing.imageUrl,
-          pendingMediaCount,
+          imageUrl: effectiveImageUrl,
+          pendingMediaCount: mediaDismissed ? undefined : pendingMediaCount,
           localTime: mappedActivity.localTime ?? undefined,
           timezone: mappedActivity.timezone ?? undefined,
           locationCity: mappedActivity.locationCity ?? undefined,
@@ -229,8 +235,8 @@ export const createFromStrava = internalMutation({
         pointsEarned,
         triggeredBonuses: triggeredBonuses.length > 0 ? triggeredBonuses : undefined,
         notes: mappedActivity.notes ?? existing.notes,
-        imageUrl: mappedActivity.imageUrl ?? existing.imageUrl,
-        pendingMediaCount,
+        imageUrl: effectiveImageUrl,
+        pendingMediaCount: mediaDismissed ? undefined : pendingMediaCount,
         localTime: mappedActivity.localTime ?? undefined,
         timezone: mappedActivity.timezone ?? undefined,
         locationCity: mappedActivity.locationCity ?? undefined,
