@@ -2,6 +2,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { createMcpHandler } from "mcp-handler";
 import { z } from "zod";
 import * as Sentry from "@sentry/nextjs";
+import { getServerConvexSiteUrl } from "@/lib/server-convex-env";
 
 export const runtime = "nodejs";
 
@@ -13,35 +14,8 @@ type ApiRequestOptions = {
 
 const apiTokenStorage = new AsyncLocalStorage<string>();
 
-function resolveConvexSiteUrl(): string {
-  if (process.env.NEXT_PUBLIC_CONVEX_SITE_URL) {
-    return process.env.NEXT_PUBLIC_CONVEX_SITE_URL;
-  }
-
-  if (process.env.CONVEX_SITE_URL) {
-    return process.env.CONVEX_SITE_URL;
-  }
-
-  const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
-  if (!convexUrl) {
-    throw new Error(
-      "Missing NEXT_PUBLIC_CONVEX_SITE_URL/CONVEX_SITE_URL/NEXT_PUBLIC_CONVEX_URL"
-    );
-  }
-
-  if (convexUrl.includes(".convex.cloud")) {
-    return convexUrl.replace(".convex.cloud", ".convex.site");
-  }
-
-  if (convexUrl.includes(":3210")) {
-    return convexUrl.replace(":3210", ":3211");
-  }
-
-  return convexUrl;
-}
-
 function getApiBaseUrl(): string {
-  const base = resolveConvexSiteUrl().replace(/\/$/, "");
+  const base = getServerConvexSiteUrl();
   return `${base}/api/v1`;
 }
 
