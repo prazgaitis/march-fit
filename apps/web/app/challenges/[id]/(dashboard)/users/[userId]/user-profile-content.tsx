@@ -11,7 +11,7 @@ import {
   Award,
   Calendar,
   ChevronRight,
-  Hand,
+  Pointer,
   Loader2,
   MapPin,
   Medal,
@@ -294,12 +294,12 @@ export function UserProfileContent({
                           <Loader2 className="h-4 w-4 animate-spin" />
                         ) : didPoke ? (
                           <>
-                            <Hand className="mr-2 h-4 w-4" />
+                            <Pointer className="mr-2 h-4 w-4 rotate-90" />
                             Poked!
                           </>
                         ) : (
                           <>
-                            <Hand className="mr-2 h-4 w-4" />
+                            <Pointer className="mr-2 h-4 w-4 rotate-90" />
                             Poke
                           </>
                         )}

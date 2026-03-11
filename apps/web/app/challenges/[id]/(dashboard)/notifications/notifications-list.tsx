@@ -6,7 +6,7 @@ import { formatDistanceToNow } from "date-fns";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
-import { Heart, MessageCircle, MessageSquare, UserPlus, Trophy, Bell, Shield, Loader2, Swords, Users, Activity, Repeat2, Hand } from "lucide-react";
+import { Heart, MessageCircle, MessageSquare, UserPlus, Trophy, Bell, Shield, Loader2, Swords, Users, Activity, Repeat2, Pointer } from "lucide-react";
 
 import { UserAvatar } from "@/components/user-avatar";
 import { Button } from "@/components/ui/button";
@@ -67,7 +67,7 @@ function getNotificationIcon(type: string) {
     case "strava_update":
       return <Activity className="h-4 w-4 text-orange-500" />;
     case "poke":
-      return <Hand className="h-4 w-4 text-amber-400" />;
+      return <Pointer className="h-4 w-4 rotate-90 text-amber-400" />;
     default:
       return <Bell className="h-4 w-4 text-zinc-400" />;
   }
@@ -281,7 +281,7 @@ function PokeBackButton({ actorId, challengeId }: { actorId: string; challengeId
         <Loader2 className="h-3 w-3 animate-spin" />
       ) : (
         <>
-          <Hand className="mr-1 h-3 w-3" />
+          <Pointer className="mr-1 h-3 w-3 rotate-90" />
           Poke back
         </>
       )}

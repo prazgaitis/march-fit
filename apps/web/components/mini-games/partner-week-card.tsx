@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useMutation } from "convex/react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
-import { Hand, Loader2, Users } from "lucide-react";
+import { Pointer, Loader2, Users } from "lucide-react";
 import { UserAvatar } from "@/components/user-avatar";
 import { Button } from "@/components/ui/button";
 import { formatPointsCompact } from "@/lib/points";
@@ -137,7 +137,7 @@ function PokePartnerButton({
         <Loader2 className={cn("animate-spin", compact ? "h-3 w-3" : "h-4 w-4")} />
       ) : (
         <>
-          <Hand className={cn("mr-1", compact ? "h-3 w-3" : "h-4 w-4")} />
+          <Pointer className={cn("mr-1 rotate-90", compact ? "h-3 w-3" : "h-4 w-4")} />
           {didPoke ? "Poked!" : "Poke"}
         </>
       )}
