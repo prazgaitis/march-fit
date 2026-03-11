@@ -765,13 +765,33 @@ export const getManualActivitiesForDateRange = internalQuery({
 
 /** Max likes/comments to scan from the global createdAt index per request. */
 const ENGAGEMENT_SCAN_CAP = 8_000;
+
+/** Build a cumulative daily time series from an array of timestamps. */
+function dailyCumulative(
+  timestamps: number[],
+): { date: string; count: number; cumulative: number }[] {
+  const dayCounts = new Map<string, number>();
+  for (const ts of timestamps) {
+    const d = new Date(ts);
+    const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+    dayCounts.set(key, (dayCounts.get(key) ?? 0) + 1);
+  }
+  const sorted = Array.from(dayCounts.entries()).sort(([a], [b]) =>
+    a.localeCompare(b),
+  );
+  let cumulative = 0;
+  return sorted.map(([date, count]) => {
+    cumulative += count;
+    return { date, count, cumulative };
+  });
+}
 /** Max activities returned in the feed-score-sorted table. */
 const FEED_PAGE_SIZE_MAX = 100;
 
 /**
  * Engagement Mission Control dashboard.
  *
- * Returns hourly distributions for activities, likes, and comments;
+ * Returns cumulative daily distributions for activities, likes, comments, and follows;
  * intra-challenge follow network stats; and a paginated activity list
  * sortable by feed score.
  *
@@ -807,15 +827,10 @@ export const getEngagementDashboard = query({
 
     const activityIdSet = new Set(activities.map((a) => a._id as string));
 
-    // 2. Hourly activity distribution (by createdAt)
-    const activityHourlyCounts = Array.from({ length: 24 }, (_, hour) => ({
-      hour,
-      label: `${hour.toString().padStart(2, "0")}:00`,
-      count: 0,
-    }));
-    for (const a of activities) {
-      activityHourlyCounts[new Date(a.createdAt).getUTCHours()].count += 1;
-    }
+    // 2. Daily cumulative activity distribution (by createdAt)
+    const activityDailyCounts = dailyCumulative(
+      activities.map((a) => a.createdAt),
+    );
 
     // 3. Likes – scan recent via createdAt index, filter to challenge
     const recentLikes = await ctx.db
@@ -828,14 +843,9 @@ export const getEngagementDashboard = query({
       activityIdSet.has(l.activityId as string),
     );
 
-    const likeHourlyCounts = Array.from({ length: 24 }, (_, hour) => ({
-      hour,
-      label: `${hour.toString().padStart(2, "0")}:00`,
-      count: 0,
-    }));
-    for (const l of challengeLikes) {
-      likeHourlyCounts[new Date(l.createdAt).getUTCHours()].count += 1;
-    }
+    const likeDailyCounts = dailyCumulative(
+      challengeLikes.map((l) => l.createdAt),
+    );
 
     // 4. Comments – scan recent via createdAt index, filter to challenge
     const recentComments = await ctx.db
@@ -848,14 +858,9 @@ export const getEngagementDashboard = query({
       (c) => c.activityId && activityIdSet.has(c.activityId as string),
     );
 
-    const commentHourlyCounts = Array.from({ length: 24 }, (_, hour) => ({
-      hour,
-      label: `${hour.toString().padStart(2, "0")}:00`,
-      count: 0,
-    }));
-    for (const c of challengeComments) {
-      commentHourlyCounts[new Date(c.createdAt).getUTCHours()].count += 1;
-    }
+    const commentDailyCounts = dailyCumulative(
+      challengeComments.map((c) => c.createdAt),
+    );
 
     // 5. Follows – intra-challenge network
     const participations = await ctx.db
@@ -929,15 +934,10 @@ export const getEngagementDashboard = query({
       })
       .sort((a, b) => b.followers - a.followers);
 
-    // Follow hourly distribution
-    const followHourlyCounts = Array.from({ length: 24 }, (_, hour) => ({
-      hour,
-      label: `${hour.toString().padStart(2, "0")}:00`,
-      count: 0,
-    }));
-    for (const f of intraChallengeFollows) {
-      followHourlyCounts[new Date(f.createdAt).getUTCHours()].count += 1;
-    }
+    // Follow daily cumulative distribution
+    const followDailyCounts = dailyCumulative(
+      intraChallengeFollows.map((f) => f.createdAt),
+    );
 
     // 6. Activities sorted by feed score (paginated via index)
     const feedScoreSorted = await ctx.db
@@ -1015,10 +1015,10 @@ export const getEngagementDashboard = query({
         likeScanCapped: recentLikes.length >= ENGAGEMENT_SCAN_CAP,
         commentScanCapped: recentComments.length >= ENGAGEMENT_SCAN_CAP,
       },
-      activityHourlyCounts,
-      likeHourlyCounts,
-      commentHourlyCounts,
-      followHourlyCounts,
+      activityDailyCounts,
+      likeDailyCounts,
+      commentDailyCounts,
+      followDailyCounts,
       followNetwork,
       feedRows,
       feedTotal: feedScoreSorted.length,

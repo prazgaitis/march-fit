@@ -19,7 +19,7 @@ import { AdminCard } from "@/components/ui/admin-card";
 import { SectionHeader } from "@/components/ui/section-header";
 import { StatCard } from "@/components/ui/stat-card";
 
-type HourlyBucket = { hour: number; label: string; count: number };
+type DailyBucket = { date: string; count: number; cumulative: number };
 
 type FollowNetworkNode = {
   userId: string;
@@ -46,49 +46,106 @@ type FeedRow = {
   activityTypeName: string;
 };
 
-function HourlyBarChart({
+function CumulativeLineChart({
   data,
   color,
   label,
 }: {
-  data: HourlyBucket[];
+  data: DailyBucket[];
   color: string;
   label: string;
 }) {
   const max = useMemo(
-    () => data.reduce((m, b) => Math.max(m, b.count), 0),
+    () => (data.length > 0 ? data[data.length - 1].cumulative : 0),
     [data],
   );
+
+  if (data.length === 0) {
+    return (
+      <div className="flex h-36 items-center justify-center rounded border border-zinc-800/80 bg-zinc-900/40 text-xs text-zinc-600">
+        No data yet
+      </div>
+    );
+  }
+
+  const w = 400;
+  const h = 120;
+  const px = 40; // left padding for y-axis labels
+  const pr = 8;
+  const pt = 8;
+  const pb = 20;
+  const plotW = w - px - pr;
+  const plotH = h - pt - pb;
+
+  const points = data.map((d, i) => {
+    const x = px + (data.length === 1 ? plotW : (i / (data.length - 1)) * plotW);
+    const y = pt + plotH - (max > 0 ? (d.cumulative / max) * plotH : 0);
+    return { x, y, ...d };
+  });
+
+  const linePath = points.map((p, i) => `${i === 0 ? "M" : "L"}${p.x},${p.y}`).join(" ");
+  const areaPath = `${linePath} L${points[points.length - 1].x},${pt + plotH} L${points[0].x},${pt + plotH} Z`;
+
+  // Y-axis ticks (0, mid, max)
+  const yTicks = max > 2
+    ? [0, Math.round(max / 2), max]
+    : Array.from(new Set([0, max]));
+
+  // X-axis labels (first, middle, last)
+  const xLabels = data.length <= 2
+    ? data.map((d, i) => ({ i, label: d.date.slice(5) }))
+    : [
+        { i: 0, label: data[0].date.slice(5) },
+        { i: Math.floor(data.length / 2), label: data[Math.floor(data.length / 2)].date.slice(5) },
+        { i: data.length - 1, label: data[data.length - 1].date.slice(5) },
+      ];
 
   return (
     <div>
       <div className="mb-2 flex items-center justify-between text-xs text-zinc-500">
         <span>{label}</span>
-        <span className="font-mono">UTC hours</span>
+        <span className="font-mono">cumulative by day</span>
       </div>
-      <div className="flex h-32 items-end gap-0.5 rounded border border-zinc-800/80 bg-zinc-900/40 p-2">
-        {data.map((bucket, index) => {
-          const heightPct = max > 0 ? (bucket.count / max) * 100 : 0;
+      <svg
+        viewBox={`0 0 ${w} ${h}`}
+        className="h-36 w-full rounded border border-zinc-800/80 bg-zinc-900/40"
+        preserveAspectRatio="none"
+      >
+        {/* Y-axis ticks */}
+        {yTicks.map((val) => {
+          const y = pt + plotH - (max > 0 ? (val / max) * plotH : 0);
           return (
-            <div
-              key={bucket.hour}
-              className="flex min-w-0 flex-1 flex-col items-center justify-end gap-0.5"
-            >
-              <div
-                title={`${bucket.label} UTC: ${bucket.count}`}
-                className={`w-full rounded-sm transition-colors ${color}`}
-                style={{
-                  height: `${heightPct}%`,
-                  minHeight: bucket.count > 0 ? 2 : 0,
-                }}
-              />
-              <span className="font-mono text-[8px] text-zinc-600">
-                {index % 4 === 0 ? bucket.label.slice(0, 2) : ""}
-              </span>
-            </div>
+            <g key={val}>
+              <line x1={px} x2={px + plotW} y1={y} y2={y} stroke="#3f3f46" strokeWidth={0.5} />
+              <text x={px - 4} y={y + 3} textAnchor="end" className="fill-zinc-600 text-[8px] font-mono">
+                {val}
+              </text>
+            </g>
           );
         })}
-      </div>
+        {/* Area fill */}
+        <path d={areaPath} className={color} opacity={0.15} />
+        {/* Line */}
+        <path d={linePath} fill="none" className={`stroke-current ${color}`} strokeWidth={2} />
+        {/* Dots */}
+        {points.map((p) => (
+          <circle key={p.date} cx={p.x} cy={p.y} r={2.5} className={`fill-current ${color}`}>
+            <title>{`${p.date}: ${p.cumulative} (${p.count} new)`}</title>
+          </circle>
+        ))}
+        {/* X-axis labels */}
+        {xLabels.map(({ i, label: lbl }) => (
+          <text
+            key={i}
+            x={points[i].x}
+            y={h - 4}
+            textAnchor="middle"
+            className="fill-zinc-600 text-[8px] font-mono"
+          >
+            {lbl}
+          </text>
+        ))}
+      </svg>
     </div>
   );
 }
@@ -205,56 +262,56 @@ export default function EngagementMissionControlPage() {
         </div>
       )}
 
-      {/* Hourly charts grid */}
+      {/* Cumulative daily charts grid */}
       <div className="grid gap-4 lg:grid-cols-2">
         <AdminCard
           header={
-            <SectionHeader size="md">Activities by Hour (UTC)</SectionHeader>
+            <SectionHeader size="md">Activities (Cumulative)</SectionHeader>
           }
           padding="sm"
         >
-          <HourlyBarChart
-            data={data.activityHourlyCounts}
-            color="bg-blue-500/70 hover:bg-blue-400"
+          <CumulativeLineChart
+            data={data.activityDailyCounts}
+            color="text-blue-500"
             label={`${data.stats.totalActivities} activities`}
           />
         </AdminCard>
 
         <AdminCard
           header={
-            <SectionHeader size="md">Likes by Hour (UTC)</SectionHeader>
+            <SectionHeader size="md">Likes (Cumulative)</SectionHeader>
           }
           padding="sm"
         >
-          <HourlyBarChart
-            data={data.likeHourlyCounts}
-            color="bg-red-500/70 hover:bg-red-400"
+          <CumulativeLineChart
+            data={data.likeDailyCounts}
+            color="text-red-500"
             label={`${data.stats.totalLikes} likes`}
           />
         </AdminCard>
 
         <AdminCard
           header={
-            <SectionHeader size="md">Comments by Hour (UTC)</SectionHeader>
+            <SectionHeader size="md">Comments (Cumulative)</SectionHeader>
           }
           padding="sm"
         >
-          <HourlyBarChart
-            data={data.commentHourlyCounts}
-            color="bg-purple-500/70 hover:bg-purple-400"
+          <CumulativeLineChart
+            data={data.commentDailyCounts}
+            color="text-purple-500"
             label={`${data.stats.totalComments} comments`}
           />
         </AdminCard>
 
         <AdminCard
           header={
-            <SectionHeader size="md">Follows by Hour (UTC)</SectionHeader>
+            <SectionHeader size="md">Follows (Cumulative)</SectionHeader>
           }
           padding="sm"
         >
-          <HourlyBarChart
-            data={data.followHourlyCounts}
-            color="bg-cyan-500/70 hover:bg-cyan-400"
+          <CumulativeLineChart
+            data={data.followDailyCounts}
+            color="text-cyan-500"
             label={`${data.stats.totalIntraChallengeFollows} follows`}
           />
         </AdminCard>
