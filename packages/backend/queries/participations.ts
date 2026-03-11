@@ -477,10 +477,21 @@ export const getCumulativeCategoryLeaderboard = query({
       return { categories: [] };
     }
 
+    // Build categoryId → unit map from activity types' scoringConfig
+    const categoryUnitMap = new Map<string, string>();
+    for (const at of activityTypes) {
+      if (!at.categoryId) continue;
+      const catKey = at.categoryId as string;
+      if (categoryUnitMap.has(catKey)) continue;
+      const config = (at.scoringConfig as Record<string, unknown>) ?? {};
+      const unit = config["unit"] as string | undefined;
+      if (unit) categoryUnitMap.set(catKey, unit);
+    }
+
     // Step 3: For each leaderboard-eligible category, query categoryPoints scoped
     // to (challengeId, categoryId). This keeps reads bounded to
     // O(leaderboard_categories × participants) instead of O(all_categories × participants).
-    const categoryUserPoints = new Map<string, Map<string, number>>();
+    const categoryUserPoints = new Map<string, Map<string, { points: number; metric: number }>>();
     for (const catId of leaderboardCategoryMap.keys()) {
       const points = await ctx.db
         .query("categoryPoints")
@@ -488,9 +499,12 @@ export const getCumulativeCategoryLeaderboard = query({
           q.eq("challengeId", args.challengeId).eq("categoryId", catId as Id<"categories">)
         )
         .collect();
-      const userMap = new Map<string, number>();
+      const userMap = new Map<string, { points: number; metric: number }>();
       for (const cp of points) {
-        userMap.set(cp.userId as string, cp.totalPoints);
+        userMap.set(cp.userId as string, {
+          points: cp.totalPoints,
+          metric: (cp as any).totalMetricValue ?? 0,
+        });
       }
       categoryUserPoints.set(catId, userMap);
     }
@@ -507,17 +521,26 @@ export const getCumulativeCategoryLeaderboard = query({
       } | null
     >();
 
+    type EntryType = {
+      rank: number;
+      user: NonNullable<typeof userCache extends Map<string, infer V> ? V : never>;
+      totalPoints: number;
+      totalMetricValue: number;
+    };
+
     const categories = await Promise.all(
-      Array.from(categoryUserPoints.entries()).map(async ([catKey, userPointsMap]) => {
-        // Sort all users by points descending
-        const sorted = Array.from(userPointsMap.entries()).sort((a, b) => b[1] - a[1]);
+      Array.from(categoryUserPoints.entries()).map(async ([catKey, userDataMap]) => {
+        // Sort by metric value when available, fall back to points
+        const hasMetricData = Array.from(userDataMap.values()).some((d) => d.metric > 0);
+        const sorted = Array.from(userDataMap.entries()).sort((a, b) =>
+          hasMetricData ? b[1].metric - a[1].metric : b[1].points - a[1].points
+        );
 
         // Fetch user data with caching and split by gender
-        const womenEntries: Array<{ rank: number; user: NonNullable<typeof userCache extends Map<string, infer V> ? V : never>; totalPoints: number }> = [];
-        // Men's/Open bucket: includes users with gender==="male" and users with no gender set
-        const menEntries: Array<{ rank: number; user: NonNullable<typeof userCache extends Map<string, infer V> ? V : never>; totalPoints: number }> = [];
+        const womenEntries: EntryType[] = [];
+        const menEntries: EntryType[] = [];
 
-        for (const [userId, points] of sorted) {
+        for (const [userId, data] of sorted) {
           if (!userCache.has(userId)) {
             const user = await ctx.db.get(userId as Id<"users">);
             userCache.set(
@@ -536,28 +559,28 @@ export const getCumulativeCategoryLeaderboard = query({
           const user = userCache.get(userId);
           if (!user) continue;
 
+          const entry: EntryType = { rank: 0, user, totalPoints: data.points, totalMetricValue: data.metric };
           if (user.gender === "female") {
-            womenEntries.push({ rank: 0, user, totalPoints: points });
+            womenEntries.push(entry);
           } else {
-            // gender === "male" or gender === null/undefined → Men's/Open
-            menEntries.push({ rank: 0, user, totalPoints: points });
+            menEntries.push(entry);
           }
         }
 
         // Assign ranks and take top 5 per gender group
-        const assignRanks = <T extends { rank: number }>(arr: T[]): T[] =>
+        const assignRanks = (arr: EntryType[]): EntryType[] =>
           arr.slice(0, 5).map((e, i) => ({ ...e, rank: i + 1 }));
 
         const catDoc = leaderboardCategoryMap.get(catKey);
         const category = catDoc
-          ? { id: catKey, name: catDoc.name }
-          : { id: catKey, name: "Unknown" };
+          ? { id: catKey, name: catDoc.name, unit: categoryUnitMap.get(catKey) ?? null }
+          : { id: catKey, name: "Unknown", unit: null };
 
         return {
           category,
           women: assignRanks(womenEntries),
           men: assignRanks(menEntries),
-          noGender: [] as Array<{ rank: number; user: NonNullable<typeof userCache extends Map<string, infer V> ? V : never>; totalPoints: number }>,
+          noGender: [] as EntryType[],
         };
       })
     );
@@ -627,6 +650,17 @@ export const getWeeklyCategoryLeaderboard = query({
       return { weekNumber, totalWeeks, currentWeek, categories: [] };
     }
 
+    // Build categoryId → unit map from activity types' scoringConfig
+    const categoryUnitMap = new Map<string, string>();
+    for (const at of activityTypes) {
+      if (!at.categoryId) continue;
+      const catKey = at.categoryId as string;
+      if (categoryUnitMap.has(catKey)) continue;
+      const config = (at.scoringConfig as Record<string, unknown>) ?? {};
+      const unit = config["unit"] as string | undefined;
+      if (unit) categoryUnitMap.set(catKey, unit);
+    }
+
     // Query pre-aggregated weekly points per category.
     // Uses weekCategory index: (challengeId, weekNumber, categoryId) → tiny rows.
     const userCache = new Map<
@@ -669,21 +703,31 @@ export const getWeeklyCategoryLeaderboard = query({
             )
             .collect();
 
+          const hasMetricData = points.some((p) => ((p as any).totalMetricValue ?? 0) > 0);
           const sorted = points
-            .filter((p) => p.totalPoints > 0)
-            .sort((a, b) => b.totalPoints - a.totalPoints)
+            .filter((p) => p.totalPoints > 0 || ((p as any).totalMetricValue ?? 0) > 0)
+            .sort((a, b) =>
+              hasMetricData
+                ? ((b as any).totalMetricValue ?? 0) - ((a as any).totalMetricValue ?? 0)
+                : b.totalPoints - a.totalPoints
+            )
             .slice(0, 5);
 
           const entries = await Promise.all(
             sorted.map(async (p, index) => {
               const user = await getUser(p.userId as string);
               if (!user) return null;
-              return { rank: index + 1, user, weeklyPoints: p.totalPoints };
+              return {
+                rank: index + 1,
+                user,
+                weeklyPoints: p.totalPoints,
+                totalMetricValue: (p as any).totalMetricValue ?? 0,
+              };
             })
           );
 
           return {
-            category: { id: catId, name: catDoc.name },
+            category: { id: catId, name: catDoc.name, unit: categoryUnitMap.get(catId) ?? null },
             entries: entries.filter(
               (e): e is NonNullable<typeof e> => e !== null
             ),

@@ -8,7 +8,6 @@ import Link from "next/link";
 import { Trophy, Loader2 } from "lucide-react";
 
 import { UserAvatar } from "@/components/user-avatar";
-import { PointsDisplay } from "@/components/ui/points-display";
 import { cn } from "@/lib/utils";
 
 interface CumulativeEntry {
@@ -21,10 +20,11 @@ interface CumulativeEntry {
     gender: string | null;
   };
   totalPoints: number;
+  totalMetricValue: number;
 }
 
 interface CategoryData {
-  category: { id: string; name: string };
+  category: { id: string; name: string; unit: string | null };
   women: CumulativeEntry[];
   men: CumulativeEntry[];
   noGender: CumulativeEntry[];
@@ -36,14 +36,24 @@ interface CumulativeCategoryLeaderboardProps {
   searchQuery?: string;
 }
 
+function formatMetricDisplay(metricValue: number, unit: string | null, points: number): string {
+  if (metricValue > 0 && unit) {
+    const rounded = Math.round(metricValue * 100) / 100;
+    return `${rounded} ${unit}`;
+  }
+  return `${Math.round(points)} pts`;
+}
+
 const EntryRow = memo(function EntryRow({
   entry,
   challengeId,
   currentUserId,
+  unit,
 }: {
   entry: CumulativeEntry;
   challengeId: string;
   currentUserId: string;
+  unit: string | null;
 }) {
   const isCurrentUser = entry.user.id === currentUserId;
 
@@ -93,13 +103,9 @@ const EntryRow = memo(function EntryRow({
         </p>
       </div>
 
-      <PointsDisplay
-        points={entry.totalPoints}
-        size="sm"
-        showSign={false}
-        showLabel={false}
-        className={cn("shrink-0 font-mono font-bold", entry.totalPoints >= 0 && "text-white")}
-      />
+      <span className="shrink-0 font-mono text-sm font-bold text-white">
+        {formatMetricDisplay(entry.totalMetricValue, unit, entry.totalPoints)}
+      </span>
     </Link>
   );
 });
@@ -111,6 +117,7 @@ function GenderColumn({
   entries,
   challengeId,
   currentUserId,
+  unit,
   emptyLabel = "No entries",
 }: {
   label: string;
@@ -119,6 +126,7 @@ function GenderColumn({
   entries: CumulativeEntry[];
   challengeId: string;
   currentUserId: string;
+  unit: string | null;
   emptyLabel?: string;
 }) {
   return (
@@ -143,6 +151,7 @@ function GenderColumn({
               entry={entry}
               challengeId={challengeId}
               currentUserId={currentUserId}
+              unit={unit}
             />
           ))}
         </div>
@@ -213,6 +222,7 @@ export function CumulativeCategoryLeaderboard({
                 entries={filteredWomen}
                 challengeId={challengeId}
                 currentUserId={currentUserId}
+                unit={category.category.unit}
                 emptyLabel="No entries in Women's"
               />
               <GenderColumn
@@ -222,6 +232,7 @@ export function CumulativeCategoryLeaderboard({
                 entries={filteredMen}
                 challengeId={challengeId}
                 currentUserId={currentUserId}
+                unit={category.category.unit}
                 emptyLabel="No entries in Men's/Open"
               />
             </div>
