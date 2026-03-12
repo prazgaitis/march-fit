@@ -1,6 +1,8 @@
 "use client";
 
+import { useCallback, useEffect, useRef } from "react";
 import { useQuery } from "@/lib/convex-auth-react";
+import { useRouter } from "next/navigation";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
 import Link from "next/link";
@@ -12,8 +14,6 @@ import {
 } from "@/lib/date-only";
 import {
   AlertTriangle,
-  ArrowLeft,
-  Calendar,
   Clock,
   ExternalLink,
   Loader2,
@@ -24,18 +24,17 @@ import {
 
 import { RichTextViewer } from "@/components/editor/rich-text-viewer";
 import { UserAvatar } from "@/components/user-avatar";
+import { UserChallengeDisplay } from "@/components/user-challenge-display";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { MediaGallery } from "@/components/media-gallery";
 import { PointsDisplay } from "@/components/ui/points-display";
-import { FlaggedActivityActions } from "@/components/admin/flagged-activity-actions";
+import {
+  FlaggedActivityActions,
+  type FlaggedActivityActionsHandle,
+} from "@/components/admin/flagged-activity-actions";
 import { FlaggedActivityComments } from "./flagged-activity-comments";
+import { useFlaggedList } from "../flagged-list-context";
 
 type FlagRecord = {
   id: string;
@@ -60,9 +59,93 @@ export function FlaggedActivityDetailContent({
   challengeId,
   activityId,
 }: FlaggedActivityDetailContentProps) {
+  const actionsRef = useRef<FlaggedActivityActionsHandle>(null);
+  const router = useRouter();
+
   const detail = useQuery(api.queries.admin.getFlaggedActivityDetail, {
     activityId: activityId as Id<"activities">,
   });
+
+  // Use the sidebar's visible items for arrow key navigation
+  const { items: sidebarItems } = useFlaggedList();
+
+  const navigateToSibling = useCallback(
+    (direction: "prev" | "next") => {
+      if (sidebarItems.length === 0) return;
+      const currentIndex = sidebarItems.findIndex(
+        (item) => item.activity.id === activityId,
+      );
+      // If current item left the filtered list (e.g. resolved while filtering pending),
+      // navigate to the first item in the list
+      if (currentIndex === -1) {
+        const fallback = sidebarItems[0];
+        if (fallback) {
+          router.push(
+            `/challenges/${challengeId}/admin/flagged-activities/${fallback.activity.id}`,
+          );
+        }
+        return;
+      }
+      const targetIndex =
+        direction === "prev" ? currentIndex - 1 : currentIndex + 1;
+      if (targetIndex < 0 || targetIndex >= sidebarItems.length) return;
+      const target = sidebarItems[targetIndex];
+      router.push(
+        `/challenges/${challengeId}/admin/flagged-activities/${target.activity.id}`,
+      );
+    },
+    [sidebarItems, activityId, challengeId, router],
+  );
+
+  // Global keyboard shortcuts
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      // ESC always works — closes open forms even when focused in an input
+      if (e.key === "Escape") {
+        const closed = actionsRef.current?.closeOpen();
+        if (closed) {
+          e.preventDefault();
+          // Return focus to the page so other shortcuts work immediately
+          (e.target as HTMLElement).blur?.();
+        }
+        return;
+      }
+
+      // Don't fire when typing in inputs/textareas/selects
+      const tag = (e.target as HTMLElement).tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") return;
+      // Don't fire with modifier keys (except for specific combos)
+      if (e.metaKey || e.ctrlKey || e.altKey) return;
+
+      switch (e.key) {
+        case "ArrowLeft":
+        case "j":
+          e.preventDefault();
+          navigateToSibling("prev");
+          break;
+        case "ArrowRight":
+        case "k":
+          e.preventDefault();
+          navigateToSibling("next");
+          break;
+        case "r":
+          e.preventDefault();
+          actionsRef.current?.resolve();
+          break;
+        case "c":
+          e.preventDefault();
+          actionsRef.current?.toggleComment();
+          break;
+        case "e":
+          e.preventDefault();
+          actionsRef.current?.toggleEdit();
+          break;
+      }
+    };
+
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [navigateToSibling]);
 
   if (detail === undefined) {
     return (
@@ -74,21 +157,12 @@ export function FlaggedActivityDetailContent({
 
   if (detail === null) {
     return (
-      <Card className="mx-auto max-w-lg text-center">
-        <CardHeader>
-          <CardTitle>Activity not found</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Button asChild>
-            <Link
-              href={`/challenges/${challengeId}/admin/flagged-activities`}
-            >
-              <ArrowLeft className="mr-2 h-4 w-4" />
-              Back to flagged activities
-            </Link>
-          </Button>
-        </CardContent>
-      </Card>
+      <div className="flex flex-col items-center justify-center py-20 text-center">
+        <p className="text-sm font-medium text-zinc-400">Activity not found</p>
+        <p className="mt-1 text-xs text-zinc-600">
+          It may have been deleted.
+        </p>
+      </div>
     );
   }
 
@@ -112,73 +186,57 @@ export function FlaggedActivityDetailContent({
     | undefined;
 
   return (
-    <div className="space-y-6">
-      {/* Back nav */}
-      <div className="flex items-center gap-3">
-        <Button variant="ghost" size="sm" asChild>
-          <Link
-            href={`/challenges/${challengeId}/admin/flagged-activities`}
-          >
-            <ArrowLeft className="mr-1 h-4 w-4" />
-            Flagged Activities
-          </Link>
-        </Button>
-        <div className="ml-auto flex items-center gap-2">
-          <Badge
-            variant={
-              activity.resolutionStatus === "resolved"
-                ? "default"
-                : "destructive"
-            }
-          >
-            {activity.resolutionStatus === "pending"
-              ? "Pending Review"
-              : "Resolved"}
-          </Badge>
-          <Button variant="outline" size="sm" asChild>
-            <Link
-              href={`/challenges/${challengeId}/activities/${activityId}`}
-              target="_blank"
-            >
-              <ExternalLink className="mr-1 h-3.5 w-3.5" />
-              View Activity
-            </Link>
-          </Button>
-        </div>
-      </div>
-
-      {/* Flag Alert Banner */}
-      <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-4">
-        <div className="flex items-start gap-3">
-          <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-destructive" />
-          <div className="flex-1 space-y-3">
-            <div>
-              <p className="text-sm font-semibold text-destructive">
-                Flagged Activity
+    <div className="mx-auto max-w-2xl">
+      {/* Flag banner — compact */}
+      <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2.5">
+        <div className="flex items-start gap-2.5">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <p className="text-xs font-semibold text-destructive">
+                Flagged
               </p>
-              <p className="mt-1 text-sm text-muted-foreground">
-                {activity.flaggedReason ?? "No reason provided"}
-              </p>
+              <Badge
+                variant={
+                  activity.resolutionStatus === "resolved"
+                    ? "default"
+                    : "destructive"
+                }
+                className="text-[9px] px-1.5 py-0 h-4"
+              >
+                {activity.resolutionStatus === "pending"
+                  ? "Pending"
+                  : "Resolved"}
+              </Badge>
               {activity.flaggedAt && (
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Flagged{" "}
+                <span className="text-[10px] text-muted-foreground">
                   {formatDistanceToNow(new Date(activity.flaggedAt), {
                     addSuffix: true,
                   })}
-                </p>
+                </span>
               )}
+              <Button variant="ghost" size="sm" className="ml-auto h-6 px-2 text-[10px]" asChild>
+                <Link
+                  href={`/challenges/${challengeId}/activities/${activityId}`}
+                  target="_blank"
+                >
+                  <ExternalLink className="mr-1 h-3 w-3" />
+                  Open
+                </Link>
+              </Button>
             </div>
-
-            {/* Individual flaggers */}
+            <p className="mt-0.5 text-xs text-muted-foreground line-clamp-2">
+              {activity.flaggedReason ?? "No reason provided"}
+            </p>
+            {/* Flagger chips */}
             {flaggers.length > 0 && (
-              <div className="space-y-2">
-                <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                  Reported by
-                </p>
+              <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                <span className="text-[10px] text-muted-foreground">by</span>
                 {(flaggers as FlagRecord[]).map((flag) => (
-                  <div
+                  <span
                     key={flag.id}
-                    className="flex items-start gap-2 rounded-md border border-border/50 bg-background/50 p-2"
+                    className="inline-flex items-center gap-1 rounded-full border border-border/50 bg-background/50 px-1.5 py-0.5 text-[10px]"
+                    title={flag.reason}
                   >
                     {flag.flagger ? (
                       <UserAvatar
@@ -192,26 +250,10 @@ export function FlaggedActivityDetailContent({
                         disableLink
                       />
                     ) : (
-                      <User className="h-5 w-5 text-muted-foreground" />
+                      <User className="h-3 w-3 text-muted-foreground" />
                     )}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 text-xs">
-                        <span className="font-medium">
-                          {flag.flagger?.name ??
-                            flag.flagger?.email ??
-                            "Unknown user"}
-                        </span>
-                        <span className="text-muted-foreground">
-                          {formatDistanceToNow(new Date(flag.createdAt), {
-                            addSuffix: true,
-                          })}
-                        </span>
-                      </div>
-                      <p className="mt-0.5 text-xs text-muted-foreground">
-                        {flag.reason}
-                      </p>
-                    </div>
-                  </div>
+                    {flag.flagger?.name ?? flag.flagger?.email ?? "Unknown"}
+                  </span>
                 ))}
               </div>
             )}
@@ -219,327 +261,303 @@ export function FlaggedActivityDetailContent({
         </div>
       </div>
 
-      {/* Activity Content Card */}
-      <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-base">Activity Details</CardTitle>
-            <Badge variant="outline" className="text-xs capitalize">
-              {activity.source}
-            </Badge>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {/* Participant */}
-          {participant && (
-            <div className="flex items-center gap-3">
-              <UserAvatar
-                user={{
-                  id: participant.id,
-                  name: participant.name ?? null,
-                  username: participant.username,
-                  avatarUrl: participant.avatarUrl ?? null,
-                }}
-                challengeId={challengeId}
-                size="sm"
-                showName
-                showUsername
-              />
-            </div>
-          )}
+      {/* Admin Actions */}
+      <div className="border-b border-zinc-800 px-1 py-3">
+        <FlaggedActivityActions
+          ref={actionsRef}
+          activityId={activity.id}
+          challengeId={activity.challengeId as string}
+          currentStatus={activity.resolutionStatus}
+          currentVisibility={activity.adminCommentVisibility}
+          currentPoints={activity.pointsEarned}
+          currentNotesContent={activity.notes ?? ""}
+          currentActivityTypeId={activity.activityTypeId as string}
+          currentLoggedDate={activity.loggedDate}
+        />
+      </div>
 
-          <div className="border-t" />
+      {/* ---- Activity content (mirrors activity detail page) ---- */}
 
-          {/* Activity type + points + date row */}
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <div className="space-y-1">
-              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                Activity Type
-              </p>
-              <p className="text-sm font-medium">
-                {activityType?.name ?? "Unknown"}
-                {activityType?.isNegative && (
-                  <Badge
-                    variant="destructive"
-                    className="ml-2 text-[10px] px-1.5 py-0"
-                  >
-                    Penalty
-                  </Badge>
-                )}
-              </p>
-            </div>
-            <div className="space-y-1">
-              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                Points
-              </p>
-              <PointsDisplay
-                points={activity.pointsEarned}
-                isNegative={activityType?.isNegative}
-                decimals={2}
-                size="sm"
-                showSign={true}
-                showLabel={true}
-                className="font-mono font-semibold"
-              />
-            </div>
-            <div className="space-y-1">
-              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                Logged Date
-              </p>
-              <div className="flex items-center gap-1.5 text-sm">
-                <Calendar className="h-3.5 w-3.5 text-muted-foreground" />
-                {formatDateShortFromDateOnly(
-                  formatDateOnlyFromUtcMs(activity.loggedDate),
-                )}
-              </div>
-            </div>
-            <div className="space-y-1">
-              <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                Created
-              </p>
-              <div className="flex items-center gap-1.5 text-sm">
-                <Clock className="h-3.5 w-3.5 text-muted-foreground" />
-                {formatTimeAgo(activity.createdAt)}
-              </div>
-            </div>
-          </div>
-
-          {/* Bonus breakdown */}
-          {triggeredBonuses && triggeredBonuses.length > 0 && (
-            <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs">
-              {triggeredBonuses.map((bonus, i) => (
-                <span key={i} className="text-amber-500">
-                  +{bonus.bonusPoints}{" "}
-                  {bonus.description
-                    .replace(/ bonus$/i, "")
-                    .toLowerCase()}
+      {/* User header */}
+      {participant && (
+        <div className="px-4 py-2">
+          <UserChallengeDisplay
+            user={{
+              id: participant.id,
+              name: participant.name ?? null,
+              username: participant.username,
+              avatarUrl: participant.avatarUrl ?? null,
+            }}
+            challengeId={challengeId}
+            size="sm"
+            layout="inline"
+            show={{ name: true, username: true }}
+            suffix={
+              <>
+                <span className="text-xs text-muted-foreground" aria-hidden="true">·</span>
+                <span className="text-xs text-muted-foreground shrink-0">
+                  {formatTimeAgo(activity.createdAt)}
                 </span>
-              ))}
-            </div>
-          )}
-
-          {/* Metrics */}
-          {metrics && Object.keys(metrics).length > 0 && (
-            <div>
-              <p className="mb-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                Metrics
-              </p>
-              <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
-                {Object.entries(metrics).map(([key, value]) => {
-                  if (
-                    typeof value !== "number" &&
-                    typeof value !== "string"
-                  )
-                    return null;
-                  return (
-                    <span key={key} className="text-muted-foreground">
-                      <span className="font-mono font-medium text-foreground">
-                        {typeof value === "number"
-                          ? value.toLocaleString()
-                          : String(value)}
-                      </span>{" "}
-                      <span className="capitalize">
-                        {key.replace(/_/g, " ")}
-                      </span>
-                    </span>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Location & time context */}
-          {(activity.localTime ||
-            activity.locationCity ||
-            activity.locationState) && (
-            <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
-              {activity.localTime && (
-                <span className="flex items-center gap-1">
-                  <Clock className="h-3 w-3" />
-                  {activity.localTime}
-                  {activity.timezone && ` (${activity.timezone})`}
-                </span>
+              </>
+            }
+          >
+            <span className="text-xs text-muted-foreground">
+              {activityType?.name ?? "Unknown"}
+              {activityType?.isNegative && (
+                <Badge variant="destructive" className="ml-2 text-[10px] px-1.5 py-0">Penalty</Badge>
               )}
-              {(activity.locationCity || activity.locationState) && (
-                <span className="flex items-center gap-1">
-                  <MapPin className="h-3 w-3" />
-                  {[
-                    activity.locationCity,
-                    activity.locationState,
-                    activity.locationCountry,
-                  ]
-                    .filter(Boolean)
-                    .join(", ")}
-                </span>
-              )}
-            </div>
-          )}
+            </span>
+          </UserChallengeDisplay>
+        </div>
+      )}
 
-          {/* Notes */}
-          {activity.notes && (
-            <div>
-              <p className="mb-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                Notes
-              </p>
-              <div className="rounded-md border bg-muted/30 p-3">
-                <RichTextViewer
-                  content={activity.notes}
-                  className="text-sm"
-                />
-              </div>
-            </div>
-          )}
+      {/* Notes (no media) */}
+      {!hasMedia && activity.notes && (
+        <div className="px-4 pb-2">
+          <RichTextViewer content={activity.notes} className="text-sm" />
+        </div>
+      )}
 
-          {/* Media */}
-          {hasMedia && (
-            <div>
-              <p className="mb-1.5 text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                Photos & Videos
-              </p>
-              <MediaGallery
-                urls={mediaUrls ?? []}
-                optimizedMediaIds={cloudinaryPublicIds}
-                variant="detail"
-              />
-            </div>
-          )}
+      {/* Media */}
+      {hasMedia && (
+        <MediaGallery
+          urls={mediaUrls ?? []}
+          optimizedMediaIds={cloudinaryPublicIds}
+          variant="detail"
+        />
+      )}
 
-          {/* Activity comments count */}
-          {commentCount > 0 && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <MessageCircle className="h-4 w-4" />
-              <span>
-                {commentCount} comment{commentCount !== 1 ? "s" : ""} on
-                this activity
-              </span>
-              <Button variant="link" size="sm" className="h-auto p-0" asChild>
-                <Link
-                  href={`/challenges/${challengeId}/activities/${activityId}#comments`}
-                  target="_blank"
-                >
-                  View
-                </Link>
-              </Button>
-            </div>
+      {/* Stats */}
+      <div className="space-y-2 px-4 pt-2">
+        {/* Points + date row */}
+        <div className="flex items-center gap-3 text-sm">
+          <PointsDisplay
+            points={activity.pointsEarned}
+            isNegative={activityType?.isNegative}
+            decimals={2}
+            size="sm"
+            showSign={true}
+            showLabel={true}
+            className="font-mono font-semibold"
+          />
+          <span className="text-xs text-muted-foreground">
+            {formatDateShortFromDateOnly(
+              formatDateOnlyFromUtcMs(activity.loggedDate),
+            )}
+          </span>
+          {activity.source !== "manual" && (
+            <span className="text-xs text-muted-foreground">
+              via <span className="capitalize">{activity.source}</span>
+            </span>
           )}
-
-          {/* External ID for strava activities */}
           {activity.externalId && (
-            <p className="text-xs text-muted-foreground">
-              External ID: <code className="font-mono">{activity.externalId}</code>
-            </p>
+            <span className="text-[10px] font-mono text-muted-foreground ml-auto">
+              {activity.externalId}
+            </span>
           )}
-        </CardContent>
-      </Card>
+        </div>
+
+        {/* Bonus breakdown */}
+        {triggeredBonuses && triggeredBonuses.length > 0 && (
+          <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs">
+            {triggeredBonuses.map((bonus, i) => (
+              <span key={i} className="text-amber-500">
+                +{bonus.bonusPoints}{" "}
+                {bonus.description
+                  .replace(/ bonus$/i, "")
+                  .toLowerCase()}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* Metrics */}
+        {metrics && Object.keys(metrics).length > 0 && (
+          <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm">
+            {Object.entries(metrics).map(([key, value]) => {
+              if (typeof value !== "number" && typeof value !== "string")
+                return null;
+              return (
+                <span key={key} className="text-muted-foreground">
+                  <span className="font-mono font-medium text-foreground">
+                    {typeof value === "number"
+                      ? value.toLocaleString()
+                      : String(value)}
+                  </span>{" "}
+                  <span className="capitalize">{key.replace(/_/g, " ")}</span>
+                </span>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Location & time context */}
+      {(activity.localTime ||
+        activity.locationCity ||
+        activity.locationState) && (
+        <div className="flex flex-wrap items-center gap-3 px-4 pt-1 text-xs text-muted-foreground">
+          {activity.localTime && (
+            <span className="flex items-center gap-1">
+              <Clock className="h-3 w-3" />
+              {activity.localTime}
+              {activity.timezone && ` (${activity.timezone})`}
+            </span>
+          )}
+          {(activity.locationCity || activity.locationState) && (
+            <span className="flex items-center gap-1">
+              <MapPin className="h-3 w-3" />
+              {[
+                activity.locationCity,
+                activity.locationState,
+                activity.locationCountry,
+              ]
+                .filter(Boolean)
+                .join(", ")}
+            </span>
+          )}
+        </div>
+      )}
+
+      {/* Caption (IG-style: username + notes, below media) */}
+      {hasMedia && activity.notes && (
+        <div className="px-4 pt-1 text-sm leading-snug">
+          <span className="font-semibold text-foreground">
+            {participant?.username}
+          </span>{" "}
+          <RichTextViewer
+            content={activity.notes}
+            className="inline text-sm text-muted-foreground [&_p]:inline"
+          />
+        </div>
+      )}
+
+      {/* Activity comments count */}
+      {commentCount > 0 && (
+        <div className="flex items-center gap-2 px-4 pt-2 text-sm text-muted-foreground">
+          <MessageCircle className="h-4 w-4" />
+          <span>
+            {commentCount} comment{commentCount !== 1 ? "s" : ""}
+          </span>
+          <Button variant="link" size="sm" className="h-auto p-0" asChild>
+            <Link
+              href={`/challenges/${challengeId}/activities/${activityId}#comments`}
+              target="_blank"
+            >
+              View
+            </Link>
+          </Button>
+        </div>
+      )}
+
+      {/* ---- Admin sections ---- */}
 
       {/* Admin Comments */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Admin Comments</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <FlaggedActivityComments activityId={activity.id} />
-        </CardContent>
-      </Card>
-
-      {/* Admin Actions */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Admin Actions</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <FlaggedActivityActions
-            activityId={activity.id}
-            challengeId={activity.challengeId as string}
-            currentStatus={activity.resolutionStatus}
-            currentVisibility={activity.adminCommentVisibility}
-            currentPoints={activity.pointsEarned}
-            currentNotesContent={activity.notes ?? ""}
-            currentActivityTypeId={activity.activityTypeId as string}
-            currentLoggedDate={activity.loggedDate}
-          />
-        </CardContent>
-      </Card>
+      <div className="border-t border-zinc-800 mt-4 px-4 pt-4">
+        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-2">
+          Admin Comments
+        </p>
+        <FlaggedActivityComments activityId={activity.id} />
+      </div>
 
       {/* History */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">History</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {history.length === 0 ? (
-            <p className="text-sm text-muted-foreground">
-              No admin actions recorded yet.
-            </p>
-          ) : (
-            <ol className="space-y-4">
-              {history.map(
-                (entry: {
-                  entry: {
-                    id: string;
-                    createdAt: number;
-                    actionType: string;
-                    payload?: Record<string, unknown>;
-                  };
-                  actor: {
-                    id?: string;
-                    name?: string;
-                    email?: string;
-                    avatarUrl?: string;
-                  } | null;
-                }) => (
-                  <li key={entry.entry.id} className="border-l-2 pl-4">
-                    <div className="flex items-center gap-2 text-sm">
-                      {entry.actor && (
-                        <UserAvatar
-                          user={{
-                            id: entry.actor.id ?? "",
-                            name: entry.actor.name ?? null,
-                            username:
-                              entry.actor.email ?? entry.actor.name ?? "Admin",
-                            avatarUrl: entry.actor.avatarUrl ?? null,
-                          }}
-                          size="xs"
-                          disableLink
-                        />
-                      )}
-                      <span className="font-medium">
-                        {entry.actor?.name ??
-                          entry.actor?.email ??
-                          "Admin"}
-                      </span>
-                      <span className="text-muted-foreground">
-                        {formatDistanceToNow(
-                          new Date(entry.entry.createdAt),
-                          {
-                            addSuffix: true,
-                          },
-                        )}
-                      </span>
-                    </div>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      {entry.entry.actionType === "flagged" &&
-                        "Activity was flagged"}
-                      {entry.entry.actionType === "comment" &&
-                        entry.entry.payload &&
-                        `Added comment: ${entry.entry.payload.comment}`}
-                      {entry.entry.actionType === "resolution" &&
-                        entry.entry.payload &&
-                        `Updated status to ${entry.entry.payload.status}`}
-                      {entry.entry.actionType === "edit" &&
-                        formatEditPayload(
-                          entry.entry.payload as Record<string, unknown> | undefined,
-                        )}
-                    </p>
-                  </li>
-                ),
-              )}
-            </ol>
+      <div className="border-t border-zinc-800 mt-4 px-4 pt-3 pb-4">
+        <p className="text-xs font-medium uppercase tracking-wider text-muted-foreground mb-3">
+          History
+          {history.length > 0 && (
+            <span className="font-normal ml-1">({history.length})</span>
           )}
-        </CardContent>
-      </Card>
+        </p>
+        {history.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            No admin actions recorded yet.
+          </p>
+        ) : (
+          <ol className="space-y-3">
+            {history.map(
+              (entry: {
+                entry: {
+                  id: string;
+                  createdAt: number;
+                  actionType: string;
+                  payload?: Record<string, unknown>;
+                };
+                actor: {
+                  id?: string;
+                  name?: string;
+                  email?: string;
+                  avatarUrl?: string;
+                } | null;
+              }) => (
+                <li
+                  key={entry.entry.id}
+                  className={`border-l-2 pl-3 ${historyBorderColor(entry.entry.actionType)}`}
+                >
+                  <div className="flex items-center gap-2 text-sm">
+                    {entry.actor && (
+                      <UserAvatar
+                        user={{
+                          id: entry.actor.id ?? "",
+                          name: entry.actor.name ?? null,
+                          username:
+                            entry.actor.email ?? entry.actor.name ?? "Admin",
+                          avatarUrl: entry.actor.avatarUrl ?? null,
+                        }}
+                        size="xs"
+                        disableLink
+                      />
+                    )}
+                    <span className="font-medium">
+                      {entry.actor?.name ??
+                        entry.actor?.email ??
+                        "Admin"}
+                    </span>
+                    <span className="text-muted-foreground">
+                      {formatDistanceToNow(
+                        new Date(entry.entry.createdAt),
+                        {
+                          addSuffix: true,
+                        },
+                      )}
+                    </span>
+                  </div>
+                  <p className="mt-0.5 text-sm text-muted-foreground">
+                    {entry.entry.actionType === "flagged" &&
+                      "Activity was flagged"}
+                    {entry.entry.actionType === "comment" &&
+                      entry.entry.payload &&
+                      `Added comment: ${entry.entry.payload.comment}`}
+                    {entry.entry.actionType === "resolution" &&
+                      entry.entry.payload &&
+                      `Updated status to ${entry.entry.payload.status}`}
+                    {entry.entry.actionType === "edit" &&
+                      formatEditPayload(
+                        entry.entry.payload as Record<string, unknown> | undefined,
+                      )}
+                  </p>
+                </li>
+              ),
+            )}
+          </ol>
+        )}
+      </div>
     </div>
   );
+}
+
+function historyBorderColor(actionType: string): string {
+  switch (actionType) {
+    case "flagged":
+      return "border-destructive/60";
+    case "resolution":
+      return "border-green-500/60";
+    case "comment":
+      return "border-blue-500/60";
+    case "edit":
+      return "border-amber-500/60";
+    default:
+      return "border-border";
+  }
 }
 
 function formatEditPayload(

@@ -36,69 +36,59 @@ export function FlaggedActivityComments({ activityId }: { activityId: string }) 
 
   if (!comments || comments.length === 0) {
     return (
-      <div>
-        <h3 className="text-sm font-medium text-muted-foreground">
-          Admin Comments
-        </h3>
-        <p className="text-base text-muted-foreground">
-          No admin comments yet.
-        </p>
-      </div>
+      <p className="text-sm text-muted-foreground">
+        No admin comments yet.
+      </p>
     );
   }
 
   return (
-    <div>
-      <h3 className="text-sm font-medium text-muted-foreground mb-2">
-        Admin Comments
-      </h3>
-      <div className="space-y-2">
-        {comments.map((entry) => (
-          <div
-            key={entry.comment.id}
-            className="rounded-md border p-3 bg-muted/30"
-          >
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
-              <UserAvatar
-                user={entry.author}
-                size="sm"
-                showName
-                disableLink
-                className="text-xs"
-              />
-              <span>
-                {formatDistanceToNow(new Date(entry.comment.createdAt), {
-                  addSuffix: true,
-                })}
-              </span>
-              {entry.comment.visibility && (
-                <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                  {entry.comment.visibility}
-                </Badge>
-              )}
-            </div>
-            <p className="mt-1 whitespace-pre-wrap text-sm">
-              {entry.comment.content}
-            </p>
-            <div className="mt-1 flex items-center gap-1">
-              <button
-                type="button"
-                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-                onClick={() =>
-                  toggleLike({
-                    commentId: entry.comment.id as Id<"comments">,
-                  })
-                }
-              >
-                <Heart
-                  className={`h-3 w-3 ${entry.likedByMe ? "fill-red-500 text-red-500" : ""}`}
-                />
-                {entry.likeCount > 0 && <span>{entry.likeCount}</span>}
-              </button>
-            </div>
+    <div className="space-y-2">
+      {comments.map((entry) => (
+        <div
+          key={entry.comment.id}
+          className="rounded-md border p-3 bg-muted/30"
+        >
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <UserAvatar
+              user={entry.author}
+              size="sm"
+              showName
+              disableLink
+              className="text-xs"
+            />
+            <span>
+              {formatDistanceToNow(new Date(entry.comment.createdAt), {
+                addSuffix: true,
+              })}
+            </span>
+            {entry.comment.visibility && (
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                {entry.comment.visibility}
+              </Badge>
+            )}
           </div>
-        ))}
-      </div>
+          <p className="mt-1 whitespace-pre-wrap text-sm">
+            {entry.comment.content}
+          </p>
+          <div className="mt-1 flex items-center gap-1">
+            <button
+              type="button"
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
+              onClick={() =>
+                toggleLike({
+                  commentId: entry.comment.id as Id<"comments">,
+                })
+              }
+            >
+              <Heart
+                className={`h-3 w-3 ${entry.likedByMe ? "fill-red-500 text-red-500" : ""}`}
+              />
+              {entry.likeCount > 0 && <span>{entry.likeCount}</span>}
+            </button>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
