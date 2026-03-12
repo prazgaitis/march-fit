@@ -150,9 +150,9 @@ function MediaCarousel({
           style={{
             transform: `translateX(calc(-${currentIndex * 100}% + ${isDragging ? touchDelta : 0}px))`,
           }}
-          onTouchStart={handleTouchStart}
-          onTouchMove={handleTouchMove}
-          onTouchEnd={handleTouchEnd}
+          onTouchStart={hasMultiple ? handleTouchStart : undefined}
+          onTouchMove={hasMultiple ? handleTouchMove : undefined}
+          onTouchEnd={hasMultiple ? handleTouchEnd : undefined}
         >
           {displayUrls.map((url, index) => {
             const isVideo = isVideoAtIndex(index);
