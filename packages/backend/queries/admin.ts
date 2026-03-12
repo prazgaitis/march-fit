@@ -263,18 +263,48 @@ export const getFlaggedActivityDetail = query({
       return null;
     }
 
-    const user = await ctx.db.get(activity.userId);
-    const activityType = activity.activityTypeId
-      ? await ctx.db.get(activity.activityTypeId)
-      : null;
+    const [user, activityType, history, flagRecords, commentCount] =
+      await Promise.all([
+        ctx.db.get(activity.userId),
+        activity.activityTypeId
+          ? ctx.db.get(activity.activityTypeId)
+          : Promise.resolve(null),
+        ctx.db
+          .query("activityFlagHistory")
+          .withIndex("activityId", (q) =>
+            q.eq("activityId", args.activityId),
+          )
+          .collect(),
+        ctx.db
+          .query("flags")
+          .withIndex("activityId", (q) =>
+            q.eq("activityId", args.activityId),
+          )
+          .collect(),
+        ctx.db
+          .query("comments")
+          .withIndex("activityIdByType", (q) =>
+            q
+              .eq("activityId", args.activityId)
+              .eq("parentType", "activity"),
+          )
+          .collect()
+          .then((c) => c.length),
+      ]);
 
-    // Get history
-    const history = await ctx.db
-      .query("activityFlagHistory")
-      .withIndex("activityId", (q) => q.eq("activityId", args.activityId))
-      .collect();
+    // Resolve media URLs from storage
+    const mediaUrls =
+      activity.mediaIds && activity.mediaIds.length > 0
+        ? (
+            await Promise.all(
+              activity.mediaIds.map((storageId) =>
+                ctx.storage.getUrl(storageId),
+              ),
+            )
+          ).filter((url): url is string => url !== null)
+        : [];
 
-    // Sort by createdAt descending
+    // Sort history by createdAt descending
     history.sort((a, b) => b.createdAt - a.createdAt);
 
     // Fetch actors for history entries
@@ -300,6 +330,31 @@ export const getFlaggedActivityDetail = query({
       }),
     );
 
+    // Fetch flagger user info for each flag record
+    const flaggers = await Promise.all(
+      flagRecords.map(async (flag) => {
+        const flagger = await ctx.db.get(flag.flaggerUserId);
+        return {
+          id: flag._id,
+          reason: flag.reason,
+          createdAt: flag.createdAt,
+          resolved: flag.resolved,
+          flagger: flagger
+            ? {
+                id: flagger._id,
+                name: flagger.name,
+                email: flagger.email,
+                avatarUrl: flagger.avatarUrl,
+                username: flagger.username,
+              }
+            : null,
+        };
+      }),
+    );
+
+    // Sort flaggers by createdAt descending (most recent first)
+    flaggers.sort((a, b) => b.createdAt - a.createdAt);
+
     return {
       activity: {
         id: activity._id,
@@ -320,6 +375,12 @@ export const getFlaggedActivityDetail = query({
         source: activity.source,
         externalId: activity.externalId,
         createdAt: activity.createdAt,
+        triggeredBonuses: activity.triggeredBonuses,
+        localTime: activity.localTime,
+        timezone: activity.timezone,
+        locationCity: activity.locationCity,
+        locationState: activity.locationState,
+        locationCountry: activity.locationCountry,
       },
       participant: user
         ? {
@@ -334,8 +395,14 @@ export const getFlaggedActivityDetail = query({
         ? {
             id: activityType._id,
             name: activityType.name,
+            scoringConfig: activityType.scoringConfig,
+            isNegative: activityType.isNegative,
           }
         : null,
+      mediaUrls,
+      cloudinaryPublicIds: activity.cloudinaryPublicIds ?? [],
+      commentCount,
+      flaggers,
       history: historyWithActors,
     };
   },
