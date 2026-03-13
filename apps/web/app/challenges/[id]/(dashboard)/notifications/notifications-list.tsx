@@ -38,6 +38,7 @@ function getNotificationIcon(type: string) {
     case "comment_like":
       return <Heart className="h-4 w-4 text-pink-500" />;
     case "comment":
+    case "comment_mention":
       return <MessageCircle className="h-4 w-4 text-blue-500" />;
     case "follow":
     case "new_follower":
@@ -83,6 +84,8 @@ export function getNotificationMessage(notification: Notification) {
       return `${actorName} liked your comment`;
     case "comment":
       return `${actorName} commented on your activity`;
+    case "comment_mention":
+      return `${actorName} mentioned you in a comment`;
     case "mention":
       return `${actorName} mentioned you`;
     case "forum_mention":
@@ -186,7 +189,7 @@ export function getNotificationLink(notification: Notification, challengeId: str
     const cId = notification.data?.challengeId ?? challengeId;
     return `/challenges/${cId}/users/${notification.actor.id}`;
   }
-  if (notification.type === "comment_like" && notification.data?.activityId) {
+  if ((notification.type === "comment_like" || notification.type === "comment_mention") && notification.data?.activityId) {
     const commentId = notification.data.commentId as string | undefined;
     const base = `/challenges/${challengeId}/activities/${notification.data.activityId}`;
     return commentId ? `${base}?commentId=${commentId}` : base;
