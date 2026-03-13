@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { api, internal } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
 import {
@@ -800,6 +800,136 @@ describe("Comments", () => {
 
       expect(result2.page[0].likeCount).toBe(1);
       expect(result2.page[0].likedByMe).toBe(true);
+    });
+  });
+
+  // ── Comment Mention Notifications ───────────────────────────
+
+  describe("comment mention notifications", () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    });
+
+    afterEach(async () => {
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+      vi.useRealTimers();
+    });
+
+    function tiptapMention(userId: string): string {
+      return JSON.stringify({
+        type: "doc",
+        content: [
+          {
+            type: "paragraph",
+            content: [
+              { type: "text", text: "Hey " },
+              { type: "mention", attrs: { id: userId, label: "someone" } },
+              { type: "text", text: " nice work!" },
+            ],
+          },
+        ],
+      });
+    }
+
+    it("sends comment_mention notification to mentioned user", async () => {
+      const { ownerId, participantId, activityId } =
+        await setupChallengeWithActivity();
+
+      // Create a third user to be mentioned
+      const mentionedId = await createTestUser(t, {
+        email: "mentioned@example.com",
+        username: "mentioned",
+      });
+      const challengeId = (
+        await t.run(async (ctx) => ctx.db.get(activityId))
+      )!.challengeId;
+      await createTestParticipation(t, mentionedId, challengeId);
+
+      const tOwnerAuth = t.withIdentity({
+        subject: "owner-sub",
+        email: "owner@example.com",
+      });
+
+      await tOwnerAuth.mutation(api.mutations.comments.create, {
+        activityId: activityId as Id<"activities">,
+        content: tiptapMention(mentionedId as string),
+      });
+
+      // Run the scheduled sendCommentMentionNotifications
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+      const notifications = await t.run(async (ctx) => {
+        return ctx.db
+          .query("notifications")
+          .withIndex("userId", (q) => q.eq("userId", mentionedId))
+          .collect();
+      });
+
+      expect(notifications.some((n) => n.type === "comment_mention")).toBe(
+        true,
+      );
+      const mentionNotif = notifications.find(
+        (n) => n.type === "comment_mention",
+      )!;
+      expect(mentionNotif.actorId).toBe(ownerId);
+      expect(mentionNotif.data.activityId).toBe(activityId);
+    });
+
+    it("does NOT send comment_mention for self-mentions", async () => {
+      const { ownerId, activityId } = await setupChallengeWithActivity();
+
+      const tOwnerAuth = t.withIdentity({
+        subject: "owner-sub",
+        email: "owner@example.com",
+      });
+
+      // Owner mentions themselves
+      await tOwnerAuth.mutation(api.mutations.comments.create, {
+        activityId: activityId as Id<"activities">,
+        content: tiptapMention(ownerId as string),
+      });
+
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+      const notifications = await t.run(async (ctx) => {
+        return ctx.db
+          .query("notifications")
+          .withIndex("userId", (q) => q.eq("userId", ownerId))
+          .collect();
+      });
+
+      expect(notifications.some((n) => n.type === "comment_mention")).toBe(
+        false,
+      );
+    });
+
+    it("does NOT send comment_mention for plain text comments", async () => {
+      const { participantId, activityId } =
+        await setupChallengeWithActivity();
+
+      const tOwnerAuth = t.withIdentity({
+        subject: "owner-sub",
+        email: "owner@example.com",
+      });
+
+      await tOwnerAuth.mutation(api.mutations.comments.create, {
+        activityId: activityId as Id<"activities">,
+        content: "Just a plain text comment",
+      });
+
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+      const notifications = await t.run(async (ctx) => {
+        return ctx.db
+          .query("notifications")
+          .withIndex("userId", (q) => q.eq("userId", participantId))
+          .collect();
+      });
+
+      // Should only have the "comment" notification to the activity owner, no mention
+      expect(notifications.some((n) => n.type === "comment_mention")).toBe(
+        false,
+      );
     });
   });
 
