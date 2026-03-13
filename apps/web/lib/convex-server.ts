@@ -1,6 +1,7 @@
 import "server-only";
 
 import { ConvexHttpClient } from "convex/browser";
+import { getServerConvexUrl } from "./server-convex-env";
 
 /**
  * Create a fresh ConvexHttpClient per request instead of reusing a module-level
@@ -8,5 +9,5 @@ import { ConvexHttpClient } from "convex/browser";
  * (Vercel) when connections persist across warm invocations.
  */
 export function getConvexClient() {
-  return new ConvexHttpClient(process.env.NEXT_PUBLIC_CONVEX_URL!);
+  return new ConvexHttpClient(getServerConvexUrl());
 }

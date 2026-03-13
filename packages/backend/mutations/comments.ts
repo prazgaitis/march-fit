@@ -1,8 +1,10 @@
-import { mutation } from "../_generated/server";
+import { internalMutation, mutation } from "../_generated/server";
 import { v } from "convex/values";
 import type { Id } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
+import { internal } from "../_generated/api";
 import { requireCurrentUser } from "../lib/ids";
+import { extractMentionedUserIds } from "../lib/mentions";
 import { insertNotification } from "../lib/notifications";
 import { recomputeFeedScore } from "../lib/feedScore";
 
@@ -67,10 +69,59 @@ export const create = mutation({
       });
     }
 
+    // Send mention notifications async
+    const mentionedUserIds = extractMentionedUserIds(args.content);
+    if (mentionedUserIds.length > 0) {
+      await ctx.scheduler.runAfter(
+        0,
+        internal.mutations.comments.sendCommentMentionNotifications,
+        {
+          commentId,
+          activityId: args.activityId,
+          actorId: user._id,
+          mentionedUserIds,
+        },
+      );
+    }
+
     // Recompute feed score after new comment
     await recomputeFeedScore(ctx, args.activityId);
 
     return commentId;
+  },
+});
+
+/**
+ * Internal: send mention notifications for a comment on an activity.
+ */
+export const sendCommentMentionNotifications = internalMutation({
+  args: {
+    commentId: v.id("comments"),
+    activityId: v.id("activities"),
+    actorId: v.id("users"),
+    mentionedUserIds: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    for (const userId of args.mentionedUserIds) {
+      // Skip self-mentions
+      if (userId === args.actorId) continue;
+
+      // Verify the user exists
+      const user = await ctx.db.get(userId as Id<"users">);
+      if (!user) continue;
+
+      await ctx.db.insert("notifications", {
+        userId: userId as Id<"users">,
+        actorId: args.actorId,
+        type: "comment_mention",
+        data: {
+          activityId: args.activityId,
+          commentId: args.commentId,
+        },
+        createdAt: now,
+      });
+    }
   },
 });
 

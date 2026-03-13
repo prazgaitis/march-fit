@@ -247,7 +247,7 @@ export function RichTextEditor({
       attributes: {
         ...(id ? { id } : {}),
         class: cn(
-          'min-h-[120px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm transition-colors',
+          'min-h-[120px] w-full rounded-md border border-input bg-background px-3 py-2 text-base transition-colors md:text-sm',
           'focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20',
           disabled && 'opacity-50',
         ),

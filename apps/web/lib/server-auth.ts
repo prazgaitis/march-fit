@@ -6,6 +6,7 @@ import { Preloaded } from "convex/react";
 
 import { api } from "@repo/backend";
 import { rebuildResponse } from "./rebuild-response";
+import { getServerConvexSiteUrl, getServerConvexUrl } from "./server-convex-env";
 
 type AuthUser = {
   id: string;
@@ -23,30 +24,11 @@ type ServerAuthResult = {
 // Lazy initialization to avoid build-time errors when env vars aren't available
 let _betterAuthUtils: ReturnType<typeof convexBetterAuthNextJs> | null = null;
 
-function resolveConvexSiteUrl(convexUrl: string): string {
-  if (process.env.NEXT_PUBLIC_CONVEX_SITE_URL) {
-    return process.env.NEXT_PUBLIC_CONVEX_SITE_URL;
-  }
-
-  // Convex cloud deployments use a corresponding ".convex.site" host for auth.
-  if (convexUrl.includes(".convex.cloud")) {
-    return convexUrl.replace(".convex.cloud", ".convex.site");
-  }
-
-  // For self-hosted or already-site URLs, reuse the same host.
-  return convexUrl;
-}
-
 function getBetterAuthUtils() {
   if (!_betterAuthUtils) {
-    const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
-    if (!convexUrl) {
-      throw new Error("NEXT_PUBLIC_CONVEX_URL is not set.");
-    }
-
     _betterAuthUtils = convexBetterAuthNextJs({
-      convexUrl,
-      convexSiteUrl: resolveConvexSiteUrl(convexUrl),
+      convexUrl: getServerConvexUrl(),
+      convexSiteUrl: getServerConvexSiteUrl(),
     });
   }
   return _betterAuthUtils;
@@ -74,11 +56,7 @@ function proxyHandler(method: "GET" | "POST") {
   return async (req: Request): Promise<Response> => {
     const path = getRequestPath(req);
     try {
-      const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
-      if (!convexUrl) {
-        throw new Error("NEXT_PUBLIC_CONVEX_URL is not set.");
-      }
-      const siteUrl = resolveConvexSiteUrl(convexUrl);
+      const siteUrl = getServerConvexSiteUrl();
 
       const requestUrl = new URL(req.url);
       const targetUrl = `${siteUrl}${requestUrl.pathname}${requestUrl.search}`;

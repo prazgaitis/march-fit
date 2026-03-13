@@ -40,6 +40,11 @@ describe("getNotificationMessage", () => {
     expect(getNotificationMessage(n)).toBe("Alice commented on your activity");
   });
 
+  it("returns correct message for comment_mention", () => {
+    const n = makeNotification({ type: "comment_mention" });
+    expect(getNotificationMessage(n)).toBe("Alice mentioned you in a comment");
+  });
+
   it("returns correct message for new_follower", () => {
     const n = makeNotification({ type: "new_follower" });
     expect(getNotificationMessage(n)).toBe("Alice started following you");
@@ -182,6 +187,26 @@ describe("getNotificationLink", () => {
     });
     expect(getNotificationLink(n, challengeId)).toBe(
       "/challenges/challenge-1/users/actor-1",
+    );
+  });
+
+  it("routes comment_mention to activity page with commentId query param", () => {
+    const n = makeNotification({
+      type: "comment_mention",
+      data: { activityId: "act-1", commentId: "comm-1" },
+    });
+    expect(getNotificationLink(n, challengeId)).toBe(
+      "/challenges/challenge-1/activities/act-1?commentId=comm-1",
+    );
+  });
+
+  it("routes comment_mention to activity page without commentId when missing", () => {
+    const n = makeNotification({
+      type: "comment_mention",
+      data: { activityId: "act-1" },
+    });
+    expect(getNotificationLink(n, challengeId)).toBe(
+      "/challenges/challenge-1/activities/act-1",
     );
   });
 
