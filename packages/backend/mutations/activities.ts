@@ -603,6 +603,8 @@ export const editActivity = mutation({
     loggedDate: v.optional(v.string()), // ISO date string "YYYY-MM-DD"
     activityTypeId: v.optional(v.id("activityTypes")),
     mediaIds: v.optional(v.array(v.id("_storage"))),
+    cloudinaryPublicIds: v.optional(v.array(v.string())),
+    imageUrl: v.optional(v.union(v.string(), v.null())),
   },
   handler: async (ctx, args) => {
     const startedAt = Date.now();
@@ -659,9 +661,11 @@ export const editActivity = mutation({
 
     const selectedOptionalBonuses = (metricsObj as Record<string, unknown>)["selectedBonuses"] as string[] | undefined;
 
-    // Determine effective media: use provided mediaIds if given, otherwise fall back to existing.
+    // Determine effective media: use provided values if given, otherwise fall back to existing.
     const effectiveMediaIds = args.mediaIds !== undefined ? args.mediaIds : activity.mediaIds;
-    const hasMedia = !!(effectiveMediaIds && effectiveMediaIds.length > 0) || !!(activity.cloudinaryPublicIds && activity.cloudinaryPublicIds.length > 0) || !!activity.imageUrl;
+    const effectiveCloudinaryIds = args.cloudinaryPublicIds !== undefined ? args.cloudinaryPublicIds : activity.cloudinaryPublicIds;
+    const effectiveImageUrl = args.imageUrl !== undefined ? (args.imageUrl ?? undefined) : activity.imageUrl;
+    const hasMedia = !!(effectiveMediaIds && effectiveMediaIds.length > 0) || !!(effectiveCloudinaryIds && effectiveCloudinaryIds.length > 0) || !!effectiveImageUrl;
     let alreadyEarnedPhotoBonusEdit = false;
     if (hasMedia) {
       const loggedDateStrEdit = formatDateOnlyFromUtcMs(newLoggedDateTs);
@@ -702,6 +706,13 @@ export const editActivity = mutation({
     const triggeredBonuses = score.triggeredBonuses;
     const oldPoints = activity.pointsEarned;
 
+    // Detect if user removed Strava-imported media so sync won't restore it
+    const isStravaActivity = activity.source === "strava";
+    const userRemovedStravaMedia =
+      isStravaActivity &&
+      (args.imageUrl === null || args.cloudinaryPublicIds !== undefined || args.mediaIds !== undefined) &&
+      !hasMedia;
+
     // Patch the activity
     const now = Date.now();
     await patchActivity(ctx, args.activityId, {
@@ -712,6 +723,9 @@ export const editActivity = mutation({
       pointsEarned: newPoints,
       triggeredBonuses: triggeredBonuses.length > 0 ? triggeredBonuses : undefined,
       ...(args.mediaIds !== undefined ? { mediaIds: args.mediaIds } : {}),
+      ...(args.cloudinaryPublicIds !== undefined ? { cloudinaryPublicIds: args.cloudinaryPublicIds } : {}),
+      ...(args.imageUrl !== undefined ? { imageUrl: args.imageUrl ?? undefined } : {}),
+      ...(userRemovedStravaMedia ? { stravaMediaDismissed: true } : {}),
       updatedAt: now,
     });
 

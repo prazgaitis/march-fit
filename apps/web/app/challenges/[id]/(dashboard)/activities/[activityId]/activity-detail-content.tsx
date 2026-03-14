@@ -116,6 +116,9 @@ interface ExistingMedia {
   storageId: string;
   url: string;
   type: "image" | "video";
+  source: "convex" | "cloudinary" | "url";
+  /** Cloudinary public ID (only for source === "cloudinary") */
+  cloudinaryId?: string;
 }
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
@@ -350,6 +353,7 @@ export function ActivityDetailContent({
       activity,
       activityType,
       mediaUrls: existingUrls,
+      cloudinaryPublicIds: existingCloudinaryIds,
     } = activityData as {
       activity: {
         notes?: string;
@@ -357,9 +361,11 @@ export function ActivityDetailContent({
         metrics?: Record<string, unknown>;
         pointsEarned: number;
         mediaIds?: string[];
+        imageUrl?: string;
       };
       activityType: { _id: string; scoringConfig: Record<string, unknown> };
       mediaUrls?: string[];
+      cloudinaryPublicIds?: string[];
     };
     setEditNotes(typeof activity.notes === "string" ? activity.notes : "");
     setEditNotesIsEmpty(!activity.notes || activity.notes.trim() === "");
@@ -371,16 +377,41 @@ export function ActivityDetailContent({
     const metrics = (activity.metrics ?? {}) as Record<string, unknown>;
     const metricVal = unit ? (metrics[unit] ?? "") : "";
     setEditMetricValue(String(metricVal));
-    // Pre-populate existing media
+    // Pre-populate existing media from all sources
+    const allExisting: ExistingMedia[] = [];
+    // 1. Convex storage media
     const mediaIds = activity.mediaIds ?? [];
     const urls = existingUrls ?? [];
-    setEditExistingMedia(
-      urls.map((url: string, i: number) => ({
+    for (let i = 0; i < urls.length; i++) {
+      allExisting.push({
         storageId: mediaIds[i] ?? "",
-        url,
-        type: isVideoUrl(url) ? ("video" as const) : ("image" as const),
-      })),
-    );
+        url: urls[i],
+        type: isVideoUrl(urls[i]) ? "video" : "image",
+        source: "convex",
+      });
+    }
+    // 2. Cloudinary media
+    const cIds = existingCloudinaryIds ?? [];
+    for (const cId of cIds) {
+      const isVideo = cId.startsWith("v/");
+      allExisting.push({
+        storageId: "",
+        url: getOptimizedMediaUrl(cId, isVideo ? "video_feed" : "feed"),
+        type: isVideo ? "video" : "image",
+        source: "cloudinary",
+        cloudinaryId: cId,
+      });
+    }
+    // 3. Legacy imageUrl (e.g. Strava photos)
+    if (activity.imageUrl && allExisting.length === 0) {
+      allExisting.push({
+        storageId: "",
+        url: activity.imageUrl,
+        type: isVideoUrl(activity.imageUrl) ? "video" : "image",
+        source: "url",
+      });
+    }
+    setEditExistingMedia(allExisting);
     setEditNewMedia([]);
     setEditUploadProgress(null);
     setShowEditDialog(true);
@@ -392,7 +423,7 @@ export function ActivityDetailContent({
     try {
       const { activityType, activity } = activityData as {
         activityType: { _id: string; scoringConfig: Record<string, unknown> };
-        activity: { mediaIds?: string[] };
+        activity: { mediaIds?: string[]; cloudinaryPublicIds?: string[]; imageUrl?: string };
       };
       const config = (activityType.scoringConfig ?? {}) as Record<
         string,
@@ -427,17 +458,32 @@ export function ActivityDetailContent({
         setEditUploadProgress(null);
       }
 
-      // Build final mediaIds: kept existing + newly uploaded
-      const keptExistingIds = editExistingMedia
-        .map((m) => m.storageId)
-        .filter(Boolean) as Id<"_storage">[];
-      const finalMediaIds = [...keptExistingIds, ...uploadedIds];
+      // Split kept existing media back into their respective storage categories
+      const keptConvexIds = editExistingMedia
+        .filter((m) => m.source === "convex" && m.storageId)
+        .map((m) => m.storageId) as Id<"_storage">[];
+      const keptCloudinaryIds = editExistingMedia
+        .filter((m) => m.source === "cloudinary" && m.cloudinaryId)
+        .map((m) => m.cloudinaryId as string);
+      const keptUrlMedia = editExistingMedia.filter((m) => m.source === "url");
 
-      // Only send mediaIds if they actually changed
-      const originalIds = activity.mediaIds ?? [];
-      const mediaChanged =
-        finalMediaIds.length !== originalIds.length ||
-        finalMediaIds.some((id, i) => id !== originalIds[i]);
+      const finalMediaIds = [...keptConvexIds, ...uploadedIds];
+      const finalCloudinaryIds = keptCloudinaryIds;
+      const finalImageUrl = keptUrlMedia.length > 0 ? keptUrlMedia[0].url : null;
+
+      // Detect changes per media type
+      const originalMediaIds = activity.mediaIds ?? [];
+      const mediaIdsChanged =
+        finalMediaIds.length !== originalMediaIds.length ||
+        finalMediaIds.some((id, i) => id !== originalMediaIds[i]);
+
+      const originalCloudinaryIds = activity.cloudinaryPublicIds ?? [];
+      const cloudinaryChanged =
+        finalCloudinaryIds.length !== originalCloudinaryIds.length ||
+        finalCloudinaryIds.some((id, i) => id !== originalCloudinaryIds[i]);
+
+      const originalImageUrl = activity.imageUrl ?? null;
+      const imageUrlChanged = finalImageUrl !== originalImageUrl;
 
       const payload: Parameters<typeof editActivityMutation>[0] = {
         activityId: activityId as Id<"activities">,
@@ -448,7 +494,9 @@ export function ActivityDetailContent({
           ? { activityTypeId: editActivityTypeId as Id<"activityTypes"> }
           : {}),
         ...(newMetrics !== undefined ? { metrics: newMetrics } : {}),
-        ...(mediaChanged ? { mediaIds: finalMediaIds } : {}),
+        ...(mediaIdsChanged ? { mediaIds: finalMediaIds } : {}),
+        ...(cloudinaryChanged ? { cloudinaryPublicIds: finalCloudinaryIds } : {}),
+        ...(imageUrlChanged ? { imageUrl: finalImageUrl } : {}),
       };
 
       const result = await editActivityMutation(payload);

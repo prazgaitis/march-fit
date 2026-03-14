@@ -148,6 +148,7 @@ export default defineSchema({
     mediaIds: v.optional(v.array(v.id("_storage"))), // New field for media attachments
     cloudinaryPublicIds: v.optional(v.array(v.string())), // Optimized media (Cloudinary)
     pendingMediaCount: v.optional(v.number()), // Photos expected from Strava but not yet available
+    stravaMediaDismissed: v.optional(v.boolean()), // User explicitly removed Strava-imported media; sync should not restore it
     notes: v.optional(v.string()),
     flagged: v.boolean(),
     flaggedAt: v.optional(v.number()),
