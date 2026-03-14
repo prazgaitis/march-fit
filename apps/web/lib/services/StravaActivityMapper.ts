@@ -72,6 +72,7 @@ export class StravaActivityMapper {
       'Strength Training': ['WeightTraining', 'Workout'],
       'Walking': ['Walk', 'Hike'],
       'Yoga': ['Yoga'],
+      'HIIT': ['HIIT'],
     };
 
     if (!this.fetchActivityTypes) {
