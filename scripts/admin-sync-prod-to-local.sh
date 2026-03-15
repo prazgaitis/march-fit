@@ -81,8 +81,23 @@ pnpm -F backend exec npx convex export \
   --env-file "${ENV_FILE}" \
   --path "${OUT_PATH}"
 
+echo "    Sanitizing snapshot for self-hosted compatibility ..."
+SANITIZED_DIR="$(mktemp -d)"
+SANITIZED_PATH="${SANITIZED_DIR}/sanitized.zip"
+cd "${SANITIZED_DIR}"
+unzip -q "${OUT_PATH}"
+# Self-hosted Convex doesn't support "uniform" in generated_schema.jsonl
+# or $bytes fields / float-as-int64 in the resend component data.
+# These are Convex cloud features not yet available in self-hosted.
+# See: https://github.com/get-convex/convex-backend/issues (if applicable)
+find . -name "generated_schema.jsonl" -delete
+rm -rf ./_components/resend
+zip -q -r "${SANITIZED_PATH}" .
+cd "${ROOT_DIR}"
+
 echo "2/2 Importing snapshot into local self-hosted Convex ..."
-bash "${ROOT_DIR}/scripts/convex.sh" import "${OUT_PATH}" --replace-all -y
+bash "${ROOT_DIR}/scripts/convex.sh" import "${SANITIZED_PATH}" --replace-all -y
+rm -rf "${SANITIZED_DIR}"
 
 echo "Done."
 echo "Snapshot file: ${OUT_PATH}"
