@@ -3,8 +3,6 @@
 import { useQuery } from "@/lib/convex-auth-react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
-import Link from "next/link";
-import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { formatDistanceToNow } from "date-fns";
 import { Loader2, MessageSquare, Search } from "lucide-react";
@@ -43,8 +41,7 @@ interface FeedbackSidebarProps {
 }
 
 export function FeedbackSidebar({ challengeId }: FeedbackSidebarProps) {
-  const params = useParams();
-  const selectedFeedbackId = params.feedbackId as string | undefined;
+  const { selectedId, setSelectedId, setItems } = useFeedbackList();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"all" | "open" | "fixed">(
     "open",
@@ -75,10 +72,16 @@ export function FeedbackSidebar({ challengeId }: FeedbackSidebarProps) {
   const total = items.length;
 
   // Sync visible items to context for keyboard navigation
-  const { setItems } = useFeedbackList();
   useEffect(() => {
     setItems(items.map((item) => ({ id: item.id })));
   }, [items, setItems]);
+
+  // Auto-select first item when none is selected
+  useEffect(() => {
+    if (!selectedId && items.length > 0) {
+      setSelectedId(items[0].id);
+    }
+  }, [selectedId, items, setSelectedId]);
 
   return (
     <div className="flex h-full flex-col">
@@ -131,7 +134,7 @@ export function FeedbackSidebar({ challengeId }: FeedbackSidebarProps) {
       </div>
 
       {/* List */}
-      <div className="flex-1 overflow-y-auto">
+      <div className="flex-1 overflow-y-auto scrollbar-hide">
         {data === undefined ? (
           <div className="flex items-center justify-center py-10">
             <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -143,12 +146,13 @@ export function FeedbackSidebar({ challengeId }: FeedbackSidebarProps) {
         ) : (
           <div>
             {items.map((item) => {
-              const isSelected = selectedFeedbackId === item.id;
+              const isSelected = selectedId === item.id;
               return (
-                <Link
+                <button
                   key={item.id}
-                  href={`/challenges/${challengeId}/admin/feedback/${item.id}`}
-                  className={`flex gap-3 border-b border-zinc-800/50 px-3 py-2.5 transition-colors ${
+                  type="button"
+                  onClick={() => setSelectedId(item.id)}
+                  className={`flex w-full text-left gap-3 border-b border-zinc-800/50 px-3 py-2.5 transition-colors ${
                     isSelected
                       ? "bg-zinc-800 border-l-2 border-l-indigo-500"
                       : "hover:bg-zinc-900 border-l-2 border-l-transparent"
@@ -205,7 +209,7 @@ export function FeedbackSidebar({ challengeId }: FeedbackSidebarProps) {
                       {item.title ?? item.description}
                     </p>
                   </div>
-                </Link>
+                </button>
               );
             })}
           </div>

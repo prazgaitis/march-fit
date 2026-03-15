@@ -225,7 +225,7 @@ export function FlaggedActivityDetailContent({
                 </Link>
               </Button>
             </div>
-            <p className="mt-0.5 text-xs text-muted-foreground line-clamp-2">
+            <p className="mt-0.5 text-xs text-muted-foreground whitespace-pre-wrap">
               {activity.flaggedReason ?? "No reason provided"}
             </p>
             {/* Flagger chips */}
