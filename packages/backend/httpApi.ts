@@ -9,6 +9,13 @@ import { internal, api } from "./_generated/api";
 import type { Id, Doc } from "./_generated/dataModel";
 import { hashApiKey } from "./lib/apiKey";
 import {
+  hashToken,
+  OAUTH_ACCESS_TOKEN_PREFIX,
+  OAUTH_REFRESH_TOKEN_PREFIX,
+  scopesAreSubset,
+  getRequiredScopes,
+} from "./lib/oauth";
+import {
   reportBackendSentryEvent,
   reportLatencyIfExceeded,
 } from "./lib/latencyMonitoring";
@@ -24,6 +31,8 @@ type HttpCtx = {
 type AuthResult = {
   user: Doc<"users">;
   keyId: Id<"apiKeys">;
+  /** Present when authenticated via OAuth token (null for API keys) */
+  oauthScopes?: string[];
 };
 
 // ─── Response Helpers ────────────────────────────────────────────────────────
@@ -69,6 +78,25 @@ async function authenticateApiKey(
   }
 
   const rawKey = authHeader.slice(7);
+
+  // OAuth access token
+  if (rawKey.startsWith(OAUTH_ACCESS_TOKEN_PREFIX)) {
+    const tokenHash = await hashToken(rawKey);
+    const result = await ctx.runQuery(
+      internal.queries.oauth.getAccessTokenByHash,
+      { tokenHash }
+    );
+    if (!result) {
+      return errorResponse("Invalid or expired OAuth token", 401);
+    }
+    return {
+      user: result.user,
+      keyId: result.token._id as unknown as Id<"apiKeys">, // Satisfy type — not a real apiKey
+      oauthScopes: result.token.scopes,
+    };
+  }
+
+  // API key
   if (!rawKey.startsWith("mf_")) {
     return errorResponse("Invalid API key format", 401);
   }
@@ -88,6 +116,34 @@ async function authenticateApiKey(
   });
 
   return result as AuthResult;
+}
+
+/**
+ * Check that an OAuth-scoped auth result has the required scopes for a route.
+ * Returns an error Response if insufficient, or null if OK.
+ */
+function checkOAuthScopes(
+  auth: AuthResult,
+  method: string,
+  routePattern: string
+): Response | null {
+  if (!auth.oauthScopes) return null; // API key — full access
+
+  const required = getRequiredScopes(method, routePattern);
+  if (required === null) {
+    // Endpoint not accessible via OAuth
+    return errorResponse(
+      "This endpoint is not available for OAuth tokens",
+      403
+    );
+  }
+  if (!scopesAreSubset(required, auth.oauthScopes)) {
+    return errorResponse(
+      `Insufficient scope. Required: ${required.join(", ")}`,
+      403
+    );
+  }
+  return null;
 }
 
 // ─── Route Matching Helper ───────────────────────────────────────────────────
@@ -1831,6 +1887,431 @@ async function handlePreviewEndMiniGame(
   }
 }
 
+// ─── OAuth Endpoints ────────────────────────────────────────────────────────
+
+/**
+ * GET /api/v1/oauth/authorize — Validate params and redirect to consent page.
+ * The frontend consent page lives at /oauth/authorize on the Next.js app.
+ */
+async function handleOAuthAuthorize(
+  ctx: HttpCtx,
+  request: Request,
+  _params: Record<string, string>
+): Promise<Response> {
+  const url = new URL(request.url);
+  const clientId = url.searchParams.get("client_id");
+  const redirectUri = url.searchParams.get("redirect_uri");
+  const responseType = url.searchParams.get("response_type");
+  const scope = url.searchParams.get("scope");
+  const state = url.searchParams.get("state");
+
+  if (responseType !== "code") {
+    return errorResponse("response_type must be 'code'", 400);
+  }
+  if (!clientId || !redirectUri || !scope) {
+    return errorResponse("Missing required parameters: client_id, redirect_uri, scope", 400);
+  }
+
+  // Validate the client
+  const app = await ctx.runQuery(internal.queries.oauth.getAppByClientId, { clientId });
+  if (!app || !app.isActive) {
+    return errorResponse("Invalid client_id", 400);
+  }
+  if (!app.redirectUris.includes(redirectUri)) {
+    return errorResponse("redirect_uri not registered for this application", 400);
+  }
+
+  const requestedScopes = scope.split(" ").filter(Boolean);
+  const { validateScopes, scopesAreSubset: scopeSubset } = await import("./lib/oauth");
+  if (!validateScopes(requestedScopes) || !scopeSubset(requestedScopes, app.scopes)) {
+    return errorResponse("Invalid or unauthorized scopes", 400);
+  }
+
+  // Redirect to the frontend consent page with all params
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.SITE_URL || "http://localhost:3000";
+  const consentUrl = new URL("/oauth/authorize", appUrl);
+  consentUrl.searchParams.set("client_id", clientId);
+  consentUrl.searchParams.set("redirect_uri", redirectUri);
+  consentUrl.searchParams.set("scope", scope);
+  if (state) consentUrl.searchParams.set("state", state);
+  const codeChallenge = url.searchParams.get("code_challenge");
+  const codeChallengeMethod = url.searchParams.get("code_challenge_method");
+  if (codeChallenge) consentUrl.searchParams.set("code_challenge", codeChallenge);
+  if (codeChallengeMethod) consentUrl.searchParams.set("code_challenge_method", codeChallengeMethod);
+
+  // Add app metadata for the consent screen
+  consentUrl.searchParams.set("app_name", app.name);
+  if (app.description) consentUrl.searchParams.set("app_description", app.description);
+  if (app.iconUrl) consentUrl.searchParams.set("app_icon", app.iconUrl);
+
+  return new Response(null, {
+    status: 302,
+    headers: {
+      Location: consentUrl.toString(),
+      "Access-Control-Allow-Origin": "*",
+    },
+  });
+}
+
+/**
+ * POST /api/v1/oauth/authorize — User approves the consent; issue auth code.
+ * Called by the consent page (authenticated via session cookie forwarded from Next.js).
+ * For simplicity, this accepts userId in the body (called server-side from Next.js API route).
+ */
+async function handleOAuthAuthorizePost(
+  ctx: HttpCtx,
+  request: Request,
+  _params: Record<string, string>
+): Promise<Response> {
+  const body = await parseJsonBody(request);
+  if (body instanceof Response) return body;
+
+  const { client_id, redirect_uri, scope, state, code_challenge, code_challenge_method, user_id } = body;
+
+  if (!client_id || !redirect_uri || !scope || !user_id) {
+    return errorResponse("Missing required fields", 400);
+  }
+
+  // Validate client + redirect URI
+  const app = await ctx.runQuery(internal.queries.oauth.getAppByClientId, { clientId: client_id });
+  if (!app || !app.isActive) {
+    return errorResponse("Invalid client_id", 400);
+  }
+  if (!app.redirectUris.includes(redirect_uri)) {
+    return errorResponse("redirect_uri mismatch", 400);
+  }
+
+  const scopes = typeof scope === "string" ? scope.split(" ").filter(Boolean) : scope;
+
+  // Create authorization code
+  const result = await ctx.runMutation(internal.mutations.oauth.createAuthorizationCode, {
+    clientId: client_id,
+    userId: user_id,
+    redirectUri: redirect_uri,
+    scopes,
+    codeChallenge: code_challenge,
+    codeChallengeMethod: code_challenge_method,
+  });
+
+  // Build redirect URL
+  const redirectUrl = new URL(redirect_uri);
+  redirectUrl.searchParams.set("code", result.code);
+  if (state) redirectUrl.searchParams.set("state", state);
+
+  return jsonResponse({ redirect_uri: redirectUrl.toString() });
+}
+
+/**
+ * POST /api/v1/oauth/token — Exchange auth code for tokens, or refresh tokens.
+ */
+async function handleOAuthToken(
+  ctx: HttpCtx,
+  request: Request,
+  _params: Record<string, string>
+): Promise<Response> {
+  // Accept both JSON and form-encoded bodies (OAuth spec uses form-encoded)
+  let body: Record<string, string>;
+  const contentType = request.headers.get("content-type") || "";
+  if (contentType.includes("application/json")) {
+    const parsed = await parseJsonBody(request);
+    if (parsed instanceof Response) return parsed;
+    body = parsed;
+  } else {
+    const text = await request.text();
+    body = Object.fromEntries(new URLSearchParams(text));
+  }
+
+  const grantType = body.grant_type;
+
+  // ── Authorization Code Grant ────────────────────────────────────────────
+  if (grantType === "authorization_code") {
+    const { code, redirect_uri, client_id, client_secret, code_verifier } = body;
+    if (!code || !redirect_uri || !client_id) {
+      return errorResponse("Missing required fields: code, redirect_uri, client_id", 400);
+    }
+
+    // Authenticate client
+    const app = await ctx.runQuery(internal.queries.oauth.getAppByClientId, { clientId: client_id });
+    if (!app || !app.isActive) {
+      return errorResponse("Invalid client_id", 401);
+    }
+
+    // Client secret is required for confidential clients (not using PKCE)
+    if (client_secret) {
+      const secretHash = await hashToken(client_secret);
+      if (secretHash !== app.clientSecretHash) {
+        return errorResponse("Invalid client_secret", 401);
+      }
+    }
+
+    // Look up the authorization code
+    const codeRecord = await ctx.runQuery(internal.queries.oauth.getAuthorizationCode, { code });
+    if (!codeRecord) {
+      return errorResponse("Invalid authorization code", 400);
+    }
+    if (codeRecord.usedAt) {
+      return errorResponse("Authorization code already used", 400);
+    }
+    if (codeRecord.expiresAt < Date.now()) {
+      return errorResponse("Authorization code expired", 400);
+    }
+    if (codeRecord.clientId !== client_id) {
+      return errorResponse("client_id mismatch", 400);
+    }
+    if (codeRecord.redirectUri !== redirect_uri) {
+      return errorResponse("redirect_uri mismatch", 400);
+    }
+
+    // Exchange code for tokens
+    const tokens = await ctx.runMutation(internal.mutations.oauth.exchangeCodeForTokens, {
+      codeId: codeRecord._id,
+      clientId: client_id,
+      userId: codeRecord.userId,
+      scopes: codeRecord.scopes,
+      codeVerifier: code_verifier,
+      codeChallenge: codeRecord.codeChallenge,
+      codeChallengeMethod: codeRecord.codeChallengeMethod,
+    });
+
+    return jsonResponse({
+      access_token: tokens.accessToken,
+      token_type: "Bearer",
+      expires_in: tokens.expiresIn,
+      refresh_token: tokens.refreshToken,
+      scope: tokens.scopes.join(" "),
+    });
+  }
+
+  // ── Refresh Token Grant ─────────────────────────────────────────────────
+  if (grantType === "refresh_token") {
+    const { refresh_token, client_id, client_secret } = body;
+    if (!refresh_token || !client_id) {
+      return errorResponse("Missing required fields: refresh_token, client_id", 400);
+    }
+
+    // Authenticate client
+    const app = await ctx.runQuery(internal.queries.oauth.getAppByClientId, { clientId: client_id });
+    if (!app || !app.isActive) {
+      return errorResponse("Invalid client_id", 401);
+    }
+    if (client_secret) {
+      const secretHash = await hashToken(client_secret);
+      if (secretHash !== app.clientSecretHash) {
+        return errorResponse("Invalid client_secret", 401);
+      }
+    }
+
+    // Look up the refresh token
+    const rtHash = await hashToken(refresh_token);
+    const rtRecord = await ctx.runQuery(internal.queries.oauth.getRefreshTokenByHash, { tokenHash: rtHash });
+    if (!rtRecord) {
+      return errorResponse("Invalid or expired refresh token", 400);
+    }
+    if (rtRecord.clientId !== client_id) {
+      return errorResponse("client_id mismatch", 400);
+    }
+
+    const tokens = await ctx.runMutation(internal.mutations.oauth.refreshAccessToken, {
+      refreshTokenId: rtRecord._id,
+      clientId: client_id,
+      userId: rtRecord.userId,
+      scopes: rtRecord.scopes,
+      oldAccessTokenHash: rtRecord.accessTokenHash,
+    });
+
+    return jsonResponse({
+      access_token: tokens.accessToken,
+      token_type: "Bearer",
+      expires_in: tokens.expiresIn,
+      refresh_token: tokens.refreshToken,
+      scope: tokens.scopes.join(" "),
+    });
+  }
+
+  return errorResponse("Unsupported grant_type. Use 'authorization_code' or 'refresh_token'.", 400);
+}
+
+/**
+ * POST /api/v1/oauth/revoke — Revoke a token.
+ */
+async function handleOAuthRevoke(
+  ctx: HttpCtx,
+  request: Request,
+  _params: Record<string, string>
+): Promise<Response> {
+  const body = await parseJsonBody(request);
+  if (body instanceof Response) return body;
+
+  const { token, token_type_hint } = body;
+  if (!token) {
+    return errorResponse("Missing token", 400);
+  }
+
+  const tokenHash = await hashToken(token);
+
+  if (token_type_hint === "refresh_token" || token.startsWith(OAUTH_REFRESH_TOKEN_PREFIX)) {
+    await ctx.runMutation(internal.mutations.oauth.revokeRefreshToken, { tokenHash });
+  } else {
+    await ctx.runMutation(internal.mutations.oauth.revokeAccessToken, { tokenHash });
+  }
+
+  // Per RFC 7009, always return 200 even if token was not found
+  return jsonResponse({ success: true });
+}
+
+/**
+ * POST /api/v1/oauth/apps — Register a new OAuth app (authenticated via API key).
+ */
+async function handleCreateOAuthApp(
+  ctx: HttpCtx,
+  request: Request,
+  _params: Record<string, string>
+): Promise<Response> {
+  const auth = await authenticateApiKey(ctx, request);
+  if (auth instanceof Response) return auth;
+
+  const body = await parseJsonBody(request);
+  if (body instanceof Response) return body;
+
+  const { name, description, icon_url, redirect_uris, scopes, homepage } = body;
+  if (!name || !redirect_uris || !scopes) {
+    return errorResponse("Missing required fields: name, redirect_uris, scopes", 400);
+  }
+
+  try {
+    const result = await ctx.runMutation(api.mutations.oauth.createApp, {
+      name,
+      description,
+      iconUrl: icon_url,
+      redirectUris: redirect_uris,
+      scopes,
+      homepage,
+    });
+
+    return jsonResponse(result, 201);
+  } catch (err: any) {
+    return errorResponse(err.message || "Failed to create OAuth app", 400);
+  }
+}
+
+/**
+ * GET /api/v1/oauth/apps — List the developer's OAuth apps.
+ */
+async function handleListOAuthApps(
+  ctx: HttpCtx,
+  request: Request,
+  _params: Record<string, string>
+): Promise<Response> {
+  const auth = await authenticateApiKey(ctx, request);
+  if (auth instanceof Response) return auth;
+
+  const apps = await ctx.runQuery(api.queries.oauth.listMyApps, {});
+  return jsonResponse({ apps });
+}
+
+/**
+ * GET /api/v1/oauth/apps/:id — Get a single OAuth app.
+ */
+async function handleGetOAuthApp(
+  ctx: HttpCtx,
+  request: Request,
+  params: Record<string, string>
+): Promise<Response> {
+  const auth = await authenticateApiKey(ctx, request);
+  if (auth instanceof Response) return auth;
+
+  const appId = params.id as Id<"oauthApps">;
+  const app = await ctx.runQuery(internal.queries.oauth.getAppById, { appId });
+  if (!app || app.userId !== auth.user._id) {
+    return errorResponse("App not found", 404);
+  }
+
+  return jsonResponse({
+    id: app._id,
+    name: app.name,
+    description: app.description,
+    iconUrl: app.iconUrl,
+    clientId: app.clientId,
+    clientSecretPrefix: app.clientSecretPrefix,
+    redirectUris: app.redirectUris,
+    scopes: app.scopes,
+    homepage: app.homepage,
+    isActive: app.isActive,
+    createdAt: app.createdAt,
+  });
+}
+
+/**
+ * PATCH /api/v1/oauth/apps/:id — Update an OAuth app.
+ */
+async function handleUpdateOAuthApp(
+  ctx: HttpCtx,
+  request: Request,
+  params: Record<string, string>
+): Promise<Response> {
+  const auth = await authenticateApiKey(ctx, request);
+  if (auth instanceof Response) return auth;
+
+  const body = await parseJsonBody(request);
+  if (body instanceof Response) return body;
+
+  const appId = params.id as Id<"oauthApps">;
+  try {
+    await ctx.runMutation(api.mutations.oauth.updateApp, {
+      appId,
+      name: body.name,
+      description: body.description,
+      iconUrl: body.icon_url,
+      redirectUris: body.redirect_uris,
+      scopes: body.scopes,
+      homepage: body.homepage,
+    });
+    return jsonResponse({ success: true });
+  } catch (err: any) {
+    return errorResponse(err.message || "Failed to update app", 400);
+  }
+}
+
+/**
+ * DELETE /api/v1/oauth/apps/:id — Deactivate an OAuth app.
+ */
+async function handleDeleteOAuthApp(
+  ctx: HttpCtx,
+  request: Request,
+  params: Record<string, string>
+): Promise<Response> {
+  const auth = await authenticateApiKey(ctx, request);
+  if (auth instanceof Response) return auth;
+
+  const appId = params.id as Id<"oauthApps">;
+  try {
+    await ctx.runMutation(api.mutations.oauth.deleteApp, { appId });
+    return jsonResponse({ success: true });
+  } catch (err: any) {
+    return errorResponse(err.message || "Failed to delete app", 400);
+  }
+}
+
+/**
+ * POST /api/v1/oauth/apps/:id/rotate-secret — Rotate client secret.
+ */
+async function handleRotateOAuthSecret(
+  ctx: HttpCtx,
+  request: Request,
+  params: Record<string, string>
+): Promise<Response> {
+  const auth = await authenticateApiKey(ctx, request);
+  if (auth instanceof Response) return auth;
+
+  const appId = params.id as Id<"oauthApps">;
+  try {
+    const result = await ctx.runMutation(api.mutations.oauth.rotateSecret, { appId });
+    return jsonResponse(result);
+  } catch (err: any) {
+    return errorResponse(err.message || "Failed to rotate secret", 400);
+  }
+}
+
 // ─── Router ──────────────────────────────────────────────────────────────────
 
 type RouteEntry = {
@@ -1967,6 +2448,58 @@ const routes: RouteEntry[] = [
     method: "POST",
     pattern: "/api/v1/challenges/:id/mini-games",
     handler: handleCreateMiniGame,
+  },
+
+  // OAuth Provider
+  {
+    method: "GET",
+    pattern: "/api/v1/oauth/authorize",
+    handler: handleOAuthAuthorize,
+  },
+  {
+    method: "POST",
+    pattern: "/api/v1/oauth/authorize",
+    handler: handleOAuthAuthorizePost,
+  },
+  {
+    method: "POST",
+    pattern: "/api/v1/oauth/token",
+    handler: handleOAuthToken,
+  },
+  {
+    method: "POST",
+    pattern: "/api/v1/oauth/revoke",
+    handler: handleOAuthRevoke,
+  },
+  {
+    method: "POST",
+    pattern: "/api/v1/oauth/apps/:id/rotate-secret",
+    handler: handleRotateOAuthSecret,
+  },
+  {
+    method: "GET",
+    pattern: "/api/v1/oauth/apps/:id",
+    handler: handleGetOAuthApp,
+  },
+  {
+    method: "PATCH",
+    pattern: "/api/v1/oauth/apps/:id",
+    handler: handleUpdateOAuthApp,
+  },
+  {
+    method: "DELETE",
+    pattern: "/api/v1/oauth/apps/:id",
+    handler: handleDeleteOAuthApp,
+  },
+  {
+    method: "POST",
+    pattern: "/api/v1/oauth/apps",
+    handler: handleCreateOAuthApp,
+  },
+  {
+    method: "GET",
+    pattern: "/api/v1/oauth/apps",
+    handler: handleListOAuthApps,
   },
 
   // Single challenge
@@ -2149,6 +2682,8 @@ export const apiV1Router = httpAction(async (ctx, request) => {
     const params = matchRoute(path, route.pattern);
     if (params !== null) {
       try {
+        // OAuth scope checking is done inside individual handlers that call authenticateApiKey.
+        // The checkOAuthScopes function is available for handlers that need it.
         const response = await route.handler(ctx, request, params);
 
         // Log API request metrics

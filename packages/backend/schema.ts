@@ -789,6 +789,69 @@ export default defineSchema({
     externalData: v.any(),
   }).index("activityId", ["activityId"]),
 
+  // ─── OAuth Provider ──────────────────────────────────────────────────────
+  // Third-party OAuth applications ("Login with March Fit")
+  oauthApps: defineTable({
+    userId: v.id("users"), // Developer who registered the app
+    name: v.string(),
+    description: v.optional(v.string()),
+    iconUrl: v.optional(v.string()),
+    clientId: v.string(), // Public identifier: mfapp_<random>
+    clientSecretHash: v.string(), // SHA-256 of client secret
+    clientSecretPrefix: v.string(), // First 8 chars for display
+    redirectUris: v.array(v.string()),
+    scopes: v.array(v.string()), // Allowed scopes for this app
+    homepage: v.optional(v.string()),
+    isActive: v.boolean(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_clientId", ["clientId"])
+    .index("by_userId", ["userId"]),
+
+  // OAuth authorization codes (short-lived, single-use)
+  oauthAuthorizationCodes: defineTable({
+    code: v.string(), // Random authorization code
+    clientId: v.string(),
+    userId: v.id("users"),
+    redirectUri: v.string(),
+    scopes: v.array(v.string()),
+    codeChallenge: v.optional(v.string()), // PKCE
+    codeChallengeMethod: v.optional(v.string()), // "S256"
+    expiresAt: v.number(),
+    usedAt: v.optional(v.number()), // Prevent replay
+    createdAt: v.number(),
+  }).index("by_code", ["code"]),
+
+  // OAuth access tokens
+  oauthAccessTokens: defineTable({
+    tokenHash: v.string(), // SHA-256 of token
+    tokenPrefix: v.string(), // First 8 chars for display
+    clientId: v.string(),
+    userId: v.id("users"),
+    scopes: v.array(v.string()),
+    expiresAt: v.number(),
+    revokedAt: v.optional(v.number()),
+    createdAt: v.number(),
+  })
+    .index("by_tokenHash", ["tokenHash"])
+    .index("by_userId", ["userId"]),
+
+  // OAuth refresh tokens
+  oauthRefreshTokens: defineTable({
+    tokenHash: v.string(),
+    tokenPrefix: v.string(),
+    clientId: v.string(),
+    userId: v.id("users"),
+    scopes: v.array(v.string()),
+    expiresAt: v.number(),
+    revokedAt: v.optional(v.number()),
+    accessTokenHash: v.string(), // Associated access token
+    createdAt: v.number(),
+  })
+    .index("by_tokenHash", ["tokenHash"])
+    .index("by_userId", ["userId"]),
+
   // Email Sends - tracking sent emails
   emailSends: defineTable({
     emailSequenceId: v.id("emailSequences"),
