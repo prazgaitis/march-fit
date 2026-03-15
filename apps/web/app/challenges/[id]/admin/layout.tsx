@@ -156,7 +156,7 @@ export default async function ChallengeAdminLayout({
 
       {/* Main Content - Scrollable */}
       <main className="min-h-0 flex-1 overflow-y-auto">
-        <div className="p-3">
+        <div className="h-full p-3">
           {children}
         </div>
       </main>
