@@ -85,7 +85,7 @@ function ResponsiveDialog({
   if (isMobile) {
     return (
       <ResponsiveDialogContext.Provider value={{ isMobile: true }}>
-        <Drawer open={open} onOpenChange={onOpenChange}>
+        <Drawer open={open} onOpenChange={onOpenChange} handleOnly>
           {children}
         </Drawer>
       </ResponsiveDialogContext.Provider>
@@ -122,7 +122,7 @@ function ResponsiveDialogContent({
 
   if (isMobile) {
     return (
-      <DrawerContent className={cn("max-h-[96dvh]", className)}>
+      <DrawerContent className={cn("max-h-[96svh]", className)}>
         {children}
       </DrawerContent>
     );
