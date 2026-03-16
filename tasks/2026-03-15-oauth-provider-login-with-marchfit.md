@@ -146,6 +146,35 @@ Third-party developers are building micro-apps (workout guides, custom trackers,
 
 ---
 
+## Phase 5: Challenge Scoping
+
+- [x] Optional `challenge_id` parameter in authorize URL
+  - Validates challenge exists during authorization
+  - Stored on auth codes, access tokens, and refresh tokens
+  - Consent screen shows which challenge the token is scoped to
+- [x] API enforcement: challenge-scoped tokens can only access the scoped challenge
+  - `GET /api/v1/challenges` returns only the scoped challenge
+  - All challenge sub-resource endpoints (activities, leaderboard, activity-types) check scope
+  - Returns 403 if token tries to access a different challenge
+- [x] Token response includes `challenge_id` when scoped
+- [x] Refresh preserves challenge scope
+
+---
+
+## Phase 6: Demo App & Documentation
+
+- [x] `examples/oauth-demo/index.html` — Single-page demo app showing full PKCE flow
+  - Login with March Fit button
+  - Profile display, challenge info, leaderboard
+  - Activity logging
+  - Token revocation on logout
+- [x] `docs/oauth-integration.md` — Integration guide for coding agents
+  - Full API reference with request/response examples
+  - PKCE flow walkthrough
+  - Challenge scoping documentation
+
+---
+
 ## Implementation Notes
 
 - OAuth access tokens use prefix `mfoauth_` to distinguish from API keys (`mf_`)
@@ -159,3 +188,4 @@ Third-party developers are building micro-apps (workout guides, custom trackers,
 - Access tokens expire after 1 hour
 - Refresh tokens expire after 30 days
 - Consent screen rendered by frontend at `/oauth/authorize`
+- Challenge scoping is optional — omitting `challenge_id` gives access to all challenges

@@ -33,6 +33,8 @@ type AuthResult = {
   keyId: Id<"apiKeys">;
   /** Present when authenticated via OAuth token (null for API keys) */
   oauthScopes?: string[];
+  /** Present when OAuth token is scoped to a specific challenge */
+  oauthChallengeId?: Id<"challenges">;
 };
 
 // ─── Response Helpers ────────────────────────────────────────────────────────
@@ -93,6 +95,7 @@ async function authenticateApiKey(
       user: result.user,
       keyId: result.token._id as unknown as Id<"apiKeys">, // Satisfy type — not a real apiKey
       oauthScopes: result.token.scopes,
+      oauthChallengeId: result.token.challengeId,
     };
   }
 
@@ -140,6 +143,24 @@ function checkOAuthScopes(
   if (!scopesAreSubset(required, auth.oauthScopes)) {
     return errorResponse(
       `Insufficient scope. Required: ${required.join(", ")}`,
+      403
+    );
+  }
+  return null;
+}
+
+/**
+ * If the OAuth token is scoped to a challenge, verify the request targets that challenge.
+ * Returns an error Response if mismatched, or null if OK.
+ */
+function checkOAuthChallengeScope(
+  auth: AuthResult,
+  challengeId: string
+): Response | null {
+  if (!auth.oauthChallengeId) return null; // Not challenge-scoped
+  if (auth.oauthChallengeId !== challengeId) {
+    return errorResponse(
+      "This token is scoped to a different challenge",
       403
     );
   }
@@ -226,6 +247,14 @@ async function handleListChallenges(
   const auth = await authenticateApiKey(ctx, request);
   if (auth instanceof Response) return auth;
 
+  // If challenge-scoped, only return the scoped challenge
+  if (auth.oauthChallengeId) {
+    const challenge = await ctx.runQuery(api.queries.challenges.getById, {
+      challengeId: auth.oauthChallengeId,
+    });
+    return jsonResponse({ challenges: challenge ? [challenge] : [] });
+  }
+
   const url = new URL(request.url);
   const limit = parseInt(url.searchParams.get("limit") ?? "20");
   const offset = parseInt(url.searchParams.get("offset") ?? "0");
@@ -248,6 +277,9 @@ async function handleGetChallenge(
   if (auth instanceof Response) return auth;
 
   const challengeId = params.id as Id<"challenges">;
+  const challengeScopeErr = checkOAuthChallengeScope(auth, challengeId);
+  if (challengeScopeErr) return challengeScopeErr;
+
   const challenge = await ctx.runQuery(api.queries.challenges.getById, {
     challengeId,
   });
@@ -361,6 +393,9 @@ async function handleListActivityTypes(
   if (auth instanceof Response) return auth;
 
   const challengeId = params.id as Id<"challenges">;
+  const challengeScopeErr = checkOAuthChallengeScope(auth, challengeId);
+  if (challengeScopeErr) return challengeScopeErr;
+
   const activityTypes = await ctx.runQuery(
     api.queries.activityTypes.getByChallengeId,
     { challengeId }
@@ -379,6 +414,8 @@ async function handleListActivities(
 
   const url = new URL(request.url);
   const challengeId = params.id as Id<"challenges">;
+  const challengeScopeErr = checkOAuthChallengeScope(auth, challengeId);
+  if (challengeScopeErr) return challengeScopeErr;
   const limit = parseInt(url.searchParams.get("limit") ?? "20");
 
   const activities = await ctx.runQuery(
@@ -428,6 +465,8 @@ async function handleLogActivity(
   if (auth instanceof Response) return auth;
 
   const challengeId = params.id as Id<"challenges">;
+  const challengeScopeErr = checkOAuthChallengeScope(auth, challengeId);
+  if (challengeScopeErr) return challengeScopeErr;
   const body = await parseJsonBody(request);
   if (body instanceof Response) return body;
 
@@ -513,6 +552,9 @@ async function handleGetLeaderboard(
   if (auth instanceof Response) return auth;
 
   const challengeId = params.id as Id<"challenges">;
+  const challengeScopeErr = checkOAuthChallengeScope(auth, challengeId);
+  if (challengeScopeErr) return challengeScopeErr;
+
   const leaderboard = await ctx.runQuery(
     api.queries.participations.getFullLeaderboard,
     { challengeId }
@@ -1927,6 +1969,19 @@ async function handleOAuthAuthorize(
     return errorResponse("Invalid or unauthorized scopes", 400);
   }
 
+  // Optional challenge scoping
+  const challengeId = url.searchParams.get("challenge_id");
+  let challengeName: string | undefined;
+  if (challengeId) {
+    const challenge = await ctx.runQuery(api.queries.challenges.getById, {
+      challengeId: challengeId as Id<"challenges">,
+    });
+    if (!challenge) {
+      return errorResponse("Invalid challenge_id", 400);
+    }
+    challengeName = challenge.name;
+  }
+
   // Redirect to the frontend consent page with all params
   const appUrl = process.env.NEXT_PUBLIC_APP_URL || process.env.SITE_URL || "http://localhost:3000";
   const consentUrl = new URL("/oauth/authorize", appUrl);
@@ -1938,6 +1993,8 @@ async function handleOAuthAuthorize(
   const codeChallengeMethod = url.searchParams.get("code_challenge_method");
   if (codeChallenge) consentUrl.searchParams.set("code_challenge", codeChallenge);
   if (codeChallengeMethod) consentUrl.searchParams.set("code_challenge_method", codeChallengeMethod);
+  if (challengeId) consentUrl.searchParams.set("challenge_id", challengeId);
+  if (challengeName) consentUrl.searchParams.set("challenge_name", challengeName);
 
   // Add app metadata for the consent screen
   consentUrl.searchParams.set("app_name", app.name);
@@ -1966,7 +2023,7 @@ async function handleOAuthAuthorizePost(
   const body = await parseJsonBody(request);
   if (body instanceof Response) return body;
 
-  const { client_id, redirect_uri, scope, state, code_challenge, code_challenge_method, user_id } = body;
+  const { client_id, redirect_uri, scope, state, code_challenge, code_challenge_method, user_id, challenge_id } = body;
 
   if (!client_id || !redirect_uri || !scope || !user_id) {
     return errorResponse("Missing required fields", 400);
@@ -1989,6 +2046,7 @@ async function handleOAuthAuthorizePost(
     userId: user_id,
     redirectUri: redirect_uri,
     scopes,
+    challengeId: challenge_id as Id<"challenges"> | undefined,
     codeChallenge: code_challenge,
     codeChallengeMethod: code_challenge_method,
   });
@@ -2068,6 +2126,7 @@ async function handleOAuthToken(
       clientId: client_id,
       userId: codeRecord.userId,
       scopes: codeRecord.scopes,
+      challengeId: codeRecord.challengeId,
       codeVerifier: code_verifier,
       codeChallenge: codeRecord.codeChallenge,
       codeChallengeMethod: codeRecord.codeChallengeMethod,
@@ -2079,6 +2138,7 @@ async function handleOAuthToken(
       expires_in: tokens.expiresIn,
       refresh_token: tokens.refreshToken,
       scope: tokens.scopes.join(" "),
+      ...(tokens.challengeId ? { challenge_id: tokens.challengeId } : {}),
     });
   }
 
@@ -2116,6 +2176,7 @@ async function handleOAuthToken(
       clientId: client_id,
       userId: rtRecord.userId,
       scopes: rtRecord.scopes,
+      challengeId: rtRecord.challengeId,
       oldAccessTokenHash: rtRecord.accessTokenHash,
     });
 
@@ -2125,6 +2186,7 @@ async function handleOAuthToken(
       expires_in: tokens.expiresIn,
       refresh_token: tokens.refreshToken,
       scope: tokens.scopes.join(" "),
+      ...(tokens.challengeId ? { challenge_id: tokens.challengeId } : {}),
     });
   }
 
@@ -2179,7 +2241,8 @@ async function handleCreateOAuthApp(
   }
 
   try {
-    const result = await ctx.runMutation(api.mutations.oauth.createApp, {
+    const result = await ctx.runMutation(internal.mutations.oauth.createAppForUser, {
+      userId: auth.user._id,
       name,
       description,
       iconUrl: icon_url,
@@ -2205,7 +2268,9 @@ async function handleListOAuthApps(
   const auth = await authenticateApiKey(ctx, request);
   if (auth instanceof Response) return auth;
 
-  const apps = await ctx.runQuery(api.queries.oauth.listMyApps, {});
+  const apps = await ctx.runQuery(internal.queries.oauth.listAppsByUserId, {
+    userId: auth.user._id,
+  });
   return jsonResponse({ apps });
 }
 
@@ -2257,7 +2322,8 @@ async function handleUpdateOAuthApp(
 
   const appId = params.id as Id<"oauthApps">;
   try {
-    await ctx.runMutation(api.mutations.oauth.updateApp, {
+    await ctx.runMutation(internal.mutations.oauth.updateAppForUser, {
+      userId: auth.user._id,
       appId,
       name: body.name,
       description: body.description,
@@ -2285,7 +2351,10 @@ async function handleDeleteOAuthApp(
 
   const appId = params.id as Id<"oauthApps">;
   try {
-    await ctx.runMutation(api.mutations.oauth.deleteApp, { appId });
+    await ctx.runMutation(internal.mutations.oauth.deleteAppForUser, {
+      userId: auth.user._id,
+      appId,
+    });
     return jsonResponse({ success: true });
   } catch (err: any) {
     return errorResponse(err.message || "Failed to delete app", 400);
@@ -2305,7 +2374,10 @@ async function handleRotateOAuthSecret(
 
   const appId = params.id as Id<"oauthApps">;
   try {
-    const result = await ctx.runMutation(api.mutations.oauth.rotateSecret, { appId });
+    const result = await ctx.runMutation(internal.mutations.oauth.rotateSecretForUser, {
+      userId: auth.user._id,
+      appId,
+    });
     return jsonResponse(result);
   } catch (err: any) {
     return errorResponse(err.message || "Failed to rotate secret", 400);

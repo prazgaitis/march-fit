@@ -180,6 +180,169 @@ export const rotateSecret = mutation({
   },
 });
 
+// ─── App Management (internal — called from HTTP API) ─────────────────────
+
+/**
+ * Register a new OAuth app on behalf of a user (API key auth).
+ */
+export const createAppForUser = internalMutation({
+  args: {
+    userId: v.id("users"),
+    name: v.string(),
+    description: v.optional(v.string()),
+    iconUrl: v.optional(v.string()),
+    redirectUris: v.array(v.string()),
+    scopes: v.array(v.string()),
+    homepage: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    if (!validateScopes(args.scopes)) {
+      throw new Error(
+        `Invalid scopes. Valid scopes: ${VALID_SCOPES.join(", ")}`
+      );
+    }
+
+    for (const uri of args.redirectUris) {
+      try {
+        new URL(uri);
+      } catch {
+        throw new Error(`Invalid redirect URI: ${uri}`);
+      }
+    }
+
+    const existing = await ctx.db
+      .query("oauthApps")
+      .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+      .collect();
+    const active = existing.filter((a) => a.isActive);
+    if (active.length >= 10) {
+      throw new Error("Maximum of 10 active OAuth apps per user");
+    }
+
+    const clientId = generateClientId();
+    const { raw: clientSecretRaw, hash: clientSecretHash, prefix: clientSecretPrefix } =
+      await generateClientSecret();
+
+    const now = Date.now();
+    const appId = await ctx.db.insert("oauthApps", {
+      userId: args.userId,
+      name: args.name,
+      description: args.description,
+      iconUrl: args.iconUrl,
+      clientId,
+      clientSecretHash,
+      clientSecretPrefix,
+      redirectUris: args.redirectUris,
+      scopes: args.scopes,
+      homepage: args.homepage,
+      isActive: true,
+      createdAt: now,
+      updatedAt: now,
+    });
+
+    return {
+      appId,
+      clientId,
+      clientSecret: clientSecretRaw,
+      clientSecretPrefix,
+    };
+  },
+});
+
+/**
+ * Update an OAuth app on behalf of a user (API key auth).
+ */
+export const updateAppForUser = internalMutation({
+  args: {
+    userId: v.id("users"),
+    appId: v.id("oauthApps"),
+    name: v.optional(v.string()),
+    description: v.optional(v.string()),
+    iconUrl: v.optional(v.string()),
+    redirectUris: v.optional(v.array(v.string())),
+    scopes: v.optional(v.array(v.string())),
+    homepage: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const app = await ctx.db.get(args.appId);
+    if (!app || app.userId !== args.userId) {
+      throw new Error("App not found");
+    }
+
+    if (args.scopes && !validateScopes(args.scopes)) {
+      throw new Error(
+        `Invalid scopes. Valid scopes: ${VALID_SCOPES.join(", ")}`
+      );
+    }
+
+    if (args.redirectUris) {
+      for (const uri of args.redirectUris) {
+        try {
+          new URL(uri);
+        } catch {
+          throw new Error(`Invalid redirect URI: ${uri}`);
+        }
+      }
+    }
+
+    const updates: Record<string, unknown> = { updatedAt: Date.now() };
+    if (args.name !== undefined) updates.name = args.name;
+    if (args.description !== undefined) updates.description = args.description;
+    if (args.iconUrl !== undefined) updates.iconUrl = args.iconUrl;
+    if (args.redirectUris !== undefined) updates.redirectUris = args.redirectUris;
+    if (args.scopes !== undefined) updates.scopes = args.scopes;
+    if (args.homepage !== undefined) updates.homepage = args.homepage;
+
+    await ctx.db.patch(args.appId, updates);
+    return { success: true };
+  },
+});
+
+/**
+ * Deactivate an OAuth app on behalf of a user (API key auth).
+ */
+export const deleteAppForUser = internalMutation({
+  args: {
+    userId: v.id("users"),
+    appId: v.id("oauthApps"),
+  },
+  handler: async (ctx, args) => {
+    const app = await ctx.db.get(args.appId);
+    if (!app || app.userId !== args.userId) {
+      throw new Error("App not found");
+    }
+
+    await ctx.db.patch(args.appId, { isActive: false, updatedAt: Date.now() });
+    return { success: true };
+  },
+});
+
+/**
+ * Rotate the client secret for an OAuth app on behalf of a user (API key auth).
+ */
+export const rotateSecretForUser = internalMutation({
+  args: {
+    userId: v.id("users"),
+    appId: v.id("oauthApps"),
+  },
+  handler: async (ctx, args) => {
+    const app = await ctx.db.get(args.appId);
+    if (!app || app.userId !== args.userId) {
+      throw new Error("App not found");
+    }
+
+    const { raw, hash, prefix } = await generateClientSecret();
+
+    await ctx.db.patch(args.appId, {
+      clientSecretHash: hash,
+      clientSecretPrefix: prefix,
+      updatedAt: Date.now(),
+    });
+
+    return { clientSecret: raw, clientSecretPrefix: prefix };
+  },
+});
+
 // ─── Authorization Code (internal — called from HTTP actions) ──────────────
 
 /**
@@ -191,6 +354,7 @@ export const createAuthorizationCode = internalMutation({
     userId: v.id("users"),
     redirectUri: v.string(),
     scopes: v.array(v.string()),
+    challengeId: v.optional(v.id("challenges")),
     codeChallenge: v.optional(v.string()),
     codeChallengeMethod: v.optional(v.string()),
   },
@@ -204,6 +368,7 @@ export const createAuthorizationCode = internalMutation({
       userId: args.userId,
       redirectUri: args.redirectUri,
       scopes: args.scopes,
+      challengeId: args.challengeId,
       codeChallenge: args.codeChallenge,
       codeChallengeMethod: args.codeChallengeMethod,
       expiresAt: now + AUTH_CODE_TTL_MS,
@@ -235,6 +400,7 @@ export const exchangeCodeForTokens = internalMutation({
     clientId: v.string(),
     userId: v.id("users"),
     scopes: v.array(v.string()),
+    challengeId: v.optional(v.id("challenges")),
     codeVerifier: v.optional(v.string()),
     codeChallenge: v.optional(v.string()),
     codeChallengeMethod: v.optional(v.string()),
@@ -265,6 +431,7 @@ export const exchangeCodeForTokens = internalMutation({
       clientId: args.clientId,
       userId: args.userId,
       scopes: args.scopes,
+      challengeId: args.challengeId,
       expiresAt: now + ACCESS_TOKEN_TTL_MS,
       createdAt: now,
     });
@@ -275,6 +442,7 @@ export const exchangeCodeForTokens = internalMutation({
       clientId: args.clientId,
       userId: args.userId,
       scopes: args.scopes,
+      challengeId: args.challengeId,
       expiresAt: now + REFRESH_TOKEN_TTL_MS,
       accessTokenHash: accessToken.hash,
       createdAt: now,
@@ -285,6 +453,7 @@ export const exchangeCodeForTokens = internalMutation({
       refreshToken: refreshToken.raw,
       expiresIn: ACCESS_TOKEN_TTL_MS / 1000,
       scopes: args.scopes,
+      challengeId: args.challengeId,
     };
   },
 });
@@ -298,6 +467,7 @@ export const refreshAccessToken = internalMutation({
     clientId: v.string(),
     userId: v.id("users"),
     scopes: v.array(v.string()),
+    challengeId: v.optional(v.id("challenges")),
     oldAccessTokenHash: v.string(),
   },
   handler: async (ctx, args) => {
@@ -324,6 +494,7 @@ export const refreshAccessToken = internalMutation({
       clientId: args.clientId,
       userId: args.userId,
       scopes: args.scopes,
+      challengeId: args.challengeId,
       expiresAt: now + ACCESS_TOKEN_TTL_MS,
       createdAt: now,
     });
@@ -334,6 +505,7 @@ export const refreshAccessToken = internalMutation({
       clientId: args.clientId,
       userId: args.userId,
       scopes: args.scopes,
+      challengeId: args.challengeId,
       expiresAt: now + REFRESH_TOKEN_TTL_MS,
       accessTokenHash: accessToken.hash,
       createdAt: now,
@@ -344,6 +516,7 @@ export const refreshAccessToken = internalMutation({
       refreshToken: refreshToken.raw,
       expiresIn: ACCESS_TOKEN_TTL_MS / 1000,
       scopes: args.scopes,
+      challengeId: args.challengeId,
     };
   },
 });

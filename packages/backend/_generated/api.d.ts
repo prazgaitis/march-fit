@@ -51,6 +51,7 @@ import type * as lib_latencyMonitoring from "../lib/latencyMonitoring.js";
 import type * as lib_mentions from "../lib/mentions.js";
 import type * as lib_miniGameCalculations from "../lib/miniGameCalculations.js";
 import type * as lib_notifications from "../lib/notifications.js";
+import type * as lib_oauth from "../lib/oauth.js";
 import type * as lib_participationScoring from "../lib/participationScoring.js";
 import type * as lib_payments from "../lib/payments.js";
 import type * as lib_resend from "../lib/resend.js";
@@ -93,6 +94,7 @@ import type * as mutations_integrations from "../mutations/integrations.js";
 import type * as mutations_likes from "../mutations/likes.js";
 import type * as mutations_miniGames from "../mutations/miniGames.js";
 import type * as mutations_notifications from "../mutations/notifications.js";
+import type * as mutations_oauth from "../mutations/oauth.js";
 import type * as mutations_participations from "../mutations/participations.js";
 import type * as mutations_paymentConfig from "../mutations/paymentConfig.js";
 import type * as mutations_payments from "../mutations/payments.js";
@@ -129,6 +131,7 @@ import type * as queries_likes from "../queries/likes.js";
 import type * as queries_memberships from "../queries/memberships.js";
 import type * as queries_miniGames from "../queries/miniGames.js";
 import type * as queries_notifications from "../queries/notifications.js";
+import type * as queries_oauth from "../queries/oauth.js";
 import type * as queries_participations from "../queries/participations.js";
 import type * as queries_paymentConfig from "../queries/paymentConfig.js";
 import type * as queries_paymentConfigInternal from "../queries/paymentConfigInternal.js";
@@ -142,14 +145,6 @@ import type {
   FunctionReference,
 } from "convex/server";
 
-/**
- * A utility for referencing Convex functions in your app's API.
- *
- * Usage:
- * ```js
- * const myFunctionReference = api.myModule.myFunction;
- * ```
- */
 declare const fullApi: ApiFromModules<{
   "actions/addMarch2026Categories": typeof actions_addMarch2026Categories;
   "actions/backfillActivityExternalData": typeof actions_backfillActivityExternalData;
@@ -194,6 +189,7 @@ declare const fullApi: ApiFromModules<{
   "lib/mentions": typeof lib_mentions;
   "lib/miniGameCalculations": typeof lib_miniGameCalculations;
   "lib/notifications": typeof lib_notifications;
+  "lib/oauth": typeof lib_oauth;
   "lib/participationScoring": typeof lib_participationScoring;
   "lib/payments": typeof lib_payments;
   "lib/resend": typeof lib_resend;
@@ -236,6 +232,7 @@ declare const fullApi: ApiFromModules<{
   "mutations/likes": typeof mutations_likes;
   "mutations/miniGames": typeof mutations_miniGames;
   "mutations/notifications": typeof mutations_notifications;
+  "mutations/oauth": typeof mutations_oauth;
   "mutations/participations": typeof mutations_participations;
   "mutations/paymentConfig": typeof mutations_paymentConfig;
   "mutations/payments": typeof mutations_payments;
@@ -272,6 +269,7 @@ declare const fullApi: ApiFromModules<{
   "queries/memberships": typeof queries_memberships;
   "queries/miniGames": typeof queries_miniGames;
   "queries/notifications": typeof queries_notifications;
+  "queries/oauth": typeof queries_oauth;
   "queries/participations": typeof queries_participations;
   "queries/paymentConfig": typeof queries_paymentConfig;
   "queries/paymentConfigInternal": typeof queries_paymentConfigInternal;
@@ -279,14 +277,30 @@ declare const fullApi: ApiFromModules<{
   "queries/users": typeof queries_users;
   "queries/workspaces": typeof queries_workspaces;
 }>;
-declare const fullApiWithMounts: typeof fullApi;
 
+/**
+ * A utility for referencing Convex functions in your app's public API.
+ *
+ * Usage:
+ * ```js
+ * const myFunctionReference = api.myModule.myFunction;
+ * ```
+ */
 export declare const api: FilterApi<
-  typeof fullApiWithMounts,
+  typeof fullApi,
   FunctionReference<any, "public">
 >;
+
+/**
+ * A utility for referencing Convex functions in your app's internal API.
+ *
+ * Usage:
+ * ```js
+ * const myFunctionReference = internal.myModule.myFunction;
+ * ```
+ */
 export declare const internal: FilterApi<
-  typeof fullApiWithMounts,
+  typeof fullApi,
   FunctionReference<any, "internal">
 >;
 
@@ -2631,17 +2645,17 @@ export declare const components: {
         { maxNodeSize?: number; namespace?: any; rootLazy?: boolean },
         null
       >;
-      deleteIfExists: FunctionReference<
-        "mutation",
-        "internal",
-        { key: any; namespace?: any },
-        any
-      >;
       delete_: FunctionReference<
         "mutation",
         "internal",
         { key: any; namespace?: any },
         null
+      >;
+      deleteIfExists: FunctionReference<
+        "mutation",
+        "internal",
+        { key: any; namespace?: any },
+        any
       >;
       init: FunctionReference<
         "mutation",

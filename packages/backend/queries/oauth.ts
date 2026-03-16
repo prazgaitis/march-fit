@@ -100,6 +100,34 @@ export const listMyApps = query({
 });
 
 /**
+ * List OAuth apps for a user (internal — called from HTTP API).
+ */
+export const listAppsByUserId = internalQuery({
+  args: { userId: v.id("users") },
+  handler: async (ctx, args) => {
+    const apps = await ctx.db
+      .query("oauthApps")
+      .withIndex("by_userId", (q) => q.eq("userId", args.userId))
+      .collect();
+
+    return apps
+      .filter((a) => a.isActive)
+      .map((a) => ({
+        id: a._id,
+        name: a.name,
+        description: a.description,
+        iconUrl: a.iconUrl,
+        clientId: a.clientId,
+        clientSecretPrefix: a.clientSecretPrefix,
+        redirectUris: a.redirectUris,
+        scopes: a.scopes,
+        homepage: a.homepage,
+        createdAt: a.createdAt,
+      }));
+  },
+});
+
+/**
  * Get a single OAuth app by ID (internal).
  */
 export const getAppById = internalQuery({

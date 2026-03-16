@@ -816,6 +816,7 @@ export default defineSchema({
     userId: v.id("users"),
     redirectUri: v.string(),
     scopes: v.array(v.string()),
+    challengeId: v.optional(v.id("challenges")), // Optional challenge scoping
     codeChallenge: v.optional(v.string()), // PKCE
     codeChallengeMethod: v.optional(v.string()), // "S256"
     expiresAt: v.number(),
@@ -830,6 +831,7 @@ export default defineSchema({
     clientId: v.string(),
     userId: v.id("users"),
     scopes: v.array(v.string()),
+    challengeId: v.optional(v.id("challenges")), // Optional challenge scoping
     expiresAt: v.number(),
     revokedAt: v.optional(v.number()),
     createdAt: v.number(),
@@ -844,6 +846,7 @@ export default defineSchema({
     clientId: v.string(),
     userId: v.id("users"),
     scopes: v.array(v.string()),
+    challengeId: v.optional(v.id("challenges")), // Optional challenge scoping
     expiresAt: v.number(),
     revokedAt: v.optional(v.number()),
     accessTokenHash: v.string(), // Associated access token

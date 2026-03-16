@@ -23,6 +23,8 @@ function ConsentForm() {
   const state = searchParams.get("state");
   const codeChallenge = searchParams.get("code_challenge");
   const codeChallengeMethod = searchParams.get("code_challenge_method");
+  const challengeId = searchParams.get("challenge_id");
+  const challengeName = searchParams.get("challenge_name");
   const appName = searchParams.get("app_name") || "Unknown App";
   const appDescription = searchParams.get("app_description");
   const appIcon = searchParams.get("app_icon");
@@ -52,6 +54,7 @@ function ConsentForm() {
           redirect_uri: redirectUri,
           scope,
           state,
+          challenge_id: challengeId,
           code_challenge: codeChallenge,
           code_challenge_method: codeChallengeMethod,
         }),
@@ -97,6 +100,11 @@ function ConsentForm() {
           </h1>
           {appDescription && (
             <p className="mt-2 text-sm text-zinc-400">{appDescription}</p>
+          )}
+          {challengeName && (
+            <p className="mt-2 rounded-md border border-indigo-900/50 bg-indigo-950/30 px-3 py-1.5 text-sm text-indigo-300">
+              Scoped to <span className="font-semibold">{challengeName}</span>
+            </p>
           )}
         </div>
 
