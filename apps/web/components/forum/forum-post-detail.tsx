@@ -6,6 +6,7 @@ import { useQuery, useMutation } from "@/lib/convex-auth-react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import {
   ArrowBigUp,
   ArrowLeft,
@@ -345,7 +346,7 @@ function PostContent({
       return (
         <div className="space-y-3">
           <div className="prose prose-sm prose-invert max-w-none break-words prose-p:my-2 prose-pre:bg-zinc-900 prose-pre:text-zinc-200 prose-code:text-zinc-200 prose-a:text-indigo-300 prose-a:underline">
-            <ReactMarkdown>{extracted}</ReactMarkdown>
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{extracted}</ReactMarkdown>
           </div>
           <PostActivityCards content={extracted} />
         </div>
@@ -358,7 +359,7 @@ function PostContent({
   return (
     <div className="space-y-3">
       <div className="prose prose-sm prose-invert max-w-none break-words prose-p:my-2 prose-pre:bg-zinc-900 prose-pre:text-zinc-200 prose-code:text-zinc-200 prose-a:text-indigo-300 prose-a:underline">
-        <ReactMarkdown>{content}</ReactMarkdown>
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
       </div>
       <PostActivityCards content={content} />
     </div>
