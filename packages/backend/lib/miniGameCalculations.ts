@@ -295,6 +295,12 @@ export async function previewHuntWeekEnd(
       wasCaught = hunterCurrentRank < currentRank;
     }
 
+    // The #1 player has no prey to catch, but earns the catch bonus
+    // by holding their position (not getting caught).
+    if (initialRank === 1 && !p.preyUserId && !wasCaught) {
+      caughtPrey = true;
+    }
+
     const bonusPoints =
       (caughtPrey ? catchBonus : 0) - (wasCaught ? caughtPenalty : 0);
     totalBonusPoints += bonusPoints;
