@@ -285,16 +285,72 @@ export function ForumPostDetail({ postId, challengeId }: ForumPostDetailProps) {
 }
 
 /**
+ * Extract markdown-compatible text from Tiptap JSON.
+ * Converts bold/italic marks to markdown syntax and joins paragraphs with newlines.
+ */
+function tiptapToMarkdown(content: string): string | null {
+  try {
+    const doc = JSON.parse(content);
+    if (doc?.type !== "doc" || !Array.isArray(doc.content)) return null;
+
+    function renderNode(node: { type?: string; text?: string; content?: typeof doc.content; marks?: Array<{ type: string; attrs?: Record<string, unknown> }> }): string {
+      if (node.type === "text" && typeof node.text === "string") {
+        let text = node.text;
+        if (node.marks) {
+          for (const mark of node.marks) {
+            if (mark.type === "bold") text = `**${text}**`;
+            else if (mark.type === "italic") text = `*${text}*`;
+            else if (mark.type === "link" && mark.attrs?.href) text = `[${text}](${mark.attrs.href})`;
+          }
+        }
+        return text;
+      }
+      if (node.type === "hardBreak") return "\n";
+      if (node.type === "mention") return `@${(node as { attrs?: { username?: string } }).attrs?.username ?? ""}`;
+      const children = node.content?.map(renderNode).join("") ?? "";
+      if (node.type === "paragraph") return children;
+      if (node.type === "heading") return children;
+      if (node.type === "horizontalRule") return "---";
+      return children;
+    }
+
+    return doc.content
+      .map((node: typeof doc.content[0]) => renderNode(node))
+      .join("\n");
+  } catch {
+    return null;
+  }
+}
+
+/** Check if plain text contains markdown table or heading syntax */
+function containsMarkdownSyntax(text: string): boolean {
+  return /^\|.+\|$/m.test(text) || /^#{1,6}\s/m.test(text);
+}
+
+/**
  * Renders post content — uses RichTextViewer for JSON (Tiptap) content,
  * falls back to markdown rendering with activity link card detection for legacy posts.
+ * Tiptap content that contains markdown syntax (tables, headings) is extracted
+ * and rendered through ReactMarkdown for proper formatting.
  */
 function PostContent({
   content,
 }: {
   content: string;
 }) {
-  // If it looks like Tiptap JSON, render with RichTextViewer
+  // If it looks like Tiptap JSON, check if it contains markdown syntax
   if (content.trim().startsWith("{")) {
+    const extracted = tiptapToMarkdown(content);
+    if (extracted && containsMarkdownSyntax(extracted)) {
+      return (
+        <div className="space-y-3">
+          <div className="prose prose-sm prose-invert max-w-none break-words prose-p:my-2 prose-pre:bg-zinc-900 prose-pre:text-zinc-200 prose-code:text-zinc-200 prose-a:text-indigo-300 prose-a:underline">
+            <ReactMarkdown>{extracted}</ReactMarkdown>
+          </div>
+          <PostActivityCards content={extracted} />
+        </div>
+      );
+    }
     return <RichTextViewer content={content} />;
   }
 
