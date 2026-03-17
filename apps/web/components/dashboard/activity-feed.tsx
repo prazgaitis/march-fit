@@ -248,7 +248,7 @@ export function ActivityFeed({
       : {
           challengeId: challengeId as Id<"challenges">,
           followingOnly: feedFilter === "following",
-          includeEngagementCounts: !lightweightFeedMode,
+          includeEngagementCounts: true,
           includeMediaUrls: true,
         },
     { initialNumItems: 10 },
@@ -393,7 +393,7 @@ export function ActivityFeed({
           credentials: "include",
           body: JSON.stringify({
             followingOnly: feedFilter === "following",
-            includeEngagementCounts: !lightweightFeedMode,
+            includeEngagementCounts: true,
             includeMediaUrls: true,
             cursor,
             numItems: 10,
@@ -786,7 +786,7 @@ export function ActivityFeed({
             <ReactiveActivityCard
               activityId={entry.id}
               challengeId={challengeId}
-              showEngagementCounts={!lightweightFeedMode}
+              showEngagementCounts
               mentionOptions={mentionUsers}
               currentUserId={currentUserId}
               followingSet={followingSet}
@@ -818,7 +818,7 @@ export function ActivityFeed({
             <ActivityCard
               key={item.activity._id}
               challengeId={challengeId}
-              showEngagementCounts={!lightweightFeedMode}
+              showEngagementCounts
               item={{
                 ...item,
                 activity: {
@@ -1043,7 +1043,8 @@ export const ActivityCard = memo(function ActivityCard({
 }: ActivityCardProps) {
   const activityId = item.activity.id ?? item.activity._id;
   const router = useRouter();
-  const [isLiking, setIsLiking] = useState(false);
+  const [optimisticLiked, setOptimisticLiked] = useState<boolean | null>(null);
+  const [optimisticLikeCount, setOptimisticLikeCount] = useState<number | null>(null);
   const [isReposting, setIsReposting] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const [showFlagDialog, setShowFlagDialog] = useState(false);
@@ -1057,16 +1058,38 @@ export const ActivityCard = memo(function ActivityCard({
   const toggleRepost = useMutation(api.mutations.reposts.toggle);
   const flagActivity = useMutation(api.mutations.activities.flagActivity);
 
+  // Derive effective like state (optimistic or server)
+  const effectiveLiked = optimisticLiked ?? item.likedByUser;
+  const effectiveLikeCount = optimisticLikeCount ?? item.likes;
+
+  // Reset optimistic state when server data catches up
+  useEffect(() => {
+    if (optimisticLiked !== null && item.likedByUser === optimisticLiked) {
+      setOptimisticLiked(null);
+    }
+  }, [item.likedByUser, optimisticLiked]);
+
+  useEffect(() => {
+    if (optimisticLikeCount !== null && item.likes === optimisticLikeCount) {
+      setOptimisticLikeCount(null);
+    }
+  }, [item.likes, optimisticLikeCount]);
+
   const handleToggleLike = useCallback(async () => {
-    setIsLiking(true);
+    const wasLiked = effectiveLiked;
+    const prevCount = effectiveLikeCount;
+    // Optimistic update
+    setOptimisticLiked(!wasLiked);
+    setOptimisticLikeCount(prevCount + (wasLiked ? -1 : 1));
     try {
       await toggleLike({ activityId: activityId as Id<"activities"> });
     } catch (error) {
       console.error("Failed to toggle like", error);
-    } finally {
-      setIsLiking(false);
+      // Revert on error
+      setOptimisticLiked(wasLiked);
+      setOptimisticLikeCount(prevCount);
     }
-  }, [activityId, toggleLike]);
+  }, [activityId, toggleLike, effectiveLiked, effectiveLikeCount]);
 
   const handleToggleRepost = useCallback(async () => {
     setIsReposting(true);
@@ -1156,11 +1179,10 @@ export const ActivityCard = memo(function ActivityCard({
       onClick={(e) => e.stopPropagation()}
     >
       <button
-        disabled={isLiking}
         onClick={handleToggleLike}
         className={cn(
           "flex items-center gap-1.5 text-sm transition-colors py-2",
-          item.likedByUser
+          effectiveLiked
             ? "text-red-500"
             : "hover:text-red-500",
         )}
@@ -1168,11 +1190,11 @@ export const ActivityCard = memo(function ActivityCard({
         <Heart
           className={cn(
             "h-5 w-5 sm:h-[18px] sm:w-[18px]",
-            item.likedByUser && "fill-current",
+            effectiveLiked && "fill-current",
           )}
         />
-        {showEngagementCounts && item.likes > 0 && (
-          <span>{item.likes}</span>
+        {showEngagementCounts && effectiveLikeCount > 0 && (
+          <span>{effectiveLikeCount}</span>
         )}
       </button>
       <button
@@ -1403,13 +1425,13 @@ export const ActivityCard = memo(function ActivityCard({
     />
   ) : null;
 
-  const likesDisplay = showEngagementCounts && item.likes > 0 ? (
+  const likesDisplay = showEngagementCounts && effectiveLikeCount > 0 ? (
     <div onClick={(e) => e.stopPropagation()}>
       <LikesDisplay
         activityId={activityId}
         challengeId={challengeId}
-        likes={item.likes}
-        likedByUser={item.likedByUser}
+        likes={effectiveLikeCount}
+        likedByUser={effectiveLiked}
         recentLikers={item.recentLikers ?? []}
         currentUserId={currentUserId}
       />
