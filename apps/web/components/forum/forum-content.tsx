@@ -1,11 +1,12 @@
 "use client";
 
 import { memo, useCallback, useState } from "react";
+import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
 import Link from "next/link";
 import { usePaginatedQuery, useMutation } from "@/lib/convex-auth-react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
-import { ArrowBigUp, MessageSquare, Pin, Plus } from "lucide-react";
+import { ArrowBigUp, Loader2, MessageSquare, Pin, Plus } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 import { Button } from "@/components/ui/button";
@@ -17,11 +18,15 @@ interface ForumContentProps {
 }
 
 export function ForumContent({ challengeId }: ForumContentProps) {
-  const { results, status, loadMore } = usePaginatedQuery(
+  const { results, status, loadMore, isLoading } = usePaginatedQuery(
     api.queries.forumPosts.listByChallenge,
     { challengeId: challengeId as Id<"challenges"> },
     { initialNumItems: 20 }
   );
+
+  const sentinelRef = useInfiniteScroll(() => loadMore(20), {
+    enabled: status === "CanLoadMore" && !isLoading,
+  });
 
   return (
     <div>
@@ -45,11 +50,9 @@ export function ForumContent({ challengeId }: ForumContentProps) {
         ))}
       </div>
 
-      {status === "CanLoadMore" && (
-        <div className="pt-6 text-center">
-          <Button variant="outline" size="sm" onClick={() => loadMore(20)}>
-            Load more
-          </Button>
+      {(status === "CanLoadMore" || isLoading) && status !== "LoadingFirstPage" && (
+        <div ref={sentinelRef} className="flex justify-center pt-6">
+          {isLoading && <Loader2 className="h-5 w-5 animate-spin text-zinc-500" />}
         </div>
       )}
 

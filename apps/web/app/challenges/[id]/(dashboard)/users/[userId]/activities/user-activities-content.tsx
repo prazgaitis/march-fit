@@ -5,8 +5,8 @@ import { usePaginatedQuery, useQuery } from "convex/react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
 import { Loader2 } from "lucide-react";
+import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
 
-import { Button } from "@/components/ui/button";
 import {
   ActivityCard,
   type ActivityFeedItem,
@@ -34,6 +34,10 @@ export function UserActivitiesContent({
     },
     { initialNumItems: 10 },
   );
+
+  const sentinelRef = useInfiniteScroll(() => loadMore(10), {
+    enabled: status === "CanLoadMore" && !isLoading,
+  });
 
   const followingIds = useQuery(api.queries.follows.getFollowingIds);
   const followingSet = useMemo(
@@ -84,15 +88,9 @@ export function UserActivitiesContent({
         />
       ))}
 
-      {status === "CanLoadMore" && (
-        <div className="flex justify-center py-4">
-          <Button
-            variant="outline"
-            onClick={() => loadMore(10)}
-            disabled={isLoading}
-          >
-            {isLoading ? "Loading..." : "Load more"}
-          </Button>
+      {(status === "CanLoadMore" || isLoading) && status !== "LoadingFirstPage" && (
+        <div ref={sentinelRef} className="flex justify-center py-4">
+          {isLoading && <Loader2 className="h-5 w-5 animate-spin text-zinc-500" />}
         </div>
       )}
     </div>
