@@ -19,7 +19,7 @@ export const getById = query({
       return null;
     }
 
-    const [user, activityType, challenge, allLikes, commentCount, currentUser, externalDataRecord] = await Promise.all([
+    const [user, activityType, challenge, allLikes, commentCount, currentUser, externalDataRecord, activityTagDocs] = await Promise.all([
       ctx.db.get(activity.userId),
       ctx.db.get(activity.activityTypeId),
       ctx.db.get(activity.challengeId),
@@ -37,6 +37,10 @@ export const getById = query({
         .query("activityExternalData")
         .withIndex("activityId", (q) => q.eq("activityId", activity._id))
         .first(),
+      ctx.db
+        .query("activityTags")
+        .withIndex("activityId", (q) => q.eq("activityId", activity._id))
+        .collect(),
     ]);
 
     const likeCount = allLikes.length;
@@ -112,6 +116,27 @@ export const getById = query({
           ).filter((url): url is string => url !== null)
         : [];
 
+    // Hydrate tag info
+    const taggedUsers = await Promise.all(
+      activityTagDocs.map(async (tag) => {
+        const taggedUser = await ctx.db.get(tag.taggedUserId);
+        if (!taggedUser) return null;
+        return {
+          id: taggedUser._id as string,
+          username: taggedUser.username,
+          name: taggedUser.name ?? null,
+          relatedActivityId: tag.relatedActivityId ?? null,
+          dismissedAt: tag.dismissedAt ?? null,
+        };
+      }),
+    ).then((arr) => arr.filter((u) => u !== null));
+
+    const taggedYou = currentUser
+      ? activityTagDocs.some(
+          (tag) => tag.taggedUserId === currentUser._id && !tag.dismissedAt,
+        )
+      : false;
+
     const hydratedActivity = externalDataRecord
       ? { ...activity, externalData: externalDataRecord.externalData }
       : activity;
@@ -144,6 +169,8 @@ export const getById = query({
       mediaUrls,
       cloudinaryPublicIds: activity.cloudinaryPublicIds ?? [],
       recentLikers,
+      taggedUsers,
+      taggedYou,
       adminComment,
       isOwner,
       isAdmin,
