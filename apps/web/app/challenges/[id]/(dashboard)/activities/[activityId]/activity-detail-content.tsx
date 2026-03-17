@@ -149,7 +149,8 @@ export function ActivityDetailContent({
   challengeId,
   activityId,
 }: ActivityDetailContentProps) {
-  const [pendingLike, setPendingLike] = useState(false);
+  const [optimisticLiked, setOptimisticLiked] = useState<boolean | null>(null);
+  const [optimisticLikeCount, setOptimisticLikeCount] = useState<number | null>(null);
   const [showShareDialog, setShowShareDialog] = useState(false);
   const [showFlagDialog, setShowFlagDialog] = useState(false);
   const [flagCategory, setFlagCategory] = useState("");
@@ -247,14 +248,38 @@ export function ActivityDetailContent({
     });
   }, []);
 
+  const currentUser = useQuery(api.queries.users.current);
+  const currentUserId = currentUser?._id as string | undefined;
+
+  // Reset optimistic state when server data catches up
+  const serverLikedByUser = activityData?.likedByUser;
+  const serverLikes = activityData?.likes;
+  useEffect(() => {
+    if (optimisticLiked !== null && serverLikedByUser === optimisticLiked) {
+      setOptimisticLiked(null);
+    }
+  }, [serverLikedByUser, optimisticLiked]);
+
+  useEffect(() => {
+    if (optimisticLikeCount !== null && serverLikes === optimisticLikeCount) {
+      setOptimisticLikeCount(null);
+    }
+  }, [serverLikes, optimisticLikeCount]);
+
   const handleToggleLike = async () => {
-    setPendingLike(true);
+    if (!activityData) return;
+    const wasLiked = optimisticLiked ?? activityData.likedByUser;
+    const prevCount = optimisticLikeCount ?? activityData.likes;
+    // Optimistic update
+    setOptimisticLiked(!wasLiked);
+    setOptimisticLikeCount(prevCount + (wasLiked ? -1 : 1));
     try {
       await toggleLike({ activityId: activityId as Id<"activities"> });
     } catch (error) {
       console.error("Failed to toggle like", error);
-    } finally {
-      setPendingLike(false);
+      // Revert on error
+      setOptimisticLiked(wasLiked);
+      setOptimisticLikeCount(prevCount);
     }
   };
 
@@ -567,6 +592,10 @@ export function ActivityDetailContent({
 
   const metrics = activity.metrics as Record<string, unknown> | undefined;
 
+  // Derive effective like state (optimistic or server)
+  const effectiveLiked = optimisticLiked ?? likedByUser;
+  const effectiveLikeCount = optimisticLikeCount ?? likes;
+
   const hasMedia = (mediaUrls ?? []).length > 0 || (cloudinaryPublicIds && cloudinaryPublicIds.length > 0);
 
   return (
@@ -681,15 +710,14 @@ export function ActivityDetailContent({
       {/* Action bar — icon style matching the feed */}
       <div className="flex items-center gap-4 px-4 py-2 text-muted-foreground">
         <button
-          disabled={pendingLike}
           onClick={handleToggleLike}
           className={cn(
             "flex items-center gap-1.5 text-sm transition-colors",
-            likedByUser ? "text-red-500" : "hover:text-red-500",
+            effectiveLiked ? "text-red-500" : "hover:text-red-500",
           )}
         >
-          <Heart className={cn("h-5 w-5", likedByUser && "fill-current")} />
-          {likes > 0 && <span>{likes}</span>}
+          <Heart className={cn("h-5 w-5", effectiveLiked && "fill-current")} />
+          {effectiveLikeCount > 0 && <span>{effectiveLikeCount}</span>}
         </button>
         <a
           href="#comments"
@@ -748,14 +776,15 @@ export function ActivityDetailContent({
       </div>
 
       {/* Likes display */}
-      {likes > 0 && (
+      {effectiveLikeCount > 0 && (
         <div className="px-4">
           <LikesDisplay
             activityId={activityId}
             challengeId={challengeId}
-            likes={likes}
-            likedByUser={likedByUser}
+            likes={effectiveLikeCount}
+            likedByUser={effectiveLiked}
             recentLikers={recentLikers ?? []}
+            currentUserId={currentUserId}
           />
         </div>
       )}
