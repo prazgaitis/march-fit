@@ -21,6 +21,7 @@ import {
   Repeat2,
   Share2,
 } from "lucide-react";
+import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
 import {
   useConvex,
   useConvexConnectionState,
@@ -241,19 +242,6 @@ export function ActivityFeed({
   }, []);
   const lightweightFeedMode = initialLightweightMode;
 
-  const { results, status, loadMore, isLoading } = usePaginatedQuery(
-    api.queries.activities.getChallengeFeed,
-    feedFilter === "for_you"
-      ? "skip"
-      : {
-          challengeId: challengeId as Id<"challenges">,
-          followingOnly: feedFilter === "following",
-          includeEngagementCounts: true,
-          includeMediaUrls: true,
-        },
-    { initialNumItems: 10 },
-  );
-
   // For You: one-shot fetch of ranked entries (not reactive) so that
   // likes/comments/reposts don't re-sort the feed while the user is scrolling.
   // Each card subscribes to its own data reactively via getById.
@@ -379,6 +367,33 @@ export function ActivityFeed({
   const algoCanLoadMore = (rankedEntries?.length ?? 0) > algoVisibleCount;
   const algoIsLoading = feedFilter === "for_you" && rankedEntries === undefined;
 
+  // For the "for_you" tab, once algo entries are exhausted we start loading
+  // chronological activities so the feed never ends.
+  const algoExhausted =
+    feedFilter === "for_you" &&
+    rankedEntries !== undefined &&
+    !algoCanLoadMore;
+
+  const { results, status, loadMore, isLoading } = usePaginatedQuery(
+    api.queries.activities.getChallengeFeed,
+    feedFilter === "for_you" && !algoExhausted
+      ? "skip"
+      : {
+          challengeId: challengeId as Id<"challenges">,
+          followingOnly: feedFilter === "following",
+          includeEngagementCounts: true,
+          includeMediaUrls: true,
+        },
+    { initialNumItems: 10 },
+  );
+
+  // Filter out activities already shown via the algo feed to avoid duplicates
+  const chronoResultsAfterAlgo = useMemo(() => {
+    if (!algoExhausted || !results) return results;
+    const algoIdSet = new Set((rankedEntries ?? []).map((e) => e.id));
+    return results.filter((item) => !algoIdSet.has(item.activity._id as Id<"activities">));
+  }, [algoExhausted, results, rankedEntries]);
+
   const loadHttpPage = useCallback(
     async (cursor: string | null, append: boolean) => {
       const requestId = ++httpRequestIdRef.current;
@@ -502,7 +517,11 @@ export function ActivityFeed({
 
   const handleLoadMore = () => {
     if (feedFilter === "for_you") {
-      setAlgoVisibleCount((prev) => prev + ALGO_PAGE_SIZE);
+      if (algoCanLoadMore) {
+        setAlgoVisibleCount((prev) => prev + ALGO_PAGE_SIZE);
+      } else if (status === "CanLoadMore") {
+        loadMore(10);
+      }
       return;
     }
 
@@ -593,13 +612,13 @@ export function ActivityFeed({
 
   const effectiveIsLoading =
     feedFilter === "for_you"
-      ? algoIsLoading
+      ? algoIsLoading || (algoExhausted && isLoading)
       : useHttpFallback
         ? httpLoading
         : isLoading;
   const canLoadMore =
     feedFilter === "for_you"
-      ? algoCanLoadMore
+      ? algoCanLoadMore || (algoExhausted && status === "CanLoadMore")
       : useHttpFallback
         ? !httpIsDone && !httpLoading && httpCursor !== null
         : status === "CanLoadMore";
@@ -804,6 +823,38 @@ export function ActivityFeed({
           </div>
         ))}
 
+      {/* For You tab: chronological activities after algo entries are exhausted */}
+      {feedFilter === "for_you" &&
+        algoExhausted &&
+        chronoResultsAfterAlgo
+          ?.filter(
+            (
+              item,
+            ): item is NonNullable<typeof item> & {
+              user: NonNullable<(typeof item)["user"]>;
+            } => item.user !== null,
+          )
+          .map((item) => (
+            <ActivityCard
+              key={item.activity._id}
+              challengeId={challengeId}
+              showEngagementCounts
+              item={{
+                ...item,
+                activity: {
+                  ...item.activity,
+                  id: item.activity._id,
+                },
+                reposts: ("reposts" in item ? (item as any).reposts : 0) ?? 0,
+                repostedByUser: ("repostedByUser" in item ? (item as any).repostedByUser : false) ?? false,
+                mediaUrls: item.mediaUrls ?? [],
+              }}
+              mentionOptions={mentionUsers}
+              currentUserId={currentUserId}
+              isFollowing={followingSet.has(item.user.id)}
+            />
+          ))}
+
       {/* All / Following tabs: render from paginated query results */}
       {feedFilter !== "for_you" &&
         displayResults
@@ -863,17 +914,33 @@ export function ActivityFeed({
         </Card>
       )}
 
-      {canLoadMore && (
-        <div className="flex justify-center">
-          <Button
-            variant="outline"
-            onClick={handleLoadMore}
-            disabled={effectiveIsLoading}
-          >
-            {effectiveIsLoading ? "Loading..." : "Load more"}
-          </Button>
-        </div>
-      )}
+      <InfiniteScrollSentinel
+        canLoadMore={canLoadMore}
+        isLoading={effectiveIsLoading}
+        onLoadMore={handleLoadMore}
+      />
+    </div>
+  );
+}
+
+function InfiniteScrollSentinel({
+  canLoadMore,
+  isLoading,
+  onLoadMore,
+}: {
+  canLoadMore: boolean;
+  isLoading: boolean;
+  onLoadMore: () => void;
+}) {
+  const sentinelRef = useInfiniteScroll(onLoadMore, {
+    enabled: canLoadMore && !isLoading,
+  });
+
+  if (!canLoadMore && !isLoading) return null;
+
+  return (
+    <div ref={sentinelRef} className="flex justify-center py-4">
+      {isLoading && <Loader2 className="h-5 w-5 animate-spin text-zinc-500" />}
     </div>
   );
 }

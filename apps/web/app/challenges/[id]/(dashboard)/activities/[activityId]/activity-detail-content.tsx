@@ -28,6 +28,7 @@ import {
   X,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
 
 import { ConvexError } from "convex/values";
 import dynamic from "next/dynamic";
@@ -1223,6 +1224,10 @@ function ActivityComments({
     { initialNumItems: 10 },
   );
 
+  const commentsSentinelRef = useInfiniteScroll(() => loadMoreComments(10), {
+    enabled: commentsStatus === "CanLoadMore" && !loadingComments,
+  });
+
   useEffect(() => {
     if (!highlightCommentId || didScrollRef.current || !comments?.length) return;
     const el = document.getElementById(`comment-${highlightCommentId}`);
@@ -1373,15 +1378,9 @@ function ActivityComments({
           </div>
         )}
 
-        {commentsStatus === "CanLoadMore" && !loadingComments && (
-          <div className="flex justify-center">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => loadMoreComments(10)}
-            >
-              Load more comments
-            </Button>
+        {(commentsStatus === "CanLoadMore" || loadingComments) && commentsStatus !== "LoadingFirstPage" && (
+          <div ref={commentsSentinelRef} className="flex justify-center py-2">
+            {loadingComments && <Loader2 className="h-4 w-4 animate-spin text-zinc-500" />}
           </div>
         )}
 
