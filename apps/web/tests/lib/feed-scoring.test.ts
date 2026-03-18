@@ -16,6 +16,9 @@ import {
   QUALITY_HALF_LIFE_HOURS,
   FRESHNESS_BONUS,
   FRESHNESS_HALF_LIFE_HOURS,
+  TAG_BOOST_PER_TAG,
+  TAG_BOOST_MAX,
+  DESCRIPTION_BOOST,
   type ContentScoreInput,
   type EngagementScoreInput,
 } from "../../../../packages/backend/lib/feedScoring";
@@ -99,6 +102,34 @@ describe("computeContentScore", () => {
   it("handles zero/negative points gracefully", () => {
     expect(computeContentScore({ ...base, pointsEarned: 0 })).toBe(1);
     expect(computeContentScore({ ...base, pointsEarned: -5 })).toBe(1);
+  });
+
+  it("boosts tagged activities (+8 per tag, capped at 24)", () => {
+    expect(computeContentScore({ ...base, tagCount: 1 })).toBe(1 + TAG_BOOST_PER_TAG);
+    expect(computeContentScore({ ...base, tagCount: 2 })).toBe(1 + TAG_BOOST_PER_TAG * 2);
+    expect(computeContentScore({ ...base, tagCount: 3 })).toBe(1 + TAG_BOOST_MAX);
+    expect(computeContentScore({ ...base, tagCount: 10 })).toBe(1 + TAG_BOOST_MAX); // capped
+  });
+
+  it("tag boost stacks with other boosts", () => {
+    const taggedWithDescription: ContentScoreInput = {
+      ...base,
+      hasDescription: true,
+      tagCount: 1,
+    };
+    expect(computeContentScore(taggedWithDescription)).toBe(
+      1 + DESCRIPTION_BOOST + TAG_BOOST_PER_TAG,
+    );
+  });
+
+  it("tag boost is ignored when flagged", () => {
+    expect(computeContentScore({ ...base, flagged: true, tagCount: 3 })).toBe(1 - 100);
+  });
+
+  it("defaults tagCount to 0 when omitted", () => {
+    const withoutTag: ContentScoreInput = { ...base };
+    delete (withoutTag as any).tagCount;
+    expect(computeContentScore(withoutTag)).toBe(1);
   });
 });
 

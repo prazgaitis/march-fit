@@ -7,13 +7,14 @@ type Ctx = Pick<MutationCtx, "db">;
 /**
  * Build ContentScoreInput from an activity document.
  */
-function contentInputFromActivity(activity: Doc<"activities">): ContentScoreInput {
+function contentInputFromActivity(activity: Doc<"activities">, tagCount: number = 0): ContentScoreInput {
   return {
     hasDescription: !!activity.notes && activity.notes.trim().length > 0,
     mediaCount: (activity.mediaIds?.length ?? 0) + (activity.cloudinaryPublicIds?.length ?? 0),
     pointsEarned: activity.pointsEarned,
     triggeredBonusCount: activity.triggeredBonuses?.length ?? 0,
     flagged: activity.flagged,
+    tagCount,
   };
 }
 
@@ -55,7 +56,14 @@ export async function recomputeFeedScore(
   const activity = await ctx.db.get(activityId);
   if (!activity || activity.deletedAt) return;
 
-  const content = contentInputFromActivity(activity);
+  // Count tags for this activity
+  const tags = await ctx.db
+    .query("activityTags")
+    .withIndex("activityId", (q: any) => q.eq("activityId", activityId))
+    .collect();
+  const tagCount = tags.length;
+
+  const content = contentInputFromActivity(activity, tagCount);
   const engagement = await getEngagementCounts(ctx, activityId);
   const score = computeFeedScore(content, engagement);
 

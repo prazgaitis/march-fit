@@ -1,4 +1,5 @@
 import { internalMutation, mutation } from "../_generated/server";
+import { internal } from "../_generated/api";
 import { ConvexError, v } from "convex/values";
 import { calculateFinalActivityScore, extractActivityMetricValue } from "../lib/scoring";
 import { requireCurrentUser } from "../lib/ids";
@@ -126,6 +127,74 @@ async function notifyMiniGameParticipants(
   }
 }
 
+/**
+ * Create activity tags for tagged users, notify them, and schedule
+ * a background job to find related activities.
+ */
+async function createActivityTags(
+  ctx: any,
+  args: {
+    activityId: Id<"activities">;
+    taggerUserId: Id<"users">;
+    challengeId: Id<"challenges">;
+    taggedUserIds: Id<"users">[];
+    loggedDate: number;
+  },
+) {
+  const now = Date.now();
+  const uniqueTaggedIds = [...new Set(args.taggedUserIds)].filter(
+    (id) => id !== args.taggerUserId, // Can't tag yourself
+  );
+
+  for (const taggedUserId of uniqueTaggedIds) {
+    // Verify the tagged user is a participant in this challenge
+    const participation = await ctx.db
+      .query("userChallenges")
+      .withIndex("userChallengeUnique", (q: any) =>
+        q.eq("userId", taggedUserId).eq("challengeId", args.challengeId),
+      )
+      .first();
+    if (!participation) continue;
+
+    // Check for duplicate tag
+    const existing = await ctx.db
+      .query("activityTags")
+      .withIndex("activityTaggedUser", (q: any) =>
+        q.eq("activityId", args.activityId).eq("taggedUserId", taggedUserId),
+      )
+      .first();
+    if (existing) continue;
+
+    await ctx.db.insert("activityTags", {
+      activityId: args.activityId,
+      taggedUserId,
+      challengeId: args.challengeId,
+      createdAt: now,
+    });
+
+    // Notify the tagged user
+    await insertNotification(ctx, {
+      userId: taggedUserId,
+      actorId: args.taggerUserId,
+      type: "activity_tag",
+      data: {
+        activityId: args.activityId,
+        challengeId: args.challengeId,
+      },
+      createdAt: now,
+    });
+  }
+
+  // Schedule background job to find and link related activities
+  if (uniqueTaggedIds.length > 0) {
+    await ctx.scheduler.runAfter(0, internal.mutations.activityTags.linkRelatedActivities, {
+      activityId: args.activityId,
+      challengeId: args.challengeId,
+      loggedDate: args.loggedDate,
+    });
+  }
+}
+
 export const log = mutation({
   args: {
     challengeId: v.id("challenges"),
@@ -150,6 +219,8 @@ export const log = mutation({
     ),
     externalId: v.optional(v.string()),
     externalData: v.optional(v.any()),
+    // Tag other users in this activity (they'll see it in their feed)
+    taggedUserIds: v.optional(v.array(v.id("users"))),
   },
   handler: async (ctx, args) => {
     const startedAt = Date.now();
@@ -337,6 +408,17 @@ export const log = mutation({
 
     // Notify mini-game partners/hunters when activity is logged
     await notifyMiniGameParticipants(ctx, user._id, args.challengeId, activityId);
+
+    // Create activity tags and notify tagged users
+    if (args.taggedUserIds && args.taggedUserIds.length > 0) {
+      await createActivityTags(ctx, {
+        activityId,
+        taggerUserId: user._id,
+        challengeId: args.challengeId,
+        taggedUserIds: args.taggedUserIds,
+        loggedDate: loggedDateTs,
+      });
+    }
 
       return {
           id: activityId,

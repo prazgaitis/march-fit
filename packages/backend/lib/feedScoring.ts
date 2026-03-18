@@ -14,11 +14,12 @@ export interface ContentScoreInput {
   pointsEarned: number;
   triggeredBonusCount: number;
   flagged: boolean;
+  tagCount?: number;
 }
 
 const BASE_SCORE = 1;
 const FLAG_PENALTY = -100;
-const DESCRIPTION_BOOST = 10;
+export const DESCRIPTION_BOOST = 10;
 
 function mediaBoost(count: number): number {
   return Math.min(count * 10, 30);
@@ -33,6 +34,14 @@ function bonusBoost(triggeredBonusCount: number): number {
   return Math.min(triggeredBonusCount * 4, 16);
 }
 
+export const TAG_BOOST_PER_TAG = 8;
+export const TAG_BOOST_MAX = 24;
+
+function tagBoost(tagCount: number): number {
+  if (tagCount <= 0) return 0;
+  return Math.min(tagCount * TAG_BOOST_PER_TAG, TAG_BOOST_MAX);
+}
+
 export function computeContentScore(input: ContentScoreInput): number {
   if (input.flagged) return BASE_SCORE + FLAG_PENALTY;
 
@@ -41,7 +50,8 @@ export function computeContentScore(input: ContentScoreInput): number {
     (input.hasDescription ? DESCRIPTION_BOOST : 0) +
     mediaBoost(input.mediaCount) +
     pointsBoost(input.pointsEarned) +
-    bonusBoost(input.triggeredBonusCount)
+    bonusBoost(input.triggeredBonusCount) +
+    tagBoost(input.tagCount ?? 0)
   );
 }
 
