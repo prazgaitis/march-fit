@@ -1180,86 +1180,85 @@ export function ActivityLogDialog({ challengeId, challengeStartDate, trigger }: 
             </div>
 
             {/* Tag Users Section */}
-            <div className="space-y-2">
-              <Label>Tag people (optional)</Label>
-              {form.taggedUserIds.length > 0 && (
-                <div className="flex flex-wrap gap-1.5">
-                  {form.taggedUserIds.map((userId) => {
-                    const user = mentionUsers.find((u) => u.id === userId);
-                    if (!user) return null;
-                    return (
-                      <span
-                        key={userId}
-                        className="inline-flex items-center gap-1 rounded-full border border-zinc-700 bg-zinc-800 px-2.5 py-1 text-sm"
-                      >
-                        {user.name || user.username}
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setForm((prev) => ({
-                              ...prev,
-                              taggedUserIds: prev.taggedUserIds.filter((id) => id !== userId),
-                            }))
-                          }
-                          className="ml-0.5 rounded-full p-0.5 text-zinc-400 hover:text-zinc-200"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      </span>
-                    );
-                  })}
-                </div>
-              )}
-              {mentionUsers.filter((u) => u.id !== currentUser?._id && !form.taggedUserIds.includes(u.id)).length > 0 && (
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="gap-1.5 text-zinc-400"
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Tag people</Label>
+              <div className="flex flex-wrap items-center gap-1.5">
+                {form.taggedUserIds.map((userId) => {
+                  const user = mentionUsers.find((u) => u.id === userId);
+                  if (!user) return null;
+                  return (
+                    <span
+                      key={userId}
+                      className="inline-flex items-center gap-1 rounded-full border border-zinc-700 bg-zinc-800 px-2 py-0.5 text-xs"
                     >
-                      <UserPlus className="h-3.5 w-3.5" />
-                      Tag someone
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent
-                    container={popoverContainer}
-                    className="z-[60] w-[--radix-popover-trigger-width] min-w-[200px] p-0"
-                    align="start"
-                  >
-                    <Command className="h-auto">
-                      <CommandInput placeholder="Search people..." />
-                      <CommandList>
-                        <CommandEmpty>No people found.</CommandEmpty>
-                        <CommandGroup>
-                          {mentionUsers
-                            .filter((u) => u.id !== currentUser?._id && !form.taggedUserIds.includes(u.id))
-                            .map((user) => (
-                              <CommandItem
-                                key={user.id}
-                                value={user.name || user.username}
-                                onSelect={() =>
-                                  setForm((prev) => ({
-                                    ...prev,
-                                    taggedUserIds: [...prev.taggedUserIds, user.id],
-                                  }))
-                                }
-                              >
-                                {user.name || user.username}
-                                {user.name && (
-                                  <span className="ml-1.5 text-xs text-muted-foreground">
-                                    @{user.username}
-                                  </span>
-                                )}
-                              </CommandItem>
-                            ))}
-                        </CommandGroup>
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
-              )}
+                      {user.name || user.username}
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setForm((prev) => ({
+                            ...prev,
+                            taggedUserIds: prev.taggedUserIds.filter((id) => id !== userId),
+                          }))
+                        }
+                        className="ml-0.5 rounded-full p-0.5 text-zinc-400 hover:text-zinc-200"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    </span>
+                  );
+                })}
+                {mentionUsers.filter((u) => u.id !== currentUser?._id && !form.taggedUserIds.includes(u.id)).length > 0 && (
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1 rounded-full border border-dashed border-zinc-700 px-2 py-0.5 text-xs text-zinc-400 hover:border-zinc-500 hover:text-zinc-300 transition-colors"
+                      >
+                        <UserPlus className="h-3 w-3" />
+                        Add
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent
+                      container={popoverContainer}
+                      className="z-[60] w-[200px] p-0"
+                      align="start"
+                      side="top"
+                      sideOffset={4}
+                    >
+                      <Command className="h-auto">
+                        <CommandInput placeholder="Search..." className="h-8 text-xs" />
+                        <CommandList className="max-h-[150px]">
+                          <CommandEmpty>No people found.</CommandEmpty>
+                          <CommandGroup>
+                            {mentionUsers
+                              .filter((u) => u.id !== currentUser?._id && !form.taggedUserIds.includes(u.id))
+                              .map((user) => (
+                                <CommandItem
+                                  key={user.id}
+                                  value={user.name || user.username}
+                                  onSelect={() =>
+                                    setForm((prev) => ({
+                                      ...prev,
+                                      taggedUserIds: [...prev.taggedUserIds, user.id],
+                                    }))
+                                  }
+                                  className="text-xs"
+                                >
+                                  {user.name || user.username}
+                                  {user.name && (
+                                    <span className="ml-1 text-[10px] text-muted-foreground">
+                                      @{user.username}
+                                    </span>
+                                  )}
+                                </CommandItem>
+                              ))}
+                          </CommandGroup>
+                        </CommandList>
+                      </Command>
+                    </PopoverContent>
+                  </Popover>
+                )}
+              </div>
             </div>
 
             {/* Media Upload Section */}
