@@ -25,6 +25,7 @@ import {
   Share2,
   Shield,
   Trash2,
+  UserPlus,
   X,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -72,8 +73,21 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   ResponsiveDialog,
@@ -178,6 +192,7 @@ export function ActivityDetailContent({
   const [editUploadProgress, setEditUploadProgress] = useState<string | null>(
     null,
   );
+  const [editTaggedUserIds, setEditTaggedUserIds] = useState<string[]>([]);
   const editFileInputRef = useRef<HTMLInputElement>(null);
 
   const activityData = useQuery(api.queries.activities.getById, {
@@ -440,6 +455,9 @@ export function ActivityDetailContent({
     setEditExistingMedia(allExisting);
     setEditNewMedia([]);
     setEditUploadProgress(null);
+    // Pre-populate tagged users from existing tags
+    const existingTaggedUsers = (activityData as { taggedUsers?: { id: string }[] }).taggedUsers ?? [];
+    setEditTaggedUserIds(existingTaggedUsers.map((u) => u.id));
     setShowEditDialog(true);
   };
 
@@ -523,6 +541,7 @@ export function ActivityDetailContent({
         ...(mediaIdsChanged ? { mediaIds: finalMediaIds } : {}),
         ...(cloudinaryChanged ? { cloudinaryPublicIds: finalCloudinaryIds } : {}),
         ...(imageUrlChanged ? { imageUrl: finalImageUrl } : {}),
+        taggedUserIds: editTaggedUserIds as Id<"users">[],
       };
 
       const result = await editActivityMutation(payload);
@@ -923,6 +942,94 @@ export function ActivityDetailContent({
                         placeholder="Add notes about this activity..."
                         mentionOptions={mentionUsers}
                       />
+                    </div>
+
+                    {/* Tag Users Section */}
+                    <div className="space-y-1.5">
+                      <Label className="text-xs text-muted-foreground">Tag people</Label>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        {editTaggedUserIds.map((userId) => {
+                          const user = mentionUsers.find((u) => u.id === userId);
+                          if (!user) return null;
+                          return (
+                            <span
+                              key={userId}
+                              className="inline-flex items-center gap-1 rounded-full border border-zinc-700 bg-zinc-800 px-2 py-0.5 text-xs"
+                            >
+                              {user.name || user.username}
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setEditTaggedUserIds((prev) =>
+                                    prev.filter((id) => id !== userId)
+                                  )
+                                }
+                                className="ml-0.5 rounded-full p-0.5 text-zinc-400 hover:text-zinc-200"
+                              >
+                                <X className="h-3 w-3" />
+                              </button>
+                            </span>
+                          );
+                        })}
+                        {mentionUsers.filter(
+                          (u) =>
+                            u.id !== currentUserId &&
+                            !editTaggedUserIds.includes(u.id)
+                        ).length > 0 && (
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <button
+                                type="button"
+                                className="inline-flex items-center gap-1 rounded-full border border-dashed border-zinc-700 px-2 py-0.5 text-xs text-zinc-400 hover:border-zinc-500 hover:text-zinc-300 transition-colors"
+                              >
+                                <UserPlus className="h-3 w-3" />
+                                Add
+                              </button>
+                            </PopoverTrigger>
+                            <PopoverContent
+                              className="z-[60] w-[200px] p-0"
+                              align="start"
+                              side="top"
+                              sideOffset={4}
+                            >
+                              <Command className="h-auto">
+                                <CommandInput placeholder="Search..." className="h-8 text-xs" />
+                                <CommandList className="max-h-[150px]">
+                                  <CommandEmpty>No people found.</CommandEmpty>
+                                  <CommandGroup>
+                                    {mentionUsers
+                                      .filter(
+                                        (u) =>
+                                          u.id !== currentUserId &&
+                                          !editTaggedUserIds.includes(u.id)
+                                      )
+                                      .map((user) => (
+                                        <CommandItem
+                                          key={user.id}
+                                          value={user.name || user.username}
+                                          onSelect={() =>
+                                            setEditTaggedUserIds((prev) => [
+                                              ...prev,
+                                              user.id,
+                                            ])
+                                          }
+                                          className="text-xs"
+                                        >
+                                          {user.name || user.username}
+                                          {user.name && (
+                                            <span className="ml-1 text-[10px] text-muted-foreground">
+                                              @{user.username}
+                                            </span>
+                                          )}
+                                        </CommandItem>
+                                      ))}
+                                  </CommandGroup>
+                                </CommandList>
+                              </Command>
+                            </PopoverContent>
+                          </Popover>
+                        )}
+                      </div>
                     </div>
 
                     {/* Media Upload Section */}

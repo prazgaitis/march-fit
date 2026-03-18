@@ -687,6 +687,8 @@ export const editActivity = mutation({
     mediaIds: v.optional(v.array(v.id("_storage"))),
     cloudinaryPublicIds: v.optional(v.array(v.string())),
     imageUrl: v.optional(v.union(v.string(), v.null())),
+    // Update tagged users (replaces existing tags)
+    taggedUserIds: v.optional(v.array(v.id("users"))),
   },
   handler: async (ctx, args) => {
     const startedAt = Date.now();
@@ -905,6 +907,36 @@ export const editActivity = mutation({
         metricDelta: newMetricValue,
         now,
       });
+    }
+
+    // Sync activity tags if taggedUserIds was provided
+    if (args.taggedUserIds !== undefined) {
+      // Get existing tags
+      const existingTags = await ctx.db
+        .query("activityTags")
+        .withIndex("activityId", (q) => q.eq("activityId", args.activityId))
+        .collect();
+      const existingTaggedIds = new Set(existingTags.map((t) => t.taggedUserId as string));
+      const newTaggedIds = new Set(args.taggedUserIds.map((id) => id as string));
+
+      // Remove tags that are no longer in the list
+      for (const tag of existingTags) {
+        if (!newTaggedIds.has(tag.taggedUserId as string)) {
+          await ctx.db.delete(tag._id);
+        }
+      }
+
+      // Add new tags (createActivityTags handles dedup, validation, notifications)
+      const toAdd = args.taggedUserIds.filter((id) => !existingTaggedIds.has(id as string));
+      if (toAdd.length > 0) {
+        await createActivityTags(ctx, {
+          activityId: args.activityId,
+          taggerUserId: user._id,
+          challengeId: activity.challengeId,
+          taggedUserIds: toAdd,
+          loggedDate: newLoggedDateTs,
+        });
+      }
     }
 
     // Re-run achievement check
