@@ -99,6 +99,7 @@ const MentionList = forwardRef<MentionListHandle, MentionListProps>(
                   !isActive && 'hover:bg-muted/80',
                 )}
                 onMouseDown={(e) => e.preventDefault()}
+                onTouchStart={(e) => e.preventDefault()}
                 onTouchEnd={(e) => {
                   e.preventDefault();
                   selectItem(index);
@@ -171,6 +172,7 @@ function createMentionSuggestion(
             trigger: 'manual',
             placement: 'bottom-start',
             zIndex: 99999,
+            touch: true,
           });
         },
         onUpdate(props: {
