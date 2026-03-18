@@ -2,18 +2,19 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState } from "react";
 import { Menu, Plus } from "lucide-react";
 
 import { ActivityLogDialogLazy as ActivityLogDialog } from "./activity-log-dialog-lazy";
 import { navItems } from "./dashboard-nav";
-import { buildMobileNavLayout } from "./mobile-nav-layout";
+import { buildMobileNavLayout, type MobileNavItem } from "./mobile-nav-layout";
 import { NotificationBadge } from "./notification-badge";
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+  Drawer,
+  DrawerContent,
+  DrawerTitle,
+  DrawerTrigger,
+} from "@/components/ui/drawer";
 import { cn } from "@/lib/utils";
 
 interface MobileNavProps {
@@ -101,46 +102,73 @@ export function MobileNav({ challengeId, currentUserId, challengeStartDate }: Mo
           );
         })}
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button
-              className={cn(
-                "flex flex-col items-center gap-1 py-3 transition-colors w-full active:opacity-70",
-                menuActive ? "text-white" : "text-zinc-500 hover:text-zinc-300"
-              )}
-              aria-label="More navigation"
-            >
-              <Menu className="h-6 w-6" />
-              <span className="text-[10px] font-medium">More</span>
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent
-            align="end"
-            side="top"
-            className="mb-2 w-56 border-zinc-800 bg-zinc-950 text-zinc-100"
-          >
-            {overflowItems.map((item) => {
-              const href = item.href(challengeId, currentUserId);
-              const isActive = pathname === href;
-
-              return (
-                <DropdownMenuItem key={item.label} asChild>
-                  <Link
-                    href={href}
-                    className={cn(
-                      "flex w-full items-center gap-2",
-                      isActive && "text-white"
-                    )}
-                  >
-                    <item.icon className="h-4 w-4" />
-                    <span>{item.label}</span>
-                  </Link>
-                </DropdownMenuItem>
-              );
-            })}
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <MoreDrawer
+          challengeId={challengeId}
+          currentUserId={currentUserId}
+          menuActive={menuActive}
+          overflowItems={overflowItems}
+          pathname={pathname}
+        />
       </div>
     </nav>
+  );
+}
+
+function MoreDrawer({
+  challengeId,
+  currentUserId,
+  menuActive,
+  overflowItems,
+  pathname,
+}: {
+  challengeId: string;
+  currentUserId: string;
+  menuActive: boolean;
+  overflowItems: MobileNavItem[];
+  pathname: string;
+}) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <Drawer open={open} onOpenChange={setOpen}>
+      <DrawerTrigger asChild>
+        <button
+          className={cn(
+            "flex flex-col items-center gap-1 py-3 transition-colors w-full active:opacity-70",
+            menuActive ? "text-white" : "text-zinc-500 hover:text-zinc-300"
+          )}
+          aria-label="More navigation"
+        >
+          <Menu className="h-6 w-6" />
+          <span className="text-[10px] font-medium">More</span>
+        </button>
+      </DrawerTrigger>
+      <DrawerContent className="border-zinc-800 bg-zinc-950">
+        <DrawerTitle className="sr-only">Navigation</DrawerTitle>
+        <nav className="flex flex-col gap-1 px-4 pb-8 pt-2">
+          {overflowItems.map((item) => {
+            const href = item.href(challengeId, currentUserId);
+            const isActive = pathname === href;
+
+            return (
+              <Link
+                key={item.label}
+                href={href}
+                onClick={() => setOpen(false)}
+                className={cn(
+                  "flex items-center gap-3 rounded-lg px-3 py-3 text-base transition-colors active:bg-zinc-800",
+                  isActive
+                    ? "bg-zinc-800/50 text-white"
+                    : "text-zinc-400 hover:bg-zinc-900 hover:text-zinc-200"
+                )}
+              >
+                <item.icon className="h-5 w-5" />
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
+        </nav>
+      </DrawerContent>
+    </Drawer>
   );
 }

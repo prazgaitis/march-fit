@@ -38,7 +38,7 @@ A predator-prey chain based on the leaderboard at game start. Each participant "
 **Assignment:**
 - Each player's **prey** is the person one rank above them (lower rank number = higher on leaderboard)
 - Each player's **hunter** is the person one rank below them
-- Rank 1 (first place) has no prey to hunt
+- Rank 1 (first place) has no prey — they earn the catch bonus by holding #1 (not getting caught)
 - Last place has no hunter chasing them
 
 **Config:**
@@ -60,6 +60,7 @@ bonusPoints = (caughtPrey ? catchBonus : 0) - (wasCaught ? caughtPenalty : 0)
 - Catch prey only: `+75` points
 - Caught by hunter only: `-25` points
 - Catch prey AND caught by hunter: `+75 - 25 = +50` points
+- Rank 1 holds position (not caught): `+75` points
 - Neither: `0` points
 
 ---

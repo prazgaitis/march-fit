@@ -1,11 +1,12 @@
 "use client";
 
 import { memo, useCallback, useState } from "react";
+import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
 import Link from "next/link";
 import { usePaginatedQuery, useMutation } from "@/lib/convex-auth-react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
-import { ArrowBigUp, MessageSquare, Pin, Plus } from "lucide-react";
+import { ArrowBigUp, Loader2, MessageSquare, Pin, Plus } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
 import { Button } from "@/components/ui/button";
@@ -17,11 +18,15 @@ interface ForumContentProps {
 }
 
 export function ForumContent({ challengeId }: ForumContentProps) {
-  const { results, status, loadMore } = usePaginatedQuery(
+  const { results, status, loadMore, isLoading } = usePaginatedQuery(
     api.queries.forumPosts.listByChallenge,
     { challengeId: challengeId as Id<"challenges"> },
     { initialNumItems: 20 }
   );
+
+  const sentinelRef = useInfiniteScroll(() => loadMore(20), {
+    enabled: status === "CanLoadMore" && !isLoading,
+  });
 
   return (
     <div>
@@ -45,11 +50,9 @@ export function ForumContent({ challengeId }: ForumContentProps) {
         ))}
       </div>
 
-      {status === "CanLoadMore" && (
-        <div className="pt-6 text-center">
-          <Button variant="outline" size="sm" onClick={() => loadMore(20)}>
-            Load more
-          </Button>
+      {(status === "CanLoadMore" || isLoading) && status !== "LoadingFirstPage" && (
+        <div ref={sentinelRef} className="flex justify-center pt-6">
+          {isLoading && <Loader2 className="h-5 w-5 animate-spin text-zinc-500" />}
         </div>
       )}
 
@@ -110,71 +113,58 @@ const ForumPostCard = memo(function ForumPostCard({ item, challengeId }: ForumPo
     <Link
       href={`/challenges/${challengeId}/forum/${item.post._id}`}
       className={cn(
-        "flex gap-3 py-3 transition-colors hover:bg-zinc-900/40",
+        "block py-3 transition-colors hover:bg-zinc-900/40",
         item.post.isPinned && "bg-amber-500/[0.02]",
       )}
     >
-      {/* Upvote column */}
-      <div className="flex w-10 shrink-0 flex-col items-center pt-0.5">
+      {/* Title row */}
+      <div className="flex items-center gap-1.5">
+        {item.post.isPinned && (
+          <Pin className="h-3 w-3 shrink-0 rotate-45 text-amber-400" />
+        )}
+        <h3 className="truncate text-sm font-semibold text-zinc-100">
+          {item.post.title}
+        </h3>
+      </div>
+
+      {/* Meta line */}
+      <div className="mt-1 flex items-center gap-1.5 text-xs text-zinc-500">
+        {item.user && (
+          <>
+            <UserAvatar user={item.user} size="xs" disableLink />
+            <span className="font-medium text-zinc-400">
+              {item.user.username}
+            </span>
+            <span>·</span>
+          </>
+        )}
+        <span>
+          {formatDistanceToNow(new Date(item.post.createdAt), {
+            addSuffix: true,
+          })}
+        </span>
+        <span>·</span>
         <button
           onClick={handleUpvote}
           disabled={isUpvoting}
           className={cn(
-            "rounded p-1 transition-colors active:scale-95",
+            "flex items-center gap-1 rounded px-1 py-0.5 transition-colors active:scale-95",
             item.upvotedByUser
               ? "text-indigo-400"
-              : "text-zinc-600 hover:text-zinc-400",
+              : "text-zinc-500 hover:text-zinc-300",
           )}
         >
           <ArrowBigUp
-            className="h-5 w-5"
+            className="h-3.5 w-3.5"
             fill={item.upvotedByUser ? "currentColor" : "none"}
           />
+          <span className="font-mono font-medium">{item.upvoteCount}</span>
         </button>
-        <span
-          className={cn(
-            "text-xs font-mono font-medium",
-            item.upvotedByUser ? "text-indigo-400" : "text-zinc-500",
-          )}
-        >
-          {item.upvoteCount}
+        <span>·</span>
+        <span className="flex items-center gap-1">
+          <MessageSquare className="h-3 w-3" />
+          {item.replyCount}
         </span>
-      </div>
-
-      {/* Content */}
-      <div className="min-w-0 flex-1">
-        {/* Title row */}
-        <div className="flex items-center gap-1.5">
-          {item.post.isPinned && (
-            <Pin className="h-3 w-3 shrink-0 rotate-45 text-amber-400" />
-          )}
-          <h3 className="truncate text-sm font-semibold text-zinc-100">
-            {item.post.title}
-          </h3>
-        </div>
-
-        {/* Meta line */}
-        <div className="mt-1 flex items-center gap-1.5 text-xs text-zinc-500">
-          {item.user && (
-            <>
-              <UserAvatar user={item.user} size="xs" disableLink />
-              <span className="font-medium text-zinc-400">
-                {item.user.username}
-              </span>
-              <span>·</span>
-            </>
-          )}
-          <span>
-            {formatDistanceToNow(new Date(item.post.createdAt), {
-              addSuffix: true,
-            })}
-          </span>
-          <span>·</span>
-          <span className="flex items-center gap-1">
-            <MessageSquare className="h-3 w-3" />
-            {item.replyCount}
-          </span>
-        </div>
       </div>
     </Link>
   );

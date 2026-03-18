@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useQuery, useMutation } from "@/lib/convex-auth-react";
-import { useRouter } from "next/navigation";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
 import { formatDistanceToNow } from "date-fns";
@@ -19,7 +18,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { UserAvatar } from "@/components/user-avatar";
-import { useFeedbackList } from "../feedback-list-context";
+import { useFeedbackList } from "./feedback-list-context";
 
 type FeedbackType = "bug" | "question" | "idea" | "other";
 type FeedbackStatus = "open" | "fixed";
@@ -98,7 +97,6 @@ export function FeedbackDetailContent({
   challengeId,
   feedbackId,
 }: FeedbackDetailContentProps) {
-  const router = useRouter();
   const [isPending, setIsPending] = useState(false);
 
   const data = useQuery(api.queries.feedback.listForAdmin, {
@@ -110,7 +108,7 @@ export function FeedbackDetailContent({
   const updateFeedback = useMutation(api.mutations.feedback.updateByAdmin);
 
   // Keyboard navigation
-  const { items: sidebarItems } = useFeedbackList();
+  const { items: sidebarItems, setSelectedId } = useFeedbackList();
 
   const navigateToSibling = useCallback(
     (direction: "prev" | "next") => {
@@ -119,9 +117,7 @@ export function FeedbackDetailContent({
       if (currentIndex === -1) {
         const fallback = sidebarItems[0];
         if (fallback) {
-          router.push(
-            `/challenges/${challengeId}/admin/feedback/${fallback.id}`,
-          );
+          setSelectedId(fallback.id);
         }
         return;
       }
@@ -129,11 +125,9 @@ export function FeedbackDetailContent({
         direction === "prev" ? currentIndex - 1 : currentIndex + 1;
       if (targetIndex < 0 || targetIndex >= sidebarItems.length) return;
       const target = sidebarItems[targetIndex];
-      router.push(
-        `/challenges/${challengeId}/admin/feedback/${target.id}`,
-      );
+      setSelectedId(target.id);
     },
-    [sidebarItems, feedbackId, challengeId, router],
+    [sidebarItems, feedbackId, setSelectedId],
   );
 
   const handleStatusToggle = useCallback(async () => {

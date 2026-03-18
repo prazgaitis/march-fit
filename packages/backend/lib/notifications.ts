@@ -20,6 +20,7 @@ const ROLLUP_TYPES = new Set([
   "strava_update",
   "repost",
   "poke",
+  "activity_tag",
 ]);
 
 type Ctx = { db: any };

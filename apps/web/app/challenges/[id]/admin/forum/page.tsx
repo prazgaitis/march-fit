@@ -4,10 +4,10 @@ import { use } from "react";
 import { usePaginatedQuery, useMutation } from "@/lib/convex-auth-react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
-import { Pin, Trash2, MessageSquare, ExternalLink } from "lucide-react";
+import { Loader2, Pin, Trash2, MessageSquare, ExternalLink } from "lucide-react";
+import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
 import { formatDistanceToNow } from "date-fns";
 
-import { Button } from "@/components/ui/button";
 import Link from "next/link";
 
 interface AdminForumPageProps {
@@ -18,11 +18,15 @@ export default function AdminForumPage({ params }: AdminForumPageProps) {
   const { id } = use(params);
   const challengeId = id as Id<"challenges">;
 
-  const { results, status, loadMore } = usePaginatedQuery(
+  const { results, status, loadMore, isLoading } = usePaginatedQuery(
     api.queries.forumPosts.listForAdmin,
     { challengeId },
     { initialNumItems: 50 }
   );
+
+  const sentinelRef = useInfiniteScroll(() => loadMore(50), {
+    enabled: status === "CanLoadMore" && !isLoading,
+  });
 
   const togglePin = useMutation(api.mutations.forumPosts.togglePin);
   const removePost = useMutation(api.mutations.forumPosts.remove);
@@ -163,11 +167,9 @@ export default function AdminForumPage({ params }: AdminForumPageProps) {
         </table>
       </div>
 
-      {status === "CanLoadMore" && (
-        <div className="mt-3 text-center">
-          <Button variant="outline" size="sm" onClick={() => loadMore(50)}>
-            Load more
-          </Button>
+      {(status === "CanLoadMore" || isLoading) && status !== "LoadingFirstPage" && (
+        <div ref={sentinelRef} className="mt-3 flex justify-center">
+          {isLoading && <Loader2 className="h-5 w-5 animate-spin text-zinc-500" />}
         </div>
       )}
     </div>

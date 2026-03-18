@@ -781,6 +781,19 @@ export default defineSchema({
     .index("activityUserUnique", ["activityId", "userId"])
     .index("challengeCreatedAt", ["challengeId", "createdAt"]),
 
+  // Activity Tags - tracks users tagged in activities for feed presence
+  activityTags: defineTable({
+    activityId: v.id("activities"),
+    taggedUserId: v.id("users"),
+    challengeId: v.id("challenges"),
+    dismissedAt: v.optional(v.number()), // When the tagged user removed it from their feed
+    relatedActivityId: v.optional(v.id("activities")), // Tagged user's own matching activity (set by background job)
+    createdAt: v.number(),
+  })
+    .index("activityId", ["activityId"])
+    .index("taggedUserChallenge", ["taggedUserId", "challengeId", "createdAt"])
+    .index("activityTaggedUser", ["activityId", "taggedUserId"]),
+
   // Activity External Data - companion table for large external payloads
   // (e.g. raw Strava API responses). Keeps the activities table lightweight
   // so queries that scan many activities don't hit Convex's read-bytes limit.

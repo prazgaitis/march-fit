@@ -57,8 +57,28 @@ export const getRankedActivityIds = query({
 
     const activityIds = new Set(activities.map((a) => a._id as string));
 
+    // Load tags for the current user to inject tagged activities into the feed
+    let taggedActivityMap: Map<string, { createdAt: number }> | null = null;
+    if (currentUser) {
+      const userTags = await ctx.db
+        .query("activityTags")
+        .withIndex("taggedUserChallenge", (q) =>
+          q
+            .eq("taggedUserId", currentUser._id)
+            .eq("challengeId", args.challengeId),
+        )
+        .order("desc")
+        .take(candidateLimit);
+
+      taggedActivityMap = new Map();
+      for (const tag of userTags) {
+        if (tag.dismissedAt) continue; // Skip dismissed tags
+        taggedActivityMap.set(tag.activityId as string, { createdAt: tag.createdAt });
+      }
+    }
+
     // Build scored list from organic activities
-    type ScoredEntry = { id: string; displayScore: number; repostedBy?: string };
+    type ScoredEntry = { id: string; displayScore: number; repostedBy?: string; taggedYou?: boolean };
     const scored: ScoredEntry[] = activities.map((activity) => {
       const isFollowing = followingIds
         ? followingIds.has(activity.userId as string)
@@ -75,8 +95,42 @@ export const getRankedActivityIds = query({
         affinityScore,
       );
 
-      return { id: activity._id, displayScore };
+      const taggedYou = taggedActivityMap?.has(activity._id as string) ?? false;
+      return { id: activity._id, displayScore, taggedYou: taggedYou || undefined };
     });
+
+    // Inject tagged activities that aren't already in the organic candidate set.
+    if (taggedActivityMap && taggedActivityMap.size > 0) {
+      for (const [actId, tagInfo] of taggedActivityMap) {
+        if (activityIds.has(actId)) continue; // Already in the feed
+
+        const activity = await ctx.db.get(actId as Id<"activities">);
+        if (!activity || activity.deletedAt) continue;
+
+        const isFollowing = followingIds
+          ? followingIds.has(activity.userId as string)
+          : false;
+        const affinityScore = affinityByAuthor
+          ? affinityByAuthor.get(activity.userId as string) ?? 0
+          : 0;
+
+        // Use tag creation time for freshness so tagged activities feel recent
+        const ageMs = Date.now() - tagInfo.createdAt;
+        const displayScore = computeDecayedScore(
+          (activity.feedScore ?? 0) + FOLLOWING_BOOST, // Give tagged activities a boost similar to following
+          ageMs,
+          isFollowing,
+          affinityScore,
+        );
+
+        scored.push({
+          id: activity._id,
+          displayScore,
+          taggedYou: true,
+        });
+        activityIds.add(actId);
+      }
+    }
 
     // Inject reposts from followed users that aren't already in the candidate set.
     // Use the repost timestamp for decay so they appear fresh when reposted.
@@ -150,9 +204,16 @@ export const getRankedActivityIds = query({
     }
 
     scored.sort((a, b) => b.displayScore - a.displayScore);
-    return scored.map((s) =>
-      s.repostedBy ? { id: s.id, repostedBy: s.repostedBy } : s.id,
-    );
+    return scored.map((s) => {
+      if (s.repostedBy || s.taggedYou) {
+        return {
+          id: s.id,
+          ...(s.repostedBy ? { repostedBy: s.repostedBy } : {}),
+          ...(s.taggedYou ? { taggedYou: true } : {}),
+        };
+      }
+      return s.id;
+    });
   },
 });
 
@@ -209,10 +270,10 @@ export const getAlgorithmicFeed = query({
       .order("desc")
       .take(candidateLimit);
 
-    // Hydrate each activity with user, type, engagement, media.
+    // Hydrate each activity with user, type, engagement, media, tags.
     const hydratedPage = await Promise.all(
       activities.map(async (activity) => {
-        const [user, activityType, userLike] = await Promise.all([
+        const [user, activityType, userLike, activityTagDocs] = await Promise.all([
           ctx.db.get(activity.userId),
           ctx.db.get(activity.activityTypeId),
           currentUser
@@ -225,9 +286,35 @@ export const getAlgorithmicFeed = query({
                 )
                 .first()
             : null,
+          ctx.db
+            .query("activityTags")
+            .withIndex("activityId", (q) =>
+              q.eq("activityId", activity._id),
+            )
+            .collect(),
         ]);
 
         if (!user || !activityType) return null;
+
+        // Build tag info
+        const taggedUsers = await Promise.all(
+          activityTagDocs.map(async (tag) => {
+            const taggedUser = await ctx.db.get(tag.taggedUserId);
+            if (!taggedUser) return null;
+            return {
+              id: taggedUser._id as string,
+              username: taggedUser.username,
+              name: taggedUser.name ?? null,
+              relatedActivityId: tag.relatedActivityId ?? null,
+            };
+          }),
+        ).then((arr) => arr.filter((u) => u !== null));
+
+        const taggedYou = currentUser
+          ? activityTagDocs.some(
+              (tag) => tag.taggedUserId === currentUser._id && !tag.dismissedAt,
+            )
+          : false;
 
         const [allLikes, commentCount] = includeEngagementCounts
           ? await Promise.all([
@@ -316,6 +403,8 @@ export const getAlgorithmicFeed = query({
           mediaUrls,
           cloudinaryPublicIds: activity.cloudinaryPublicIds ?? [],
           recentLikers,
+          taggedUsers,
+          taggedYou,
           displayScore,
           affinityScore,
           affinityBoost: computeAffinityBoost(affinityScore),

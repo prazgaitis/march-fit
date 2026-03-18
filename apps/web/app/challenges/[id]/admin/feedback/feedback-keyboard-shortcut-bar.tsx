@@ -1,6 +1,6 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { useFeedbackList } from "./feedback-list-context";
 
 function Kbd({ children }: { children: React.ReactNode }) {
   return (
@@ -26,10 +26,9 @@ function Shortcut({
 }
 
 export function FeedbackKeyboardShortcutBar() {
-  const params = useParams();
-  const hasSelection = !!params.feedbackId;
+  const { selectedId } = useFeedbackList();
 
-  if (!hasSelection) return null;
+  if (!selectedId) return null;
 
   return (
     <div className="flex flex-shrink-0 items-center gap-4 border-b border-zinc-800 bg-zinc-900/50 px-4 py-1.5 text-[10px]">

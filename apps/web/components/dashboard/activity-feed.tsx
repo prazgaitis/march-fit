@@ -21,6 +21,7 @@ import {
   Repeat2,
   Share2,
 } from "lucide-react";
+import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
 import {
   useConvex,
   useConvexConnectionState,
@@ -241,19 +242,6 @@ export function ActivityFeed({
   }, []);
   const lightweightFeedMode = initialLightweightMode;
 
-  const { results, status, loadMore, isLoading } = usePaginatedQuery(
-    api.queries.activities.getChallengeFeed,
-    feedFilter === "for_you"
-      ? "skip"
-      : {
-          challengeId: challengeId as Id<"challenges">,
-          followingOnly: feedFilter === "following",
-          includeEngagementCounts: !lightweightFeedMode,
-          includeMediaUrls: true,
-        },
-    { initialNumItems: 10 },
-  );
-
   // For You: one-shot fetch of ranked entries (not reactive) so that
   // likes/comments/reposts don't re-sort the feed while the user is scrolling.
   // Each card subscribes to its own data reactively via getById.
@@ -379,6 +367,33 @@ export function ActivityFeed({
   const algoCanLoadMore = (rankedEntries?.length ?? 0) > algoVisibleCount;
   const algoIsLoading = feedFilter === "for_you" && rankedEntries === undefined;
 
+  // For the "for_you" tab, once algo entries are exhausted we start loading
+  // chronological activities so the feed never ends.
+  const algoExhausted =
+    feedFilter === "for_you" &&
+    rankedEntries !== undefined &&
+    !algoCanLoadMore;
+
+  const { results, status, loadMore, isLoading } = usePaginatedQuery(
+    api.queries.activities.getChallengeFeed,
+    feedFilter === "for_you" && !algoExhausted
+      ? "skip"
+      : {
+          challengeId: challengeId as Id<"challenges">,
+          followingOnly: feedFilter === "following",
+          includeEngagementCounts: true,
+          includeMediaUrls: true,
+        },
+    { initialNumItems: 10 },
+  );
+
+  // Filter out activities already shown via the algo feed to avoid duplicates
+  const chronoResultsAfterAlgo = useMemo(() => {
+    if (!algoExhausted || !results) return results;
+    const algoIdSet = new Set((rankedEntries ?? []).map((e) => e.id));
+    return results.filter((item) => !algoIdSet.has(item.activity._id as Id<"activities">));
+  }, [algoExhausted, results, rankedEntries]);
+
   const loadHttpPage = useCallback(
     async (cursor: string | null, append: boolean) => {
       const requestId = ++httpRequestIdRef.current;
@@ -393,7 +408,7 @@ export function ActivityFeed({
           credentials: "include",
           body: JSON.stringify({
             followingOnly: feedFilter === "following",
-            includeEngagementCounts: !lightweightFeedMode,
+            includeEngagementCounts: true,
             includeMediaUrls: true,
             cursor,
             numItems: 10,
@@ -502,7 +517,11 @@ export function ActivityFeed({
 
   const handleLoadMore = () => {
     if (feedFilter === "for_you") {
-      setAlgoVisibleCount((prev) => prev + ALGO_PAGE_SIZE);
+      if (algoCanLoadMore) {
+        setAlgoVisibleCount((prev) => prev + ALGO_PAGE_SIZE);
+      } else if (status === "CanLoadMore") {
+        loadMore(10);
+      }
       return;
     }
 
@@ -593,13 +612,13 @@ export function ActivityFeed({
 
   const effectiveIsLoading =
     feedFilter === "for_you"
-      ? algoIsLoading
+      ? algoIsLoading || (algoExhausted && isLoading)
       : useHttpFallback
         ? httpLoading
         : isLoading;
   const canLoadMore =
     feedFilter === "for_you"
-      ? algoCanLoadMore
+      ? algoCanLoadMore || (algoExhausted && status === "CanLoadMore")
       : useHttpFallback
         ? !httpIsDone && !httpLoading && httpCursor !== null
         : status === "CanLoadMore";
@@ -786,7 +805,7 @@ export function ActivityFeed({
             <ReactiveActivityCard
               activityId={entry.id}
               challengeId={challengeId}
-              showEngagementCounts={!lightweightFeedMode}
+              showEngagementCounts
               mentionOptions={mentionUsers}
               currentUserId={currentUserId}
               followingSet={followingSet}
@@ -804,6 +823,38 @@ export function ActivityFeed({
           </div>
         ))}
 
+      {/* For You tab: chronological activities after algo entries are exhausted */}
+      {feedFilter === "for_you" &&
+        algoExhausted &&
+        chronoResultsAfterAlgo
+          ?.filter(
+            (
+              item,
+            ): item is NonNullable<typeof item> & {
+              user: NonNullable<(typeof item)["user"]>;
+            } => item.user !== null,
+          )
+          .map((item) => (
+            <ActivityCard
+              key={item.activity._id}
+              challengeId={challengeId}
+              showEngagementCounts
+              item={{
+                ...item,
+                activity: {
+                  ...item.activity,
+                  id: item.activity._id,
+                },
+                reposts: ("reposts" in item ? (item as any).reposts : 0) ?? 0,
+                repostedByUser: ("repostedByUser" in item ? (item as any).repostedByUser : false) ?? false,
+                mediaUrls: item.mediaUrls ?? [],
+              }}
+              mentionOptions={mentionUsers}
+              currentUserId={currentUserId}
+              isFollowing={followingSet.has(item.user.id)}
+            />
+          ))}
+
       {/* All / Following tabs: render from paginated query results */}
       {feedFilter !== "for_you" &&
         displayResults
@@ -818,7 +869,7 @@ export function ActivityFeed({
             <ActivityCard
               key={item.activity._id}
               challengeId={challengeId}
-              showEngagementCounts={!lightweightFeedMode}
+              showEngagementCounts
               item={{
                 ...item,
                 activity: {
@@ -863,17 +914,33 @@ export function ActivityFeed({
         </Card>
       )}
 
-      {canLoadMore && (
-        <div className="flex justify-center">
-          <Button
-            variant="outline"
-            onClick={handleLoadMore}
-            disabled={effectiveIsLoading}
-          >
-            {effectiveIsLoading ? "Loading..." : "Load more"}
-          </Button>
-        </div>
-      )}
+      <InfiniteScrollSentinel
+        canLoadMore={canLoadMore}
+        isLoading={effectiveIsLoading}
+        onLoadMore={handleLoadMore}
+      />
+    </div>
+  );
+}
+
+function InfiniteScrollSentinel({
+  canLoadMore,
+  isLoading,
+  onLoadMore,
+}: {
+  canLoadMore: boolean;
+  isLoading: boolean;
+  onLoadMore: () => void;
+}) {
+  const sentinelRef = useInfiniteScroll(onLoadMore, {
+    enabled: canLoadMore && !isLoading,
+  });
+
+  if (!canLoadMore && !isLoading) return null;
+
+  return (
+    <div ref={sentinelRef} className="flex justify-center py-4">
+      {isLoading && <Loader2 className="h-5 w-5 animate-spin text-zinc-500" />}
     </div>
   );
 }
@@ -1043,7 +1110,8 @@ export const ActivityCard = memo(function ActivityCard({
 }: ActivityCardProps) {
   const activityId = item.activity.id ?? item.activity._id;
   const router = useRouter();
-  const [isLiking, setIsLiking] = useState(false);
+  const [optimisticLiked, setOptimisticLiked] = useState<boolean | null>(null);
+  const [optimisticLikeCount, setOptimisticLikeCount] = useState<number | null>(null);
   const [isReposting, setIsReposting] = useState(false);
   const [showComments, setShowComments] = useState(false);
   const [showFlagDialog, setShowFlagDialog] = useState(false);
@@ -1057,16 +1125,38 @@ export const ActivityCard = memo(function ActivityCard({
   const toggleRepost = useMutation(api.mutations.reposts.toggle);
   const flagActivity = useMutation(api.mutations.activities.flagActivity);
 
+  // Derive effective like state (optimistic or server)
+  const effectiveLiked = optimisticLiked ?? item.likedByUser;
+  const effectiveLikeCount = optimisticLikeCount ?? item.likes;
+
+  // Reset optimistic state when server data catches up
+  useEffect(() => {
+    if (optimisticLiked !== null && item.likedByUser === optimisticLiked) {
+      setOptimisticLiked(null);
+    }
+  }, [item.likedByUser, optimisticLiked]);
+
+  useEffect(() => {
+    if (optimisticLikeCount !== null && item.likes === optimisticLikeCount) {
+      setOptimisticLikeCount(null);
+    }
+  }, [item.likes, optimisticLikeCount]);
+
   const handleToggleLike = useCallback(async () => {
-    setIsLiking(true);
+    const wasLiked = effectiveLiked;
+    const prevCount = effectiveLikeCount;
+    // Optimistic update
+    setOptimisticLiked(!wasLiked);
+    setOptimisticLikeCount(prevCount + (wasLiked ? -1 : 1));
     try {
       await toggleLike({ activityId: activityId as Id<"activities"> });
     } catch (error) {
       console.error("Failed to toggle like", error);
-    } finally {
-      setIsLiking(false);
+      // Revert on error
+      setOptimisticLiked(wasLiked);
+      setOptimisticLikeCount(prevCount);
     }
-  }, [activityId, toggleLike]);
+  }, [activityId, toggleLike, effectiveLiked, effectiveLikeCount]);
 
   const handleToggleRepost = useCallback(async () => {
     setIsReposting(true);
@@ -1156,11 +1246,10 @@ export const ActivityCard = memo(function ActivityCard({
       onClick={(e) => e.stopPropagation()}
     >
       <button
-        disabled={isLiking}
         onClick={handleToggleLike}
         className={cn(
           "flex items-center gap-1.5 text-sm transition-colors py-2",
-          item.likedByUser
+          effectiveLiked
             ? "text-red-500"
             : "hover:text-red-500",
         )}
@@ -1168,11 +1257,11 @@ export const ActivityCard = memo(function ActivityCard({
         <Heart
           className={cn(
             "h-5 w-5 sm:h-[18px] sm:w-[18px]",
-            item.likedByUser && "fill-current",
+            effectiveLiked && "fill-current",
           )}
         />
-        {showEngagementCounts && item.likes > 0 && (
-          <span>{item.likes}</span>
+        {showEngagementCounts && effectiveLikeCount > 0 && (
+          <span>{effectiveLikeCount}</span>
         )}
       </button>
       <button
@@ -1403,13 +1492,13 @@ export const ActivityCard = memo(function ActivityCard({
     />
   ) : null;
 
-  const likesDisplay = showEngagementCounts && item.likes > 0 ? (
+  const likesDisplay = showEngagementCounts && effectiveLikeCount > 0 ? (
     <div onClick={(e) => e.stopPropagation()}>
       <LikesDisplay
         activityId={activityId}
         challengeId={challengeId}
-        likes={item.likes}
-        likedByUser={item.likedByUser}
+        likes={effectiveLikeCount}
+        likedByUser={effectiveLiked}
         recentLikers={item.recentLikers ?? []}
         currentUserId={currentUserId}
       />

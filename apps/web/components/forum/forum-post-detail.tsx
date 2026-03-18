@@ -6,6 +6,7 @@ import { useQuery, useMutation } from "@/lib/convex-auth-react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
 import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import {
   ArrowBigUp,
   ArrowLeft,
@@ -95,88 +96,72 @@ export function ForumPostDetail({ postId, challengeId }: ForumPostDetailProps) {
       </Link>
 
       {/* Main post */}
-      <div className="flex gap-3">
-        {/* Upvote column */}
-        <div className="flex w-10 shrink-0 flex-col items-center pt-1">
-          <button
-            onClick={() => handleUpvote(data.post._id)}
-            className={cn(
-              "rounded p-1 transition-colors active:scale-95",
-              data.upvotedByUser
-                ? "text-indigo-400"
-                : "text-zinc-600 hover:text-zinc-400",
-            )}
-          >
-            <ArrowBigUp
-              className="h-6 w-6"
-              fill={data.upvotedByUser ? "currentColor" : "none"}
-            />
-          </button>
-          <span
-            className={cn(
-              "text-sm font-mono font-medium",
-              data.upvotedByUser ? "text-indigo-400" : "text-zinc-500",
-            )}
-          >
-            {data.upvoteCount}
+      <div>
+        <div className="flex items-start gap-2">
+          {data.post.isPinned && (
+            <Pin className="mt-1 h-4 w-4 shrink-0 rotate-45 text-amber-400" />
+          )}
+          <h1 className="break-words text-lg font-bold text-white">
+            {data.post.title}
+          </h1>
+        </div>
+
+        {/* Meta */}
+        <div className="mt-1.5 flex items-center gap-2 text-xs text-zinc-500">
+          <UserAvatar
+            user={data.user}
+            challengeId={challengeId}
+            size="xs"
+          />
+          <span className="font-medium text-zinc-400">
+            {data.user.username}
+          </span>
+          <span>·</span>
+          <span>
+            {formatDistanceToNow(new Date(data.post.createdAt), {
+              addSuffix: true,
+            })}
           </span>
         </div>
 
-        {/* Content */}
-        <div className="min-w-0 flex-1">
-          <div className="flex items-start gap-2">
-            {data.post.isPinned && (
-              <Pin className="mt-1 h-4 w-4 shrink-0 rotate-45 text-amber-400" />
+        {/* Body */}
+        <div className="mt-4 break-words text-sm text-zinc-300">
+          <PostContent content={data.post.content} />
+        </div>
+
+        {/* Actions bar */}
+        <div className="mt-3 flex items-center gap-1 border-t border-zinc-800/50 pt-3">
+          <button
+            onClick={() => handleUpvote(data.post._id)}
+            className={cn(
+              "flex items-center gap-1 rounded px-1.5 py-1 text-xs transition-colors active:scale-95",
+              data.upvotedByUser
+                ? "text-indigo-400"
+                : "text-zinc-500 hover:text-zinc-300",
             )}
-            <h1 className="break-words text-lg font-bold text-white">
-              {data.post.title}
-            </h1>
-          </div>
-
-          {/* Meta */}
-          <div className="mt-1.5 flex items-center gap-2 text-xs text-zinc-500">
-            <UserAvatar
-              user={data.user}
-              challengeId={challengeId}
-              size="xs"
+          >
+            <ArrowBigUp
+              className="h-4 w-4"
+              fill={data.upvotedByUser ? "currentColor" : "none"}
             />
-            <span className="font-medium text-zinc-400">
-              {data.user.username}
-            </span>
-            <span>·</span>
-            <span>
-              {formatDistanceToNow(new Date(data.post.createdAt), {
-                addSuffix: true,
-              })}
-            </span>
-          </div>
-
-          {/* Body */}
-          <div className="mt-4 break-words text-sm text-zinc-300">
-            <PostContent content={data.post.content} />
-          </div>
-
-          {/* Actions */}
-          {(data.isAdmin || data.isAuthor) && (
-            <div className="mt-3 flex items-center gap-1 border-t border-zinc-800/50 pt-3">
-              {data.isAdmin && (
-                <Button variant="ghost" size="sm" className="h-7 text-xs text-zinc-500 hover:text-white" onClick={handlePin}>
-                  <Pin className="h-3 w-3" />
-                  {data.post.isPinned ? "Unpin" : "Pin"}
-                </Button>
-              )}
-              {(data.isAuthor || data.isAdmin) && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 text-xs text-red-400/70 hover:text-red-300"
-                  onClick={() => handleDelete(data.post._id)}
-                >
-                  <Trash2 className="h-3 w-3" />
-                  Delete
-                </Button>
-              )}
-            </div>
+            <span className="font-mono font-medium">{data.upvoteCount}</span>
+          </button>
+          {data.isAdmin && (
+            <Button variant="ghost" size="sm" className="h-7 text-xs text-zinc-500 hover:text-white" onClick={handlePin}>
+              <Pin className="h-3 w-3" />
+              {data.post.isPinned ? "Unpin" : "Pin"}
+            </Button>
+          )}
+          {(data.isAuthor || data.isAdmin) && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs text-red-400/70 hover:text-red-300"
+              onClick={() => handleDelete(data.post._id)}
+            >
+              <Trash2 className="h-3 w-3" />
+              Delete
+            </Button>
           )}
         </div>
       </div>
@@ -192,70 +177,56 @@ export function ForumPostDetail({ postId, challengeId }: ForumPostDetailProps) {
       {/* Replies */}
       <div className="space-y-0 divide-y divide-zinc-800/50">
         {data.replies.map((reply: typeof data.replies[number]) => (
-          <div key={reply.post._id} className="flex gap-3 py-3">
-            {/* Upvote column */}
-            <div className="flex w-10 shrink-0 flex-col items-center pt-0.5">
+          <div key={reply.post._id} className="py-3">
+            <div className="flex items-center gap-2 text-xs text-zinc-500">
+              {reply.user && (
+                <>
+                  <UserAvatar
+                    user={reply.user}
+                    challengeId={challengeId}
+                    size="xs"
+                  />
+                  <span className="font-medium text-zinc-400">
+                    {reply.user.username}
+                  </span>
+                  <span>·</span>
+                </>
+              )}
+              <span>
+                {formatDistanceToNow(new Date(reply.post.createdAt), {
+                  addSuffix: true,
+                })}
+              </span>
+            </div>
+            <div className="mt-1.5 break-words text-sm text-zinc-300">
+              <PostContent content={reply.post.content} />
+            </div>
+            <div className="mt-1.5 flex items-center gap-1">
               <button
                 onClick={() => handleUpvote(reply.post._id)}
                 className={cn(
-                  "rounded p-1 transition-colors active:scale-95",
+                  "flex items-center gap-1 rounded px-1 py-0.5 text-xs transition-colors active:scale-95",
                   reply.upvotedByUser
                     ? "text-indigo-400"
-                    : "text-zinc-600 hover:text-zinc-400",
+                    : "text-zinc-500 hover:text-zinc-300",
                 )}
               >
                 <ArrowBigUp
-                  className="h-5 w-5"
+                  className="h-3.5 w-3.5"
                   fill={reply.upvotedByUser ? "currentColor" : "none"}
                 />
+                <span className="font-mono font-medium">{reply.upvoteCount}</span>
               </button>
-              <span
-                className={cn(
-                  "text-xs font-mono font-medium",
-                  reply.upvotedByUser ? "text-indigo-400" : "text-zinc-500",
-                )}
-              >
-                {reply.upvoteCount}
-              </span>
-            </div>
-
-            {/* Content */}
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2 text-xs text-zinc-500">
-                {reply.user && (
-                  <>
-                    <UserAvatar
-                      user={reply.user}
-                      challengeId={challengeId}
-                      size="xs"
-                    />
-                    <span className="font-medium text-zinc-400">
-                      {reply.user.username}
-                    </span>
-                    <span>·</span>
-                  </>
-                )}
-                <span>
-                  {formatDistanceToNow(new Date(reply.post.createdAt), {
-                    addSuffix: true,
-                  })}
-                </span>
-              </div>
-              <div className="mt-1.5 break-words text-sm text-zinc-300">
-                <PostContent content={reply.post.content} />
-              </div>
               {(data.isAdmin || (reply.user && data.isAuthor)) && (
-                <div className="mt-1.5">
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 text-xs text-red-400/70 hover:text-red-300"
-                    onClick={() => handleDelete(reply.post._id)}
-                  >
-                    <Trash2 className="h-3 w-3" />
-                    Delete
-                  </Button>
-                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 text-xs text-red-400/70 hover:text-red-300"
+                  onClick={() => handleDelete(reply.post._id)}
+                >
+                  <Trash2 className="h-3 w-3" />
+                  Delete
+                </Button>
               )}
             </div>
           </div>
@@ -285,16 +256,72 @@ export function ForumPostDetail({ postId, challengeId }: ForumPostDetailProps) {
 }
 
 /**
+ * Extract markdown-compatible text from Tiptap JSON.
+ * Converts bold/italic marks to markdown syntax and joins paragraphs with newlines.
+ */
+function tiptapToMarkdown(content: string): string | null {
+  try {
+    const doc = JSON.parse(content);
+    if (doc?.type !== "doc" || !Array.isArray(doc.content)) return null;
+
+    function renderNode(node: { type?: string; text?: string; content?: typeof doc.content; marks?: Array<{ type: string; attrs?: Record<string, unknown> }> }): string {
+      if (node.type === "text" && typeof node.text === "string") {
+        let text = node.text;
+        if (node.marks) {
+          for (const mark of node.marks) {
+            if (mark.type === "bold") text = `**${text}**`;
+            else if (mark.type === "italic") text = `*${text}*`;
+            else if (mark.type === "link" && mark.attrs?.href) text = `[${text}](${mark.attrs.href})`;
+          }
+        }
+        return text;
+      }
+      if (node.type === "hardBreak") return "\n";
+      if (node.type === "mention") return `@${(node as { attrs?: { username?: string } }).attrs?.username ?? ""}`;
+      const children = node.content?.map(renderNode).join("") ?? "";
+      if (node.type === "paragraph") return children;
+      if (node.type === "heading") return children;
+      if (node.type === "horizontalRule") return "---";
+      return children;
+    }
+
+    return doc.content
+      .map((node: typeof doc.content[0]) => renderNode(node))
+      .join("\n");
+  } catch {
+    return null;
+  }
+}
+
+/** Check if plain text contains markdown table or heading syntax */
+function containsMarkdownSyntax(text: string): boolean {
+  return /^\|.+\|$/m.test(text) || /^#{1,6}\s/m.test(text);
+}
+
+/**
  * Renders post content — uses RichTextViewer for JSON (Tiptap) content,
  * falls back to markdown rendering with activity link card detection for legacy posts.
+ * Tiptap content that contains markdown syntax (tables, headings) is extracted
+ * and rendered through ReactMarkdown for proper formatting.
  */
 function PostContent({
   content,
 }: {
   content: string;
 }) {
-  // If it looks like Tiptap JSON, render with RichTextViewer
+  // If it looks like Tiptap JSON, check if it contains markdown syntax
   if (content.trim().startsWith("{")) {
+    const extracted = tiptapToMarkdown(content);
+    if (extracted && containsMarkdownSyntax(extracted)) {
+      return (
+        <div className="space-y-3">
+          <div className="prose prose-sm prose-invert max-w-none break-words prose-p:my-2 prose-pre:bg-zinc-900 prose-pre:text-zinc-200 prose-code:text-zinc-200 prose-a:text-indigo-300 prose-a:underline">
+            <ReactMarkdown remarkPlugins={[remarkGfm]}>{extracted}</ReactMarkdown>
+          </div>
+          <PostActivityCards content={extracted} />
+        </div>
+      );
+    }
     return <RichTextViewer content={content} />;
   }
 
@@ -302,7 +329,7 @@ function PostContent({
   return (
     <div className="space-y-3">
       <div className="prose prose-sm prose-invert max-w-none break-words prose-p:my-2 prose-pre:bg-zinc-900 prose-pre:text-zinc-200 prose-code:text-zinc-200 prose-a:text-indigo-300 prose-a:underline">
-        <ReactMarkdown>{content}</ReactMarkdown>
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
       </div>
       <PostActivityCards content={content} />
     </div>
