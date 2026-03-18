@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, Calendar, Check, CheckCircle, ChevronsUpDown, CreditCard, ImagePlus, Loader2, Lock, PlusCircle, X, Zap } from "lucide-react";
+import { AlertTriangle, Calendar, Check, CheckCircle, ChevronsUpDown, CreditCard, ImagePlus, Loader2, Lock, PlusCircle, UserPlus, X, Zap } from "lucide-react";
 import { useAction, useMutation, useQuery } from "@/lib/convex-auth-react";
 import { ConvexError } from "convex/values";
 import { api } from "@repo/backend";
@@ -70,6 +70,7 @@ interface FormState {
   selectedBonuses: string[];
   notes: string;
   loggedDate?: Date;
+  taggedUserIds: string[];
 }
 
 function createInitialFormState(): FormState {
@@ -80,6 +81,7 @@ function createInitialFormState(): FormState {
     selectedBonuses: [],
     notes: "",
     loggedDate: new Date(),
+    taggedUserIds: [],
   };
 }
 
@@ -703,6 +705,9 @@ export function ActivityLogDialog({ challengeId, challengeStartDate, trigger }: 
         timezone: browserTimezone,
         localTime,
         source: "manual",
+        taggedUserIds: form.taggedUserIds.length > 0
+          ? form.taggedUserIds as Id<"users">[]
+          : undefined,
       });
 
       // Clean up media previews
@@ -1172,6 +1177,89 @@ export function ActivityLogDialog({ challengeId, challengeStartDate, trigger }: 
                 mentionOptions={mentionUsers}
                 className="mt-1"
               />
+            </div>
+
+            {/* Tag Users Section */}
+            <div className="space-y-2">
+              <Label>Tag people (optional)</Label>
+              {form.taggedUserIds.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {form.taggedUserIds.map((userId) => {
+                    const user = mentionUsers.find((u) => u.id === userId);
+                    if (!user) return null;
+                    return (
+                      <span
+                        key={userId}
+                        className="inline-flex items-center gap-1 rounded-full border border-zinc-700 bg-zinc-800 px-2.5 py-1 text-sm"
+                      >
+                        {user.name || user.username}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setForm((prev) => ({
+                              ...prev,
+                              taggedUserIds: prev.taggedUserIds.filter((id) => id !== userId),
+                            }))
+                          }
+                          className="ml-0.5 rounded-full p-0.5 text-zinc-400 hover:text-zinc-200"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      </span>
+                    );
+                  })}
+                </div>
+              )}
+              {mentionUsers.filter((u) => u.id !== currentUser?._id && !form.taggedUserIds.includes(u.id)).length > 0 && (
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="gap-1.5 text-zinc-400"
+                    >
+                      <UserPlus className="h-3.5 w-3.5" />
+                      Tag someone
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent
+                    container={popoverContainer}
+                    className="z-[60] w-[--radix-popover-trigger-width] min-w-[200px] p-0"
+                    align="start"
+                  >
+                    <Command className="h-auto">
+                      <CommandInput placeholder="Search people..." />
+                      <CommandList>
+                        <CommandEmpty>No people found.</CommandEmpty>
+                        <CommandGroup>
+                          {mentionUsers
+                            .filter((u) => u.id !== currentUser?._id && !form.taggedUserIds.includes(u.id))
+                            .map((user) => (
+                              <CommandItem
+                                key={user.id}
+                                value={user.name || user.username}
+                                onSelect={() =>
+                                  setForm((prev) => ({
+                                    ...prev,
+                                    taggedUserIds: [...prev.taggedUserIds, user.id],
+                                  }))
+                                }
+                              >
+                                {user.name || user.username}
+                                {user.name && (
+                                  <span className="ml-1.5 text-xs text-muted-foreground">
+                                    @{user.username}
+                                  </span>
+                                )}
+                              </CommandItem>
+                            ))}
+                        </CommandGroup>
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              )}
             </div>
 
             {/* Media Upload Section */}

@@ -74,7 +74,7 @@ const MentionList = forwardRef<MentionListHandle, MentionListProps>(
           );
           return true;
         }
-        if (event.key === 'Enter') {
+        if (event.key === 'Enter' || event.key === 'Tab') {
           selectItem(selectedIndex);
           return true;
         }
@@ -99,6 +99,10 @@ const MentionList = forwardRef<MentionListHandle, MentionListProps>(
                   !isActive && 'hover:bg-muted/80',
                 )}
                 onMouseDown={(e) => e.preventDefault()}
+                onTouchEnd={(e) => {
+                  e.preventDefault();
+                  selectItem(index);
+                }}
                 onClick={() => selectItem(index)}
               >
                 <span className="font-medium leading-tight">
@@ -166,6 +170,7 @@ function createMentionSuggestion(
             interactive: true,
             trigger: 'manual',
             placement: 'bottom-start',
+            zIndex: 99999,
           });
         },
         onUpdate(props: {
