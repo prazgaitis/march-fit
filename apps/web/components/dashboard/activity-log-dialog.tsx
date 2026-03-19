@@ -213,7 +213,7 @@ function ActivityTypePicker({
 
   if (isMobile) {
     return (
-      <DrawerNestedRoot open={comboboxOpen} onOpenChange={onComboboxOpenChange}>
+      <DrawerNestedRoot open={comboboxOpen} onOpenChange={onComboboxOpenChange} handleOnly>
         <DrawerTrigger asChild>{triggerButton}</DrawerTrigger>
         <DrawerContent className="max-h-[85dvh]">
           <DrawerHeader>
