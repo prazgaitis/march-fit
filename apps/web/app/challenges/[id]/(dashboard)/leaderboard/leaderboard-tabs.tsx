@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useCallback } from "react";
+import { useMemo, useCallback, useState, useEffect, useTransition } from "react";
 import { useSearchParams, useRouter, usePathname } from "next/navigation";
 import { Search, X } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -44,7 +44,17 @@ export function LeaderboardTabs({
 
   const tabParam = searchParams.get("tab");
   const activeTab: Tab = isValidTab(tabParam) ? tabParam : "overall";
-  const search = searchParams.get("q") ?? "";
+  const searchParam = searchParams.get("q") ?? "";
+
+  const [isPending, startTransition] = useTransition();
+
+  // Local search state for responsive typing; URL is updated as a low-priority transition
+  const [search, setSearchLocal] = useState(searchParam);
+
+  // Sync local state if URL param changes externally (e.g. back/forward nav)
+  useEffect(() => {
+    setSearchLocal(searchParam);
+  }, [searchParam]);
 
   const updateParams = useCallback(
     (updates: Record<string, string | null>) => {
@@ -68,7 +78,12 @@ export function LeaderboardTabs({
   );
 
   const setSearch = useCallback(
-    (q: string) => updateParams({ q: q || null }),
+    (q: string) => {
+      setSearchLocal(q);
+      startTransition(() => {
+        updateParams({ q: q || null });
+      });
+    },
     [updateParams]
   );
 
