@@ -6,6 +6,7 @@ import { useMutation } from "convex/react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
 import { ChevronLeft, ChevronRight, Heart, Send, X } from "lucide-react";
+import Link from "next/link";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import type { StoryItem } from "./stories-row";
@@ -307,30 +308,36 @@ export function StoryViewer({
 
       {/* Header: user info + close */}
       <div className="absolute left-0 right-0 top-0 z-10 flex items-center gap-3 px-4 pt-[calc(env(safe-area-inset-top)+20px)]">
-        <Avatar className="h-9 w-9 border-2 border-white/20">
-          <AvatarImage
-            src={story.user.avatarUrl ?? undefined}
-            alt={story.user.name ?? story.user.username}
-          />
-          <AvatarFallback className="text-[10px]">
-            {(story.user.name ?? story.user.username)
-              .slice(0, 2)
-              .toUpperCase()}
-          </AvatarFallback>
-        </Avatar>
-        <div className="flex-1 min-w-0">
-          <p className="truncate text-sm font-semibold text-white">
-            {story.user.name ?? story.user.username}
-          </p>
-          <p className="text-xs text-white/60">
-            {slide.activityType && (
-              <span className="mr-1.5">{slide.activityType}</span>
-            )}
-            {formatDistanceToNow(new Date(slide.createdAt), {
-              addSuffix: true,
-            })}
-          </p>
-        </div>
+        <Link
+          href={`/challenges/${story.challengeId}/users/${story.user.id}`}
+          onClick={onClose}
+          className="flex items-center gap-3 min-w-0 flex-1"
+        >
+          <Avatar className="h-9 w-9 shrink-0 border-2 border-white/20">
+            <AvatarImage
+              src={story.user.avatarUrl ?? undefined}
+              alt={story.user.name ?? story.user.username}
+            />
+            <AvatarFallback className="text-[10px]">
+              {(story.user.name ?? story.user.username)
+                .slice(0, 2)
+                .toUpperCase()}
+            </AvatarFallback>
+          </Avatar>
+          <div className="flex-1 min-w-0">
+            <p className="truncate text-sm font-semibold text-white">
+              {story.user.name ?? story.user.username}
+            </p>
+            <p className="text-xs text-white/60">
+              {slide.activityType && (
+                <span className="mr-1.5">{slide.activityType}</span>
+              )}
+              {formatDistanceToNow(new Date(slide.createdAt), {
+                addSuffix: true,
+              })}
+            </p>
+          </div>
+        </Link>
         <button
           onClick={onClose}
           className="flex h-9 w-9 items-center justify-center rounded-full text-white/80 transition-colors hover:bg-white/10"
