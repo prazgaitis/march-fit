@@ -52,7 +52,7 @@ import {
 
 type MiniGameType = "partner_week" | "hunt_week" | "pr_week";
 type MiniGameStatus = "draft" | "active" | "calculating" | "completed";
-type PreviewUser = { name?: string; username?: string } | null | undefined;
+type PreviewUser = { id?: string; name?: string; username?: string } | null | undefined;
 
 type StartPreviewAssignment = {
   rank?: number;
@@ -101,11 +101,16 @@ type EndPreviewData = {
 
 type MiniGameParticipant = {
   id: string;
+  currentPoints?: number;
   initialState: {
     rank?: number;
     points?: number;
     dailyPr?: number;
   };
+  finalState?: {
+    rank?: number;
+    points?: number;
+  } | null;
   outcome: {
     partnerWeekPoints?: number;
     caughtPrey?: boolean;
@@ -114,10 +119,10 @@ type MiniGameParticipant = {
     hitPr?: boolean;
   } | null;
   bonusPoints?: number;
-  user?: { name?: string; username: string; avatarUrl?: string };
-  partnerUser?: { name?: string; username: string; avatarUrl?: string };
-  preyUser?: { name?: string; username: string; avatarUrl?: string };
-  hunterUser?: { name?: string; username: string; avatarUrl?: string };
+  user?: { id?: string; name?: string; username: string; avatarUrl?: string };
+  partnerUser?: { id?: string; name?: string; username: string; avatarUrl?: string };
+  preyUser?: { id?: string; name?: string; username: string; avatarUrl?: string };
+  hunterUser?: { id?: string; name?: string; username: string; avatarUrl?: string };
 };
 
 const gameTypeInfo: Record<
@@ -156,6 +161,7 @@ export default function MiniGameDetailPage() {
   const miniGameId = gameId as Id<"miniGames">;
   const [isStartPreviewOpen, setIsStartPreviewOpen] = useState(false);
   const [isEndPreviewOpen, setIsEndPreviewOpen] = useState(false);
+  const [isRevokingAwards, setIsRevokingAwards] = useState(false);
 
   const miniGame = useQuery(api.queries.miniGames.getById, {
     miniGameId,
@@ -166,7 +172,7 @@ export default function MiniGameDetailPage() {
   ) as StartPreviewData | undefined;
   const endPreview = useQuery(
     api.queries.miniGames.previewEnd,
-    isEndPreviewOpen && miniGame?.status === "active" ? { miniGameId } : "skip"
+    miniGame?.status === "active" ? { miniGameId } : "skip"
   ) as EndPreviewData | undefined;
 
   const startMiniGame = useMutation(api.mutations.miniGames.start);
@@ -174,6 +180,7 @@ export default function MiniGameDetailPage() {
   const deleteMiniGame = useMutation(api.mutations.miniGames.remove);
   const cancelMiniGame = useMutation(api.mutations.miniGames.cancel);
   const updateMiniGame = useMutation(api.mutations.miniGames.update);
+  const revokeMiniGameAwards = useMutation(api.mutations.miniGames.revokeAwards);
 
   const [isEditingDates, setIsEditingDates] = useState(false);
   const [editStartsAt, setEditStartsAt] = useState("");
@@ -181,6 +188,8 @@ export default function MiniGameDetailPage() {
 
   const displayName = (user?: PreviewUser) =>
     user?.name || user?.username || "Unknown";
+  const formatPoints = (value: number | null | undefined) =>
+    (value ?? 0).toFixed(2);
 
   const handleStart = async () => {
     try {
@@ -217,6 +226,18 @@ export default function MiniGameDetailPage() {
     } catch (error) {
       console.error("Failed to cancel mini-game:", error);
       alert(error instanceof Error ? error.message : "Failed to cancel mini-game");
+    }
+  };
+
+  const handleRevokeAwards = async () => {
+    setIsRevokingAwards(true);
+    try {
+      await revokeMiniGameAwards({ miniGameId });
+    } catch (error) {
+      console.error("Failed to revoke mini-game awards:", error);
+      alert(error instanceof Error ? error.message : "Failed to revoke mini-game awards");
+    } finally {
+      setIsRevokingAwards(false);
     }
   };
 
@@ -636,7 +657,12 @@ export default function MiniGameDetailPage() {
             )}
             {miniGame.status === "active" && (
               <div className="text-right text-[10px] text-zinc-500">
-                Preview End shows projected bonuses without ending the game.
+                Table and Preview End show projected bonuses without ending the game.
+              </div>
+            )}
+            {miniGame.status === "completed" && (
+              <div className="text-right text-[10px] text-zinc-500">
+                Revoke Awards removes bonus activities and reopens the game for recalculation.
               </div>
             )}
           </div>
@@ -737,6 +763,51 @@ export default function MiniGameDetailPage() {
         </div>
       </div>
 
+      {miniGame.status === "completed" && (
+        <div className="flex justify-end">
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="h-8 text-red-400 hover:bg-red-500/10 hover:text-red-300"
+                disabled={isRevokingAwards}
+              >
+                {isRevokingAwards ? (
+                  <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                ) : (
+                  <X className="mr-1 h-3 w-3" />
+                )}
+                Revoke Awards
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent className="border-zinc-800 bg-zinc-900">
+              <AlertDialogHeader>
+                <AlertDialogTitle className="text-zinc-100">
+                  Revoke Mini-Game Awards?
+                </AlertDialogTitle>
+                <AlertDialogDescription className="text-zinc-400">
+                  This will remove all bonus activities created by &quot;{miniGame.name}&quot;,
+                  reverse those points, and move the game back to active so you can
+                  run the awards again.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel className="border-zinc-700 bg-zinc-800 text-zinc-300 hover:bg-zinc-700">
+                  Keep Awards
+                </AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={handleRevokeAwards}
+                  className="bg-red-500 text-white hover:bg-red-600"
+                >
+                  Revoke Awards
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      )}
+
       {/* Participants Table */}
       {miniGame.participants.length > 0 ? (
         <div className="rounded border border-zinc-800 bg-zinc-900">
@@ -746,282 +817,246 @@ export default function MiniGameDetailPage() {
             </span>
           </div>
 
-          {/* Table Header */}
-          <div
-            className={cn(
-              "grid gap-2 border-b border-zinc-800 px-3 py-2",
-              miniGame.type === "partner_week" && "grid-cols-12",
-              miniGame.type === "hunt_week" && "grid-cols-12",
-              miniGame.type === "pr_week" && "grid-cols-10"
-            )}
-          >
-            <div className="col-span-1 text-[10px] font-medium uppercase tracking-wider text-zinc-500">
-              #
-            </div>
-            <div className="col-span-3 text-[10px] font-medium uppercase tracking-wider text-zinc-500">
-              Participant
-            </div>
-            {miniGame.type === "partner_week" && (
-              <>
-                <div className="col-span-3 text-[10px] font-medium uppercase tracking-wider text-zinc-500">
-                  Partner
-                </div>
-                <div className="col-span-2 text-right text-[10px] font-medium uppercase tracking-wider text-zinc-500">
-                  Partner Pts
-                </div>
-              </>
-            )}
-            {miniGame.type === "hunt_week" && (
-              <>
-                <div className="col-span-2 text-[10px] font-medium uppercase tracking-wider text-zinc-500">
-                  Prey
-                </div>
-                <div className="col-span-2 text-[10px] font-medium uppercase tracking-wider text-zinc-500">
-                  Hunter
-                </div>
-                <div className="col-span-2 text-center text-[10px] font-medium uppercase tracking-wider text-zinc-500">
-                  Result
-                </div>
-              </>
-            )}
-            {miniGame.type === "pr_week" && (
-              <>
-                <div className="col-span-2 text-right text-[10px] font-medium uppercase tracking-wider text-zinc-500">
-                  Starting PR
-                </div>
-                <div className="col-span-2 text-right text-[10px] font-medium uppercase tracking-wider text-zinc-500">
-                  Week Max
-                </div>
-              </>
-            )}
-            <div className="col-span-2 text-right text-[10px] font-medium uppercase tracking-wider text-zinc-500">
-              Bonus
-            </div>
-          </div>
-
-          {/* Table Body */}
-          <div className="divide-y divide-zinc-800/50">
-            {miniGame.participants.map((participant: MiniGameParticipant) => {
-              const initialState = participant.initialState;
-              const outcome = participant.outcome;
-
-              return (
-                <div
-                  key={participant.id}
-                  className={cn(
-                    "grid items-center gap-2 px-3 py-2",
-                    miniGame.type === "partner_week" && "grid-cols-12",
-                    miniGame.type === "hunt_week" && "grid-cols-12",
-                    miniGame.type === "pr_week" && "grid-cols-10"
-                  )}
-                >
-                  {/* Rank */}
-                  <div className="col-span-1">
-                    <span className="font-mono text-xs text-zinc-600">
-                      {initialState?.rank ?? "-"}
-                    </span>
-                  </div>
-
-                  {/* Participant */}
-                  <div className="col-span-3 flex items-center gap-2">
-                    <div className="flex h-6 w-6 items-center justify-center rounded-full bg-zinc-800">
-                      {participant.user?.avatarUrl ? (
-                        <img
-                          src={participant.user.avatarUrl}
-                          alt=""
-                          className="h-6 w-6 rounded-full object-cover"
-                        />
-                      ) : (
-                        <User className="h-3 w-3 text-zinc-500" />
-                      )}
-                    </div>
-                    <span className="truncate text-sm text-zinc-200">
-                      {participant.user?.name || participant.user?.username}
-                    </span>
-                  </div>
-
-                  {/* Partner Week columns */}
+          <div className="max-h-[70dvh] overflow-auto">
+            <table className="w-full min-w-[1080px] text-left text-xs">
+              <thead>
+                <tr className="border-b border-zinc-800">
+                  <th className="sticky top-0 z-10 bg-zinc-900/95 px-3 py-2 font-medium uppercase tracking-wider text-zinc-500 backdrop-blur">#</th>
+                  <th className="sticky top-0 z-10 bg-zinc-900/95 px-3 py-2 font-medium uppercase tracking-wider text-zinc-500 backdrop-blur">Participant</th>
+                  <th className="sticky top-0 z-10 bg-zinc-900/95 px-3 py-2 text-right font-medium uppercase tracking-wider text-zinc-500 backdrop-blur">Start Pts</th>
+                  <th className="sticky top-0 z-10 bg-zinc-900/95 px-3 py-2 text-right font-medium uppercase tracking-wider text-zinc-500 backdrop-blur">End Pts</th>
                   {miniGame.type === "partner_week" && (
                     <>
-                      <div className="col-span-3 flex items-center gap-2">
-                        {participant.partnerUser ? (
-                          <>
-                            <div className="flex h-6 w-6 items-center justify-center rounded-full bg-zinc-800">
-                              {participant.partnerUser.avatarUrl ? (
-                                <img
-                                  src={participant.partnerUser.avatarUrl}
-                                  alt=""
-                                  className="h-6 w-6 rounded-full object-cover"
-                                />
-                              ) : (
-                                <User className="h-3 w-3 text-zinc-500" />
-                              )}
-                            </div>
-                            <span className="truncate text-sm text-zinc-400">
-                              {participant.partnerUser.name ||
-                                participant.partnerUser.username}
-                            </span>
-                          </>
-                        ) : (
-                          <span className="text-xs text-zinc-600">-</span>
-                        )}
-                      </div>
-                      <div className="col-span-2 text-right">
-                        {outcome?.partnerWeekPoints !== undefined ? (
-                          <span className="font-mono text-sm text-zinc-300">
-                            {outcome.partnerWeekPoints}
-                          </span>
-                        ) : (
-                          <span className="text-xs text-zinc-600">-</span>
-                        )}
-                      </div>
+                      <th className="sticky top-0 z-10 bg-zinc-900/95 px-3 py-2 font-medium uppercase tracking-wider text-zinc-500 backdrop-blur">Partner</th>
+                      <th className="sticky top-0 z-10 bg-zinc-900/95 px-3 py-2 text-right font-medium uppercase tracking-wider text-zinc-500 backdrop-blur">Partner Pts</th>
                     </>
                   )}
-
-                  {/* Hunt Week columns */}
                   {miniGame.type === "hunt_week" && (
                     <>
-                      <div className="col-span-2 flex items-center gap-1">
-                        {participant.preyUser ? (
-                          <>
-                            <div className="flex h-5 w-5 items-center justify-center rounded-full bg-zinc-800">
-                              {participant.preyUser.avatarUrl ? (
-                                <img
-                                  src={participant.preyUser.avatarUrl}
-                                  alt=""
-                                  className="h-5 w-5 rounded-full object-cover"
-                                />
-                              ) : (
-                                <User className="h-2.5 w-2.5 text-zinc-500" />
-                              )}
-                            </div>
-                            <span className="truncate text-xs text-zinc-400">
-                              {participant.preyUser.name ||
-                                participant.preyUser.username}
-                            </span>
-                          </>
-                        ) : (
-                          <span className="text-xs text-zinc-600">None (1st)</span>
-                        )}
-                      </div>
-                      <div className="col-span-2 flex items-center gap-1">
-                        {participant.hunterUser ? (
-                          <>
-                            <div className="flex h-5 w-5 items-center justify-center rounded-full bg-zinc-800">
-                              {participant.hunterUser.avatarUrl ? (
-                                <img
-                                  src={participant.hunterUser.avatarUrl}
-                                  alt=""
-                                  className="h-5 w-5 rounded-full object-cover"
-                                />
-                              ) : (
-                                <User className="h-2.5 w-2.5 text-zinc-500" />
-                              )}
-                            </div>
-                            <span className="truncate text-xs text-zinc-400">
-                              {participant.hunterUser.name ||
-                                participant.hunterUser.username}
-                            </span>
-                          </>
-                        ) : (
-                          <span className="text-xs text-zinc-600">None (last)</span>
-                        )}
-                      </div>
-                      <div className="col-span-2 flex items-center justify-center gap-2">
-                        {outcome ? (
-                          <>
-                            {outcome.caughtPrey !== undefined && (
-                              <div
+                      <th className="sticky top-0 z-10 bg-zinc-900/95 px-3 py-2 font-medium uppercase tracking-wider text-zinc-500 backdrop-blur">Prey</th>
+                      <th className="sticky top-0 z-10 bg-zinc-900/95 px-3 py-2 font-medium uppercase tracking-wider text-zinc-500 backdrop-blur">Hunter</th>
+                      <th className="sticky top-0 z-10 bg-zinc-900/95 px-3 py-2 text-center font-medium uppercase tracking-wider text-zinc-500 backdrop-blur">Caught Prey</th>
+                      <th className="sticky top-0 z-10 bg-zinc-900/95 px-3 py-2 text-center font-medium uppercase tracking-wider text-zinc-500 backdrop-blur">Was Caught</th>
+                    </>
+                  )}
+                  {miniGame.type === "pr_week" && (
+                    <>
+                      <th className="sticky top-0 z-10 bg-zinc-900/95 px-3 py-2 text-right font-medium uppercase tracking-wider text-zinc-500 backdrop-blur">Starting PR</th>
+                      <th className="sticky top-0 z-10 bg-zinc-900/95 px-3 py-2 text-right font-medium uppercase tracking-wider text-zinc-500 backdrop-blur">Week Max</th>
+                    </>
+                  )}
+                  <th className="sticky top-0 z-10 bg-zinc-900/95 px-3 py-2 text-right font-medium uppercase tracking-wider text-zinc-500 backdrop-blur">Bonus</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-800/50">
+                {miniGame.participants.map((participant: MiniGameParticipant) => {
+                  const initialState = participant.initialState;
+                  const previewOutcome =
+                    miniGame.status === "active"
+                      ? endPreview?.outcomes.find(
+                          (row) =>
+                            row.user?.id === participant.user?.id ||
+                            row.user?.username === participant.user?.username
+                        )
+                      : undefined;
+                  const outcome = participant.outcome ?? previewOutcome;
+                  const bonusPoints =
+                    participant.bonusPoints ?? previewOutcome?.bonusPoints;
+                  const endingPoints =
+                    participant.finalState?.points ??
+                    (miniGame.status === "active"
+                      ? (participant.currentPoints ?? initialState?.points ?? 0) +
+                        (bonusPoints ?? 0)
+                      : participant.currentPoints ?? initialState?.points ?? 0);
+
+                  return (
+                    <tr key={participant.id} className="align-middle">
+                      <td className="px-3 py-2 font-mono text-zinc-600">
+                        {initialState?.rank ?? "-"}
+                      </td>
+                      <td className="px-3 py-2">
+                        <div className="flex items-center gap-2">
+                          <div className="flex h-6 w-6 items-center justify-center rounded-full bg-zinc-800">
+                            {participant.user?.avatarUrl ? (
+                              <img
+                                src={participant.user.avatarUrl}
+                                alt=""
+                                className="h-6 w-6 rounded-full object-cover"
+                              />
+                            ) : (
+                              <User className="h-3 w-3 text-zinc-500" />
+                            )}
+                          </div>
+                          <span className="truncate text-sm text-zinc-200">
+                            {participant.user?.name || participant.user?.username}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono text-zinc-400">
+                        {formatPoints(initialState?.points)}
+                      </td>
+                      <td className="px-3 py-2 text-right font-mono text-zinc-300">
+                        {formatPoints(endingPoints)}
+                      </td>
+                      {miniGame.type === "partner_week" && (
+                        <>
+                          <td className="px-3 py-2">
+                            {participant.partnerUser ? (
+                              <div className="flex items-center gap-2">
+                                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-zinc-800">
+                                  {participant.partnerUser.avatarUrl ? (
+                                    <img
+                                      src={participant.partnerUser.avatarUrl}
+                                      alt=""
+                                      className="h-6 w-6 rounded-full object-cover"
+                                    />
+                                  ) : (
+                                    <User className="h-3 w-3 text-zinc-500" />
+                                  )}
+                                </div>
+                                <span className="truncate text-sm text-zinc-400">
+                                  {participant.partnerUser.name ||
+                                    participant.partnerUser.username}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-zinc-600">-</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2 text-right font-mono text-zinc-300">
+                            {outcome?.partnerWeekPoints !== undefined
+                              ? formatPoints(outcome.partnerWeekPoints)
+                              : "-"}
+                          </td>
+                        </>
+                      )}
+                      {miniGame.type === "hunt_week" && (
+                        <>
+                          <td className="px-3 py-2">
+                            {participant.preyUser ? (
+                              <div className="flex items-center gap-1">
+                                <div className="flex h-5 w-5 items-center justify-center rounded-full bg-zinc-800">
+                                  {participant.preyUser.avatarUrl ? (
+                                    <img
+                                      src={participant.preyUser.avatarUrl}
+                                      alt=""
+                                      className="h-5 w-5 rounded-full object-cover"
+                                    />
+                                  ) : (
+                                    <User className="h-2.5 w-2.5 text-zinc-500" />
+                                  )}
+                                </div>
+                                <span className="truncate text-zinc-400">
+                                  {participant.preyUser.name || participant.preyUser.username}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-zinc-600">None (1st)</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2">
+                            {participant.hunterUser ? (
+                              <div className="flex items-center gap-1">
+                                <div className="flex h-5 w-5 items-center justify-center rounded-full bg-zinc-800">
+                                  {participant.hunterUser.avatarUrl ? (
+                                    <img
+                                      src={participant.hunterUser.avatarUrl}
+                                      alt=""
+                                      className="h-5 w-5 rounded-full object-cover"
+                                    />
+                                  ) : (
+                                    <User className="h-2.5 w-2.5 text-zinc-500" />
+                                  )}
+                                </div>
+                                <span className="truncate text-zinc-400">
+                                  {participant.hunterUser.name || participant.hunterUser.username}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-zinc-600">None (last)</span>
+                            )}
+                          </td>
+                          <td className="px-3 py-2 text-center">
+                            {outcome?.caughtPrey !== undefined ? (
+                              <span
                                 className={cn(
-                                  "flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px]",
+                                  "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px]",
                                   outcome.caughtPrey
                                     ? "bg-emerald-500/20 text-emerald-400"
                                     : "bg-zinc-800 text-zinc-500"
                                 )}
                               >
-                                {outcome.caughtPrey ? (
-                                  <Check className="h-3 w-3" />
-                                ) : (
-                                  <X className="h-3 w-3" />
-                                )}
-                                Caught
-                              </div>
+                                {outcome.caughtPrey ? <Check className="h-3 w-3" /> : <X className="h-3 w-3" />}
+                                {outcome.caughtPrey ? "Yes" : "No"}
+                              </span>
+                            ) : (
+                              <span className="text-zinc-600">-</span>
                             )}
-                            {outcome.wasCaught !== undefined && (
-                              <div
+                          </td>
+                          <td className="px-3 py-2 text-center">
+                            {outcome?.wasCaught !== undefined ? (
+                              <span
                                 className={cn(
-                                  "flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px]",
+                                  "inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px]",
                                   outcome.wasCaught
                                     ? "bg-red-500/20 text-red-400"
                                     : "bg-zinc-800 text-zinc-500"
                                 )}
                               >
-                                {outcome.wasCaught ? (
-                                  <X className="h-3 w-3" />
-                                ) : (
-                                  <Check className="h-3 w-3" />
-                                )}
-                                Hunted
-                              </div>
+                                {outcome.wasCaught ? <X className="h-3 w-3" /> : <Check className="h-3 w-3" />}
+                                {outcome.wasCaught ? "Yes" : "No"}
+                              </span>
+                            ) : (
+                              <span className="text-zinc-600">-</span>
                             )}
-                          </>
-                        ) : (
-                          <span className="text-xs text-zinc-600">-</span>
-                        )}
-                      </div>
-                    </>
-                  )}
-
-                  {/* PR Week columns */}
-                  {miniGame.type === "pr_week" && (
-                    <>
-                      <div className="col-span-2 text-right">
-                        <span className="font-mono text-sm text-zinc-400">
-                          {initialState?.dailyPr ?? 0}
-                        </span>
-                      </div>
-                      <div className="col-span-2 text-right">
-                        {outcome?.weekMaxPoints !== undefined ? (
+                          </td>
+                        </>
+                      )}
+                      {miniGame.type === "pr_week" && (
+                        <>
+                          <td className="px-3 py-2 text-right font-mono text-zinc-400">
+                            {formatPoints(initialState?.dailyPr)}
+                          </td>
+                          <td className="px-3 py-2 text-right font-mono">
+                            {outcome?.weekMaxPoints !== undefined ? (
+                              <span
+                                className={cn(
+                                  outcome.hitPr ? "text-emerald-400" : "text-zinc-400"
+                                )}
+                              >
+                                {formatPoints(outcome.weekMaxPoints)}
+                                {outcome.hitPr && " PR!"}
+                              </span>
+                            ) : (
+                              <span className="text-zinc-600">-</span>
+                            )}
+                          </td>
+                        </>
+                      )}
+                      <td className="px-3 py-2 text-right font-mono">
+                        {bonusPoints !== undefined && bonusPoints !== null ? (
                           <span
                             className={cn(
-                              "font-mono text-sm",
-                              outcome.hitPr ? "text-emerald-400" : "text-zinc-400"
+                              "font-medium",
+                              bonusPoints > 0
+                                ? "text-emerald-400"
+                                : bonusPoints < 0
+                                  ? "text-red-400"
+                                  : "text-zinc-500"
                             )}
                           >
-                            {outcome.weekMaxPoints}
-                            {outcome.hitPr && " PR!"}
+                            {bonusPoints > 0 ? "+" : ""}
+                            {formatPoints(bonusPoints)}
                           </span>
                         ) : (
-                          <span className="text-xs text-zinc-600">-</span>
+                          <span className="text-zinc-600">-</span>
                         )}
-                      </div>
-                    </>
-                  )}
-
-                  {/* Bonus */}
-                  <div className="col-span-2 text-right">
-                    {participant.bonusPoints !== undefined &&
-                    participant.bonusPoints !== null ? (
-                      <span
-                        className={cn(
-                          "font-mono text-sm font-medium",
-                          participant.bonusPoints > 0
-                            ? "text-emerald-400"
-                            : participant.bonusPoints < 0
-                              ? "text-red-400"
-                              : "text-zinc-500"
-                        )}
-                      >
-                        {participant.bonusPoints > 0 ? "+" : ""}
-                        {participant.bonusPoints}
-                      </span>
-                    ) : (
-                      <span className="text-xs text-zinc-600">-</span>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
 
           {/* Summary Footer */}

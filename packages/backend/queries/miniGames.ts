@@ -72,7 +72,15 @@ export const getById = query({
 
     const participantsWithUsers = await Promise.all(
       participants.map(async (participant) => {
-        const user = await ctx.db.get(participant.userId);
+        const [user, userChallenge] = await Promise.all([
+          ctx.db.get(participant.userId),
+          ctx.db
+            .query("userChallenges")
+            .withIndex("userChallengeUnique", (q) =>
+              q.eq("userId", participant.userId).eq("challengeId", miniGame.challengeId)
+            )
+            .first(),
+        ]);
 
         // Get partner/prey/hunter user data if applicable
         let partnerUser = null;
@@ -92,6 +100,7 @@ export const getById = query({
         return {
           ...participant,
           id: participant._id,
+          currentPoints: userChallenge?.totalPoints ?? participant.initialState?.points ?? 0,
           user: user
             ? {
                 id: user._id,
@@ -596,6 +605,8 @@ export const previewEnd = query({
       const { outcomes, totalBonusPoints } = await previewHuntWeekEnd(
         ctx,
         miniGame.challengeId,
+        miniGame.startsAt,
+        miniGame.endsAt,
         miniGame.config,
         participants,
       );

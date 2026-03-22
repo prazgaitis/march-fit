@@ -262,14 +262,39 @@ export async function previewPartnerWeekEnd(
 export async function previewHuntWeekEnd(
   ctx: ReadCtx,
   challengeId: Id<"challenges">,
+  startsAt: number,
+  endsAt: number,
+  config: any,
+  participants: MiniGameParticipantData[],
+): Promise<{ outcomes: HuntWeekOutcome[]; totalBonusPoints: number }> {
+  return calculateHuntWeekOutcomes(
+    ctx,
+    challengeId,
+    startsAt,
+    endsAt,
+    config,
+    participants,
+  );
+}
+
+export async function calculateHuntWeekOutcomes(
+  ctx: ReadCtx,
+  challengeId: Id<"challenges">,
+  startsAt: number,
+  endsAt: number,
   config: any,
   participants: MiniGameParticipantData[],
 ): Promise<{ outcomes: HuntWeekOutcome[]; totalBonusPoints: number }> {
   const catchBonus = config?.catchBonus ?? 75;
   const caughtPenalty = config?.caughtPenalty ?? 25;
 
-  // Get current leaderboard
-  const leaderboard = await getLeaderboard(ctx, challengeId);
+  const leaderboard = await getHuntWeekLeaderboard(
+    ctx,
+    challengeId,
+    startsAt,
+    endsAt,
+    participants,
+  );
   const rankMap = new Map<string, number>();
   leaderboard.forEach((entry, index) => {
     rankMap.set(entry.userId, index + 1);
@@ -321,6 +346,35 @@ export async function previewHuntWeekEnd(
   }
 
   return { outcomes, totalBonusPoints };
+}
+
+async function getHuntWeekLeaderboard(
+  ctx: ReadCtx,
+  challengeId: Id<"challenges">,
+  startsAt: number,
+  endsAt: number,
+  participants: MiniGameParticipantData[],
+): Promise<LeaderboardEntry[]> {
+  const entries = await Promise.all(
+    participants.map(async (participant) => {
+      const initialPoints = participant.initialState?.points ?? 0;
+      const periodPoints = await getPointsInPeriod(
+        ctx,
+        participant.userId,
+        challengeId,
+        startsAt,
+        endsAt,
+      );
+
+      return {
+        userId: participant.userId,
+        totalPoints: initialPoints + periodPoints,
+      };
+    }),
+  );
+
+  entries.sort((a, b) => b.totalPoints - a.totalPoints);
+  return entries;
 }
 
 export async function previewPrWeekEnd(

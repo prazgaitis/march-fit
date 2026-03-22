@@ -450,7 +450,7 @@ describe('Mini-Games Scoring', () => {
       expect(user2Participant.bonusPoints).toBe(50); // +75 - 25 = +50
     });
 
-    it('should give first place no prey to hunt', async () => {
+    it('should award first place for holding position when they are not caught', async () => {
       const adminUser = await createTestUser(t, { email: "admin@example.com", role: "admin" });
       const tWithAuth = t.withIdentity({ subject: "admin-user-id", email: "admin@example.com" });
       const challengeId = await createTestChallenge(t, adminUser);
@@ -477,13 +477,13 @@ describe('Mini-Games Scoring', () => {
           .collect();
       });
 
-      // First place has no prey, can't catch anyone
+      // First place has no prey, but gets the catch bonus for holding first
       const user1Participant = participants.find((p) => p.userId === user1);
       expect(user1Participant.preyUserId).toBeUndefined();
-      expect(user1Participant.outcome.caughtPrey).toBe(false);
+      expect(user1Participant.outcome.caughtPrey).toBe(true);
       // First place wasn't caught either (no one passed them)
       expect(user1Participant.outcome.wasCaught).toBe(false);
-      expect(user1Participant.bonusPoints).toBe(0);
+      expect(user1Participant.bonusPoints).toBe(75);
     });
   });
 

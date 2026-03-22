@@ -3,9 +3,10 @@ import { v } from "convex/values";
 import type { Id } from "../_generated/dataModel";
 import { requireCurrentUser } from "../lib/ids";
 import { dateOnlyToUtcMs, formatDateOnlyFromUtcMs } from "../lib/dateOnly";
-import { insertActivity } from "../lib/activityWrites";
+import { deleteActivity, insertActivity } from "../lib/activityWrites";
 import { notDeleted } from "../lib/activityFilters";
 import { isPaymentRequired } from "../lib/payments";
+import { calculateHuntWeekOutcomes as calculateSharedHuntWeekOutcomes } from "../lib/miniGameCalculations";
 
 // Helper to check if user is challenge admin
 async function requireChallengeAdmin(
@@ -316,6 +317,76 @@ export const end = mutation({
 });
 
 /**
+ * Revoke awards from a completed mini-game and move it back to active.
+ * This removes bonus activities, reverses awarded points, and clears outcomes
+ * so admins can re-run the game after fixing configuration or underlying data.
+ */
+export const revokeAwards = mutation({
+  args: {
+    miniGameId: v.id("miniGames"),
+  },
+  handler: async (ctx, args) => {
+    const miniGame = await ctx.db.get(args.miniGameId);
+    if (!miniGame) {
+      throw new Error("Mini-game not found");
+    }
+
+    if (miniGame.status !== "completed") {
+      throw new Error("Can only revoke awards for completed mini-games");
+    }
+
+    await requireChallengeAdmin(ctx, miniGame.challengeId);
+
+    const participants = await ctx.db
+      .query("miniGameParticipants")
+      .withIndex("miniGameId", (q: any) => q.eq("miniGameId", args.miniGameId))
+      .collect();
+
+    const now = Date.now();
+    let revoked = 0;
+
+    for (const participant of participants) {
+      if (participant.bonusActivityId) {
+        const bonusActivity = await ctx.db.get(participant.bonusActivityId);
+
+        if (bonusActivity && !bonusActivity.deletedAt) {
+          const userChallenge = await ctx.db
+            .query("userChallenges")
+            .withIndex("userChallengeUnique", (q: any) =>
+              q.eq("userId", participant.userId).eq("challengeId", miniGame.challengeId),
+            )
+            .first();
+
+          if (userChallenge) {
+            await ctx.db.patch(userChallenge._id, {
+              totalPoints: userChallenge.totalPoints - bonusActivity.pointsEarned,
+              updatedAt: now,
+            });
+          }
+
+          await deleteActivity(ctx, bonusActivity._id);
+          revoked++;
+        }
+      }
+
+      await ctx.db.patch(participant._id, {
+        finalState: undefined,
+        bonusPoints: undefined,
+        outcome: undefined,
+        bonusActivityId: undefined,
+      });
+    }
+
+    await ctx.db.patch(args.miniGameId, {
+      status: "active",
+      updatedAt: now,
+    });
+
+    return { revoked };
+  },
+});
+
+/**
  * Cancel an active mini-game without awarding points.
  * Deletes all participant records and the game itself.
  */
@@ -585,51 +656,18 @@ async function calculateHuntWeekOutcomes(
   participants: MiniGameParticipant[],
   now: number,
 ) {
-  const catchBonus = miniGame.config?.catchBonus ?? 75;
-  const caughtPenalty = miniGame.config?.caughtPenalty ?? 25;
-
-  // Get current leaderboard
-  const currentParticipations = await ctx.db
-    .query("userChallenges")
-    .withIndex("challengeId", (q: any) =>
-      q.eq("challengeId", miniGame.challengeId),
-    )
-    .collect();
-
-  currentParticipations.sort(
-    (a: { totalPoints: number }, b: { totalPoints: number }) =>
-      b.totalPoints - a.totalPoints,
+  const { outcomes } = await calculateSharedHuntWeekOutcomes(
+    ctx,
+    miniGame.challengeId,
+    miniGame.startsAt,
+    miniGame.endsAt,
+    miniGame.config,
+    participants,
   );
 
-  // Create rank map
-  const rankMap = new Map<string, number>();
-  currentParticipations.forEach(
-    (p: { userId: Id<"users"> }, index: number) => {
-      rankMap.set(p.userId, index + 1);
-    },
-  );
-
-  for (const participant of participants) {
-    const currentRank = rankMap.get(participant.userId) ?? 999;
-    const initialRank = participant.initialState?.rank ?? 999;
-
-    let caughtPrey = false;
-    let wasCaught = false;
-
-    // Check if caught prey (passed the person above)
-    if (participant.preyUserId) {
-      const preyCurrentRank = rankMap.get(participant.preyUserId) ?? 999;
-      caughtPrey = currentRank < preyCurrentRank;
-    }
-
-    // Check if was caught (hunter passed us)
-    if (participant.hunterUserId) {
-      const hunterCurrentRank = rankMap.get(participant.hunterUserId) ?? 999;
-      wasCaught = hunterCurrentRank < currentRank;
-    }
-
-    const bonusPoints =
-      (caughtPrey ? catchBonus : 0) - (wasCaught ? caughtPenalty : 0);
+  for (const outcome of outcomes) {
+    const participant = participants.find((entry) => entry.userId === outcome.userId);
+    if (!participant) continue;
 
     // Get user's current challenge data
     const userChallenge = await ctx.db
@@ -642,26 +680,28 @@ async function calculateHuntWeekOutcomes(
     // Update participant with outcome
     await ctx.db.patch(participant._id, {
       finalState: {
-        rank: currentRank,
+        rank: outcome.currentRank,
         points: userChallenge?.totalPoints ?? 0,
       },
-      bonusPoints,
+      bonusPoints: outcome.bonusPoints,
       outcome: {
-        caughtPrey,
-        wasCaught,
-        initialRank,
-        finalRank: currentRank,
+        caughtPrey: outcome.caughtPrey,
+        wasCaught: outcome.wasCaught,
+        initialRank: outcome.initialRank,
+        finalRank: outcome.currentRank,
       },
     });
 
     // Award bonus activity
-    if (bonusPoints !== 0) {
+    if (outcome.bonusPoints !== 0) {
+      const catchBonus = miniGame.config?.catchBonus ?? 75;
+      const caughtPenalty = miniGame.config?.caughtPenalty ?? 25;
       let description = "Hunt Week: ";
-      if (caughtPrey && wasCaught) {
+      if (outcome.caughtPrey && outcome.wasCaught) {
         description += `Caught prey (+${catchBonus}) but was caught (-${caughtPenalty})`;
-      } else if (caughtPrey) {
+      } else if (outcome.caughtPrey) {
         description += `Caught prey! (+${catchBonus})`;
-      } else if (wasCaught) {
+      } else if (outcome.wasCaught) {
         description += `Was caught (-${caughtPenalty})`;
       }
 
@@ -669,7 +709,7 @@ async function calculateHuntWeekOutcomes(
         ctx,
         participant,
         miniGame,
-        bonusPoints,
+        outcome.bonusPoints,
         description,
         now,
       );

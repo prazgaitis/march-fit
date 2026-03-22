@@ -445,6 +445,37 @@ describe('Mini-Games Preview (Dry Run)', () => {
       expect(user2Outcome!.bonusPoints).toBe(75);
     });
 
+    it('should ignore hunt week activities logged after the game end date in preview', async () => {
+      const adminUser = await createTestUser(t, { email: "admin@example.com", role: "admin" });
+      const tWithAuth = t.withIdentity({ subject: "admin-user-id", email: "admin@example.com" });
+      const challengeId = await createTestChallenge(t, adminUser);
+      const activityTypeId = await createActivityType(challengeId);
+
+      const user1 = await createUserWithParticipation(challengeId, 100, { username: 'user1' });
+      const user2 = await createUserWithParticipation(challengeId, 90, { username: 'user2' });
+
+      const endsAt = TEST_NOW + WEEK_MS;
+      const { miniGameId } = await tWithAuth.mutation(api.mutations.miniGames.create, {
+        challengeId,
+        type: "hunt_week",
+        name: "HW Bounded Preview",
+        startsAt: TEST_NOW,
+        endsAt,
+      });
+
+      await tWithAuth.mutation(api.mutations.miniGames.start, { miniGameId });
+
+      await logActivity(user2, challengeId, activityTypeId, 20, endsAt + DAY_MS);
+
+      const preview = await t.query(api.queries.miniGames.previewEnd, { miniGameId });
+      const user1Outcome = preview.outcomes.find((o) => o.userId === user1);
+      const user2Outcome = preview.outcomes.find((o) => o.userId === user2);
+
+      expect(user1Outcome!.wasCaught).toBe(false);
+      expect(user2Outcome!.caughtPrey).toBe(false);
+      expect(user2Outcome!.bonusPoints).toBe(0);
+    });
+
     it('should preview PR week outcomes', async () => {
       const adminUser = await createTestUser(t, { email: "admin@example.com", role: "admin" });
       const tWithAuth = t.withIdentity({ subject: "admin-user-id", email: "admin@example.com" });
