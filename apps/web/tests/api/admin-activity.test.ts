@@ -1,7 +1,13 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { api } from '@repo/backend';
 import { Id } from '@repo/backend/_generated/dataModel';
-import { createTestContext, createTestUser, createTestChallenge } from '../helpers/convex';
+import {
+  createTestActivityType,
+  createTestChallenge,
+  createTestContext,
+  createTestParticipation,
+  createTestUser,
+} from '../helpers/convex';
 import { insertTestActivity } from "../helpers/activities";
 
 describe('Admin Activity Features', () => {
@@ -422,6 +428,135 @@ describe('Admin Activity Features', () => {
           .first();
       });
       expect(participation!.currentStreak).toBe(1);
+    });
+  });
+
+  describe('adminDeleteActivity', () => {
+    it('should only reverse category and weekly category totals once', async () => {
+      const adminId = await createTestUser(t, {
+        email: "admin-delete@example.com",
+        role: "admin",
+      });
+      const ownerId = await createTestUser(t, {
+        email: "owner-delete@example.com",
+        role: "user",
+      });
+      const challengeId = await createTestChallenge(t, adminId);
+
+      await createTestParticipation(t, adminId, challengeId);
+      await createTestParticipation(t, ownerId, challengeId);
+
+      const categoryId = await t.run(async (ctx) => {
+        return await ctx.db.insert("categories", {
+          name: "Cardio",
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+          showInCategoryLeaderboard: true,
+        });
+      });
+
+      const activityTypeId = await createTestActivityType(t, challengeId, {
+        name: "Run",
+        categoryId,
+        scoringConfig: { type: "fixed", basePoints: 10 },
+        contributesToStreak: true,
+      });
+
+      const adminAuth = t.withIdentity({
+        subject: "admin-delete-subject",
+        email: "admin-delete@example.com",
+      });
+      const ownerAuth = t.withIdentity({
+        subject: "owner-delete-subject",
+        email: "owner-delete@example.com",
+      });
+
+      await ownerAuth.mutation(api.mutations.activities.log, {
+        challengeId,
+        activityTypeId,
+        loggedDate: "2024-01-05",
+        source: "manual",
+      });
+      const second = await ownerAuth.mutation(api.mutations.activities.log, {
+        challengeId,
+        activityTypeId,
+        loggedDate: "2024-01-06",
+        source: "manual",
+      });
+
+      await adminAuth.mutation(api.mutations.admin.adminDeleteActivity, {
+        activityId: second.id as Id<"activities">,
+      });
+
+      const participation = await t.run(async (ctx) =>
+        ctx.db
+          .query("userChallenges")
+          .withIndex("userChallengeUnique", (q) =>
+            q.eq("userId", ownerId).eq("challengeId", challengeId)
+          )
+          .first()
+      );
+      const categoryPoints = await t.run(async (ctx) =>
+        ctx.db
+          .query("categoryPoints")
+          .withIndex("challengeUserCategory", (q) =>
+            q.eq("challengeId", challengeId).eq("userId", ownerId).eq("categoryId", categoryId)
+          )
+          .first()
+      );
+      const weeklyPoints = await t.run(async (ctx) =>
+        ctx.db
+          .query("weeklyCategoryPoints")
+          .withIndex("challengeUserCategoryWeek", (q) =>
+            q
+              .eq("challengeId", challengeId)
+              .eq("userId", ownerId)
+              .eq("categoryId", categoryId)
+              .eq("weekNumber", 1)
+          )
+          .first()
+      );
+
+      expect(participation!.totalPoints).toBe(11);
+      expect(categoryPoints!.totalPoints).toBe(10);
+      expect(weeklyPoints!.totalPoints).toBe(10);
+    });
+  });
+
+  describe('adminLogActivityForUser', () => {
+    it('should enforce the same validWeeks restriction as normal activity logging', async () => {
+      const adminId = await createTestUser(t, {
+        email: "admin-log@example.com",
+        role: "admin",
+      });
+      const ownerId = await createTestUser(t, {
+        email: "owner-log@example.com",
+        role: "user",
+      });
+      const challengeId = await createTestChallenge(t, adminId);
+
+      await createTestParticipation(t, adminId, challengeId);
+      await createTestParticipation(t, ownerId, challengeId);
+
+      const restrictedTypeId = await createTestActivityType(t, challengeId, {
+        name: "Week Two Only",
+        validWeeks: [2],
+        scoringConfig: { type: "fixed", basePoints: 10 },
+      });
+
+      const adminAuth = t.withIdentity({
+        subject: "admin-log-subject",
+        email: "admin-log@example.com",
+      });
+
+      await expect(
+        adminAuth.mutation(api.mutations.admin.adminLogActivityForUser, {
+          challengeId,
+          userId: ownerId as Id<"users">,
+          activityTypeId: restrictedTypeId as Id<"activityTypes">,
+          loggedDate: "2024-01-03",
+        })
+      ).rejects.toThrow('only available during week 2');
     });
   });
 });

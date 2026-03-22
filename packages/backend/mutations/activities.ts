@@ -3,16 +3,12 @@ import { internal } from "../_generated/api";
 import { ConvexError, v } from "convex/values";
 import { calculateFinalActivityScore, extractActivityMetricValue } from "../lib/scoring";
 import { requireCurrentUser } from "../lib/ids";
-import { isPaymentRequired } from "../lib/payments";
 import {
   dateOnlyToUtcMs,
-  coerceDateOnlyToString,
   formatDateOnlyFromUtcMs,
   normalizeDateOnlyInput,
 } from "../lib/dateOnly";
-import { getChallengeWeekNumber } from "../lib/weeks";
 import { notDeleted } from "../lib/activityFilters";
-import { computeCriteriaProgress } from "../lib/achievements";
 import { reportLatencyIfExceeded } from "../lib/latencyMonitoring";
 import { applyParticipationScoreDeltaAndRecomputeStreak } from "../lib/participationScoring";
 import { insertActivity, patchActivity } from "../lib/activityWrites";
@@ -21,6 +17,11 @@ import { applyWeeklyCategoryPointsDeltaFromDate } from "../lib/weeklyCategoryPoi
 import { recomputeFeedScore } from "../lib/feedScore";
 import { insertNotification } from "../lib/notifications";
 import type { Id } from "../_generated/dataModel";
+import {
+  checkAndAwardAchievements,
+  logActivityWithLifecycle,
+  softDeleteActivityWithLifecycle,
+} from "../lib/activityLifecycle";
 
 // Internal mutation for seeding
 export const create = internalMutation({
@@ -50,6 +51,41 @@ export const create = internalMutation({
       adminCommentVisibility: "internal",
       resolutionStatus: "pending",
     });
+  },
+});
+
+export const logForUserInternal = internalMutation({
+  args: {
+    userId: v.id("users"),
+    challengeId: v.id("challenges"),
+    activityTypeId: v.id("activityTypes"),
+    loggedDate: v.string(),
+    pointsOverride: v.optional(v.number()),
+    metrics: v.optional(v.any()),
+    notes: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    return await logActivityWithLifecycle(ctx, {
+      userId: args.userId,
+      challengeId: args.challengeId,
+      activityTypeId: args.activityTypeId,
+      loggedDate: args.loggedDate,
+      pointsOverride: args.pointsOverride,
+      metrics: args.metrics,
+      notes: args.notes,
+      source: "manual",
+    });
+  },
+});
+
+export const removeInternal = internalMutation({
+  args: {
+    activityId: v.id("activities"),
+    deletedById: v.optional(v.id("users")),
+    deletedReason: v.string(),
+  },
+  handler: async (ctx, args) => {
+    return await softDeleteActivityWithLifecycle(ctx, args);
   },
 });
 
@@ -229,208 +265,27 @@ export const log = mutation({
       const user = await requireCurrentUser(ctx);
       resolvedUserId = String(user._id);
 
-      // Validate participation
-      const participation = await ctx.db
-        .query("userChallenges")
-        .withIndex("userChallengeUnique", (q) =>
-          q.eq("userId", user._id).eq("challengeId", args.challengeId)
-        )
-        .first();
-
-    if (!participation) {
-      throw new ConvexError("You are not part of this challenge.");
-    }
-
-    const paymentConfig = await ctx.db
-      .query("challengePaymentConfig")
-      .withIndex("challengeId", (q) => q.eq("challengeId", args.challengeId))
-      .first();
-
-    if (isPaymentRequired(paymentConfig) && participation.paymentStatus !== "paid") {
-      throw new ConvexError("Please complete payment before logging activities.");
-    }
-
-    const challenge = await ctx.db.get(args.challengeId);
-    if (!challenge) {
-      throw new Error("Challenge not found");
-    }
-
-    // Validate activity type
-    const activityType = await ctx.db.get(args.activityTypeId);
-    if (!activityType || activityType.challengeId !== args.challengeId) {
-      throw new ConvexError("This activity type is not available for this challenge.");
-    }
-
-    // Parse logged date for validation
-    const loggedDateTs = dateOnlyToUtcMs(normalizeDateOnlyInput(args.loggedDate));
-
-    // Prevent logging activities before the challenge start date (date-only comparison)
-    const challengeStartStr = coerceDateOnlyToString(challenge.startDate);
-    const loggedDateStr = formatDateOnlyFromUtcMs(loggedDateTs);
-    if (loggedDateStr < challengeStartStr) {
-      throw new ConvexError(
-        `This date is before the challenge start date (${challengeStartStr}).`
-      );
-    }
-
-    // Enforce validWeeks restriction
-    if (activityType.validWeeks && activityType.validWeeks.length > 0) {
-      const weekNumber = getChallengeWeekNumber(challenge.startDate, loggedDateTs);
-      if (!activityType.validWeeks.includes(weekNumber)) {
-        const weekLabel = activityType.validWeeks.length === 1
-          ? `week ${activityType.validWeeks[0]}`
-          : `weeks ${activityType.validWeeks.join(", ")}`;
-        throw new ConvexError(
-          `"${activityType.name}" is only available during ${weekLabel}. You're currently in week ${weekNumber}.`
-        );
-      }
-    }
-
-    // Enforce maxPerChallenge restriction
-    if (activityType.maxPerChallenge !== undefined && activityType.maxPerChallenge > 0) {
-      const existingCount = await ctx.db
-        .query("activities")
-        .withIndex("userId", (q) => q.eq("userId", user._id))
-        .filter((q) =>
-          q.and(
-            q.eq(q.field("challengeId"), args.challengeId),
-            q.eq(q.field("activityTypeId"), args.activityTypeId),
-            notDeleted(q)
-          )
-        )
-        .collect();
-
-      if (existingCount.length >= activityType.maxPerChallenge) {
-        throw new ConvexError(
-          activityType.maxPerChallenge === 1
-            ? `You've already logged "${activityType.name}". It can only be logged once.`
-            : `You've reached the limit of ${activityType.maxPerChallenge} for "${activityType.name}".`
-        );
-      }
-    }
-
-    // Calculate points using the full scoring system
-    const metricsObj = args.metrics ?? {};
-
-    const selectedOptionalBonuses = metricsObj["selectedBonuses"] as string[] | undefined;
-
-    // Calculate media bonus (+1 point for posting at least one photo/media)
-    // Only award once per day per challenge (daily cap)
-    const hasMedia = (args.mediaIds && args.mediaIds.length > 0) || (args.cloudinaryPublicIds && args.cloudinaryPublicIds.length > 0) || !!args.imageUrl;
-    let alreadyEarnedPhotoBonus = false;
-    if (hasMedia) {
-      const loggedDateStr = formatDateOnlyFromUtcMs(loggedDateTs);
-      const existingActivitiesToday = await ctx.db
-        .query("activities")
-        .withIndex("userId", (q) => q.eq("userId", user._id))
-        .filter((q) =>
-          q.and(
-            q.eq(q.field("challengeId"), args.challengeId),
-            notDeleted(q)
-          )
-        )
-        .collect();
-
-      alreadyEarnedPhotoBonus = existingActivitiesToday.some((a) => {
-        const aDateStr = formatDateOnlyFromUtcMs(a.loggedDate);
-        const aHasMedia = !!(a.mediaIds && a.mediaIds.length > 0) || !!(a.cloudinaryPublicIds && a.cloudinaryPublicIds.length > 0) || !!a.imageUrl;
-        const aHasPhotoBonus = !!(a.triggeredBonuses?.some((b) => b.metric === "media"));
-        return aDateStr === loggedDateStr && aHasMedia && aHasPhotoBonus;
-      });
-    }
-    const score = await calculateFinalActivityScore(
-      activityType,
-      {
-        ctx,
-        metrics: metricsObj,
+      return await logActivityWithLifecycle(ctx, {
         userId: user._id,
         challengeId: args.challengeId,
-        loggedDate: new Date(loggedDateTs),
-      },
-      {
-        selectedOptionalBonuses,
-        includeMediaBonus: hasMedia && !alreadyEarnedPhotoBonus,
-      }
-    );
-
-    const basePoints = score.basePoints;
-    const totalBonusPoints = score.bonusPoints;
-    const pointsEarned = score.pointsEarned;
-    const triggeredBonuses = score.triggeredBonuses;
-
-    // Create activity (feedScore auto-computed by insertActivity)
-    const activityId = await insertActivity(ctx, {
-      userId: user._id,
-      challengeId: args.challengeId,
-      activityTypeId: args.activityTypeId,
-      loggedDate: loggedDateTs,
-      metrics: args.metrics ?? {},
-      notes: args.notes,
-      imageUrl: args.imageUrl,
-      mediaIds: args.mediaIds,
-      cloudinaryPublicIds: args.cloudinaryPublicIds,
-      localTime: args.localTime,
-      timezone: args.timezone,
-      locationCity: args.locationCity,
-      locationState: args.locationState,
-      locationCountry: args.locationCountry,
-      startLatlng: args.startLatlng,
-      source: args.source,
-      externalId: args.externalId,
-      externalData: args.externalData,
-      pointsEarned: pointsEarned,
-      triggeredBonuses: triggeredBonuses.length > 0 ? triggeredBonuses : undefined,
-      flagged: false,
-      adminCommentVisibility: "internal",
-      resolutionStatus: "pending",
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    });
-
-    // Recompute streaks from all challenge days after any new activity.
-    // This handles backfills and penalties that can invalidate earlier days.
-    // categoryId is passed so the common write path also maintains categoryPoints.
-    const metricValue = extractActivityMetricValue(activityType, metricsObj);
-    const streakUpdate = await applyParticipationScoreDeltaAndRecomputeStreak(ctx, {
-      userId: user._id,
-      challengeId: args.challengeId,
-      pointsDelta: pointsEarned,
-      streakMinPoints: challenge.streakMinPoints,
-      categoryId: activityType.categoryId,
-      metricDelta: metricValue,
-      loggedDate: loggedDateTs,
-      challengeStartDate: challenge.startDate,
-    });
-    const currentStreak = streakUpdate?.currentStreak ?? participation.currentStreak;
-
-    // Check for achievement progress
-    await checkAndAwardAchievements(ctx, user._id, args.challengeId, activityId);
-
-    // Notify mini-game partners/hunters when activity is logged
-    await notifyMiniGameParticipants(ctx, user._id, args.challengeId, activityId);
-
-    // Create activity tags and notify tagged users
-    if (args.taggedUserIds && args.taggedUserIds.length > 0) {
-      await createActivityTags(ctx, {
-        activityId,
-        taggerUserId: user._id,
-        challengeId: args.challengeId,
+        activityTypeId: args.activityTypeId,
+        loggedDate: args.loggedDate,
+        metrics: args.metrics,
+        notes: args.notes,
+        imageUrl: args.imageUrl,
+        mediaIds: args.mediaIds,
+        cloudinaryPublicIds: args.cloudinaryPublicIds,
+        localTime: args.localTime,
+        timezone: args.timezone,
+        locationCity: args.locationCity,
+        locationState: args.locationState,
+        locationCountry: args.locationCountry,
+        startLatlng: args.startLatlng,
+        source: args.source,
+        externalId: args.externalId,
+        externalData: args.externalData,
         taggedUserIds: args.taggedUserIds,
-        loggedDate: loggedDateTs,
       });
-    }
-
-      return {
-          id: activityId,
-          pointsEarned,
-          basePoints,
-          bonusPoints: totalBonusPoints,
-          triggeredBonuses: triggeredBonuses.map(b => b.description),
-          streakUpdate: {
-              currentStreak,
-              days: participation.currentStreak !== currentStreak ? 1 : 0 // Just informative
-          }
-      };
     } finally {
       reportLatencyIfExceeded({
         operation: "mutations.activities.log",
@@ -441,193 +296,6 @@ export const log = mutation({
     }
   },
 });
-
-/**
- * Check if user has earned any achievements and award them.
- * Handles all four criteria types: count, cumulative, distinct_types, one_of_each.
- */
-async function checkAndAwardAchievements(
-  ctx: any,
-  userId: any,
-  challengeId: any,
-  _triggeringActivityId: any
-) {
-  const achievements = await ctx.db
-    .query("achievements")
-    .withIndex("challengeId", (q: any) => q.eq("challengeId", challengeId))
-    .collect();
-
-  if (achievements.length === 0) return;
-
-  // Fetch all non-deleted activities once to avoid N+1 per achievement
-  const allActivities = await ctx.db
-    .query("activities")
-    .withIndex("userId", (q: any) => q.eq("userId", userId))
-    .filter((q: any) =>
-      q.and(q.eq(q.field("challengeId"), challengeId), notDeleted(q))
-    )
-    .collect();
-
-  // Check if any achievement uses streak criteria — if so, fetch participation once
-  const hasStreakCriteria = achievements.some(
-    (a: any) => a.criteria.criteriaType === "streak"
-  );
-  let streakContext: { currentStreak?: number } = {};
-  if (hasStreakCriteria) {
-    const p = await ctx.db
-      .query("userChallenges")
-      .withIndex("userChallengeUnique", (q: any) =>
-        q.eq("userId", userId).eq("challengeId", challengeId)
-      )
-      .first();
-    streakContext = { currentStreak: p?.currentStreak };
-  }
-
-  for (const achievement of achievements) {
-    // Guard: skip if already earned (once_per_challenge)
-    if (achievement.frequency === "once_per_challenge") {
-      const existing = await ctx.db
-        .query("userAchievements")
-        .withIndex("userAchievement", (q: any) =>
-          q.eq("userId", userId).eq("achievementId", achievement._id)
-        )
-        .first();
-      if (existing) continue;
-    }
-
-    // Guard: skip if already earned this week (once_per_week)
-    if (achievement.frequency === "once_per_week") {
-      const weekStart = getWeekStart(Date.now());
-      const existing = await ctx.db
-        .query("userAchievements")
-        .withIndex("userAchievement", (q: any) =>
-          q.eq("userId", userId).eq("achievementId", achievement._id)
-        )
-        .filter((q: any) => q.gte(q.field("earnedAt"), weekStart))
-        .first();
-      if (existing) continue;
-    }
-
-    // Evaluate criteria using the shared helper
-    const { currentCount, requiredCount, qualifyingActivityIds } =
-      computeCriteriaProgress(allActivities, achievement.criteria, streakContext);
-
-    if (currentCount < requiredCount) continue;
-
-    // Award the achievement
-    const bonusActivityType = await getOrCreateAchievementBonusType(
-      ctx,
-      challengeId
-    );
-
-    const bonusActivityId = await insertActivity(ctx, {
-      userId,
-      challengeId,
-      activityTypeId: bonusActivityType._id,
-      loggedDate: Date.now(),
-      metrics: {
-        achievementId: achievement._id,
-        achievementName: achievement.name,
-      },
-      notes: `Achievement earned: ${achievement.name}`,
-      source: "manual",
-      pointsEarned: achievement.bonusPoints,
-      flagged: false,
-      adminCommentVisibility: "internal",
-      resolutionStatus: "pending",
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    });
-
-    await ctx.db.insert("userAchievements", {
-      challengeId,
-      userId,
-      achievementId: achievement._id,
-      earnedAt: Date.now(),
-      qualifyingActivityIds,
-      bonusActivityId,
-    });
-
-    // Auto-award any badges linked to this achievement
-    const linkedBadges = await ctx.db
-      .query("badges")
-      .withIndex("achievementId", (q: any) =>
-        q.eq("achievementId", achievement._id)
-      )
-      .collect();
-
-    for (const badge of linkedBadges) {
-      const existingUserBadge = await ctx.db
-        .query("userBadges")
-        .withIndex("userBadge", (q: any) =>
-          q.eq("userId", userId).eq("badgeId", badge._id)
-        )
-        .first();
-      if (!existingUserBadge) {
-        await ctx.db.insert("userBadges", {
-          challengeId,
-          userId,
-          badgeId: badge._id,
-          awardedAt: Date.now(),
-        });
-      }
-    }
-
-    // Credit bonus points to participation
-    const participation = await ctx.db
-      .query("userChallenges")
-      .withIndex("userChallengeUnique", (q: any) =>
-        q.eq("userId", userId).eq("challengeId", challengeId)
-      )
-      .first();
-
-    if (participation) {
-      await ctx.db.patch(participation._id, {
-        totalPoints: participation.totalPoints + achievement.bonusPoints,
-        updatedAt: Date.now(),
-      });
-    }
-  }
-}
-
-/**
- * Get or create the achievement bonus activity type
- */
-async function getOrCreateAchievementBonusType(ctx: any, challengeId: any) {
-  // Look for existing achievement bonus type
-  const existing = await ctx.db
-    .query("activityTypes")
-    .withIndex("challengeId", (q: any) => q.eq("challengeId", challengeId))
-    .filter((q: any) => q.eq(q.field("name"), "Achievement Bonus"))
-    .first();
-
-  if (existing) return existing;
-
-  // Create a new one
-  const id = await ctx.db.insert("activityTypes", {
-    challengeId,
-    name: "Achievement Bonus",
-    description: "Bonus points from earning achievements",
-    scoringConfig: { basePoints: 0 },
-    contributesToStreak: false,
-    isNegative: false,
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-  });
-
-  return await ctx.db.get(id);
-}
-
-/**
- * Get the start of the current week (Sunday)
- */
-function getWeekStart(timestamp: number): number {
-  const date = new Date(timestamp);
-  const day = date.getUTCDay();
-  const diff = date.getUTCDate() - day;
-  return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), diff);
-}
-
 
 // Generate an upload URL for activity media
 export const generateUploadUrl = mutation({
@@ -1028,31 +696,11 @@ export const remove = mutation({
       throw new ConvexError("You don't have permission to delete this activity.");
     }
 
-    const now = Date.now();
-    await patchActivity(ctx, args.activityId, {
-      deletedAt: now,
-      deletedById: actor?._id,
-      deletedReason: "manual",
-      updatedAt: now,
-    });
-
-    const deletedActivityType = await ctx.db.get(activity.activityTypeId);
-    const deletedMetricValue = deletedActivityType
-      ? extractActivityMetricValue(deletedActivityType, (activity.metrics ?? {}) as Record<string, unknown>)
-      : 0;
-    await applyParticipationScoreDeltaAndRecomputeStreak(ctx, {
-      userId: activity.userId,
-      challengeId: activity.challengeId,
-      pointsDelta: -activity.pointsEarned,
-      streakMinPoints: challenge.streakMinPoints,
-      now,
-      categoryId: deletedActivityType?.categoryId,
-      metricDelta: -deletedMetricValue,
-      loggedDate: activity.loggedDate,
-      challengeStartDate: challenge.startDate,
-    });
-
-      return { deleted: true };
+      return await softDeleteActivityWithLifecycle(ctx, {
+        activityId: args.activityId,
+        deletedById: actor?._id,
+        deletedReason: "manual",
+      });
     } finally {
       reportLatencyIfExceeded({
         operation: "mutations.activities.remove",

@@ -1,4 +1,5 @@
 import { internalMutation, mutation } from "../_generated/server";
+import { internal } from "../_generated/api";
 import { v } from "convex/values";
 import { requireCurrentUser } from "../lib/ids";
 import type { Id } from "../_generated/dataModel";
@@ -458,58 +459,12 @@ export const adminDeleteActivity = mutation({
       resolvedChallengeId = String(activity.challengeId);
       resolvedUserId = String(activity.userId);
 
-      const challenge = await ctx.db.get(activity.challengeId);
-      if (!challenge) throw new Error("Challenge not found");
-
       const now = Date.now();
-
-      // Soft-delete the activity
-      await patchActivity(ctx, args.activityId, {
-        deletedAt: now,
+      await ctx.runMutation(internal.mutations.activities.removeInternal, {
+        activityId: args.activityId,
         deletedById: user._id,
         deletedReason: args.reason ?? "admin_delete",
-        updatedAt: now,
       });
-
-      // Reverse points and recompute streak
-      const activityType = await ctx.db.get(activity.activityTypeId) as any;
-      const metricValue = activityType
-        ? extractActivityMetricValue(activityType, (activity.metrics ?? {}) as Record<string, unknown>)
-        : 0;
-
-      await applyParticipationScoreDeltaAndRecomputeStreak(ctx, {
-        userId: activity.userId,
-        challengeId: activity.challengeId,
-        pointsDelta: -activity.pointsEarned,
-        streakMinPoints: (challenge as any).streakMinPoints,
-        now,
-        categoryId: activityType?.categoryId,
-        metricDelta: -metricValue,
-        loggedDate: activity.loggedDate,
-        challengeStartDate: (challenge as any).startDate,
-      });
-
-      // Reverse category points
-      if (activityType?.categoryId) {
-        await applyCategoryPointsDelta(ctx, {
-          userId: activity.userId,
-          challengeId: activity.challengeId,
-          categoryId: activityType.categoryId,
-          pointsDelta: -activity.pointsEarned,
-          metricDelta: -metricValue,
-          now,
-        });
-        await applyWeeklyCategoryPointsDeltaFromDate(ctx, {
-          userId: activity.userId,
-          challengeId: activity.challengeId,
-          categoryId: activityType.categoryId,
-          loggedDate: activity.loggedDate,
-          challengeStartDate: (challenge as any).startDate,
-          pointsDelta: -activity.pointsEarned,
-          metricDelta: -metricValue,
-          now,
-        });
-      }
 
       // Add history entry
       await ctx.db.insert("activityFlagHistory", {
@@ -566,84 +521,20 @@ export const adminLogActivityForUser = mutation({
         throw new Error("Not authorized - challenge admin required");
       }
 
-      // Validate user is in challenge
-      const participation = await ctx.db
-        .query("userChallenges")
-        .withIndex("userChallengeUnique", (q: any) =>
-          q.eq("userId", args.userId).eq("challengeId", args.challengeId),
-        )
-        .first();
-      if (!participation) {
-        throw new Error("User is not a participant in this challenge");
-      }
+      const result = await ctx.runMutation(
+        internal.mutations.activities.logForUserInternal,
+        {
+          challengeId: args.challengeId,
+          userId: args.userId,
+          activityTypeId: args.activityTypeId,
+          loggedDate: args.loggedDate,
+          pointsOverride: args.pointsOverride,
+          metrics: args.metrics,
+          notes: args.notes,
+        },
+      );
 
-      // Validate activity type
-      const activityType = await ctx.db.get(args.activityTypeId) as any;
-      if (!activityType || activityType.challengeId !== args.challengeId) {
-        throw new Error("Activity type not found or does not belong to this challenge");
-      }
-
-      const loggedDateTs = dateOnlyToUtcMs(normalizeDateOnlyInput(args.loggedDate));
-      const metricsObj = args.metrics ?? {};
-
-      // Calculate points (or use override)
-      let pointsEarned: number;
-      let triggeredBonuses: any[] = [];
-
-      if (args.pointsOverride !== undefined) {
-        pointsEarned = args.pointsOverride;
-      } else {
-        const { calculateFinalActivityScore } = await import("../lib/scoring");
-        const score = await calculateFinalActivityScore(
-          activityType,
-          {
-            ctx,
-            metrics: metricsObj,
-            userId: args.userId,
-            challengeId: args.challengeId,
-            loggedDate: new Date(loggedDateTs),
-          },
-          {
-            includeMediaBonus: false,
-          }
-        );
-        pointsEarned = score.pointsEarned;
-        triggeredBonuses = score.triggeredBonuses;
-      }
-
-      const { insertActivity } = await import("../lib/activityWrites");
-      const now = Date.now();
-      const activityId = await insertActivity(ctx, {
-        userId: args.userId,
-        challengeId: args.challengeId,
-        activityTypeId: args.activityTypeId,
-        loggedDate: loggedDateTs,
-        metrics: metricsObj,
-        notes: args.notes,
-        source: "manual",
-        pointsEarned,
-        triggeredBonuses: triggeredBonuses.length > 0 ? triggeredBonuses : undefined,
-        flagged: false,
-        adminCommentVisibility: "internal",
-        resolutionStatus: "pending",
-        createdAt: now,
-        updatedAt: now,
-      });
-
-      // Update participation scores
-      const metricValue = extractActivityMetricValue(activityType, metricsObj);
-      await applyParticipationScoreDeltaAndRecomputeStreak(ctx, {
-        userId: args.userId,
-        challengeId: args.challengeId,
-        pointsDelta: pointsEarned,
-        streakMinPoints: (challenge as any).streakMinPoints,
-        categoryId: activityType.categoryId,
-        metricDelta: metricValue,
-        loggedDate: loggedDateTs,
-        challengeStartDate: (challenge as any).startDate,
-      });
-
-      return { success: true, activityId, pointsEarned };
+      return { success: true, activityId: result.id, pointsEarned: result.pointsEarned };
     } finally {
       reportLatencyIfExceeded({
         operation: "mutations.admin.adminLogActivityForUser",
