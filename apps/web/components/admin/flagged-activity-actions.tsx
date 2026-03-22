@@ -34,7 +34,19 @@ import {
   MessageCircle,
   Pencil,
   RotateCcw,
+  Trash2,
 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 export interface FlaggedActivityActionsHandle {
   toggleComment: () => void;
@@ -96,6 +108,25 @@ export const FlaggedActivityActions = forwardRef<
   );
   const addComment = useMutation(api.mutations.admin.addAdminComment);
   const editActivity = useMutation(api.mutations.admin.adminEditActivity);
+  const deleteActivityMutation = useMutation(api.mutations.admin.adminDeleteActivity);
+
+  const handleDelete = async () => {
+    setError(null);
+    setMessage(null);
+    setIsPending(true);
+    try {
+      await deleteActivityMutation({
+        activityId: activityId as Id<"activities">,
+        reason: "admin_delete",
+      });
+      setMessage("Activity deleted.");
+    } catch (err) {
+      setError("Failed to delete activity.");
+      console.error(err);
+    } finally {
+      setIsPending(false);
+    }
+  };
 
   const handleStatusChange = async (
     status: (typeof activityResolutionStatusValues)[number],
@@ -310,6 +341,40 @@ export const FlaggedActivityActions = forwardRef<
           <Pencil className="h-3.5 w-3.5" />
           Edit Activity
         </Button>
+
+        <div className="h-5 w-px bg-border mx-1" />
+
+        <AlertDialog>
+          <AlertDialogTrigger asChild>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="gap-1.5 text-destructive hover:text-destructive hover:bg-destructive/10"
+              disabled={isPending}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Delete
+            </Button>
+          </AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Activity</AlertDialogTitle>
+              <AlertDialogDescription>
+                This will permanently remove this activity and reverse all points earned. This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction
+                onClick={handleDelete}
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              >
+                Delete Activity
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
 
       {/* Comment form — collapsed by default */}

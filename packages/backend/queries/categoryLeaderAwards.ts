@@ -132,8 +132,9 @@ export const previewWeeklyAwards = query({
 
         if (sorted.length === 0) return null;
 
+        const DISPLAY_COUNT = 5;
         const placements = await Promise.all(
-          sorted.slice(0, PLACEMENT_COUNT).map(async (entry: any, index: number) => {
+          sorted.slice(0, DISPLAY_COUNT).map(async (entry: any, index: number) => {
             const user = await getUser(entry.userId);
             if (!user) return null;
             return {
@@ -141,7 +142,7 @@ export const previewWeeklyAwards = query({
               user,
               totalPoints: entry.totalPoints,
               totalMetricValue: entry.totalMetricValue ?? 0,
-              bonusPoints: placementPoints[index],
+              bonusPoints: index < PLACEMENT_COUNT ? placementPoints[index] : 0,
             };
           })
         );
