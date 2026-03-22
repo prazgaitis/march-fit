@@ -636,6 +636,45 @@ describe('Mini-Games Lifecycle & Configuration', () => {
       expect(user2Participant.bonusPoints).toBe(150);
     });
 
+    it('should ignore hunt week activities logged after the game end date when awarding', async () => {
+      const adminUser = await createTestUser(t, { email: "admin@example.com", role: "admin" });
+      const tWithAuth = t.withIdentity({ subject: "admin-user-id", email: "admin@example.com" });
+      const challengeId = await createTestChallenge(t, adminUser);
+      const activityTypeId = await createActivityType(challengeId);
+
+      const user1 = await createUserWithParticipation(challengeId, 100, { username: 'user1' });
+      const user2 = await createUserWithParticipation(challengeId, 90, { username: 'user2' });
+
+      const endsAt = TEST_NOW + WEEK_MS;
+      const { miniGameId } = await tWithAuth.mutation(api.mutations.miniGames.create, {
+        challengeId,
+        type: "hunt_week",
+        name: "Bounded Hunt",
+        startsAt: TEST_NOW,
+        endsAt,
+      });
+
+      await tWithAuth.mutation(api.mutations.miniGames.start, { miniGameId });
+
+      await logActivity(user2, challengeId, activityTypeId, 20, endsAt + DAY_MS);
+
+      await tWithAuth.mutation(api.mutations.miniGames.end, { miniGameId });
+
+      const participants = await t.run(async (ctx) => {
+        return await ctx.db
+          .query("miniGameParticipants")
+          .withIndex("miniGameId", (q) => q.eq("miniGameId", miniGameId))
+          .collect();
+      });
+
+      const user1Participant = participants.find((p) => p.userId === user1);
+      const user2Participant = participants.find((p) => p.userId === user2);
+      expect(user1Participant!.outcome.wasCaught).toBe(false);
+      expect(user1Participant!.bonusPoints).toBe(75);
+      expect(user2Participant!.outcome.caughtPrey).toBe(false);
+      expect(user2Participant!.bonusPoints).toBe(0);
+    });
+
     it('should use custom prBonus for PR week', async () => {
       const adminUser = await createTestUser(t, { email: "admin@example.com", role: "admin" });
       const tWithAuth = t.withIdentity({ subject: "admin-user-id", email: "admin@example.com" });
@@ -1280,6 +1319,101 @@ describe('Mini-Games Lifecycle & Configuration', () => {
       });
       expect(linkedActivity).not.toBeNull();
       expect(linkedActivity.source).toBe("mini_game");
+    });
+
+    it('should revoke completed hunt week awards and reopen the game', async () => {
+      const adminUser = await createTestUser(t, { email: "admin@example.com", role: "admin" });
+      const tWithAuth = t.withIdentity({ subject: "admin-user-id", email: "admin@example.com" });
+      const challengeId = await createTestChallenge(t, adminUser);
+      const activityTypeId = await createActivityType(challengeId);
+
+      const user1 = await createUserWithParticipation(challengeId, 300, { username: 'user1' });
+      const user2 = await createUserWithParticipation(challengeId, 200, { username: 'user2' });
+      const user3 = await createUserWithParticipation(challengeId, 100, { username: 'user3' });
+
+      const { miniGameId } = await tWithAuth.mutation(api.mutations.miniGames.create, {
+        challengeId,
+        type: "hunt_week",
+        name: "Revoke Hunt Week",
+        startsAt: TEST_NOW,
+        endsAt: TEST_NOW + WEEK_MS,
+        config: { catchBonus: 75, caughtPenalty: 25 },
+      });
+
+      await tWithAuth.mutation(api.mutations.miniGames.start, { miniGameId });
+
+      await logActivity(user2, challengeId, activityTypeId, 150, TEST_NOW + 1000);
+
+      await tWithAuth.mutation(api.mutations.miniGames.end, { miniGameId });
+
+      const completedGame = await t.run(async (ctx) => ctx.db.get(miniGameId));
+      expect(completedGame!.status).toBe("completed");
+
+      const activitiesBeforeRevoke = await t.run(async (ctx) =>
+        ctx.db
+          .query("activities")
+          .withIndex("sourceExternalId", (q) => q.eq("source", "mini_game"))
+          .filter((q) => q.eq(q.field("challengeId"), challengeId))
+          .collect()
+      );
+      expect(activitiesBeforeRevoke.length).toBe(2);
+
+      await tWithAuth.mutation(api.mutations.miniGames.revokeAwards, { miniGameId });
+
+      const reopenedGame = await t.run(async (ctx) => ctx.db.get(miniGameId));
+      expect(reopenedGame!.status).toBe("active");
+
+      const participantsAfterRevoke = await t.run(async (ctx) =>
+        ctx.db
+          .query("miniGameParticipants")
+          .withIndex("miniGameId", (q) => q.eq("miniGameId", miniGameId))
+          .collect()
+      );
+
+      for (const participant of participantsAfterRevoke) {
+        expect(participant.finalState).toBeUndefined();
+        expect(participant.outcome).toBeUndefined();
+        expect(participant.bonusPoints).toBeUndefined();
+        expect(participant.bonusActivityId).toBeUndefined();
+      }
+
+      const activitiesAfterRevoke = await t.run(async (ctx) =>
+        ctx.db
+          .query("activities")
+          .withIndex("sourceExternalId", (q) => q.eq("source", "mini_game"))
+          .filter((q) => q.eq(q.field("challengeId"), challengeId))
+          .collect()
+      );
+      expect(activitiesAfterRevoke).toHaveLength(0);
+
+      const user1Challenge = await t.run(async (ctx) =>
+        ctx.db
+          .query("userChallenges")
+          .withIndex("userChallengeUnique", (q) =>
+            q.eq("userId", user1).eq("challengeId", challengeId)
+          )
+          .first()
+      );
+      const user2Challenge = await t.run(async (ctx) =>
+        ctx.db
+          .query("userChallenges")
+          .withIndex("userChallengeUnique", (q) =>
+            q.eq("userId", user2).eq("challengeId", challengeId)
+          )
+          .first()
+      );
+      const user3Challenge = await t.run(async (ctx) =>
+        ctx.db
+          .query("userChallenges")
+          .withIndex("userChallengeUnique", (q) =>
+            q.eq("userId", user3).eq("challengeId", challengeId)
+          )
+          .first()
+      );
+
+      expect(user1Challenge!.totalPoints).toBe(300);
+      expect(user2Challenge!.totalPoints).toBe(350);
+      expect(user3Challenge!.totalPoints).toBe(100);
     });
   });
 });
