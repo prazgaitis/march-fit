@@ -604,7 +604,7 @@ export const getLedger = query({
     return {
       user: { id: user._id, name: user.name, username: user.username },
       challenge: { id: challenge._id, name: challenge.name },
-      totalPoints: participation.totalPoints,
+      totalPoints: totalActivityPoints + totalStreakBonus,
       totalActivityPoints,
       totalActivityBasePoints,
       totalActivityBonusPoints,
