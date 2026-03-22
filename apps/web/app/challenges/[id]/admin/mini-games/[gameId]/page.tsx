@@ -119,10 +119,10 @@ type MiniGameParticipant = {
     hitPr?: boolean;
   } | null;
   bonusPoints?: number;
-  user?: { name?: string; username: string; avatarUrl?: string };
-  partnerUser?: { name?: string; username: string; avatarUrl?: string };
-  preyUser?: { name?: string; username: string; avatarUrl?: string };
-  hunterUser?: { name?: string; username: string; avatarUrl?: string };
+  user?: { id?: string; name?: string; username: string; avatarUrl?: string };
+  partnerUser?: { id?: string; name?: string; username: string; avatarUrl?: string };
+  preyUser?: { id?: string; name?: string; username: string; avatarUrl?: string };
+  hunterUser?: { id?: string; name?: string; username: string; avatarUrl?: string };
 };
 
 const gameTypeInfo: Record<
