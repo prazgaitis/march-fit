@@ -64,6 +64,7 @@ import type * as lib_weeks from "../lib/weeks.js";
 import type * as migrations from "../migrations.js";
 import type * as mutations_achievements from "../mutations/achievements.js";
 import type * as mutations_activities from "../mutations/activities.js";
+import type * as mutations_activityTags from "../mutations/activityTags.js";
 import type * as mutations_activityTypes from "../mutations/activityTypes.js";
 import type * as mutations_admin from "../mutations/admin.js";
 import type * as mutations_apiKeys from "../mutations/apiKeys.js";
@@ -142,14 +143,6 @@ import type {
   FunctionReference,
 } from "convex/server";
 
-/**
- * A utility for referencing Convex functions in your app's API.
- *
- * Usage:
- * ```js
- * const myFunctionReference = api.myModule.myFunction;
- * ```
- */
 declare const fullApi: ApiFromModules<{
   "actions/addMarch2026Categories": typeof actions_addMarch2026Categories;
   "actions/backfillActivityExternalData": typeof actions_backfillActivityExternalData;
@@ -207,6 +200,7 @@ declare const fullApi: ApiFromModules<{
   migrations: typeof migrations;
   "mutations/achievements": typeof mutations_achievements;
   "mutations/activities": typeof mutations_activities;
+  "mutations/activityTags": typeof mutations_activityTags;
   "mutations/activityTypes": typeof mutations_activityTypes;
   "mutations/admin": typeof mutations_admin;
   "mutations/apiKeys": typeof mutations_apiKeys;
@@ -279,14 +273,30 @@ declare const fullApi: ApiFromModules<{
   "queries/users": typeof queries_users;
   "queries/workspaces": typeof queries_workspaces;
 }>;
-declare const fullApiWithMounts: typeof fullApi;
 
+/**
+ * A utility for referencing Convex functions in your app's public API.
+ *
+ * Usage:
+ * ```js
+ * const myFunctionReference = api.myModule.myFunction;
+ * ```
+ */
 export declare const api: FilterApi<
-  typeof fullApiWithMounts,
+  typeof fullApi,
   FunctionReference<any, "public">
 >;
+
+/**
+ * A utility for referencing Convex functions in your app's internal API.
+ *
+ * Usage:
+ * ```js
+ * const myFunctionReference = internal.myModule.myFunction;
+ * ```
+ */
 export declare const internal: FilterApi<
-  typeof fullApiWithMounts,
+  typeof fullApi,
   FunctionReference<any, "internal">
 >;
 
@@ -2631,17 +2641,17 @@ export declare const components: {
         { maxNodeSize?: number; namespace?: any; rootLazy?: boolean },
         null
       >;
-      deleteIfExists: FunctionReference<
-        "mutation",
-        "internal",
-        { key: any; namespace?: any },
-        any
-      >;
       delete_: FunctionReference<
         "mutation",
         "internal",
         { key: any; namespace?: any },
         null
+      >;
+      deleteIfExists: FunctionReference<
+        "mutation",
+        "internal",
+        { key: any; namespace?: any },
+        any
       >;
       init: FunctionReference<
         "mutation",

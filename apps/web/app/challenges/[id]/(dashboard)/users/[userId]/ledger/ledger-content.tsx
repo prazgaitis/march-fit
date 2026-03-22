@@ -226,8 +226,20 @@ interface LedgerTableProps {
 type TableRow =
   | { type: "activity"; dayDate: string; showDate: boolean; activity: LedgerDay["activities"][number] }
   | { type: "streak"; dayDate: string; showDate: boolean; bonus: number }
-  | { type: "day_total"; dayDate: string; showDate: boolean; day: LedgerDay }
+  | { type: "day_total"; dayDate: string; showDate: boolean; day: LedgerDay; runningTotal: number }
   | { type: "grand_total"; base: number; bonus: number; activityTotal: number; streak: number; total: number };
+
+function getRunningTotalByDate(days: LedgerDay[]) {
+  let runningTotal = 0;
+  const runningTotals = new Map<string, number>();
+
+  for (const day of [...days].reverse()) {
+    runningTotal += day.dayTotal;
+    runningTotals.set(day.date, runningTotal);
+  }
+
+  return runningTotals;
+}
 
 function LedgerTable({
   days,
@@ -244,6 +256,7 @@ function LedgerTable({
 
   const rows = useMemo(() => {
     const result: TableRow[] = [];
+    const runningTotalsByDate = getRunningTotalByDate(days);
     for (const day of days) {
       let showDate = true;
       for (const activity of day.activities) {
@@ -254,7 +267,13 @@ function LedgerTable({
         result.push({ type: "streak", dayDate: day.date, showDate, bonus: day.streakBonus });
         showDate = false;
       }
-      result.push({ type: "day_total", dayDate: day.date, showDate, day });
+      result.push({
+        type: "day_total",
+        dayDate: day.date,
+        showDate,
+        day,
+        runningTotal: runningTotalsByDate.get(day.date) ?? day.dayTotal,
+      });
     }
     result.push({
       type: "grand_total",
@@ -285,12 +304,14 @@ function LedgerTable({
         map.set(`${rowIdx}:4`, d.activityPoints);
         map.set(`${rowIdx}:5`, d.streakBonus);
         map.set(`${rowIdx}:6`, d.dayTotal);
+        map.set(`${rowIdx}:7`, row.runningTotal);
       } else if (row.type === "grand_total") {
         map.set(`${rowIdx}:2`, row.base);
         map.set(`${rowIdx}:3`, row.bonus);
         map.set(`${rowIdx}:4`, row.activityTotal);
         map.set(`${rowIdx}:5`, row.streak);
         map.set(`${rowIdx}:6`, row.total);
+        map.set(`${rowIdx}:7`, row.total);
       }
     });
     return map;
@@ -408,14 +429,14 @@ function LedgerTable({
       <div className="overflow-x-auto">
         <table
           ref={tableRef}
-          className="w-full min-w-[640px] select-none border-x border-zinc-800 text-[13px]"
+          className="w-full min-w-[760px] select-none border-x border-zinc-800 text-[13px]"
           style={{ borderCollapse: "collapse" }}
           onMouseDown={handleCellMouseDown}
           onMouseMove={handleTableMouseMove}
         >
           <tbody>
             <tr className="sticky top-0 z-10 bg-zinc-900/95 backdrop-blur">
-              {["Date", "Activity", "Base", "Bonus", "Total", "Streak", "Day Total"].map(
+              {["Date", "Activity", "Base", "Bonus", "Total", "Streak", "Day Total", "Running Total"].map(
                 (header) => (
                   <td
                     key={header}
@@ -513,6 +534,7 @@ function LedgerRow({
         {numCell(4, a.pointsEarned, a.isNegative ? "text-red-400" : undefined)}
         <td className={cn(CELL)} />
         <td className={cn(CELL)} />
+        <td className={cn(CELL)} />
       </tr>
     );
   }
@@ -528,6 +550,7 @@ function LedgerRow({
         <td className={cn(CELL)} />
         <td className={cn(CELL)} />
         {numCell(5, row.bonus, "text-orange-400")}
+        <td className={cn(CELL)} />
         <td className={cn(CELL)} />
       </tr>
     );
@@ -548,6 +571,7 @@ function LedgerRow({
         {numCell(4, d.activityPoints)}
         {numCell(5, d.streakBonus, "text-orange-400")}
         {numCell(6, d.dayTotal)}
+        {numCell(7, row.runningTotal)}
       </tr>
     );
   }
@@ -574,6 +598,9 @@ function LedgerRow({
       <td data-row={rowIdx} data-col={6} className={cn(NUM_CELL, "cursor-cell", selStyle(6))}>
         {fmt(row.total)}
       </td>
+      <td data-row={rowIdx} data-col={7} className={cn(NUM_CELL, "cursor-cell", selStyle(7))}>
+        {fmt(row.total)}
+      </td>
     </tr>
   );
 }
@@ -591,6 +618,7 @@ const CSV_COLUMNS = [
   "total_points",
   "streak_bonus",
   "day_total",
+  "running_total",
   "bonus_details",
   "notes",
 ];
@@ -616,6 +644,7 @@ function downloadLedgerCsv({
 }) {
   const header = [...CSV_COLUMNS];
   const body: (string | number)[][] = [];
+  const runningTotalsByDate = getRunningTotalByDate(days);
 
   for (const day of days) {
     for (const a of day.activities) {
@@ -626,6 +655,7 @@ function downloadLedgerCsv({
         a.basePoints ?? a.pointsEarned,
         a.bonusPoints ?? 0,
         a.pointsEarned,
+        "",
         "",
         "",
         a.triggeredBonuses?.map((b) => b.description).join(" | ") ?? "",
@@ -642,6 +672,7 @@ function downloadLedgerCsv({
         "",
         day.streakBonus,
         "",
+        "",
         `Day ${day.streakBonus} streak`,
         "",
       ]);
@@ -655,6 +686,7 @@ function downloadLedgerCsv({
       day.activityPoints,
       day.streakBonus,
       day.dayTotal,
+      runningTotalsByDate.get(day.date) ?? day.dayTotal,
       "",
       "",
     ]);
@@ -668,6 +700,7 @@ function downloadLedgerCsv({
     totalActivityBonusPoints,
     totalActivityPoints,
     totalStreakBonus,
+    totalPoints,
     totalPoints,
     "",
     "",
