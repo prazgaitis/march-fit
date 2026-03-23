@@ -304,9 +304,15 @@ importers:
       convex-test:
         specifier: ^0.0.41
         version: 0.0.41(convex@1.33.1(react@19.2.4))
+      eslint:
+        specifier: ^9.34.0
+        version: 9.34.0(jiti@2.5.1)
       typescript:
         specifier: ^5.9.2
         version: 5.9.2
+      typescript-eslint:
+        specifier: ^8.54.0
+        version: 8.54.0(eslint@9.34.0(jiti@2.5.1))(typescript@5.9.2)
 
   packages/cli: {}
 
@@ -10185,7 +10191,7 @@ snapshots:
   '@typescript-eslint/project-service@8.41.0(typescript@5.9.2)':
     dependencies:
       '@typescript-eslint/tsconfig-utils': 8.41.0(typescript@5.9.2)
-      '@typescript-eslint/types': 8.41.0
+      '@typescript-eslint/types': 8.54.0
       debug: 4.4.3
       typescript: 5.9.2
     transitivePeerDependencies:
