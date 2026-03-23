@@ -143,7 +143,7 @@ export function getNotificationMessage(notification: Notification) {
       const activityName = notification.data?.activityName as string | undefined;
       const points = notification.data?.pointsEarned as number | undefined;
       if (activityName && points != null) {
-        return `Strava activity "${activityName}" imported — ${points} pts earned`;
+        return `Strava activity "${activityName}" imported — ${parseFloat(points.toFixed(2))} pts earned`;
       }
       return "Your Strava activity was imported";
     }
@@ -155,10 +155,10 @@ export function getNotificationMessage(notification: Notification) {
       const label = activityName ? `"${activityName}"` : "Your activity";
       const mediaSuffix = hasNewMedia ? " with photos" : "";
       if (points != null && prevPoints != null && prevPoints !== points) {
-        return `Strava activity ${label} updated${mediaSuffix} — ${points} pts (was ${prevPoints})`;
+        return `Strava activity ${label} updated${mediaSuffix} — ${parseFloat(points.toFixed(2))} pts (was ${parseFloat(prevPoints.toFixed(2))})`;
       }
       if (points != null) {
-        return `Strava activity ${label} updated${mediaSuffix} — ${points} pts`;
+        return `Strava activity ${label} updated${mediaSuffix} — ${parseFloat(points.toFixed(2))} pts`;
       }
       return `Your Strava activity was updated${mediaSuffix}`;
     }
