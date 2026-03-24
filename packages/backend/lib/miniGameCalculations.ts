@@ -6,7 +6,7 @@
  */
 import type { Id } from "../_generated/dataModel";
 import type { QueryCtx } from "../_generated/server";
-import { notDeleted } from "./activityFilters";
+import { notDeleted, isUserLoggedActivity } from "./activityFilters";
 import { formatDateOnlyFromUtcMs } from "./dateOnly";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -421,7 +421,7 @@ export async function previewPrWeekEnd(
 
 /**
  * Get a user's max single-day points total from all days before `beforeDate`.
- * Excludes mini_game bonus activities.
+ * Excludes system-generated bonus activities (mini_game, category_leader, etc.).
  */
 export async function calculateMaxDailyPoints(
   ctx: ReadCtx,
@@ -441,6 +441,7 @@ export async function calculateMaxDailyPoints(
 
   for (const activity of activities) {
     if (activity.loggedDate >= beforeDate) continue;
+    if (!isUserLoggedActivity(activity)) continue;
 
     const dateStr = formatDateOnlyFromUtcMs(activity.loggedDate);
     dailyPoints[dateStr] = (dailyPoints[dateStr] || 0) + activity.pointsEarned;
@@ -452,7 +453,7 @@ export async function calculateMaxDailyPoints(
 
 /**
  * Get total non-bonus points earned by a user during a time period.
- * Excludes `source: "mini_game"` activities to prevent circular scoring.
+ * Excludes system-generated bonus activities to prevent circular scoring.
  */
 export async function getPointsInPeriod(
   ctx: ReadCtx,
@@ -474,14 +475,14 @@ export async function getPointsInPeriod(
       (a) =>
         a.loggedDate >= startDate &&
         a.loggedDate <= endDate &&
-        a.source !== "mini_game",
+        isUserLoggedActivity(a),
     )
     .reduce((sum, a) => sum + a.pointsEarned, 0);
 }
 
 /**
  * Get the maximum single-day points total during a time period.
- * Excludes `source: "mini_game"` activities.
+ * Excludes system-generated bonus activities (mini_game, category_leader, etc.).
  */
 export async function getMaxDailyPointsInPeriod(
   ctx: ReadCtx,
@@ -504,7 +505,7 @@ export async function getMaxDailyPointsInPeriod(
     if (
       activity.loggedDate < startDate ||
       activity.loggedDate > endDate ||
-      activity.source === "mini_game"
+      !isUserLoggedActivity(activity)
     )
       continue;
 

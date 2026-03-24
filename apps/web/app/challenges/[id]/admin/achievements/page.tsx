@@ -12,6 +12,7 @@ import {
   Plus,
   Save,
   Trash2,
+  Trophy,
   XCircle,
 } from "lucide-react";
 
@@ -88,6 +89,11 @@ export default function AchievementsAdminPage() {
   const activityTypes = useQuery(api.queries.activityTypes.getByChallengeId, {
     challengeId: challengeId as Id<"challenges">,
   });
+
+  const earnedAchievements = useQuery(
+    api.queries.achievements.getEarnedByChallenge,
+    { challengeId: challengeId as Id<"challenges"> }
+  );
 
   const createAchievement = useMutation(api.mutations.achievements.createAchievement);
   const deleteAchievement = useMutation(api.mutations.achievements.deleteAchievement);
@@ -665,6 +671,66 @@ export default function AchievementsAdminPage() {
                 >
                   <Trash2 className="h-4 w-4" />
                 </Button>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      {/* Earned Achievements */}
+      <div className="rounded border border-zinc-800 bg-zinc-900">
+        <div className="border-b border-zinc-800 px-4 py-2">
+          <h3 className="text-xs font-medium uppercase tracking-wider text-zinc-400">
+            <Trophy className="mr-1.5 inline h-3.5 w-3.5 text-amber-400" />
+            Earned by Participants
+            {earnedAchievements && earnedAchievements.length > 0 && (
+              <span className="ml-2 text-zinc-500">
+                ({earnedAchievements.length})
+              </span>
+            )}
+          </h3>
+        </div>
+        <div className="divide-y divide-zinc-800/50">
+          {earnedAchievements === undefined ? (
+            <div className="flex items-center justify-center px-4 py-8 text-sm text-zinc-500">
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              Loading...
+            </div>
+          ) : earnedAchievements.length === 0 ? (
+            <div className="px-4 py-8 text-center text-sm text-zinc-500">
+              No achievements earned yet
+            </div>
+          ) : (
+            earnedAchievements.map((ea: any) => (
+              <div key={ea.id} className="flex items-center gap-3 px-4 py-3">
+                {ea.avatarUrl ? (
+                  <img
+                    src={ea.avatarUrl}
+                    alt=""
+                    className="h-7 w-7 rounded-full object-cover"
+                  />
+                ) : (
+                  <div className="flex h-7 w-7 items-center justify-center rounded-full bg-zinc-800 text-xs text-zinc-500">
+                    {(ea.userName?.[0] ?? "?").toUpperCase()}
+                  </div>
+                )}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-zinc-200 truncate">
+                      {ea.userName}
+                    </span>
+                    <span className="text-xs text-zinc-500">earned</span>
+                    <span className="text-sm text-amber-400 truncate">
+                      {ea.achievementName}
+                    </span>
+                    <span className="text-xs text-emerald-400">
+                      +{ea.bonusPoints}
+                    </span>
+                  </div>
+                </div>
+                <span className="text-xs text-zinc-600 whitespace-nowrap">
+                  {new Date(ea.earnedAt).toLocaleDateString()}
+                </span>
               </div>
             ))
           )}

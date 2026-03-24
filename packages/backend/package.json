@@ -49,6 +49,7 @@
   "scripts": {
     "dev": "bash ../../scripts/convex.sh dev",
     "deploy": "bash ../../scripts/convex.sh deploy",
+    "lint": "eslint",
     "setup": "bash ../../scripts/convex.sh dev",
     "seed": "bash ../../scripts/convex.sh run actions/seed:seed",
     "seed:if-missing": "bash ../../scripts/convex.sh run actions/seed:seedIfMissing",
@@ -68,6 +69,8 @@
   "devDependencies": {
     "@types/node": "^20",
     "convex-test": "^0.0.41",
-    "typescript": "^5.9.2"
+    "eslint": "^9.34.0",
+    "typescript": "^5.9.2",
+    "typescript-eslint": "^8.54.0"
   }
 }
