@@ -80,7 +80,7 @@
     "@vitest/browser": "^1.6.0",
     "@vitest/coverage-v8": "^1.6.0",
     "dotenv-cli": "^10.0.0",
-    "eslint": "^9",
+    "eslint": "^9.34.0",
     "eslint-config-next": "16.1.6",
     "eslint-plugin-storybook": "^10.1.10",
     "msw": "^2.3.1",
