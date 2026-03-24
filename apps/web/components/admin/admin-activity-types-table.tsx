@@ -106,6 +106,7 @@ export function AdminActivityTypesTable({
   const [createNegative, setCreateNegative] = useState(false);
   const [createAvailableInFinalDays, setCreateAvailableInFinalDays] = useState(false);
   const [createCategoryId, setCreateCategoryId] = useState("");
+  const [createKind, setCreateKind] = useState("");
   const [createDisplayOrder, setCreateDisplayOrder] = useState("");
 
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -116,6 +117,7 @@ export function AdminActivityTypesTable({
   const [editNegative, setEditNegative] = useState(false);
   const [editAvailableInFinalDays, setEditAvailableInFinalDays] = useState(false);
   const [editCategoryId, setEditCategoryId] = useState("");
+  const [editKind, setEditKind] = useState("");
   const [editDisplayOrder, setEditDisplayOrder] = useState("");
   const [editThresholds, setEditThresholds] = useState<BonusThreshold[]>([]);
   const [editScoringConfig, setEditScoringConfig] = useState<Record<string, unknown> | null>(null);
@@ -157,6 +159,7 @@ export function AdminActivityTypesTable({
         isNegative: createNegative,
         availableInFinalDays: createAvailableInFinalDays || undefined,
         categoryId: createCategoryId ? (createCategoryId as Id<"categories">) : undefined,
+        kind: (createKind || undefined) as "core" | "challenge" | "bonus" | "penalty" | "tracking" | undefined,
         displayOrder: Number.isFinite(parsedDisplayOrder) && createDisplayOrder !== "" ? parsedDisplayOrder : undefined,
       });
       setCreateName("");
@@ -166,6 +169,7 @@ export function AdminActivityTypesTable({
       setCreateNegative(false);
       setCreateAvailableInFinalDays(false);
       setCreateCategoryId("");
+      setCreateKind("");
       setCreateDisplayOrder("");
       setShowCreate(false);
       setStatusMessage({ type: "success", text: "Created" });
@@ -188,6 +192,7 @@ export function AdminActivityTypesTable({
     setEditNegative(item.isNegative);
     setEditAvailableInFinalDays(item.availableInFinalDays ?? false);
     setEditCategoryId((item.categoryId as string) ?? "");
+    setEditKind((item as any).kind ?? "");
     setEditDisplayOrder(item.displayOrder != null ? String(item.displayOrder) : "");
     setEditThresholds((item.bonusThresholds as BonusThreshold[]) || []);
     setEditScoringConfig(scoringConfig);
@@ -251,6 +256,7 @@ export function AdminActivityTypesTable({
         availableInFinalDays: editAvailableInFinalDays || undefined,
         bonusThresholds: editThresholds,
         categoryId: editCategoryId ? (editCategoryId as Id<"categories">) : undefined,
+        kind: (editKind || undefined) as "core" | "challenge" | "bonus" | "penalty" | "tracking" | undefined,
         displayOrder: Number.isFinite(parsedDisplayOrder) && editDisplayOrder !== "" ? parsedDisplayOrder : undefined,
       });
       setEditingId(null);
@@ -407,6 +413,21 @@ export function AdminActivityTypesTable({
                 ))}
               </select>
             </div>
+            <div className="w-28">
+              <label className="mb-1 block text-[10px] text-zinc-500">Kind</label>
+              <select
+                value={createKind}
+                onChange={(e) => setCreateKind(e.target.value)}
+                className="h-8 w-full rounded border border-zinc-700 bg-zinc-800 px-2 text-sm text-zinc-300"
+              >
+                <option value="">—</option>
+                <option value="core">Core</option>
+                <option value="challenge">Challenge</option>
+                <option value="bonus">Bonus</option>
+                <option value="penalty">Penalty</option>
+                <option value="tracking">Tracking</option>
+              </select>
+            </div>
             <div className="w-20">
               <label className="mb-1 block text-[10px] text-zinc-500" title="Display order in logging menu (lower = first)">Order #</label>
               <Input
@@ -454,6 +475,7 @@ export function AdminActivityTypesTable({
             <tr className="border-b border-zinc-800 text-[10px] uppercase tracking-wider text-zinc-500">
               <th className="px-3 py-2 text-left font-medium">Name</th>
               <th className="px-3 py-2 text-left font-medium">Category</th>
+              <th className="px-3 py-2 text-left font-medium">Kind</th>
               <th className="px-3 py-2 text-right font-medium">Points</th>
               <th className="px-3 py-2 text-center font-medium">Streak</th>
               <th className="px-3 py-2 text-center font-medium">Neg</th>
@@ -465,7 +487,7 @@ export function AdminActivityTypesTable({
           <tbody className="divide-y divide-zinc-800/50">
             {items.length === 0 ? (
               <tr>
-                <td colSpan={8} className="px-3 py-8 text-center text-zinc-500">
+                <td colSpan={9} className="px-3 py-8 text-center text-zinc-500">
                   No activity types configured
                 </td>
               </tr>
@@ -495,6 +517,15 @@ export function AdminActivityTypesTable({
                       </td>
                       <td className="px-3 py-2 text-zinc-400">
                         {item.categoryId ? categoryMap.get(item.categoryId as string) ?? "—" : "—"}
+                      </td>
+                      <td className="px-3 py-2">
+                        {(item as any).kind ? (
+                          <span className="rounded bg-zinc-800 px-1.5 py-0.5 text-[10px] text-zinc-400">
+                            {(item as any).kind}
+                          </span>
+                        ) : (
+                          <span className="text-zinc-600">—</span>
+                        )}
                       </td>
                       <td className="px-3 py-2 text-right font-mono text-zinc-300">
                         {basePoints}
@@ -545,7 +576,7 @@ export function AdminActivityTypesTable({
                     {/* Edit Panel */}
                     {isEditing && (
                       <tr>
-                        <td colSpan={8} className="border-t border-zinc-800 bg-zinc-900 p-0">
+                        <td colSpan={9} className="border-t border-zinc-800 bg-zinc-900 p-0">
                           <form onSubmit={handleUpdate} className="p-3">
                             {/* Basic Fields Row */}
                             <div className="flex items-end gap-3">
@@ -611,6 +642,23 @@ export function AdminActivityTypesTable({
                                       {c.name}
                                     </option>
                                   ))}
+                                </select>
+                              </div>
+                              <div className="w-28">
+                                <label className="mb-1 block text-[10px] text-zinc-500">
+                                  Kind
+                                </label>
+                                <select
+                                  value={editKind}
+                                  onChange={(e) => setEditKind(e.target.value)}
+                                  className="h-8 w-full rounded border border-zinc-700 bg-zinc-800 px-2 text-sm text-zinc-300"
+                                >
+                                  <option value="">—</option>
+                                  <option value="core">Core</option>
+                                  <option value="challenge">Challenge</option>
+                                  <option value="bonus">Bonus</option>
+                                  <option value="penalty">Penalty</option>
+                                  <option value="tracking">Tracking</option>
                                 </select>
                               </div>
                               <div className="w-20">

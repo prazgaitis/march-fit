@@ -12,6 +12,16 @@ const bonusThresholdsArg = v.optional(
   )
 );
 
+const kindArg = v.optional(
+  v.union(
+    v.literal("core"),
+    v.literal("challenge"),
+    v.literal("bonus"),
+    v.literal("penalty"),
+    v.literal("tracking"),
+  )
+);
+
 // Internal mutation for seeding
 export const create = internalMutation({
   args: {
@@ -23,6 +33,7 @@ export const create = internalMutation({
     contributesToStreak: v.boolean(),
     isNegative: v.boolean(),
     categoryId: v.optional(v.id("categories")),
+    kind: kindArg,
     sortOrder: v.optional(v.number()),
     displayOrder: v.optional(v.number()),
     availableInFinalDays: v.optional(v.boolean()),
@@ -48,6 +59,7 @@ export const createActivityType = mutation({
     contributesToStreak: v.boolean(),
     isNegative: v.boolean(),
     categoryId: v.optional(v.id("categories")),
+    kind: kindArg,
     sortOrder: v.optional(v.number()),
     displayOrder: v.optional(v.number()),
     availableInFinalDays: v.optional(v.boolean()),
@@ -66,6 +78,7 @@ export const createActivityType = mutation({
       contributesToStreak: args.contributesToStreak,
       isNegative: args.isNegative,
       categoryId: args.categoryId,
+      kind: args.kind,
       sortOrder: args.sortOrder,
       displayOrder: args.displayOrder,
       availableInFinalDays: args.availableInFinalDays,
@@ -88,6 +101,7 @@ export const updateInternal = internalMutation({
     contributesToStreak: v.optional(v.boolean()),
     isNegative: v.optional(v.boolean()),
     categoryId: v.optional(v.id("categories")),
+    kind: kindArg,
     sortOrder: v.optional(v.number()),
     displayOrder: v.optional(v.number()),
     availableInFinalDays: v.optional(v.boolean()),
@@ -109,6 +123,7 @@ export const updateInternal = internalMutation({
     if (updates.contributesToStreak !== undefined) updateData.contributesToStreak = updates.contributesToStreak;
     if (updates.isNegative !== undefined) updateData.isNegative = updates.isNegative;
     if (updates.categoryId !== undefined) updateData.categoryId = updates.categoryId;
+    if (updates.kind !== undefined) updateData.kind = updates.kind;
     if (updates.sortOrder !== undefined) updateData.sortOrder = updates.sortOrder;
     if (updates.displayOrder !== undefined) updateData.displayOrder = updates.displayOrder;
     if (updates.availableInFinalDays !== undefined) updateData.availableInFinalDays = updates.availableInFinalDays;
@@ -131,6 +146,7 @@ export const updateActivityType = mutation({
     contributesToStreak: v.optional(v.boolean()),
     isNegative: v.optional(v.boolean()),
     categoryId: v.optional(v.id("categories")),
+    kind: kindArg,
     sortOrder: v.optional(v.number()),
     displayOrder: v.optional(v.number()),
     availableInFinalDays: v.optional(v.boolean()),
@@ -152,6 +168,7 @@ export const updateActivityType = mutation({
     if (updates.contributesToStreak !== undefined) updateData.contributesToStreak = updates.contributesToStreak;
     if (updates.isNegative !== undefined) updateData.isNegative = updates.isNegative;
     if (updates.categoryId !== undefined) updateData.categoryId = updates.categoryId;
+    if (updates.kind !== undefined) updateData.kind = updates.kind;
     if (updates.sortOrder !== undefined) updateData.sortOrder = updates.sortOrder;
     if (updates.displayOrder !== undefined) updateData.displayOrder = updates.displayOrder;
     if (updates.availableInFinalDays !== undefined) updateData.availableInFinalDays = updates.availableInFinalDays;
@@ -192,6 +209,86 @@ export const deleteActivityType = mutation({
     // Safe to delete
     await ctx.db.delete(args.activityTypeId);
     return { success: true };
+  },
+});
+
+/**
+ * Backfill the `kind` field on all activity types for a challenge.
+ * Uses heuristics based on name, scoringConfig, isNegative, and contributesToStreak.
+ * Safe to run multiple times — only patches rows where kind is undefined.
+ */
+export const backfillKind = mutation({
+  args: {
+    challengeId: v.id("challenges"),
+    dryRun: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    const activityTypes = await ctx.db
+      .query("activityTypes")
+      .withIndex("challengeId", (q) => q.eq("challengeId", args.challengeId))
+      .collect();
+
+    const BONUS_NAMES = new Set([
+      "partner week bonus",
+      "pr week bonus",
+      "the hunt bonus",
+      "hunt week bonus",
+      "category leader bonus",
+      "mini-game bonus",
+    ]);
+
+    const TRACKING_NAMES = new Set([
+      "10 days of mindfulness (days 1-9)",
+      "10 days of mindfulness (day 10)",
+    ]);
+
+    const results: { name: string; kind: string; skipped?: boolean }[] = [];
+
+    for (const at of activityTypes) {
+      if (at.kind !== undefined) {
+        results.push({ name: at.name, kind: at.kind, skipped: true });
+        continue;
+      }
+
+      const nameLower = at.name.toLowerCase();
+      let kind: "core" | "challenge" | "bonus" | "penalty" | "tracking";
+
+      if (at.isNegative) {
+        kind = "penalty";
+      } else if (BONUS_NAMES.has(nameLower)) {
+        kind = "bonus";
+      } else if (TRACKING_NAMES.has(nameLower)) {
+        kind = "tracking";
+      } else if (
+        at.scoringConfig?.type === "variable" ||
+        (at.scoringConfig?.type === "fixed" && at.scoringConfig?.basePoints === 0)
+      ) {
+        // Variable scoring = system-awarded bonuses
+        kind = "bonus";
+      } else if (
+        at.scoringConfig?.type === "unit_based" &&
+        ["miles", "kilometers", "minutes"].includes(at.scoringConfig?.unit) &&
+        !at.maxPerChallenge
+      ) {
+        // Repeatable distance/duration activities = core fitness
+        kind = "core";
+      } else {
+        // Everything else: completion workouts, tiered challenges, etc.
+        kind = "challenge";
+      }
+
+      if (!args.dryRun) {
+        await ctx.db.patch(at._id, { kind });
+      }
+      results.push({ name: at.name, kind });
+    }
+
+    return {
+      total: activityTypes.length,
+      updated: results.filter((r) => !r.skipped).length,
+      skipped: results.filter((r) => r.skipped).length,
+      results,
+    };
   },
 });
 

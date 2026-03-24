@@ -843,6 +843,15 @@ export const createActivityTypeForUser = internalMutation({
     ),
     maxPerChallenge: v.optional(v.number()),
     validWeeks: v.optional(v.array(v.number())),
+    kind: v.optional(
+      v.union(
+        v.literal("core"),
+        v.literal("challenge"),
+        v.literal("bonus"),
+        v.literal("penalty"),
+        v.literal("tracking"),
+      )
+    ),
   },
   handler: async (ctx, args) => {
     const { userId, ...rest } = args;
@@ -882,6 +891,15 @@ export const updateActivityTypeForUser = internalMutation({
     validWeeks: v.optional(v.array(v.number())),
     sortOrder: v.optional(v.number()),
     categoryId: v.optional(v.id("categories")),
+    kind: v.optional(
+      v.union(
+        v.literal("core"),
+        v.literal("challenge"),
+        v.literal("bonus"),
+        v.literal("penalty"),
+        v.literal("tracking"),
+      )
+    ),
   },
   handler: async (ctx, args) => {
     const { userId, activityTypeId, ...updates } = args;
@@ -901,6 +919,7 @@ export const updateActivityTypeForUser = internalMutation({
     if (updates.validWeeks !== undefined) updateData.validWeeks = updates.validWeeks;
     if (updates.sortOrder !== undefined) updateData.sortOrder = updates.sortOrder;
     if (updates.categoryId !== undefined) updateData.categoryId = updates.categoryId;
+    if (updates.kind !== undefined) updateData.kind = updates.kind;
 
     await ctx.db.patch(activityTypeId, updateData);
     return { success: true };

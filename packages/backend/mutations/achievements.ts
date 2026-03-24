@@ -41,6 +41,18 @@ export const criteriaValidator = v.union(
       }),
     ),
   }),
+  // N-of thresholds: at least requiredCount of per-type thresholds must be met
+  v.object({
+    criteriaType: v.literal("n_of_thresholds"),
+    requiredCount: v.number(),
+    requirements: v.array(
+      v.object({
+        activityTypeId: v.id("activityTypes"),
+        metric: v.string(),
+        threshold: v.number(),
+      }),
+    ),
+  }),
 );
 
 /**

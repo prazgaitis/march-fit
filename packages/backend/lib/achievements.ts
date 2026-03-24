@@ -41,7 +41,7 @@ export function computeCriteriaProgress(
 } {
   const criteriaType: string = criteria.criteriaType ?? "count";
   const matchingActivities =
-    criteriaType === "all_activity_type_thresholds"
+    criteriaType === "all_activity_type_thresholds" || criteriaType === "n_of_thresholds"
       ? activities
       : activities.filter((a: any) =>
           criteria.activityTypeIds.includes(a.activityTypeId)
@@ -133,7 +133,8 @@ export function computeCriteriaProgress(
       };
     }
 
-    case "all_activity_type_thresholds": {
+    case "all_activity_type_thresholds":
+    case "n_of_thresholds": {
       const qualifyingByType = new Map<string, any>();
 
       for (const requirement of criteria.requirements ?? []) {
@@ -148,9 +149,14 @@ export function computeCriteriaProgress(
         }
       }
 
+      const required =
+        criteriaType === "n_of_thresholds"
+          ? criteria.requiredCount
+          : (criteria.requirements ?? []).length;
+
       return {
         currentCount: qualifyingByType.size,
-        requiredCount: (criteria.requirements ?? []).length,
+        requiredCount: required,
         qualifyingActivityIds: Array.from(qualifyingByType.values()),
       };
     }
@@ -163,7 +169,7 @@ export function computeCriteriaProgress(
 /** Get criteria activity type IDs regardless of criteria variant. */
 export function getCriteriaActivityTypeIds(criteria: any): Id<"activityTypes">[] {
   const criteriaType: string = criteria.criteriaType ?? "count";
-  if (criteriaType === "all_activity_type_thresholds") {
+  if (criteriaType === "all_activity_type_thresholds" || criteriaType === "n_of_thresholds") {
     return Array.from(
       new Set((criteria.requirements ?? []).map((r: any) => r.activityTypeId))
     ) as Id<"activityTypes">[];
