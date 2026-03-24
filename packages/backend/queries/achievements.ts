@@ -1,7 +1,9 @@
 import { internalQuery, query } from "../_generated/server";
 import { v } from "convex/values";
+import type { Id } from "../_generated/dataModel";
 import { getCurrentUser } from "../lib/ids";
 import { notDeleted } from "../lib/activityFilters";
+import { formatDateOnlyFromUtcMs } from "../lib/dateOnly";
 import {
   computeCriteriaProgress,
   getCriteriaActivityTypeIds,
@@ -50,6 +52,27 @@ export const getByChallengeId = query({
   },
 });
 
+/** Resolve qualifying activity IDs into display-friendly summaries. */
+async function resolveQualifyingActivities(
+  ctx: any,
+  activityIds: Id<"activities">[],
+) {
+  const results = await Promise.all(
+    activityIds.map(async (id) => {
+      const activity = await ctx.db.get(id);
+      if (!activity || activity.deletedAt) return null;
+      const activityType = await ctx.db.get(activity.activityTypeId);
+      return {
+        id: activity._id,
+        activityTypeName: activityType?.name ?? "Unknown",
+        loggedDate: formatDateOnlyFromUtcMs(activity.loggedDate),
+        pointsEarned: activity.pointsEarned,
+      };
+    }),
+  );
+  return results.filter(Boolean);
+}
+
 /**
  * Internal helper: build per-achievement progress for a given user.
  */
@@ -83,29 +106,33 @@ async function buildUserProgress(
     userAchievements.map((ua: any) => [ua.achievementId as string, ua])
   );
 
-  return achievements.map((achievement: any) => {
-    const { currentCount, requiredCount } = computeCriteriaProgress(
-      activities,
-      achievement.criteria
-    );
+  return Promise.all(
+    achievements.map(async (achievement: any) => {
+      const { currentCount, requiredCount } = computeCriteriaProgress(
+        activities,
+        achievement.criteria
+      );
 
-    const earned = earnedMap.get(achievement._id);
-    const criteriaType: string = achievement.criteria.criteriaType ?? "count";
+      const earned = earnedMap.get(achievement._id);
+      const criteriaType: string = achievement.criteria.criteriaType ?? "count";
 
-    return {
-      achievementId: achievement._id,
-      name: achievement.name,
-      description: achievement.description,
-      bonusPoints: achievement.bonusPoints,
-      frequency: achievement.frequency,
-      criteriaType,
-      // Numeric progress (semantics depend on criteriaType)
-      currentCount,
-      requiredCount,
-      isEarned: !!earned,
-      earnedAt: earned?.earnedAt,
-    };
-  });
+      return {
+        achievementId: achievement._id,
+        name: achievement.name,
+        description: achievement.description,
+        bonusPoints: achievement.bonusPoints,
+        frequency: achievement.frequency,
+        criteriaType,
+        currentCount,
+        requiredCount,
+        isEarned: !!earned,
+        earnedAt: earned?.earnedAt,
+        qualifyingActivities: earned
+          ? await resolveQualifyingActivities(ctx, earned.qualifyingActivityIds ?? [])
+          : [],
+      };
+    }),
+  );
 }
 
 /**
@@ -162,10 +189,52 @@ export const getEarnedByUser = query({
           description: achievement.description,
           bonusPoints: achievement.bonusPoints,
           earnedAt: ua.earnedAt,
+          qualifyingActivities: await resolveQualifyingActivities(
+            ctx,
+            ua.qualifyingActivityIds ?? [],
+          ),
         };
       })
     );
 
     return results.filter(Boolean);
+  },
+});
+
+/**
+ * Get all earned achievements for a challenge (admin view).
+ * Returns each award with user info and achievement details, sorted by most recent.
+ */
+export const getEarnedByChallenge = query({
+  args: {
+    challengeId: v.id("challenges"),
+  },
+  handler: async (ctx, args) => {
+    const userAchievements = await ctx.db
+      .query("userAchievements")
+      .withIndex("challengeId", (q) => q.eq("challengeId", args.challengeId))
+      .collect();
+
+    const results = await Promise.all(
+      userAchievements.map(async (ua) => {
+        const [achievement, user] = await Promise.all([
+          ctx.db.get(ua.achievementId),
+          ctx.db.get(ua.userId),
+        ]);
+        if (!achievement || !user) return null;
+        return {
+          id: ua._id,
+          achievementName: achievement.name,
+          bonusPoints: achievement.bonusPoints,
+          userName: user.name ?? user.username ?? "Unknown",
+          avatarUrl: user.avatarUrl,
+          earnedAt: ua.earnedAt,
+        };
+      })
+    );
+
+    return results
+      .filter(Boolean)
+      .sort((a, b) => b!.earnedAt - a!.earnedAt);
   },
 });

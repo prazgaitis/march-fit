@@ -3,7 +3,7 @@ import { v } from "convex/values";
 import { paginationOptsValidator } from "convex/server";
 import { coerceDateOnlyToString, formatDateOnlyFromUtcMs } from "../lib/dateOnly";
 import { internalQuery } from "../_generated/server";
-import { notDeleted } from "../lib/activityFilters";
+import { notDeleted, isUserLoggedActivity } from "../lib/activityFilters";
 import { aggregateDailyStreakPoints, computeStreak } from "../lib/streak";
 
 /**
@@ -195,8 +195,10 @@ export const getProfile = query({
     );
 
     // Compute PR day (the day with the highest total points).
+    // Only count real user-logged activities, not system bonuses.
     const totalsByDay = new Map<string, number>();
     for (const activity of challengeActivities) {
+      if (!isUserLoggedActivity(activity)) continue;
       const dayKey = formatDateOnlyFromUtcMs(activity.loggedDate);
       totalsByDay.set(dayKey, (totalsByDay.get(dayKey) ?? 0) + activity.pointsEarned);
     }

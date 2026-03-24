@@ -437,6 +437,16 @@ export function UserProfileContent({
         </>
       )}
 
+      {/* ── Achievements ─────────────────────────────────────────── */}
+      <div className="px-4 py-4">
+        <AchievementsSection
+          ownProgress={ownAchievementProgress}
+          theirEarned={theirEarnedAchievements}
+          isOwnProfile={followData?.isOwnProfile ?? false}
+          challengeName={challenge.name}
+        />
+      </div>
+
       {participation && streakCalendar && (
         <>
           <div className="px-4 py-4">
@@ -627,16 +637,6 @@ export function UserProfileContent({
       {/* Mini-Games */}
       <div className="px-4 py-4">
         <UserMiniGames challengeId={challengeId} userId={profileUserId} />
-      </div>
-
-      {/* ── Achievements ─────────────────────────────────────────── */}
-      <div className="px-4 py-4">
-        <AchievementsSection
-          ownProgress={ownAchievementProgress}
-          theirEarned={theirEarnedAchievements}
-          isOwnProfile={followData?.isOwnProfile ?? false}
-          challengeName={challenge.name}
-        />
       </div>
 
       {/* Participation Info */}
@@ -868,6 +868,13 @@ function FollowListModal({
 
 // ─── Achievement progress helpers ────────────────────────────────────────────
 
+type QualifyingActivity = {
+  id: string;
+  activityTypeName: string;
+  loggedDate: string;
+  pointsEarned: number;
+};
+
 type OwnProgressItem = {
   achievementId: string;
   name: string;
@@ -879,6 +886,7 @@ type OwnProgressItem = {
   requiredCount: number;
   isEarned: boolean;
   earnedAt?: number;
+  qualifyingActivities: QualifyingActivity[];
 };
 
 type EarnedItem = {
@@ -887,6 +895,7 @@ type EarnedItem = {
   description: string;
   bonusPoints: number;
   earnedAt: number;
+  qualifyingActivities: QualifyingActivity[];
 };
 
 /** Format progress fraction into a human-readable label. */
@@ -907,13 +916,89 @@ function formatProgress(item: OwnProgressItem): string {
   }
 }
 
+// ─── Qualifying activities sub-list ──────────────────────────────────────────
+
+function QualifyingActivitiesList({
+  activities,
+}: {
+  activities: QualifyingActivity[];
+}) {
+  if (activities.length === 0) return null;
+  return (
+    <div className="mt-2.5 border-t border-zinc-800 pt-2">
+      <div className="space-y-1.5">
+        {activities.map((a) => (
+          <div
+            key={a.id}
+            className="flex items-center justify-between gap-3 text-[11px]"
+          >
+            <span className="min-w-0 truncate text-zinc-400">
+              {a.activityTypeName}
+            </span>
+            <div className="flex items-center gap-3 shrink-0 tabular-nums">
+              <span className="text-zinc-600">{a.loggedDate}</span>
+              <span className="w-12 text-right font-mono text-zinc-500">
+                {a.pointsEarned}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Earned achievement row ─────────────────────────────────────────────────
+
+function EarnedAchievementRow({
+  name,
+  description,
+  bonusPoints,
+  earnedAt,
+  qualifyingActivities,
+}: {
+  name: string;
+  description: string;
+  bonusPoints: number;
+  earnedAt?: number;
+  qualifyingActivities: QualifyingActivity[];
+}) {
+  return (
+    <div className="rounded-lg bg-amber-500/10 p-3 ring-1 ring-amber-500/20">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start gap-2.5 min-w-0">
+          <Award className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
+          <div className="min-w-0">
+            <p className="text-sm font-medium leading-snug text-zinc-200">
+              {name}
+            </p>
+            <p className="mt-0.5 text-[11px] leading-relaxed text-zinc-500 line-clamp-2">
+              {description}
+            </p>
+          </div>
+        </div>
+        <div className="shrink-0 text-right">
+          <div className="font-mono text-sm font-bold tabular-nums text-emerald-400">
+            +{bonusPoints}
+          </div>
+          {earnedAt && (
+            <div className="text-[10px] text-zinc-600">
+              {format(new Date(earnedAt), "MMM d")}
+            </div>
+          )}
+        </div>
+      </div>
+      <QualifyingActivitiesList activities={qualifyingActivities} />
+    </div>
+  );
+}
+
 // ─── AchievementsSection component ───────────────────────────────────────────
 
 function AchievementsSection({
   ownProgress,
   theirEarned,
   isOwnProfile,
-  challengeName,
 }: {
   ownProgress: OwnProgressItem[] | undefined;
   theirEarned: (EarnedItem | null)[] | undefined;
@@ -930,41 +1015,38 @@ function AchievementsSection({
     if (earned.length === 0) return null;
 
     return (
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-lg">
-            <Award className="h-5 w-5 text-amber-500" />
-            Achievements
-          </CardTitle>
-          <CardDescription>Earned in {challengeName}</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-3">
-            {earned.map((item) => (
-              <div
-                key={item.achievementId}
-                className="flex items-start gap-3 rounded-lg border border-amber-500/20 bg-amber-500/5 p-3"
-              >
-                <Award className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className="font-semibold text-sm">{item.name}</p>
-                    <span className="text-xs font-medium text-amber-600 dark:text-amber-400">
-                      +{item.bonusPoints} pts
-                    </span>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {item.description}
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Earned {format(new Date(item.earnedAt), "MMM d, yyyy")}
-                  </p>
-                </div>
-              </div>
-            ))}
+      <div className="rounded-lg border border-zinc-800 bg-gradient-to-br from-amber-950/30 to-zinc-900 p-4">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-500/20">
+              <Award className="h-4 w-4 text-amber-400" />
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-zinc-100">
+                Achievements
+              </h3>
+              <p className="text-xs text-zinc-500">
+                {earned.length} earned
+              </p>
+            </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+
+        {/* Earned list */}
+        <div className="mt-4 space-y-2.5">
+          {earned.map((item) => (
+            <EarnedAchievementRow
+              key={item.achievementId}
+              name={item.name}
+              description={item.description}
+              bonusPoints={item.bonusPoints}
+              earnedAt={item.earnedAt}
+              qualifyingActivities={item.qualifyingActivities}
+            />
+          ))}
+        </div>
+      </div>
     );
   }
 
@@ -979,113 +1061,128 @@ function AchievementsSection({
   );
 
   const hasEarned = earned.length > 0;
+  const totalBonusEarned = earned.reduce((sum, a) => sum + a.bonusPoints, 0);
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-lg">
-          <Award className="h-5 w-5 text-amber-500" />
-          Achievements
-        </CardTitle>
-        <CardDescription>
-          {hasEarned
-            ? `${earned.length} earned — keep going for more!`
-            : "Earn bonus points by completing special challenges"}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {/* Earned achievements */}
+    <div className="rounded-lg border border-zinc-800 bg-gradient-to-br from-amber-950/30 to-zinc-900 p-4">
+      {/* Header — matches PR/Hunt week card pattern */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-500/20">
+            <Award className="h-4 w-4 text-amber-400" />
+          </div>
+          <div>
+            <h3 className="text-sm font-semibold text-zinc-100">
+              Achievements
+            </h3>
+            <p className="text-xs text-zinc-500">
+              {hasEarned
+                ? `${earned.length} of ${allProgress.length} earned`
+                : `${allProgress.length} available`}
+            </p>
+          </div>
+        </div>
         {hasEarned && (
-          <div className="space-y-2">
-            {earned.map((item) => (
-              <div
-                key={item.achievementId}
-                className="flex items-start gap-3 rounded-lg border border-amber-500/20 bg-amber-500/5 p-3"
-              >
-                <Award className="mt-0.5 h-5 w-5 shrink-0 text-amber-500" />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className="font-semibold text-sm">{item.name}</p>
-                    <span className="text-xs font-medium text-amber-600 dark:text-amber-400">
-                      +{item.bonusPoints} pts
-                    </span>
-                  </div>
-                  <p className="text-xs text-muted-foreground mt-0.5">
-                    {item.description}
-                  </p>
-                  {item.earnedAt && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Earned {format(new Date(item.earnedAt), "MMM d, yyyy")}
-                    </p>
-                  )}
-                </div>
-              </div>
-            ))}
+          <div className="text-right">
+            <p className="text-xs text-zinc-500">Bonus</p>
+            <p className="text-lg font-bold tabular-nums text-emerald-400">
+              +{totalBonusEarned}
+            </p>
           </div>
         )}
+      </div>
 
-        {/* Still available to earn */}
-        {available.length > 0 && (
-          <>
-            {hasEarned && (
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide pt-1">
-                Still available to earn
-              </p>
-            )}
-            <div className="space-y-2">
-              {available.map((item) => {
-                const pct =
-                  item.requiredCount > 0
-                    ? Math.min(
-                        100,
-                        Math.round(
-                          (item.currentCount / item.requiredCount) * 100,
-                        ),
-                      )
-                    : 0;
-                return (
-                  <div
-                    key={item.achievementId}
-                    className="flex items-start gap-3 rounded-lg border border-border/50 bg-muted/30 p-3"
-                  >
-                    <Award className="mt-0.5 h-5 w-5 shrink-0 text-muted-foreground/40" />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="font-medium text-sm text-muted-foreground">
+      {/* Earned achievements */}
+      {hasEarned && (
+        <div className="mt-4 space-y-2.5">
+          {earned.map((item) => (
+            <EarnedAchievementRow
+              key={item.achievementId}
+              name={item.name}
+              description={item.description}
+              bonusPoints={item.bonusPoints}
+              earnedAt={item.earnedAt}
+              qualifyingActivities={item.qualifyingActivities}
+            />
+          ))}
+        </div>
+      )}
+
+      {/* In-progress section */}
+      {available.length > 0 && (
+        <div className={hasEarned ? "mt-4" : "mt-4"}>
+          {hasEarned && (
+            <p className="mb-2.5 text-xs font-medium uppercase tracking-wider text-zinc-500">
+              In progress
+            </p>
+          )}
+          <div className="space-y-2.5">
+            {available.map((item) => {
+              const pct =
+                item.requiredCount > 0
+                  ? Math.min(
+                      100,
+                      Math.round(
+                        (item.currentCount / item.requiredCount) * 100,
+                      ),
+                    )
+                  : 0;
+              return (
+                <div
+                  key={item.achievementId}
+                  className="rounded-lg bg-zinc-900/50 p-3"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-2.5 min-w-0">
+                      <Award className="mt-0.5 h-4 w-4 shrink-0 text-zinc-600" />
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium leading-snug text-zinc-400">
                           {item.name}
                         </p>
-                        <span className="text-xs text-muted-foreground/60">
-                          +{item.bonusPoints} pts
-                        </span>
+                        <p className="mt-0.5 text-[11px] leading-relaxed text-zinc-600 line-clamp-2">
+                          {item.description}
+                        </p>
                       </div>
-                      <p className="text-xs text-muted-foreground/70 mt-0.5">
-                        {item.description}
-                      </p>
-                      {/* Progress bar */}
-                      <div className="mt-2 space-y-1">
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs text-muted-foreground/60">
-                            {formatProgress(item)}
-                          </span>
-                          <span className="text-xs text-muted-foreground/50">
-                            {pct}%
-                          </span>
-                        </div>
-                        <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
-                          <div
-                            className="h-full rounded-full bg-amber-500/50 transition-all"
-                            style={{ width: `${pct}%` }}
-                          />
-                        </div>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <div className="font-mono text-sm tabular-nums text-zinc-500">
+                        +{item.bonusPoints}
                       </div>
                     </div>
                   </div>
-                );
-              })}
-            </div>
-          </>
-        )}
-      </CardContent>
-    </Card>
+                  {/* Progress bar — matches PR week h-2 track */}
+                  <div className="mt-2.5 space-y-1">
+                    <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-800">
+                      <div
+                        className={cn(
+                          "h-full rounded-full transition-all duration-300",
+                          pct >= 75
+                            ? "bg-amber-500"
+                            : pct >= 40
+                              ? "bg-amber-500/60"
+                              : "bg-zinc-600",
+                        )}
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                    <div className="flex justify-between text-[10px] tabular-nums text-zinc-600">
+                      <span>{formatProgress(item)}</span>
+                      <span>{pct}%</span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Footer */}
+      {!hasEarned && available.length > 0 && (
+        <div className="mt-3 border-t border-zinc-800 pt-2 text-center text-xs text-zinc-500">
+          Hit milestones to earn bonus points
+        </div>
+      )}
+    </div>
   );
 }
