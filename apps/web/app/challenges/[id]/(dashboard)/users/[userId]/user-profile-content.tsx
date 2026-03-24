@@ -898,23 +898,6 @@ type EarnedItem = {
   qualifyingActivities: QualifyingActivity[];
 };
 
-/** Format progress fraction into a human-readable label. */
-function formatProgress(item: OwnProgressItem): string {
-  const { criteriaType, currentCount, requiredCount } = item;
-  const current = Number.isInteger(currentCount)
-    ? currentCount
-    : currentCount.toFixed(1);
-  switch (criteriaType) {
-    case "cumulative":
-      return `${current} / ${requiredCount}`;
-    case "distinct_types":
-    case "one_of_each":
-      return `${currentCount} / ${requiredCount} types`;
-    case "count":
-    default:
-      return `${currentCount} / ${requiredCount} activities`;
-  }
-}
 
 // ─── Qualifying activities sub-list ──────────────────────────────────────────
 
@@ -1050,17 +1033,11 @@ function AchievementsSection({
     );
   }
 
-  // ── Own profile: full progress view ──────────────────────────────────────
+  // ── Own profile: only show when at least one achievement is earned ──────
   const allProgress = ownProgress ?? [];
-  if (allProgress.length === 0) return null;
-
   const earned = allProgress.filter((a) => a.isEarned);
-  // Hide once_per_challenge achievements that are already earned from the "still available" list
-  const available = allProgress.filter(
-    (a) => !a.isEarned && !(a.frequency === "once_per_challenge" && a.isEarned),
-  );
+  if (earned.length === 0) return null;
 
-  const hasEarned = earned.length > 0;
   const totalBonusEarned = earned.reduce((sum, a) => sum + a.bonusPoints, 0);
 
   return (
@@ -1076,113 +1053,31 @@ function AchievementsSection({
               Achievements
             </h3>
             <p className="text-xs text-zinc-500">
-              {hasEarned
-                ? `${earned.length} of ${allProgress.length} earned`
-                : `${allProgress.length} available`}
+              {earned.length} earned
             </p>
           </div>
         </div>
-        {hasEarned && (
-          <div className="text-right">
-            <p className="text-xs text-zinc-500">Bonus</p>
-            <p className="text-lg font-bold tabular-nums text-emerald-400">
-              +{totalBonusEarned}
-            </p>
-          </div>
-        )}
+        <div className="text-right">
+          <p className="text-xs text-zinc-500">Bonus</p>
+          <p className="text-lg font-bold tabular-nums text-emerald-400">
+            +{totalBonusEarned}
+          </p>
+        </div>
       </div>
 
       {/* Earned achievements */}
-      {hasEarned && (
-        <div className="mt-4 space-y-2.5">
-          {earned.map((item) => (
-            <EarnedAchievementRow
-              key={item.achievementId}
-              name={item.name}
-              description={item.description}
-              bonusPoints={item.bonusPoints}
-              earnedAt={item.earnedAt}
-              qualifyingActivities={item.qualifyingActivities}
-            />
-          ))}
-        </div>
-      )}
-
-      {/* In-progress section */}
-      {available.length > 0 && (
-        <div className={hasEarned ? "mt-4" : "mt-4"}>
-          {hasEarned && (
-            <p className="mb-2.5 text-xs font-medium uppercase tracking-wider text-zinc-500">
-              In progress
-            </p>
-          )}
-          <div className="space-y-2.5">
-            {available.map((item) => {
-              const pct =
-                item.requiredCount > 0
-                  ? Math.min(
-                      100,
-                      Math.round(
-                        (item.currentCount / item.requiredCount) * 100,
-                      ),
-                    )
-                  : 0;
-              return (
-                <div
-                  key={item.achievementId}
-                  className="rounded-lg bg-zinc-900/50 p-3"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex items-start gap-2.5 min-w-0">
-                      <Award className="mt-0.5 h-4 w-4 shrink-0 text-zinc-600" />
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium leading-snug text-zinc-400">
-                          {item.name}
-                        </p>
-                        <p className="mt-0.5 text-[11px] leading-relaxed text-zinc-600 line-clamp-2">
-                          {item.description}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="shrink-0 text-right">
-                      <div className="font-mono text-sm tabular-nums text-zinc-500">
-                        +{item.bonusPoints}
-                      </div>
-                    </div>
-                  </div>
-                  {/* Progress bar — matches PR week h-2 track */}
-                  <div className="mt-2.5 space-y-1">
-                    <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-800">
-                      <div
-                        className={cn(
-                          "h-full rounded-full transition-all duration-300",
-                          pct >= 75
-                            ? "bg-amber-500"
-                            : pct >= 40
-                              ? "bg-amber-500/60"
-                              : "bg-zinc-600",
-                        )}
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
-                    <div className="flex justify-between text-[10px] tabular-nums text-zinc-600">
-                      <span>{formatProgress(item)}</span>
-                      <span>{pct}%</span>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {/* Footer */}
-      {!hasEarned && available.length > 0 && (
-        <div className="mt-3 border-t border-zinc-800 pt-2 text-center text-xs text-zinc-500">
-          Hit milestones to earn bonus points
-        </div>
-      )}
+      <div className="mt-4 space-y-2.5">
+        {earned.map((item) => (
+          <EarnedAchievementRow
+            key={item.achievementId}
+            name={item.name}
+            description={item.description}
+            bonusPoints={item.bonusPoints}
+            earnedAt={item.earnedAt}
+            qualifyingActivities={item.qualifyingActivities}
+          />
+        ))}
+      </div>
     </div>
   );
 }
