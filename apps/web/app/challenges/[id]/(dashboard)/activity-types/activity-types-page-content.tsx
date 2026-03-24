@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import type { Id } from "@repo/backend/_generated/dataModel";
 import { ActivityTypesList } from "./activity-types-list";
 import { AvailabilityView } from "./availability-view";
+import { AchievementsProgress } from "./achievements-progress";
 
 interface Category {
   _id: string;
@@ -68,6 +69,11 @@ export function ActivityTypesPageContent({
       {activeTab === "availability" && (
         <AvailabilityView challengeId={challengeId} />
       )}
+
+      {/* Achievements */}
+      <div className="mt-6">
+        <AchievementsProgress challengeId={challengeId} />
+      </div>
     </div>
   );
 }
