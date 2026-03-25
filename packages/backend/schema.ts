@@ -72,6 +72,18 @@ export default defineSchema({
     contributesToStreak: v.boolean(),
     isNegative: v.boolean(),
     categoryId: v.optional(v.id("categories")),
+    // Semantic classification orthogonal to categoryId (which drives Category Leader leaderboard).
+    // core = standard fitness activities, challenge = special workouts,
+    // bonus = system-awarded bonuses, penalty = negative-scoring, tracking = non-competitive tracking
+    kind: v.optional(
+      v.union(
+        v.literal("core"),
+        v.literal("challenge"),
+        v.literal("bonus"),
+        v.literal("penalty"),
+        v.literal("tracking"),
+      ),
+    ),
     // Threshold bonuses - auto-apply bonus points when metrics exceed thresholds
     bonusThresholds: v.optional(
       v.array(
@@ -369,6 +381,15 @@ export default defineSchema({
     contributesToStreak: v.boolean(),
     isNegative: v.boolean(),
     categoryId: v.id("categories"),
+    kind: v.optional(
+      v.union(
+        v.literal("core"),
+        v.literal("challenge"),
+        v.literal("bonus"),
+        v.literal("penalty"),
+        v.literal("tracking"),
+      ),
+    ),
     bonusThresholds: v.optional(
       v.array(
         v.object({
@@ -502,6 +523,19 @@ export default defineSchema({
       // All activity-type thresholds: each specific activity type must satisfy its own threshold
       v.object({
         criteriaType: v.literal("all_activity_type_thresholds"),
+        requirements: v.array(
+          v.object({
+            activityTypeId: v.id("activityTypes"),
+            metric: v.string(),
+            threshold: v.number(),
+          })
+        ),
+      }),
+      // N-of thresholds: at least requiredCount of the per-type thresholds must be met
+      // e.g., "Complete any 3 of: Run 26.2mi, Cycle 112mi, Swim 2.4mi, Row 42.2km"
+      v.object({
+        criteriaType: v.literal("n_of_thresholds"),
+        requiredCount: v.number(),
         requirements: v.array(
           v.object({
             activityTypeId: v.id("activityTypes"),

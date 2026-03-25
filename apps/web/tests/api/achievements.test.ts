@@ -952,3 +952,151 @@ describe("HTTP API: achievement progress endpoint shape", () => {
     expect(byName["OneOfEach"].requiredCount).toBe(2);
   });
 });
+
+// ─── N_OF_THRESHOLDS criteria ────────────────────────────────────────────────
+
+describe("Criteria: n_of_thresholds", () => {
+  let t: ReturnType<typeof createTestContext>;
+  let userId: Id<"users">;
+  let challengeId: Id<"challenges">;
+  let runTypeId: Id<"activityTypes">;
+  let cycleTypeId: Id<"activityTypes">;
+  let swimTypeId: Id<"activityTypes">;
+  let rowTypeId: Id<"activityTypes">;
+  let tWithAuth: any;
+  const EMAIL = "triathlete@example.com";
+
+  beforeEach(async () => {
+    t = createTestContext();
+    userId = await createTestUser(t, { email: EMAIL });
+    tWithAuth = t.withIdentity({ subject: "sub-triathlete", email: EMAIL });
+    challengeId = await createTestChallenge(t, userId);
+    runTypeId = await createTestActivityType(t, challengeId, {
+      name: "Outdoor Run",
+      scoringConfig: { type: "unit_based", pointsPerUnit: 8, unit: "miles" },
+    });
+    cycleTypeId = await createTestActivityType(t, challengeId, {
+      name: "Outdoor Cycling",
+      scoringConfig: { type: "unit_based", pointsPerUnit: 2.6, unit: "miles" },
+    });
+    swimTypeId = await createTestActivityType(t, challengeId, {
+      name: "Swimming",
+      scoringConfig: { type: "unit_based", pointsPerUnit: 33, unit: "miles" },
+    });
+    rowTypeId = await createTestActivityType(t, challengeId, {
+      name: "Rowing",
+      scoringConfig: { type: "unit_based", pointsPerUnit: 3.75, unit: "kilometers" },
+    });
+    await createTestParticipation(t, userId, challengeId);
+  });
+
+  it("awards when N of the thresholds are met (3 of 4)", async () => {
+    await createTestAchievement(t, challengeId, {
+      criteriaType: "n_of_thresholds",
+      requiredCount: 3,
+      requirements: [
+        { activityTypeId: runTypeId, metric: "distance_miles", threshold: 26.2 },
+        { activityTypeId: cycleTypeId, metric: "distance_miles", threshold: 112 },
+        { activityTypeId: swimTypeId, metric: "distance_miles", threshold: 2.4 },
+        { activityTypeId: rowTypeId, metric: "distance_km", threshold: 42.2 },
+      ],
+    });
+
+    // Meet 2 of 4 — not enough
+    await logActivity(tWithAuth, challengeId, runTypeId, { miles: 26.5 });
+    await logActivity(tWithAuth, challengeId, swimTypeId, { miles: 3 });
+    let earned = await getEarnedAchievements(t, userId, challengeId);
+    expect(earned).toHaveLength(0);
+
+    // Meet 3rd threshold — should award
+    await logActivity(tWithAuth, challengeId, cycleTypeId, { miles: 115 });
+    earned = await getEarnedAchievements(t, userId, challengeId);
+    expect(earned).toHaveLength(1);
+  });
+
+  it("does not award when below threshold even if enough types logged", async () => {
+    await createTestAchievement(t, challengeId, {
+      criteriaType: "n_of_thresholds",
+      requiredCount: 2,
+      requirements: [
+        { activityTypeId: runTypeId, metric: "distance_miles", threshold: 26.2 },
+        { activityTypeId: cycleTypeId, metric: "distance_miles", threshold: 112 },
+        { activityTypeId: swimTypeId, metric: "distance_miles", threshold: 2.4 },
+      ],
+    });
+
+    // Log all 3 types but only 1 meets its threshold
+    await logActivity(tWithAuth, challengeId, runTypeId, { miles: 26.5 }); // meets 26.2
+    await logActivity(tWithAuth, challengeId, cycleTypeId, { miles: 50 }); // below 112
+    await logActivity(tWithAuth, challengeId, swimTypeId, { miles: 1 }); // below 2.4
+
+    const earned = await getEarnedAchievements(t, userId, challengeId);
+    expect(earned).toHaveLength(0);
+  });
+
+  it("awards when exactly requiredCount are met", async () => {
+    await createTestAchievement(t, challengeId, {
+      criteriaType: "n_of_thresholds",
+      requiredCount: 2,
+      requirements: [
+        { activityTypeId: runTypeId, metric: "distance_miles", threshold: 26.2 },
+        { activityTypeId: cycleTypeId, metric: "distance_miles", threshold: 112 },
+        { activityTypeId: swimTypeId, metric: "distance_miles", threshold: 2.4 },
+      ],
+    });
+
+    await logActivity(tWithAuth, challengeId, runTypeId, { miles: 30 });
+    await logActivity(tWithAuth, challengeId, swimTypeId, { miles: 3 });
+
+    const earned = await getEarnedAchievements(t, userId, challengeId);
+    expect(earned).toHaveLength(1);
+  });
+
+  it("getUserProgress reports correct counts", async () => {
+    const achievementId = await createTestAchievement(t, challengeId, {
+      criteriaType: "n_of_thresholds",
+      requiredCount: 3,
+      requirements: [
+        { activityTypeId: runTypeId, metric: "distance_miles", threshold: 26.2 },
+        { activityTypeId: cycleTypeId, metric: "distance_miles", threshold: 112 },
+        { activityTypeId: swimTypeId, metric: "distance_miles", threshold: 2.4 },
+        { activityTypeId: rowTypeId, metric: "distance_km", threshold: 42.2 },
+      ],
+    });
+
+    // Meet 1 of 4
+    await logActivity(tWithAuth, challengeId, runTypeId, { miles: 27 });
+
+    const progress = await tWithAuth.query(
+      api.queries.achievements.getUserProgress,
+      { challengeId },
+    );
+
+    const entry = progress.find((p: any) => p.achievementId === achievementId);
+    expect(entry).toBeDefined();
+    expect(entry.currentCount).toBe(1);
+    expect(entry.requiredCount).toBe(3); // not 4 (total requirements)
+    expect(entry.isEarned).toBe(false);
+  });
+
+  it("respects once_per_challenge — no duplicate awards", async () => {
+    await createTestAchievement(t, challengeId, {
+      criteriaType: "n_of_thresholds",
+      requiredCount: 2,
+      requirements: [
+        { activityTypeId: runTypeId, metric: "distance_miles", threshold: 26.2 },
+        { activityTypeId: cycleTypeId, metric: "distance_miles", threshold: 112 },
+        { activityTypeId: swimTypeId, metric: "distance_miles", threshold: 2.4 },
+      ],
+    });
+
+    // Meet all 3 in separate logs
+    await logActivity(tWithAuth, challengeId, runTypeId, { miles: 30 });
+    await logActivity(tWithAuth, challengeId, swimTypeId, { miles: 3 });
+    await logActivity(tWithAuth, challengeId, cycleTypeId, { miles: 120 });
+
+    const earned = await getEarnedAchievements(t, userId, challengeId);
+    // Should still only have 1 award (once_per_challenge)
+    expect(earned).toHaveLength(1);
+  });
+});

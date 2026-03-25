@@ -27,10 +27,23 @@ const allActivityTypeThresholdsCriteriaValidator = v.object({
   ),
 });
 
+const nOfThresholdsCriteriaValidator = v.object({
+  type: v.literal("n_of_thresholds"),
+  requiredCount: v.number(),
+  requirements: v.array(
+    v.object({
+      activityTypeId: v.id("activityTypes"),
+      metric: v.string(),
+      threshold: v.number(),
+    }),
+  ),
+});
+
 export const achievementCriteriaValidator = v.union(
   legacyCountThresholdCriteriaValidator,
   countThresholdCriteriaValidator,
   allActivityTypeThresholdsCriteriaValidator,
+  nOfThresholdsCriteriaValidator,
 );
 
 export type CountThresholdCriteria = {
@@ -50,9 +63,20 @@ export type AllActivityTypeThresholdsCriteria = {
   }>;
 };
 
+export type NOfThresholdsCriteria = {
+  type: "n_of_thresholds";
+  requiredCount: number;
+  requirements: Array<{
+    activityTypeId: Id<"activityTypes">;
+    metric: string;
+    threshold: number;
+  }>;
+};
+
 export type AchievementCriteria =
   | CountThresholdCriteria
-  | AllActivityTypeThresholdsCriteria;
+  | AllActivityTypeThresholdsCriteria
+  | NOfThresholdsCriteria;
 
 export type ActivityForAchievement = {
   _id: Id<"activities">;
@@ -82,7 +106,7 @@ function getMetricValue(metrics: Record<string, unknown>, metricName: string): n
 export function getAchievementActivityTypeIds(
   criteria: AchievementCriteria,
 ): Id<"activityTypes">[] {
-  if (criteria.type === "all_activity_type_thresholds") {
+  if (criteria.type === "all_activity_type_thresholds" || criteria.type === "n_of_thresholds") {
     return Array.from(new Set(criteria.requirements.map((r) => r.activityTypeId)));
   }
 
@@ -97,7 +121,7 @@ export function evaluateAchievementCriteria(
   currentCount: number;
   requiredCount: number;
 } {
-  if (criteria.type === "all_activity_type_thresholds") {
+  if (criteria.type === "all_activity_type_thresholds" || criteria.type === "n_of_thresholds") {
     const qualifyingActivities: ActivityForAchievement[] = [];
 
     for (const requirement of criteria.requirements) {
@@ -115,10 +139,15 @@ export function evaluateAchievementCriteria(
       }
     }
 
+    const required =
+      criteria.type === "n_of_thresholds"
+        ? criteria.requiredCount
+        : criteria.requirements.length;
+
     return {
       qualifyingActivities,
       currentCount: qualifyingActivities.length,
-      requiredCount: criteria.requirements.length,
+      requiredCount: required,
     };
   }
 
