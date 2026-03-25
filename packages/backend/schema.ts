@@ -73,12 +73,12 @@ export default defineSchema({
     isNegative: v.boolean(),
     categoryId: v.optional(v.id("categories")),
     // Semantic classification orthogonal to categoryId (which drives Category Leader leaderboard).
-    // core = standard fitness activities, challenge = special workouts,
-    // bonus = system-awarded or non-competitive bonuses, penalty = negative-scoring
+    // core = standard fitness activities, special = special workouts (streak-eligible, not in category leaderboard),
+    // bonus = system-awarded or non-competitive bonuses (not streak-eligible), penalty = negative-scoring
     kind: v.optional(
       v.union(
         v.literal("core"),
-        v.literal("challenge"),
+        v.literal("special"),
         v.literal("bonus"),
         v.literal("penalty"),
       ),
@@ -383,7 +383,7 @@ export default defineSchema({
     kind: v.optional(
       v.union(
         v.literal("core"),
-        v.literal("challenge"),
+        v.literal("special"),
         v.literal("bonus"),
         v.literal("penalty"),
       ),

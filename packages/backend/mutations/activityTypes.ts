@@ -15,7 +15,7 @@ const bonusThresholdsArg = v.optional(
 const kindArg = v.optional(
   v.union(
     v.literal("core"),
-    v.literal("challenge"),
+    v.literal("special"),
     v.literal("bonus"),
     v.literal("penalty"),
   )
@@ -251,7 +251,7 @@ export const backfillKind = mutation({
       }
 
       const nameLower = at.name.toLowerCase();
-      let kind: "core" | "challenge" | "bonus" | "penalty";
+      let kind: "core" | "special" | "bonus" | "penalty";
 
       if (at.isNegative) {
         kind = "penalty";
@@ -277,8 +277,8 @@ export const backfillKind = mutation({
         // Repeatable distance/duration activities = core fitness
         kind = "core";
       } else {
-        // Everything else: completion workouts, tiered challenges, etc.
-        kind = "challenge";
+        // Everything else: special workouts (completion, tiered, non-standard units)
+        kind = "special";
       }
 
       if (!args.dryRun) {

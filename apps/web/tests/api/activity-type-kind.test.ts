@@ -64,7 +64,7 @@ describe("Activity type kind field", () => {
   it("updateActivityType updates kind", async () => {
     const id = await createTestActivityType(t, challengeId, {
       name: "Bonus",
-      kind: "challenge",
+      kind: "special",
     });
 
     await tWithAuth.mutation(api.mutations.activityTypes.updateActivityType, {
@@ -227,7 +227,7 @@ describe("Activity type kind field", () => {
       }
     });
 
-    it("classifies challenge activities (completion, tiered, non-standard units)", async () => {
+    it("classifies special activities (completion, tiered, non-standard units)", async () => {
       await createTestActivityType(t, challengeId, {
         name: "Hotel Room Workout",
         scoringConfig: { type: "completion", fixedPoints: 50 },
@@ -258,11 +258,11 @@ describe("Activity type kind field", () => {
       );
 
       for (const r of result.results) {
-        expect(r.kind).toBe("challenge");
+        expect(r.kind).toBe("special");
       }
     });
 
-    it("classifies unit_based with maxPerChallenge as challenge, not core", async () => {
+    it("classifies unit_based with maxPerChallenge as special, not core", async () => {
       await createTestActivityType(t, challengeId, {
         name: "The Max",
         scoringConfig: { type: "unit_based", pointsPerUnit: 25, unit: "circuits", maxUnits: 3 },
@@ -276,7 +276,7 @@ describe("Activity type kind field", () => {
         { challengeId },
       );
 
-      expect(result.results[0]).toMatchObject({ name: "The Max", kind: "challenge" });
+      expect(result.results[0]).toMatchObject({ name: "The Max", kind: "special" });
     });
 
     it("skips rows that already have kind set", async () => {
@@ -364,7 +364,7 @@ describe("Activity type kind field", () => {
         Swimming: "core",
         "The Hunt Bonus": "bonus",
         Overindulge: "penalty",
-        "The Murph": "challenge",
+        "The Murph": "special",
       });
     });
   });
