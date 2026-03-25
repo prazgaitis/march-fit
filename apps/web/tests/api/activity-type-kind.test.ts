@@ -183,7 +183,7 @@ describe("Activity type kind field", () => {
       }
     });
 
-    it("classifies tracking activities by name match", async () => {
+    it("classifies mindfulness and non-streak activities as bonus", async () => {
       await createTestActivityType(t, challengeId, {
         name: "10 Days of Mindfulness (Days 1-9)",
         scoringConfig: { type: "completion", fixedPoints: 1 },
@@ -197,6 +197,25 @@ describe("Activity type kind field", () => {
         isNegative: false,
         maxPerChallenge: 1,
       });
+      await createTestActivityType(t, challengeId, {
+        name: "Skiing Full Day",
+        scoringConfig: { type: "unit_based", pointsPerUnit: 35, unit: "full days" },
+        contributesToStreak: false,
+        isNegative: false,
+      });
+      await createTestActivityType(t, challengeId, {
+        name: "Workout with a Friend",
+        scoringConfig: { type: "completion", fixedPoints: 25 },
+        contributesToStreak: false,
+        isNegative: false,
+        maxPerChallenge: 1,
+      });
+      await createTestActivityType(t, challengeId, {
+        name: "Retro Abs Bonus",
+        scoringConfig: { type: "completion", fixedPoints: 15 },
+        contributesToStreak: false,
+        isNegative: false,
+      });
 
       const result = await tWithAuth.mutation(
         api.mutations.activityTypes.backfillKind,
@@ -204,7 +223,7 @@ describe("Activity type kind field", () => {
       );
 
       for (const r of result.results) {
-        expect(r.kind).toBe("tracking");
+        expect(r.kind).toBe("bonus");
       }
     });
 
@@ -266,7 +285,7 @@ describe("Activity type kind field", () => {
         scoringConfig: { type: "unit_based", pointsPerUnit: 8, unit: "miles" },
         contributesToStreak: true,
         isNegative: false,
-        kind: "tracking", // manually set to something unusual
+        kind: "bonus", // manually set to something different than heuristic would pick
       });
 
       const result = await tWithAuth.mutation(
@@ -278,7 +297,7 @@ describe("Activity type kind field", () => {
       expect(result.updated).toBe(0);
       expect(result.results[0]).toMatchObject({
         name: "Custom Run",
-        kind: "tracking",
+        kind: "bonus",
         skipped: true,
       });
     });

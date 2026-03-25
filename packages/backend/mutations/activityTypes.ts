@@ -18,7 +18,6 @@ const kindArg = v.optional(
     v.literal("challenge"),
     v.literal("bonus"),
     v.literal("penalty"),
-    v.literal("tracking"),
   )
 );
 
@@ -235,11 +234,12 @@ export const backfillKind = mutation({
       "hunt week bonus",
       "category leader bonus",
       "mini-game bonus",
-    ]);
-
-    const TRACKING_NAMES = new Set([
       "10 days of mindfulness (days 1-9)",
       "10 days of mindfulness (day 10)",
+      "workout with a friend",
+      "retro abs bonus",
+      "skiing full day",
+      "skiing half day",
     ]);
 
     const results: { name: string; kind: string; skipped?: boolean }[] = [];
@@ -251,19 +251,23 @@ export const backfillKind = mutation({
       }
 
       const nameLower = at.name.toLowerCase();
-      let kind: "core" | "challenge" | "bonus" | "penalty" | "tracking";
+      let kind: "core" | "challenge" | "bonus" | "penalty";
 
       if (at.isNegative) {
         kind = "penalty";
       } else if (BONUS_NAMES.has(nameLower)) {
         kind = "bonus";
-      } else if (TRACKING_NAMES.has(nameLower)) {
-        kind = "tracking";
       } else if (
         at.scoringConfig?.type === "variable" ||
         (at.scoringConfig?.type === "fixed" && at.scoringConfig?.basePoints === 0)
       ) {
         // Variable scoring = system-awarded bonuses
+        kind = "bonus";
+      } else if (
+        !at.contributesToStreak &&
+        !at.scoringConfig?.type?.includes("unit_based")
+      ) {
+        // Non-streak, non-unit activities are bonuses
         kind = "bonus";
       } else if (
         at.scoringConfig?.type === "unit_based" &&

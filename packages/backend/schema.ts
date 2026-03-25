@@ -74,14 +74,13 @@ export default defineSchema({
     categoryId: v.optional(v.id("categories")),
     // Semantic classification orthogonal to categoryId (which drives Category Leader leaderboard).
     // core = standard fitness activities, challenge = special workouts,
-    // bonus = system-awarded bonuses, penalty = negative-scoring, tracking = non-competitive tracking
+    // bonus = system-awarded or non-competitive bonuses, penalty = negative-scoring
     kind: v.optional(
       v.union(
         v.literal("core"),
         v.literal("challenge"),
         v.literal("bonus"),
         v.literal("penalty"),
-        v.literal("tracking"),
       ),
     ),
     // Threshold bonuses - auto-apply bonus points when metrics exceed thresholds
@@ -387,7 +386,6 @@ export default defineSchema({
         v.literal("challenge"),
         v.literal("bonus"),
         v.literal("penalty"),
-        v.literal("tracking"),
       ),
     ),
     bonusThresholds: v.optional(
