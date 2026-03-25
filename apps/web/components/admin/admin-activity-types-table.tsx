@@ -159,7 +159,7 @@ export function AdminActivityTypesTable({
         isNegative: createNegative,
         availableInFinalDays: createAvailableInFinalDays || undefined,
         categoryId: createCategoryId ? (createCategoryId as Id<"categories">) : undefined,
-        kind: (createKind || undefined) as "core" | "challenge" | "bonus" | "penalty" | "tracking" | undefined,
+        kind: (createKind || undefined) as "core" | "special" | "bonus" | "penalty" | undefined,
         displayOrder: Number.isFinite(parsedDisplayOrder) && createDisplayOrder !== "" ? parsedDisplayOrder : undefined,
       });
       setCreateName("");
@@ -256,7 +256,7 @@ export function AdminActivityTypesTable({
         availableInFinalDays: editAvailableInFinalDays || undefined,
         bonusThresholds: editThresholds,
         categoryId: editCategoryId ? (editCategoryId as Id<"categories">) : undefined,
-        kind: (editKind || undefined) as "core" | "challenge" | "bonus" | "penalty" | "tracking" | undefined,
+        kind: (editKind || undefined) as "core" | "special" | "bonus" | "penalty" | undefined,
         displayOrder: Number.isFinite(parsedDisplayOrder) && editDisplayOrder !== "" ? parsedDisplayOrder : undefined,
       });
       setEditingId(null);
@@ -422,10 +422,9 @@ export function AdminActivityTypesTable({
               >
                 <option value="">—</option>
                 <option value="core">Core</option>
-                <option value="challenge">Challenge</option>
+                <option value="special">Special</option>
                 <option value="bonus">Bonus</option>
                 <option value="penalty">Penalty</option>
-                <option value="tracking">Tracking</option>
               </select>
             </div>
             <div className="w-20">
@@ -655,11 +654,10 @@ export function AdminActivityTypesTable({
                                 >
                                   <option value="">—</option>
                                   <option value="core">Core</option>
-                                  <option value="challenge">Challenge</option>
+                                  <option value="special">Special</option>
                                   <option value="bonus">Bonus</option>
                                   <option value="penalty">Penalty</option>
-                                  <option value="tracking">Tracking</option>
-                                </select>
+                                                  </select>
                               </div>
                               <div className="w-20">
                                 <label className="mb-1 block text-[10px] text-zinc-500" title="Controls order in the logging menu (lower = first)">

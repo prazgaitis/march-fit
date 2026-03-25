@@ -846,10 +846,9 @@ export const createActivityTypeForUser = internalMutation({
     kind: v.optional(
       v.union(
         v.literal("core"),
-        v.literal("challenge"),
+        v.literal("special"),
         v.literal("bonus"),
         v.literal("penalty"),
-        v.literal("tracking"),
       )
     ),
   },
@@ -894,10 +893,9 @@ export const updateActivityTypeForUser = internalMutation({
     kind: v.optional(
       v.union(
         v.literal("core"),
-        v.literal("challenge"),
+        v.literal("special"),
         v.literal("bonus"),
         v.literal("penalty"),
-        v.literal("tracking"),
       )
     ),
   },
