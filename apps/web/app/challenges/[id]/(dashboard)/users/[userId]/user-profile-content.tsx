@@ -11,6 +11,9 @@ import {
   Award,
   Calendar,
   ChevronRight,
+  Crown,
+  Flame,
+  Heart,
   Pointer,
   Loader2,
   MapPin,
@@ -18,10 +21,15 @@ import {
   Mountain,
   Send,
   Settings,
+  Shield,
+  Star,
+  Trophy,
   UserMinus,
   UserPlus,
   Users,
+  Zap,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 import { UserAvatar } from "@/components/user-avatar";
 import { UserMiniGames } from "@/components/mini-games";
@@ -106,6 +114,12 @@ export function UserProfileContent({
         }
       : "skip",
   );
+
+  // Badges
+  const userBadges = useQuery(api.queries.badges.getUserBadges, {
+    challengeId: challengeId as Id<"challenges">,
+    userId: profileUserId as Id<"users">,
+  });
 
   const invitedUsers = useQuery(
     api.queries.participations.getInvitedUsers,
@@ -225,6 +239,7 @@ export function UserProfileContent({
             size="2xl"
             hasStory={hasStories}
             onAvatarClick={hasStories ? () => setStoryViewerOpen(true) : undefined}
+            badge={profileData?.latestBadge}
           />
           <div className="flex-1 text-center sm:text-left">
             <div className="flex flex-col items-center gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -445,6 +460,11 @@ export function UserProfileContent({
           isOwnProfile={followData?.isOwnProfile ?? false}
           challengeName={challenge.name}
         />
+      </div>
+
+      {/* ── Badges ──────────────────────────────────────────────── */}
+      <div className="px-4 py-4">
+        <BadgesSection badges={userBadges} />
       </div>
 
       {participation && streakCalendar && (
@@ -1078,6 +1098,89 @@ function AchievementsSection({
           />
         ))}
       </div>
+    </div>
+  );
+}
+
+// ─── Badge icon map ─────────────────────────────────────────────────────────
+
+const BADGE_ICON_MAP: Record<string, LucideIcon> = {
+  star: Star,
+  flame: Flame,
+  trophy: Trophy,
+  medal: Medal,
+  shield: Shield,
+  zap: Zap,
+  crown: Crown,
+  heart: Heart,
+};
+
+// ─── BadgesSection component ────────────────────────────────────────────────
+
+type UserBadgeItem = {
+  userBadgeId: string;
+  badgeId: string;
+  name: string;
+  description: string | null;
+  imagePublicId: string | null;
+  icon: string | null;
+  awardedAt: number;
+};
+
+function BadgesSection({
+  badges,
+}: {
+  badges: (UserBadgeItem | null)[] | undefined;
+}) {
+  if (!badges) return null;
+  const earned = badges.filter(Boolean) as UserBadgeItem[];
+  if (earned.length === 0) return null;
+
+  return (
+    <div className="rounded-lg border border-zinc-800 bg-gradient-to-br from-indigo-950/30 to-zinc-900 p-4">
+      <div className="flex items-center gap-2 mb-4">
+        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-indigo-500/20">
+          <Shield className="h-4 w-4 text-indigo-400" />
+        </div>
+        <div>
+          <h3 className="text-sm font-semibold text-zinc-100">Badges</h3>
+          <p className="text-xs text-zinc-500">{earned.length} earned</p>
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-3">
+        {earned.map((badge) => (
+          <BadgeTile key={badge.userBadgeId} badge={badge} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function BadgeTile({ badge }: { badge: UserBadgeItem }) {
+  const IconComponent = BADGE_ICON_MAP[badge.icon ?? "shield"] ?? Shield;
+
+  return (
+    <div
+      className="flex flex-col items-center gap-1.5 rounded-lg bg-zinc-800/50 p-3 ring-1 ring-indigo-500/20"
+      title={badge.description ?? badge.name}
+    >
+      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-500/20">
+        {badge.imagePublicId ? (
+          <img
+            src={getOptimizedMediaUrl(badge.imagePublicId, "thumbnail")}
+            alt={badge.name}
+            className="h-10 w-10 rounded-full object-cover"
+          />
+        ) : (
+          <IconComponent className="h-5 w-5 text-indigo-400" />
+        )}
+      </div>
+      <span className="text-[11px] font-medium text-zinc-300 text-center max-w-[80px] leading-tight">
+        {badge.name}
+      </span>
+      <span className="text-[10px] text-zinc-600">
+        {format(new Date(badge.awardedAt), "MMM d")}
+      </span>
     </div>
   );
 }

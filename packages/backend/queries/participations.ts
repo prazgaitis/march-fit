@@ -200,11 +200,37 @@ export const getFullLeaderboard = query({
       (a, b) => b.totalPoints - a.totalPoints
     );
 
+    // Fetch all userBadges for this challenge in one pass
+    const allUserBadges = await ctx.db
+      .query("userBadges")
+      .withIndex("challengeId", (q) => q.eq("challengeId", args.challengeId))
+      .collect();
+
+    // Group by userId and find most recent badge per user
+    const latestBadgeByUser = new Map<string, { badgeId: any; awardedAt: number }>();
+    for (const ub of allUserBadges) {
+      const existing = latestBadgeByUser.get(ub.userId as string);
+      if (!existing || ub.awardedAt > existing.awardedAt) {
+        latestBadgeByUser.set(ub.userId as string, { badgeId: ub.badgeId, awardedAt: ub.awardedAt });
+      }
+    }
+
+    // Batch-fetch unique badge details
+    const uniqueBadgeIds = [...new Set([...latestBadgeByUser.values()].map((b) => b.badgeId))];
+    const badgeDocs = await Promise.all(uniqueBadgeIds.map((id) => ctx.db.get(id)));
+    const badgeMap = new Map<string, { name: string; imagePublicId?: string; icon?: string }>();
+    for (const b of badgeDocs) {
+      if (b && "name" in b) badgeMap.set(b._id as string, b as any);
+    }
+
     // Batch fetch all users in parallel
     const entries = await Promise.all(
       sorted.map(async (participation, index) => {
         const user = await ctx.db.get(participation.userId);
         if (!user) return null;
+
+        const latestBadgeRef = latestBadgeByUser.get(user._id as string);
+        const badgeDoc = latestBadgeRef ? badgeMap.get(latestBadgeRef.badgeId as string) : null;
 
         return {
           rank: index + 1,
@@ -217,6 +243,9 @@ export const getFullLeaderboard = query({
           },
           totalPoints: participation.totalPoints,
           currentStreak: participation.currentStreak,
+          latestBadge: badgeDoc
+            ? { name: badgeDoc.name, imagePublicId: badgeDoc.imagePublicId ?? null, icon: badgeDoc.icon ?? null }
+            : null,
         };
       })
     );

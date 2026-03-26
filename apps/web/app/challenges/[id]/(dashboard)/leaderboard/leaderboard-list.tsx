@@ -23,6 +23,7 @@ interface LeaderboardEntry {
   };
   totalPoints: number;
   currentStreak: number;
+  latestBadge?: { name: string; imagePublicId: string | null; icon: string | null } | null;
 }
 
 interface LeaderboardListProps {
@@ -93,6 +94,7 @@ const LeaderboardEntryRow = memo(function LeaderboardEntryRow({
         challengeId={challengeId}
         disableLink
         size="sm"
+        badge={entry.latestBadge}
       />
 
       <div className="min-w-0 flex-1">

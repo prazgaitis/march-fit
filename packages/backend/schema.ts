@@ -567,6 +567,33 @@ export default defineSchema({
     .index("achievementId", ["achievementId"])
     .index("userAchievement", ["userId", "achievementId"]),
 
+  // Badge definitions per challenge
+  badges: defineTable({
+    challengeId: v.id("challenges"),
+    name: v.string(),
+    description: v.optional(v.string()),
+    imagePublicId: v.optional(v.string()), // Cloudinary public ID for custom image
+    icon: v.optional(v.string()), // Fallback icon name (e.g., "star", "flame", "trophy")
+    achievementId: v.optional(v.id("achievements")), // Auto-award when this achievement is earned
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("challengeId", ["challengeId"])
+    .index("achievementId", ["achievementId"]),
+
+  // User Badges - tracks which users have earned which badges
+  userBadges: defineTable({
+    challengeId: v.id("challenges"),
+    userId: v.id("users"),
+    badgeId: v.id("badges"),
+    awardedAt: v.number(),
+    awardedBy: v.optional(v.id("users")), // Admin who awarded; absent if auto from achievement
+  })
+    .index("challengeId", ["challengeId"])
+    .index("userId", ["userId"])
+    .index("badgeId", ["badgeId"])
+    .index("userBadge", ["userId", "badgeId"]),
+
   // Workspaces
   workspaces: defineTable({
     name: v.string(),

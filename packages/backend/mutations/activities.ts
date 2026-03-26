@@ -533,6 +533,31 @@ async function checkAndAwardAchievements(
       bonusActivityId,
     });
 
+    // Auto-award any badges linked to this achievement
+    const linkedBadges = await ctx.db
+      .query("badges")
+      .withIndex("achievementId", (q: any) =>
+        q.eq("achievementId", achievement._id)
+      )
+      .collect();
+
+    for (const badge of linkedBadges) {
+      const existingUserBadge = await ctx.db
+        .query("userBadges")
+        .withIndex("userBadge", (q: any) =>
+          q.eq("userId", userId).eq("badgeId", badge._id)
+        )
+        .first();
+      if (!existingUserBadge) {
+        await ctx.db.insert("userBadges", {
+          challengeId,
+          userId,
+          badgeId: badge._id,
+          awardedAt: Date.now(),
+        });
+      }
+    }
+
     // Credit bonus points to participation
     const participation = await ctx.db
       .query("userChallenges")
