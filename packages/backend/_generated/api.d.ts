@@ -75,6 +75,7 @@ import type * as mutations_backfillCloudinary from "../mutations/backfillCloudin
 import type * as mutations_backfillFeedScore from "../mutations/backfillFeedScore.js";
 import type * as mutations_backfillInviteCount from "../mutations/backfillInviteCount.js";
 import type * as mutations_backfillWeeklyCategoryPoints from "../mutations/backfillWeeklyCategoryPoints.js";
+import type * as mutations_badges from "../mutations/badges.js";
 import type * as mutations_categories from "../mutations/categories.js";
 import type * as mutations_categoryLeaderAwards from "../mutations/categoryLeaderAwards.js";
 import type * as mutations_challengeInvites from "../mutations/challengeInvites.js";
@@ -115,6 +116,7 @@ import type * as queries_backfillActivityExternalData from "../queries/backfillA
 import type * as queries_backfillCategoryPoints from "../queries/backfillCategoryPoints.js";
 import type * as queries_backfillCloudinary from "../queries/backfillCloudinary.js";
 import type * as queries_backfillWeeklyCategoryPoints from "../queries/backfillWeeklyCategoryPoints.js";
+import type * as queries_badges from "../queries/badges.js";
 import type * as queries_categories from "../queries/categories.js";
 import type * as queries_categoryLeaderAwards from "../queries/categoryLeaderAwards.js";
 import type * as queries_challengeInvites from "../queries/challengeInvites.js";
@@ -211,6 +213,7 @@ declare const fullApi: ApiFromModules<{
   "mutations/backfillFeedScore": typeof mutations_backfillFeedScore;
   "mutations/backfillInviteCount": typeof mutations_backfillInviteCount;
   "mutations/backfillWeeklyCategoryPoints": typeof mutations_backfillWeeklyCategoryPoints;
+  "mutations/badges": typeof mutations_badges;
   "mutations/categories": typeof mutations_categories;
   "mutations/categoryLeaderAwards": typeof mutations_categoryLeaderAwards;
   "mutations/challengeInvites": typeof mutations_challengeInvites;
@@ -251,6 +254,7 @@ declare const fullApi: ApiFromModules<{
   "queries/backfillCategoryPoints": typeof queries_backfillCategoryPoints;
   "queries/backfillCloudinary": typeof queries_backfillCloudinary;
   "queries/backfillWeeklyCategoryPoints": typeof queries_backfillWeeklyCategoryPoints;
+  "queries/badges": typeof queries_badges;
   "queries/categories": typeof queries_categories;
   "queries/categoryLeaderAwards": typeof queries_categoryLeaderAwards;
   "queries/challengeInvites": typeof queries_challengeInvites;

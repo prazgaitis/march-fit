@@ -1,8 +1,20 @@
 'use client';
 
+import type { LucideIcon } from 'lucide-react';
+import {
+  Crown,
+  Flame,
+  Heart,
+  Medal,
+  Shield,
+  Star,
+  Trophy,
+  Zap,
+} from 'lucide-react';
 import Link from 'next/link';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { cn } from '@/lib/utils';
+import { getOptimizedMediaUrl } from '@/lib/media-optimizer';
 
 export interface UserAvatarUser {
   id: string;
@@ -10,6 +22,12 @@ export interface UserAvatarUser {
   username: string;
   avatarUrl: string | null;
   location?: string | null;
+}
+
+export interface BadgeOverlay {
+  name: string;
+  imagePublicId: string | null;
+  icon: string | null;
 }
 
 interface UserAvatarProps {
@@ -32,6 +50,8 @@ interface UserAvatarProps {
   onAvatarClick?: () => void;
   /** Show gradient ring around the avatar (Instagram-style) */
   hasStory?: boolean;
+  /** Badge to show as overlay on the avatar */
+  badge?: BadgeOverlay | null;
 }
 
 const sizeClasses = {
@@ -52,6 +72,77 @@ const textSizeClasses = {
   '2xl': 'text-2xl',
 };
 
+const badgeSizeClasses = {
+  xs: 'h-3 w-3',
+  sm: 'h-4 w-4',
+  md: 'h-5 w-5',
+  lg: 'h-5 w-5',
+  xl: 'h-6 w-6',
+  '2xl': 'h-8 w-8',
+};
+
+const badgeIconSizeClasses = {
+  xs: 'h-2 w-2',
+  sm: 'h-2.5 w-2.5',
+  md: 'h-3 w-3',
+  lg: 'h-3 w-3',
+  xl: 'h-3.5 w-3.5',
+  '2xl': 'h-5 w-5',
+};
+
+const BADGE_ICON_MAP: Record<string, LucideIcon> = {
+  star: Star,
+  flame: Flame,
+  trophy: Trophy,
+  medal: Medal,
+  shield: Shield,
+  zap: Zap,
+  crown: Crown,
+  heart: Heart,
+};
+
+function BadgeIcon({
+  icon,
+  className,
+}: {
+  icon: string | null;
+  className?: string;
+}) {
+  const IconComponent = BADGE_ICON_MAP[icon ?? 'shield'] ?? Shield;
+  return <IconComponent className={className} />;
+}
+
+function BadgeOverlayElement({
+  badge,
+  size,
+}: {
+  badge: BadgeOverlay;
+  size: keyof typeof badgeSizeClasses;
+}) {
+  return (
+    <div
+      className={cn(
+        'absolute -bottom-0.5 -right-0.5 flex items-center justify-center rounded-full border-2 border-background bg-zinc-900',
+        badgeSizeClasses[size],
+      )}
+      title={badge.name}
+    >
+      {badge.imagePublicId ? (
+        <img
+          src={getOptimizedMediaUrl(badge.imagePublicId, 'thumbnail')}
+          alt={badge.name}
+          className="h-full w-full rounded-full object-cover"
+        />
+      ) : (
+        <BadgeIcon
+          icon={badge.icon}
+          className={cn(badgeIconSizeClasses[size], 'text-amber-400')}
+        />
+      )}
+    </div>
+  );
+}
+
 function getInitials(name: string | null, username: string): string {
   return (name || username).slice(0, 2).toUpperCase();
 }
@@ -71,6 +162,7 @@ export function UserAvatar({
   className,
   onAvatarClick,
   hasStory = false,
+  badge,
 }: UserAvatarProps) {
   const profileUrl = !disableLink && !onAvatarClick && challengeId
     ? `/challenges/${challengeId}/users/${user.id}`
@@ -86,13 +178,21 @@ export function UserAvatar({
     </Avatar>
   );
 
-  const avatarElement = hasStory ? (
+  const avatarWithStory = hasStory ? (
     <div className="rounded-full bg-gradient-to-br from-indigo-500 via-fuchsia-500 to-amber-500 p-[2.5px]">
       <div className="rounded-full bg-background p-[2px]">
         {avatarInner}
       </div>
     </div>
   ) : avatarInner;
+
+  // Wrap with badge overlay if present
+  const avatarElement = badge ? (
+    <div className="relative inline-flex">
+      {avatarWithStory}
+      <BadgeOverlayElement badge={badge} size={size} />
+    </div>
+  ) : avatarWithStory;
 
   const nameElement = showName && (
     <span className={cn('font-semibold', textSizeClasses[size], profileUrl && 'hover:underline')}>
@@ -167,6 +267,8 @@ interface UserAvatarInlineProps {
   /** Additional info to show after the username (e.g., timestamp) */
   suffix?: React.ReactNode;
   className?: string;
+  /** Badge to show as overlay on the avatar */
+  badge?: BadgeOverlay | null;
 }
 
 export function UserAvatarInline({
@@ -175,12 +277,13 @@ export function UserAvatarInline({
   size = 'lg',
   suffix,
   className,
+  badge,
 }: UserAvatarInlineProps) {
   const profileUrl = challengeId
     ? `/challenges/${challengeId}/users/${user.id}`
     : undefined;
 
-  const avatarElement = (
+  const avatarInner = (
     <Avatar className={cn(sizeClasses[size], profileUrl && 'transition-opacity hover:opacity-80')}>
       <AvatarImage
         src={user.avatarUrl ?? undefined}
@@ -189,6 +292,13 @@ export function UserAvatarInline({
       <AvatarFallback>{getInitials(user.name, user.username)}</AvatarFallback>
     </Avatar>
   );
+
+  const avatarElement = badge ? (
+    <div className="relative inline-flex">
+      {avatarInner}
+      <BadgeOverlayElement badge={badge} size={size} />
+    </div>
+  ) : avatarInner;
 
   const LinkedAvatar = profileUrl ? (
     <Link href={profileUrl} className="shrink-0">

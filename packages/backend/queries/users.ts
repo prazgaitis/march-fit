@@ -231,6 +231,19 @@ export const getProfile = query({
           }))
       : [];
 
+    // Get latest badge for this user in this challenge
+    const userBadges = await ctx.db
+      .query("userBadges")
+      .withIndex("userId", (q) => q.eq("userId", args.userId))
+      .collect();
+    const challengeBadges = userBadges
+      .filter((ub) => ub.challengeId === args.challengeId)
+      .sort((a, b) => b.awardedAt - a.awardedAt);
+    const latestUserBadge = challengeBadges[0] ?? null;
+    const latestBadge = latestUserBadge
+      ? await ctx.db.get(latestUserBadge.badgeId)
+      : null;
+
     return {
       user: {
         id: user._id,
@@ -240,6 +253,9 @@ export const getProfile = query({
         location: user.location ?? null,
         createdAt: user.createdAt,
       },
+      latestBadge: latestBadge
+        ? { name: latestBadge.name, imagePublicId: latestBadge.imagePublicId ?? null, icon: latestBadge.icon ?? null }
+        : null,
       challenge: {
         id: challenge._id,
         name: challenge.name,
