@@ -52,6 +52,7 @@ describe('Mini-Games Scoring', () => {
       return await ctx.db.insert("activityTypes", {
         challengeId,
         name: 'Running',
+        kind: 'core',
         scoringConfig: { unit: 'minutes', pointsPerUnit: 1, basePoints: 0 },
         contributesToStreak: true,
         isNegative: false,

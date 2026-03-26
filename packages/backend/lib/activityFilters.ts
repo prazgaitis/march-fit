@@ -9,3 +9,6 @@ export const USER_ACTIVITY_SOURCES = new Set(["manual", "strava", "apple_health"
 export function isUserLoggedActivity(activity: { source: string }): boolean {
   return USER_ACTIVITY_SOURCES.has(activity.source);
 }
+
+/** Activity type kinds that count toward PR day calculations (real fitness effort). */
+export const PR_ELIGIBLE_KINDS = new Set(["core", "special", "penalty"]);

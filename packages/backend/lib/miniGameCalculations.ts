@@ -6,7 +6,7 @@
  */
 import type { Id } from "../_generated/dataModel";
 import type { QueryCtx } from "../_generated/server";
-import { notDeleted, isUserLoggedActivity } from "./activityFilters";
+import { notDeleted, PR_ELIGIBLE_KINDS } from "./activityFilters";
 import { formatDateOnlyFromUtcMs } from "./dateOnly";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -420,8 +420,27 @@ export async function previewPrWeekEnd(
 // ─── Shared Helpers ──────────────────────────────────────────────────────────
 
 /**
+ * Build a set of activity type IDs whose kind is eligible for PR day calculations.
+ * Only core, special, and penalty activities count — bonus activities (mindfulness,
+ * mini-game bonuses, category leader, skiing, etc.) are excluded.
+ */
+async function getPrEligibleTypeIds(
+  ctx: ReadCtx,
+  challengeId: Id<"challenges">,
+): Promise<Set<Id<"activityTypes">>> {
+  const types = await ctx.db
+    .query("activityTypes")
+    .withIndex("challengeId", (q) => q.eq("challengeId", challengeId))
+    .collect();
+
+  return new Set(
+    types.filter((t) => PR_ELIGIBLE_KINDS.has(t.kind ?? "")).map((t) => t._id),
+  );
+}
+
+/**
  * Get a user's max single-day points total from all days before `beforeDate`.
- * Excludes system-generated bonus activities (mini_game, category_leader, etc.).
+ * Only includes core, special, and penalty activities (excludes bonus kind).
  */
 export async function calculateMaxDailyPoints(
   ctx: ReadCtx,
@@ -429,19 +448,22 @@ export async function calculateMaxDailyPoints(
   challengeId: Id<"challenges">,
   beforeDate: number,
 ): Promise<number> {
-  const activities = await ctx.db
-    .query("activities")
-    .withIndex("by_user_challenge_date", (q) =>
-      q.eq("userId", userId).eq("challengeId", challengeId),
-    )
-    .filter(notDeleted)
-    .collect();
+  const [activities, eligibleTypeIds] = await Promise.all([
+    ctx.db
+      .query("activities")
+      .withIndex("by_user_challenge_date", (q) =>
+        q.eq("userId", userId).eq("challengeId", challengeId),
+      )
+      .filter(notDeleted)
+      .collect(),
+    getPrEligibleTypeIds(ctx, challengeId),
+  ]);
 
   const dailyPoints: Record<string, number> = {};
 
   for (const activity of activities) {
     if (activity.loggedDate >= beforeDate) continue;
-    if (!isUserLoggedActivity(activity)) continue;
+    if (!eligibleTypeIds.has(activity.activityTypeId)) continue;
 
     const dateStr = formatDateOnlyFromUtcMs(activity.loggedDate);
     dailyPoints[dateStr] = (dailyPoints[dateStr] || 0) + activity.pointsEarned;
@@ -452,8 +474,8 @@ export async function calculateMaxDailyPoints(
 }
 
 /**
- * Get total non-bonus points earned by a user during a time period.
- * Excludes system-generated bonus activities to prevent circular scoring.
+ * Get total points earned by a user during a time period.
+ * Only includes core, special, and penalty activities (excludes bonus kind).
  */
 export async function getPointsInPeriod(
   ctx: ReadCtx,
@@ -462,27 +484,30 @@ export async function getPointsInPeriod(
   startDate: number,
   endDate: number,
 ): Promise<number> {
-  const activities = await ctx.db
-    .query("activities")
-    .withIndex("by_user_challenge_date", (q) =>
-      q.eq("userId", userId).eq("challengeId", challengeId),
-    )
-    .filter(notDeleted)
-    .collect();
+  const [activities, eligibleTypeIds] = await Promise.all([
+    ctx.db
+      .query("activities")
+      .withIndex("by_user_challenge_date", (q) =>
+        q.eq("userId", userId).eq("challengeId", challengeId),
+      )
+      .filter(notDeleted)
+      .collect(),
+    getPrEligibleTypeIds(ctx, challengeId),
+  ]);
 
   return activities
     .filter(
       (a) =>
         a.loggedDate >= startDate &&
         a.loggedDate <= endDate &&
-        isUserLoggedActivity(a),
+        eligibleTypeIds.has(a.activityTypeId),
     )
     .reduce((sum, a) => sum + a.pointsEarned, 0);
 }
 
 /**
  * Get the maximum single-day points total during a time period.
- * Excludes system-generated bonus activities (mini_game, category_leader, etc.).
+ * Only includes core, special, and penalty activities (excludes bonus kind).
  */
 export async function getMaxDailyPointsInPeriod(
   ctx: ReadCtx,
@@ -491,13 +516,16 @@ export async function getMaxDailyPointsInPeriod(
   startDate: number,
   endDate: number,
 ): Promise<number> {
-  const activities = await ctx.db
-    .query("activities")
-    .withIndex("by_user_challenge_date", (q) =>
-      q.eq("userId", userId).eq("challengeId", challengeId),
-    )
-    .filter(notDeleted)
-    .collect();
+  const [activities, eligibleTypeIds] = await Promise.all([
+    ctx.db
+      .query("activities")
+      .withIndex("by_user_challenge_date", (q) =>
+        q.eq("userId", userId).eq("challengeId", challengeId),
+      )
+      .filter(notDeleted)
+      .collect(),
+    getPrEligibleTypeIds(ctx, challengeId),
+  ]);
 
   const dailyPoints: Record<string, number> = {};
 
@@ -505,7 +533,7 @@ export async function getMaxDailyPointsInPeriod(
     if (
       activity.loggedDate < startDate ||
       activity.loggedDate > endDate ||
-      !isUserLoggedActivity(activity)
+      !eligibleTypeIds.has(activity.activityTypeId)
     )
       continue;
 
