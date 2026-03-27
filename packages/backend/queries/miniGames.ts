@@ -609,6 +609,7 @@ export const previewEnd = query({
         miniGame.endsAt,
         miniGame.config,
         participants,
+        miniGame.startedAt ?? miniGame.updatedAt,
       );
       return {
         type: "hunt_week" as const,

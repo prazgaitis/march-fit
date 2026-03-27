@@ -266,6 +266,7 @@ export async function previewHuntWeekEnd(
   endsAt: number,
   config: any,
   participants: MiniGameParticipantData[],
+  gameStartedAt: number,
 ): Promise<{ outcomes: HuntWeekOutcome[]; totalBonusPoints: number }> {
   return calculateHuntWeekOutcomes(
     ctx,
@@ -274,6 +275,7 @@ export async function previewHuntWeekEnd(
     endsAt,
     config,
     participants,
+    gameStartedAt,
   );
 }
 
@@ -284,6 +286,7 @@ export async function calculateHuntWeekOutcomes(
   endsAt: number,
   config: any,
   participants: MiniGameParticipantData[],
+  gameStartedAt: number,
 ): Promise<{ outcomes: HuntWeekOutcome[]; totalBonusPoints: number }> {
   const catchBonus = config?.catchBonus ?? 75;
   const caughtPenalty = config?.caughtPenalty ?? 25;
@@ -294,6 +297,7 @@ export async function calculateHuntWeekOutcomes(
     startsAt,
     endsAt,
     participants,
+    gameStartedAt,
   );
   const rankMap = new Map<string, number>();
   leaderboard.forEach((entry, index) => {
@@ -354,16 +358,18 @@ async function getHuntWeekLeaderboard(
   startsAt: number,
   endsAt: number,
   participants: MiniGameParticipantData[],
+  gameStartedAt: number,
 ): Promise<LeaderboardEntry[]> {
   const entries = await Promise.all(
     participants.map(async (participant) => {
       const initialPoints = participant.initialState?.points ?? 0;
-      const periodPoints = await getPointsInPeriod(
+      const periodPoints = await getHuntWeekPointsInPeriod(
         ctx,
         participant.userId,
         challengeId,
         startsAt,
         endsAt,
+        gameStartedAt,
       );
 
       return {
@@ -501,6 +507,42 @@ export async function getPointsInPeriod(
         a.loggedDate >= startDate &&
         a.loggedDate <= endDate &&
         eligibleTypeIds.has(a.activityTypeId),
+    )
+    .reduce((sum, a) => sum + a.pointsEarned, 0);
+}
+
+/**
+ * Get total points earned by a user during a Hunt Week period.
+ *
+ * Unlike `getPointsInPeriod`, this:
+ * - Includes all non-mini-game activities (not just PR_ELIGIBLE_KINDS), since
+ *   Hunt Week rankings include bonus-kind activities.
+ * - Filters by `_creationTime > gameStartedAt` so activities that existed before
+ *   the game started (already baked into `initialState.points`) are not double-counted.
+ */
+export async function getHuntWeekPointsInPeriod(
+  ctx: ReadCtx,
+  userId: Id<"users">,
+  challengeId: Id<"challenges">,
+  startDate: number,
+  endDate: number,
+  gameStartedAt: number,
+): Promise<number> {
+  const activities = await ctx.db
+    .query("activities")
+    .withIndex("by_user_challenge_date", (q) =>
+      q.eq("userId", userId).eq("challengeId", challengeId),
+    )
+    .filter(notDeleted)
+    .collect();
+
+  return activities
+    .filter(
+      (a) =>
+        a.loggedDate >= startDate &&
+        a.loggedDate <= endDate &&
+        a.source !== "mini_game" &&
+        a._creationTime > gameStartedAt,
     )
     .reduce((sum, a) => sum + a.pointsEarned, 0);
 }

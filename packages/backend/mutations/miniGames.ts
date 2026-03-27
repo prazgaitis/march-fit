@@ -252,6 +252,7 @@ export const start = mutation({
     // Update game status
     await ctx.db.patch(args.miniGameId, {
       status: "active",
+      startedAt: now,
       updatedAt: now,
     });
 
@@ -663,6 +664,7 @@ async function calculateHuntWeekOutcomes(
     miniGame.endsAt,
     miniGame.config,
     participants,
+    miniGame.startedAt ?? miniGame.updatedAt,
   );
 
   for (const outcome of outcomes) {

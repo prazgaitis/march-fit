@@ -456,6 +456,7 @@ export default defineSchema({
       v.literal("completed"),
     ),
     config: v.any(), // Game-specific config (bonus percentages, point values, etc.)
+    startedAt: v.optional(v.number()), // Timestamp when game was activated (used to exclude pre-game activities)
     createdAt: v.number(),
     updatedAt: v.number(),
   })
