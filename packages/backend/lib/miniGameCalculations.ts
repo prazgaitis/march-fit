@@ -288,10 +288,9 @@ export async function calculateHuntWeekOutcomes(
   const catchBonus = config?.catchBonus ?? 75;
   const caughtPenalty = config?.caughtPenalty ?? 25;
 
-  const leaderboard = await getHuntWeekLeaderboard(
+  const leaderboard = await getMiniGameLeaderboard(
     ctx,
     challengeId,
-    startsAt,
     endsAt,
     participants,
   );
@@ -348,27 +347,29 @@ export async function calculateHuntWeekOutcomes(
   return { outcomes, totalBonusPoints };
 }
 
-async function getHuntWeekLeaderboard(
+/**
+ * Get the challenge leaderboard for mini-game participants, bounded by a date.
+ * Sums all non-deleted, non-mini-game activities with loggedDate <= endsAt.
+ * Usable by any game type that needs current standings during the game period.
+ */
+export async function getMiniGameLeaderboard(
   ctx: ReadCtx,
   challengeId: Id<"challenges">,
-  startsAt: number,
   endsAt: number,
   participants: MiniGameParticipantData[],
 ): Promise<LeaderboardEntry[]> {
   const entries = await Promise.all(
     participants.map(async (participant) => {
-      const initialPoints = participant.initialState?.points ?? 0;
-      const periodPoints = await getPointsInPeriod(
+      const totalPoints = await getPointsUpToDate(
         ctx,
         participant.userId,
         challengeId,
-        startsAt,
         endsAt,
       );
 
       return {
         userId: participant.userId,
-        totalPoints: initialPoints + periodPoints,
+        totalPoints,
       };
     }),
   );
@@ -502,6 +503,31 @@ export async function getPointsInPeriod(
         a.loggedDate <= endDate &&
         eligibleTypeIds.has(a.activityTypeId),
     )
+    .reduce((sum, a) => sum + a.pointsEarned, 0);
+}
+
+/**
+ * Get total points for a user up to (and including) a given date.
+ * Includes all activity kinds except mini-game bonuses, matching the overall
+ * challenge leaderboard. Used by Hunt Week to compute rankings bounded by the
+ * game end date.
+ */
+export async function getPointsUpToDate(
+  ctx: ReadCtx,
+  userId: Id<"users">,
+  challengeId: Id<"challenges">,
+  endDate: number,
+): Promise<number> {
+  const activities = await ctx.db
+    .query("activities")
+    .withIndex("by_user_challenge_date", (q) =>
+      q.eq("userId", userId).eq("challengeId", challengeId),
+    )
+    .filter(notDeleted)
+    .collect();
+
+  return activities
+    .filter((a) => a.loggedDate <= endDate && a.source !== "mini_game")
     .reduce((sum, a) => sum + a.pointsEarned, 0);
 }
 
