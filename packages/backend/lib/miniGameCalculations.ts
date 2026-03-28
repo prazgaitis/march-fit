@@ -6,7 +6,7 @@
  */
 import type { Id } from "../_generated/dataModel";
 import type { QueryCtx } from "../_generated/server";
-import { notDeleted, PR_ELIGIBLE_KINDS } from "./activityFilters";
+import { notDeleted, isPrEligibleKind } from "./activityFilters";
 import { formatDateOnlyFromUtcMs } from "./dateOnly";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -435,7 +435,7 @@ async function getPrEligibleTypeIds(
     .collect();
 
   return new Set(
-    types.filter((t) => PR_ELIGIBLE_KINDS.has(t.kind ?? "")).map((t) => t._id),
+    types.filter((t) => isPrEligibleKind(t.kind)).map((t) => t._id),
   );
 }
 

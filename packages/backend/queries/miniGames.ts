@@ -1,7 +1,7 @@
 import { query } from "../_generated/server";
 import { v } from "convex/values";
 import type { Id } from "../_generated/dataModel";
-import { notDeleted } from "../lib/activityFilters";
+import { notDeleted, isUserLoggedActivity, isPrEligibleKind } from "../lib/activityFilters";
 import { formatDateOnlyFromUtcMs } from "../lib/dateOnly";
 import {
   getLeaderboard,
@@ -249,6 +249,7 @@ export const getUserStatus = query({
         }
 
         // Calculate current week max for PR week
+        // Only count PR-eligible activities (excludes bonus like mindfulness)
         let currentWeekMax = 0;
         if (game.type === "pr_week") {
           const activities = await ctx.db
@@ -259,10 +260,21 @@ export const getUserStatus = query({
             .filter(notDeleted)
             .collect();
 
+          // Load activity types to filter by kind
+          const typeIds = new Set(activities.map((a) => a.activityTypeId));
+          const typeMap = new Map(
+            await Promise.all(
+              [...typeIds].map(async (id) => [id, await ctx.db.get(id)] as const),
+            ),
+          );
+
           // Group by day and find max within game period
           const dailyPoints: Record<string, number> = {};
           for (const activity of activities) {
             if (activity.loggedDate < game.startsAt || activity.loggedDate > game.endsAt)
+              continue;
+            if (!isUserLoggedActivity(activity)) continue;
+            if (!isPrEligibleKind(typeMap.get(activity.activityTypeId)?.kind))
               continue;
             const dateStr = formatDateOnlyFromUtcMs(activity.loggedDate);
             dailyPoints[dateStr] = (dailyPoints[dateStr] || 0) + activity.pointsEarned;
