@@ -333,19 +333,61 @@ export const fix = internalMutation({
           }
         }
 
+        // Build detailed correction note
+        const playerPoints =
+          correctLeaderboard.find((e) => e.userId === p.userId)?.totalPoints ?? 0;
+
+        const preyUser = p.preyUserId ? await ctx.db.get(p.preyUserId) : null;
+        const hunterUser = p.hunterUserId
+          ? await ctx.db.get(p.hunterUserId)
+          : null;
+        const preyPoints = p.preyUserId
+          ? (correctLeaderboard.find((e) => e.userId === p.preyUserId)
+              ?.totalPoints ?? 0)
+          : null;
+        const hunterPoints = p.hunterUserId
+          ? (correctLeaderboard.find((e) => e.userId === p.hunterUserId)
+              ?.totalPoints ?? 0)
+          : null;
+
+        const oldFinalRank = p.outcome?.finalRank ?? p.outcome?.currentRank;
+
+        const lines: string[] = [];
+        lines.push(
+          `[Score correction] Hunt Week "${game.name}" — recalculated from activity history.`,
+        );
+        lines.push(
+          `Original award: ${storedBonusPoints >= 0 ? "+" : ""}${storedBonusPoints} pts → Corrected: ${correctBonusPoints >= 0 ? "+" : ""}${correctBonusPoints} pts (${delta >= 0 ? "+" : ""}${delta}).`,
+        );
+        if (oldFinalRank !== undefined && oldFinalRank !== currentRank) {
+          lines.push(
+            `Rank changed: #${oldFinalRank} → #${currentRank} (of ${participants.length}) after recalculation.`,
+          );
+        }
+        lines.push(
+          `${username}: ${playerPoints} pts (rank #${currentRank}, started #${initialRank}).`,
+        );
+        if (p.preyUserId && preyUser) {
+          const preyRank = rankMap.get(p.preyUserId) ?? 999;
+          lines.push(
+            `Prey: ${preyUser.username ?? "unknown"} at ${preyPoints} pts (rank #${preyRank}) — ${caughtPrey ? "caught ✓" : "not caught"}.`,
+          );
+        }
+        if (p.hunterUserId && hunterUser) {
+          const hunterRank = rankMap.get(p.hunterUserId) ?? 999;
+          lines.push(
+            `Hunter: ${hunterUser.username ?? "unknown"} at ${hunterPoints} pts (rank #${hunterRank}) — ${wasCaught ? "was caught ✗" : "escaped ✓"}.`,
+          );
+        }
+        lines.push(
+          `Bug: leaderboard was double-counting activities logged before game start on the start date.`,
+        );
+
+        const description = lines.join("\n");
+
         // Create new bonus activity with correct points (if non-zero)
         let newBonusActivityId: Id<"activities"> | undefined;
         if (correctBonusPoints !== 0) {
-          let description = "Hunt Week: ";
-          if (caughtPrey && wasCaught) {
-            description += `Caught prey (+${catchBonus}) but was caught (-${caughtPenalty})`;
-          } else if (caughtPrey) {
-            description += `Caught prey! (+${catchBonus})`;
-          } else if (wasCaught) {
-            description += `Was caught (-${caughtPenalty})`;
-          }
-          description += " [corrected]";
-
           newBonusActivityId = await insertActivity(ctx, {
             userId: p.userId,
             challengeId: game.challengeId,
@@ -363,6 +405,8 @@ export const fix = internalMutation({
               miniGameType: game.type,
               miniGameName: game.name,
               correctedFrom: storedBonusPoints,
+              correctedRank: currentRank,
+              previousRank: oldFinalRank,
             },
             createdAt: now,
             updatedAt: now,
