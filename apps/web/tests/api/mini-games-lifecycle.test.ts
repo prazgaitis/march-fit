@@ -608,8 +608,10 @@ describe('Mini-Games Lifecycle & Configuration', () => {
       const challengeId = await createTestChallenge(t, adminUser);
       const activityTypeId = await createActivityType(challengeId);
 
-      await createUserWithParticipation(challengeId, 100, { username: 'user1' });
-      const user2 = await createUserWithParticipation(challengeId, 50, { username: 'user2' });
+      const user1 = await createUserWithParticipation(challengeId, 0, { username: 'user1' });
+      const user2 = await createUserWithParticipation(challengeId, 0, { username: 'user2' });
+      await logActivity(user1, challengeId, activityTypeId, 100, TEST_NOW - DAY_MS);
+      await logActivity(user2, challengeId, activityTypeId, 50, TEST_NOW - DAY_MS);
 
       // Custom: +150 for catch, -50 for being caught
       const { miniGameId } = await tWithAuth.mutation(api.mutations.miniGames.create, {
@@ -643,8 +645,10 @@ describe('Mini-Games Lifecycle & Configuration', () => {
       const challengeId = await createTestChallenge(t, adminUser);
       const activityTypeId = await createActivityType(challengeId);
 
-      const user1 = await createUserWithParticipation(challengeId, 100, { username: 'user1' });
-      const user2 = await createUserWithParticipation(challengeId, 90, { username: 'user2' });
+      const user1 = await createUserWithParticipation(challengeId, 0, { username: 'user1' });
+      const user2 = await createUserWithParticipation(challengeId, 0, { username: 'user2' });
+      await logActivity(user1, challengeId, activityTypeId, 100, TEST_NOW - DAY_MS);
+      await logActivity(user2, challengeId, activityTypeId, 90, TEST_NOW - DAY_MS);
 
       const endsAt = TEST_NOW + WEEK_MS;
       const { miniGameId } = await tWithAuth.mutation(api.mutations.miniGames.create, {
@@ -1156,8 +1160,10 @@ describe('Mini-Games Lifecycle & Configuration', () => {
       const challengeId = await createTestChallenge(t, adminUser);
       const activityTypeId = await createActivityType(challengeId);
 
-      const user1 = await createUserWithParticipation(challengeId, 100, { username: 'user1' });
-      await createUserWithParticipation(challengeId, 50, { username: 'user2' });
+      const user1 = await createUserWithParticipation(challengeId, 0, { username: 'user1' });
+      const user2Initial = await createUserWithParticipation(challengeId, 0, { username: 'user2' });
+      await logActivity(user1, challengeId, activityTypeId, 100, TEST_NOW - DAY_MS);
+      await logActivity(user2Initial, challengeId, activityTypeId, 50, TEST_NOW - DAY_MS);
 
       const { miniGameId } = await tWithAuth.mutation(api.mutations.miniGames.create, {
         challengeId,
@@ -1328,9 +1334,12 @@ describe('Mini-Games Lifecycle & Configuration', () => {
       const challengeId = await createTestChallenge(t, adminUser);
       const activityTypeId = await createActivityType(challengeId);
 
-      const user1 = await createUserWithParticipation(challengeId, 300, { username: 'user1' });
-      const user2 = await createUserWithParticipation(challengeId, 200, { username: 'user2' });
-      const user3 = await createUserWithParticipation(challengeId, 100, { username: 'user3' });
+      const user1 = await createUserWithParticipation(challengeId, 0, { username: 'user1' });
+      const user2 = await createUserWithParticipation(challengeId, 0, { username: 'user2' });
+      const user3 = await createUserWithParticipation(challengeId, 0, { username: 'user3' });
+      await logActivity(user1, challengeId, activityTypeId, 300, TEST_NOW - DAY_MS);
+      await logActivity(user2, challengeId, activityTypeId, 200, TEST_NOW - DAY_MS);
+      await logActivity(user3, challengeId, activityTypeId, 100, TEST_NOW - DAY_MS);
 
       const { miniGameId } = await tWithAuth.mutation(api.mutations.miniGames.create, {
         challengeId,

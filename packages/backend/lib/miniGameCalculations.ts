@@ -357,18 +357,16 @@ async function getHuntWeekLeaderboard(
 ): Promise<LeaderboardEntry[]> {
   const entries = await Promise.all(
     participants.map(async (participant) => {
-      const initialPoints = participant.initialState?.points ?? 0;
-      const periodPoints = await getPointsInPeriod(
+      const totalPoints = await getPointsUpToDate(
         ctx,
         participant.userId,
         challengeId,
-        startsAt,
         endsAt,
       );
 
       return {
         userId: participant.userId,
-        totalPoints: initialPoints + periodPoints,
+        totalPoints,
       };
     }),
   );
@@ -502,6 +500,31 @@ export async function getPointsInPeriod(
         a.loggedDate <= endDate &&
         eligibleTypeIds.has(a.activityTypeId),
     )
+    .reduce((sum, a) => sum + a.pointsEarned, 0);
+}
+
+/**
+ * Get total points for a user up to (and including) a given date.
+ * Includes all activity kinds except mini-game bonuses, matching the overall
+ * challenge leaderboard. Used by Hunt Week to compute rankings bounded by the
+ * game end date.
+ */
+export async function getPointsUpToDate(
+  ctx: ReadCtx,
+  userId: Id<"users">,
+  challengeId: Id<"challenges">,
+  endDate: number,
+): Promise<number> {
+  const activities = await ctx.db
+    .query("activities")
+    .withIndex("by_user_challenge_date", (q) =>
+      q.eq("userId", userId).eq("challengeId", challengeId),
+    )
+    .filter(notDeleted)
+    .collect();
+
+  return activities
+    .filter((a) => a.loggedDate <= endDate && a.source !== "mini_game")
     .reduce((sum, a) => sum + a.pointsEarned, 0);
 }
 
