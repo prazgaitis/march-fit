@@ -3,7 +3,7 @@ import { v } from "convex/values";
 import { paginationOptsValidator } from "convex/server";
 import { coerceDateOnlyToString, formatDateOnlyFromUtcMs } from "../lib/dateOnly";
 import { internalQuery } from "../_generated/server";
-import { notDeleted, isUserLoggedActivity } from "../lib/activityFilters";
+import { notDeleted, isUserLoggedActivity, isPrEligibleKind } from "../lib/activityFilters";
 import { aggregateDailyStreakPoints, computeStreak } from "../lib/streak";
 
 /**
@@ -195,10 +195,13 @@ export const getProfile = query({
     );
 
     // Compute PR day (the day with the highest total points).
-    // Only count real user-logged activities, not system bonuses.
+    // Only count PR-eligible activities (core, special, penalty) — excludes bonus
+    // activities like mindfulness, mini-game bonuses, category leader, etc.
     const totalsByDay = new Map<string, number>();
     for (const activity of challengeActivities) {
       if (!isUserLoggedActivity(activity)) continue;
+      const activityType = activityTypeMap.get(activity.activityTypeId);
+      if (!isPrEligibleKind(activityType?.kind)) continue;
       const dayKey = formatDateOnlyFromUtcMs(activity.loggedDate);
       totalsByDay.set(dayKey, (totalsByDay.get(dayKey) ?? 0) + activity.pointsEarned);
     }
@@ -218,7 +221,10 @@ export const getProfile = query({
     const prDayActivities = prDayKey
       ? challengeActivities
           .filter(
-            (activity) => formatDateOnlyFromUtcMs(activity.loggedDate) === prDayKey
+            (activity) =>
+              formatDateOnlyFromUtcMs(activity.loggedDate) === prDayKey &&
+              isUserLoggedActivity(activity) &&
+              isPrEligibleKind(activityTypeMap.get(activity.activityTypeId)?.kind)
           )
           .sort((a, b) => b.createdAt - a.createdAt)
           .map((activity) => ({

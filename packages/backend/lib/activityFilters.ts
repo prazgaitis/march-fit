@@ -12,3 +12,8 @@ export function isUserLoggedActivity(activity: { source: string }): boolean {
 
 /** Activity type kinds that count toward PR day calculations (real fitness effort). */
 export const PR_ELIGIBLE_KINDS = new Set(["core", "special", "penalty"]);
+
+/** Returns true if the activity type kind is PR-eligible. Treats undefined kind as "core". */
+export function isPrEligibleKind(kind: string | undefined): boolean {
+  return PR_ELIGIBLE_KINDS.has(kind ?? "core");
+}

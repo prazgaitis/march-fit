@@ -94,6 +94,78 @@ describe("Users Queries", () => {
   });
 
   describe("getProfile PR day", () => {
+    it("excludes bonus-kind activities from PR day calculation", async () => {
+      const userId = await createTestUser(t, { email: "prday-bonus@example.com" });
+      const challengeId = await createTestChallenge(t, userId, { name: "PR Bonus Test" });
+      await createTestParticipation(t, userId, challengeId);
+      const runTypeId = await createTestActivityType(t, challengeId, {
+        name: "Run",
+        kind: "core",
+      });
+      const mindfulnessTypeId = await createTestActivityType(t, challengeId, {
+        name: "10 Days of Mindfulness (Day 10)",
+        kind: "bonus",
+      });
+
+      await t.run(async (ctx) => {
+        // Day 1: 100pts mindfulness bonus + 28pts cardio = 128 total
+        await insertTestActivity(ctx, {
+          userId: userId as Id<"users">,
+          challengeId: challengeId as Id<"challenges">,
+          activityTypeId: mindfulnessTypeId as Id<"activityTypes">,
+          loggedDate: dateOnlyToUtcMs("2025-03-09"),
+          pointsEarned: 100,
+          flagged: false,
+          adminCommentVisibility: "internal",
+          resolutionStatus: "pending",
+          source: "manual",
+          createdAt: 1000,
+          updatedAt: 1000,
+        });
+        await insertTestActivity(ctx, {
+          userId: userId as Id<"users">,
+          challengeId: challengeId as Id<"challenges">,
+          activityTypeId: runTypeId as Id<"activityTypes">,
+          loggedDate: dateOnlyToUtcMs("2025-03-09"),
+          pointsEarned: 28,
+          flagged: false,
+          adminCommentVisibility: "internal",
+          resolutionStatus: "pending",
+          source: "manual",
+          createdAt: 1100,
+          updatedAt: 1100,
+        });
+        // Day 2: 50pts run only
+        await insertTestActivity(ctx, {
+          userId: userId as Id<"users">,
+          challengeId: challengeId as Id<"challenges">,
+          activityTypeId: runTypeId as Id<"activityTypes">,
+          loggedDate: dateOnlyToUtcMs("2025-03-10"),
+          pointsEarned: 50,
+          flagged: false,
+          adminCommentVisibility: "internal",
+          resolutionStatus: "pending",
+          source: "manual",
+          createdAt: 1200,
+          updatedAt: 1200,
+        });
+      });
+
+      const profile = await t.query(api.queries.users.getProfile, {
+        userId,
+        challengeId,
+      });
+
+      // PR day should be day 2 (50pts) since mindfulness bonus is excluded
+      // Day 1 only has 28pts of eligible activities
+      expect(profile?.stats.prDay).toMatchObject({
+        date: "2025-03-10",
+        totalPoints: 50,
+      });
+      expect(profile?.stats.prDay?.activities).toHaveLength(1);
+      expect(profile?.stats.prDay?.activities[0].activityTypeName).toBe("Run");
+    });
+
     it("returns highest scoring day with contributing activities", async () => {
       const userId = await createTestUser(t, { email: "prday@example.com" });
       const challengeId = await createTestChallenge(t, userId, { name: "PR Challenge" });
