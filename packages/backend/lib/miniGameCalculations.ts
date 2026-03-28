@@ -288,10 +288,9 @@ export async function calculateHuntWeekOutcomes(
   const catchBonus = config?.catchBonus ?? 75;
   const caughtPenalty = config?.caughtPenalty ?? 25;
 
-  const leaderboard = await getHuntWeekLeaderboard(
+  const leaderboard = await getMiniGameLeaderboard(
     ctx,
     challengeId,
-    startsAt,
     endsAt,
     participants,
   );
@@ -348,10 +347,14 @@ export async function calculateHuntWeekOutcomes(
   return { outcomes, totalBonusPoints };
 }
 
-async function getHuntWeekLeaderboard(
+/**
+ * Get the challenge leaderboard for mini-game participants, bounded by a date.
+ * Sums all non-deleted, non-mini-game activities with loggedDate <= endsAt.
+ * Usable by any game type that needs current standings during the game period.
+ */
+export async function getMiniGameLeaderboard(
   ctx: ReadCtx,
   challengeId: Id<"challenges">,
-  startsAt: number,
   endsAt: number,
   participants: MiniGameParticipantData[],
 ): Promise<LeaderboardEntry[]> {
