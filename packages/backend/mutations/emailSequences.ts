@@ -571,3 +571,4 @@ export const triggerOnSignup = internalMutation({
     return { sent };
   },
 });
+

@@ -507,6 +507,19 @@ export default function EmailsAdminPage() {
   const handleSendToAll = async () => {
     if (!selectedEmailId) return;
     try {
+      // Auto-save before sending so the DB has the latest content
+      if (hasDraftChanges) {
+        await updateEmailSequence({
+          emailSequenceId: selectedEmailId as Id<"emailSequences">,
+          name: draft.name,
+          subject: draft.subject,
+          body: markdownToHtml(draft.body),
+          bodySource: draft.body,
+          trigger: draft.trigger,
+        });
+        clearDraft(challengeId, selectedEmailId);
+        setHasDraftChanges(false);
+      }
       const result = await sendToAll({
         emailSequenceId: selectedEmailId as Id<"emailSequences">,
       });
