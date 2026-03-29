@@ -275,3 +275,17 @@ export const internalUpdate = internalMutation({
     return { success: true };
   },
 });
+
+/** Internal mutation to set finalDaysStart without auth (for migrations) */
+export const setFinalDaysStart = internalMutation({
+  args: {
+    challengeId: v.id("challenges"),
+    finalDaysStart: v.number(),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.challengeId, {
+      finalDaysStart: args.finalDaysStart,
+      updatedAt: Date.now(),
+    });
+  },
+});

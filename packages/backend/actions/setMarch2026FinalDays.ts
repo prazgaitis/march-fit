@@ -13,7 +13,7 @@
  *   npx convex run actions/setMarch2026FinalDays:setMarch2026FinalDays
  */
 
-import { action } from "../_generated/server";
+import { action, internalAction } from "../_generated/server";
 import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 
@@ -33,9 +33,18 @@ const AVAILABLE_IN_FINAL_DAYS: Set<string> = new Set([
   "The Max",
   "The Murph",
   "Thigh Burner",
+  "Active Recovery + Breath Work",
+  "Card Workout (Partner or Solo)",
 ]);
 
-export const setMarch2026FinalDays = action({
+// Activity types that need maxPerChallenge bumped by 1 for the final days
+// (so users who already hit the limit can do it one more time)
+const BUMP_MAX_PER_CHALLENGE: Record<string, number> = {
+  "Sally-up Challenge": 2, // was 1
+  "Active Recovery + Breath Work": 2, // was 1
+};
+
+export const setMarch2026FinalDays = internalAction({
   args: {},
   handler: async (ctx) => {
     const allChallenges = await ctx.runQuery(api.queries.challenges.listPublic, {
@@ -55,7 +64,7 @@ export const setMarch2026FinalDays = action({
       console.log(`\n📋 ${challenge.name}`);
 
       // 1. Set finalDaysStart on the challenge
-      await ctx.runMutation(api.mutations.challenges.updateChallenge, {
+      await ctx.runMutation(internal.mutations.challenges.setFinalDaysStart, {
         challengeId,
         finalDaysStart: FINAL_DAYS_START,
       });
@@ -79,11 +88,16 @@ export const setMarch2026FinalDays = action({
           continue;
         }
 
-        await ctx.runMutation(internal.mutations.activityTypes.updateInternal, {
+        const updateArgs: Record<string, any> = {
           activityTypeId: at._id,
           availableInFinalDays: true,
-        });
-        console.log(`  🔄 "${at.name}" → availableInFinalDays: true`);
+        };
+        if (BUMP_MAX_PER_CHALLENGE[at.name] !== undefined) {
+          updateArgs.maxPerChallenge = BUMP_MAX_PER_CHALLENGE[at.name];
+        }
+        await ctx.runMutation(internal.mutations.activityTypes.updateInternal, updateArgs);
+        const extra = updateArgs.maxPerChallenge ? `, maxPerChallenge: ${updateArgs.maxPerChallenge}` : "";
+        console.log(`  🔄 "${at.name}" → availableInFinalDays: true${extra}`);
         updated++;
       }
 
