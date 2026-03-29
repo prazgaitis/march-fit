@@ -298,13 +298,14 @@ export const getDashboardData = query({
         .first();
     }
 
-    // Get all participations for leaderboard
+    // Get all participations for leaderboard (exclude users who left)
     const allParticipations = await ctx.db
       .query("userChallenges")
       .withIndex("challengeId", (q) => q.eq("challengeId", args.challengeId))
       .collect();
+    const activeParticipations = allParticipations.filter((p) => !p.leftAt);
 
-    const scoredParticipations = allParticipations.map((p) => ({
+    const scoredParticipations = activeParticipations.map((p) => ({
       ...p,
       computedTotalPoints: p.totalPoints,
     }));
@@ -362,7 +363,7 @@ export const getDashboardData = query({
     const totalActivities = 0;
 
     // Calculate totals
-    const totalParticipants = allParticipations.length;
+    const totalParticipants = activeParticipations.length;
     const totalPoints = scoredParticipations.reduce(
       (sum, p) => sum + p.computedTotalPoints,
       0,
