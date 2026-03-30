@@ -164,37 +164,34 @@ export const deleteAchievement = mutation({
 });
 
 /**
- * Backfill achievements for all participants in a challenge.
- * Checks every participant against every achievement and awards any that
- * are earned but not yet recorded (e.g. after a criteria bug fix).
- *
- * Run manually:
- *   ./scripts/convex.sh run mutations/achievements:backfillAchievements \
- *     '{"challengeId": "<id>"}' --prod
+ * Backfill achievements for a single user in a challenge.
+ * Called per-user to stay within Convex read limits.
  */
 export const backfillAchievements = internalMutation({
   args: {
     challengeId: v.id("challenges"),
+    userId: v.optional(v.id("users")),
   },
-  handler: async (ctx, { challengeId }) => {
+  handler: async (ctx, { challengeId, userId: singleUserId }) => {
     const achievements = await ctx.db
       .query("achievements")
       .withIndex("challengeId", (q) => q.eq("challengeId", challengeId))
       .collect();
 
-    if (achievements.length === 0) {
-      console.log("No achievements found for challenge");
-      return { awarded: 0 };
-    }
+    if (achievements.length === 0) return { awarded: 0 };
 
-    const participations = await ctx.db
-      .query("userChallenges")
-      .withIndex("challengeId", (q) => q.eq("challengeId", challengeId))
-      .collect();
-
-    console.log(
-      `Checking ${participations.length} participants against ${achievements.length} achievements`
-    );
+    // If a specific userId is provided, only process that user
+    const participations = singleUserId
+      ? await ctx.db
+          .query("userChallenges")
+          .withIndex("userChallengeUnique", (q) =>
+            q.eq("userId", singleUserId).eq("challengeId", challengeId)
+          )
+          .collect()
+      : await ctx.db
+          .query("userChallenges")
+          .withIndex("challengeId", (q) => q.eq("challengeId", challengeId))
+          .collect();
 
     let bonusActivityType: any = null;
     let totalAwarded = 0;
@@ -308,7 +305,6 @@ export const backfillAchievements = internalMutation({
           updatedAt: Date.now(),
         });
 
-        // Look up user name for logging
         const user = await ctx.db.get(userId);
         const userName = user?.name ?? userId;
         console.log(`Awarded "${achievement.name}" to ${userName}`);
