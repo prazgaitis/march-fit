@@ -269,6 +269,7 @@ export default defineSchema({
     visibility: v.optional(v.union(v.literal("internal"), v.literal("participant"))),
     createdAt: v.number(),
     updatedAt: v.number(),
+    deletedAt: v.optional(v.number()),
   })
     .index("activityId", ["activityId", "createdAt"])
     .index("activityIdByType", ["activityId", "parentType", "createdAt"])

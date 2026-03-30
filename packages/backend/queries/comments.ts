@@ -34,6 +34,7 @@ async function enrichComments(
           content: comment.content,
           visibility: comment.visibility,
           createdAt: new Date(comment.createdAt).toISOString(),
+          updatedAt: comment.updatedAt !== comment.createdAt ? new Date(comment.updatedAt).toISOString() : undefined,
         },
         author: user
           ? {
@@ -45,6 +46,7 @@ async function enrichComments(
           : null,
         likeCount: likes.length,
         likedByMe,
+        isAuthor: currentUserId ? comment.userId === currentUserId : false,
       };
     }),
   );
@@ -73,7 +75,8 @@ export const getByActivityId = query({
       .order("desc")
       .paginate(args.paginationOpts);
 
-    const enriched = await enrichComments(ctx, comments.page, user?._id);
+    const nonDeleted = comments.page.filter((c) => !c.deletedAt);
+    const enriched = await enrichComments(ctx, nonDeleted, user?._id);
     const page = enriched.filter((item) => item.author !== null).map((item) => ({
       ...item,
       author: item.author!,

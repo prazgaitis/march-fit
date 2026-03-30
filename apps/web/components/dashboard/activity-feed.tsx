@@ -12,14 +12,18 @@ import { useRouter } from "next/navigation";
 import { formatTimeAgo } from "@/lib/date-only";
 import {
   ArrowUp,
+  Check,
   Flag,
   Heart,
   Loader2,
   MessageCircle,
   MoreHorizontal,
+  Pencil,
   RefreshCw,
   Repeat2,
   Share2,
+  Trash2,
+  X,
 } from "lucide-react";
 import { useInfiniteScroll } from "@/hooks/use-infinite-scroll";
 import {
@@ -1551,7 +1555,13 @@ function InlineComments({
     { initialNumItems: 3 },
   );
 
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editCommentContent, setEditCommentContent] = useState("");
+  const [editCommentSubmitting, setEditCommentSubmitting] = useState(false);
+
   const createComment = useMutation(api.mutations.comments.create);
+  const updateComment = useMutation(api.mutations.comments.update);
+  const removeComment = useMutation(api.mutations.comments.remove);
 
   const handleSubmitComment = async () => {
     if (!commentInput || commentIsEmpty || isEditorContentEmpty(commentInput))
@@ -1578,6 +1588,26 @@ function InlineComments({
     }
   };
 
+  const handleEditComment = async (commentId: string) => {
+    if (isEditorContentEmpty(editCommentContent)) return;
+    setEditCommentSubmitting(true);
+    try {
+      await updateComment({
+        commentId: commentId as Id<"comments">,
+        content: editCommentContent,
+      });
+      setEditingCommentId(null);
+      setEditCommentContent("");
+    } finally {
+      setEditCommentSubmitting(false);
+    }
+  };
+
+  const handleDeleteComment = async (commentId: string) => {
+    if (!confirm("Delete this comment?")) return;
+    await removeComment({ commentId: commentId as Id<"comments"> });
+  };
+
   const hasComments = comments && comments.length > 0;
 
   return (
@@ -1587,22 +1617,77 @@ function InlineComments({
         <div className="space-y-1">
           {comments.map(
             (entry: {
-              comment: { id: string; createdAt: number; content: string };
+              comment: { id: string; createdAt: number; content: string; updatedAt?: string };
               author: {
                 id: string;
                 name: string;
                 username: string;
                 avatarUrl: string | null;
               };
+              isAuthor: boolean;
             }) => (
-              <div key={entry.comment.id} className="text-sm leading-snug">
-                <span className="font-semibold text-foreground">
-                  {entry.author.username}
-                </span>{" "}
-                <RichTextViewer
-                  content={entry.comment.content}
-                  className="inline text-sm text-muted-foreground [&_p]:inline"
-                />
+              <div key={entry.comment.id}>
+                {editingCommentId === entry.comment.id ? (
+                  <div className="space-y-2">
+                    <RichTextEditor
+                      value={editCommentContent}
+                      onChange={setEditCommentContent}
+                      mentionOptions={mentionOptions}
+                    />
+                    <div className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        disabled={editCommentSubmitting || isEditorContentEmpty(editCommentContent)}
+                        onClick={() => handleEditComment(entry.comment.id)}
+                      >
+                        <Check className="mr-1 h-3 w-3" />
+                        {editCommentSubmitting ? "Saving..." : "Save"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => { setEditingCommentId(null); setEditCommentContent(""); }}
+                      >
+                        <X className="mr-1 h-3 w-3" />
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="group text-sm leading-snug">
+                    <span className="font-semibold text-foreground">
+                      {entry.author.username}
+                    </span>{" "}
+                    <RichTextViewer
+                      content={entry.comment.content}
+                      className="inline text-sm text-muted-foreground [&_p]:inline"
+                    />
+                    {entry.comment.updatedAt && (
+                      <span className="ml-1 text-xs italic text-muted-foreground/50">
+                        (edited)
+                      </span>
+                    )}
+                    {entry.isAuthor && (
+                      <span className="ml-1 inline-flex gap-0.5 opacity-0 transition-opacity group-hover:opacity-100">
+                        <button
+                          className="p-0.5 text-muted-foreground/50 hover:text-muted-foreground"
+                          onClick={() => {
+                            setEditingCommentId(entry.comment.id);
+                            setEditCommentContent(entry.comment.content);
+                          }}
+                        >
+                          <Pencil className="h-3 w-3" />
+                        </button>
+                        <button
+                          className="p-0.5 text-muted-foreground/50 hover:text-red-400"
+                          onClick={() => handleDeleteComment(entry.comment.id)}
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </button>
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
             ),
           )}

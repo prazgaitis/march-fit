@@ -977,4 +977,205 @@ describe("Comments", () => {
       expect(commentCount).toBe(1);
     });
   });
+
+  // ── Update / Remove ──────────────────────────────────────────
+
+  describe("update mutation", () => {
+    it("allows the author to edit their comment", async () => {
+      const { participantId, activityId } = await setupChallengeWithActivity();
+      const tAuth = t.withIdentity({
+        subject: "participant-sub",
+        email: "participant@example.com",
+      });
+
+      const commentId = await tAuth.mutation(api.mutations.comments.create, {
+        activityId: activityId as Id<"activities">,
+        content: "Original comment",
+      });
+
+      await tAuth.mutation(api.mutations.comments.update, {
+        commentId: commentId as Id<"comments">,
+        content: "Edited comment",
+      });
+
+      const updated = await t.run(async (ctx) => ctx.db.get(commentId));
+      expect(updated!.content).toBe("Edited comment");
+      expect(updated!.updatedAt).toBeGreaterThanOrEqual(updated!.createdAt);
+    });
+
+    it("rejects edits from non-authors", async () => {
+      const { participantId, ownerId, activityId } =
+        await setupChallengeWithActivity();
+      const tParticipant = t.withIdentity({
+        subject: "participant-sub",
+        email: "participant@example.com",
+      });
+      const tOwner = t.withIdentity({
+        subject: "owner-sub",
+        email: "owner@example.com",
+      });
+
+      const commentId = await tParticipant.mutation(
+        api.mutations.comments.create,
+        {
+          activityId: activityId as Id<"activities">,
+          content: "My comment",
+        },
+      );
+
+      await expect(
+        tOwner.mutation(api.mutations.comments.update, {
+          commentId: commentId as Id<"comments">,
+          content: "Hijacked!",
+        }),
+      ).rejects.toThrow("Not authorized to edit this comment");
+    });
+
+    it("rejects empty content", async () => {
+      const { activityId } = await setupChallengeWithActivity();
+      const tAuth = t.withIdentity({
+        subject: "participant-sub",
+        email: "participant@example.com",
+      });
+
+      const commentId = await tAuth.mutation(api.mutations.comments.create, {
+        activityId: activityId as Id<"activities">,
+        content: "Some comment",
+      });
+
+      await expect(
+        tAuth.mutation(api.mutations.comments.update, {
+          commentId: commentId as Id<"comments">,
+          content: "   ",
+        }),
+      ).rejects.toThrow("Comment cannot be empty");
+    });
+  });
+
+  describe("remove mutation", () => {
+    it("soft-deletes the author's own comment", async () => {
+      const { activityId } = await setupChallengeWithActivity();
+      const tAuth = t.withIdentity({
+        subject: "participant-sub",
+        email: "participant@example.com",
+      });
+
+      const commentId = await tAuth.mutation(api.mutations.comments.create, {
+        activityId: activityId as Id<"activities">,
+        content: "To be deleted",
+      });
+
+      await tAuth.mutation(api.mutations.comments.remove, {
+        commentId: commentId as Id<"comments">,
+      });
+
+      const deleted = await t.run(async (ctx) => ctx.db.get(commentId));
+      expect(deleted!.deletedAt).toBeDefined();
+      expect(deleted!.deletedAt).toBeGreaterThan(0);
+    });
+
+    it("rejects deletion by non-authors", async () => {
+      const { activityId } = await setupChallengeWithActivity();
+      const tParticipant = t.withIdentity({
+        subject: "participant-sub",
+        email: "participant@example.com",
+      });
+      const tOwner = t.withIdentity({
+        subject: "owner-sub",
+        email: "owner@example.com",
+      });
+
+      const commentId = await tParticipant.mutation(
+        api.mutations.comments.create,
+        {
+          activityId: activityId as Id<"activities">,
+          content: "My comment",
+        },
+      );
+
+      await expect(
+        tOwner.mutation(api.mutations.comments.remove, {
+          commentId: commentId as Id<"comments">,
+        }),
+      ).rejects.toThrow("Not authorized to delete this comment");
+    });
+
+    it("excludes deleted comments from getByActivityId", async () => {
+      const { activityId } = await setupChallengeWithActivity();
+      const tAuth = t.withIdentity({
+        subject: "participant-sub",
+        email: "participant@example.com",
+      });
+
+      const commentId = await tAuth.mutation(api.mutations.comments.create, {
+        activityId: activityId as Id<"activities">,
+        content: "Will be deleted",
+      });
+
+      // Verify it shows up first
+      const before = await tAuth.query(api.queries.comments.getByActivityId, {
+        activityId: activityId as Id<"activities">,
+        paginationOpts: { numItems: 50, cursor: null },
+      });
+      expect(before.page.some((c) => c.comment.id === commentId)).toBe(true);
+
+      await tAuth.mutation(api.mutations.comments.remove, {
+        commentId: commentId as Id<"comments">,
+      });
+
+      const after = await tAuth.query(api.queries.comments.getByActivityId, {
+        activityId: activityId as Id<"activities">,
+        paginationOpts: { numItems: 50, cursor: null },
+      });
+      expect(after.page.some((c) => c.comment.id === commentId)).toBe(false);
+    });
+  });
+
+  describe("isAuthor flag", () => {
+    it("returns isAuthor=true for the comment author", async () => {
+      const { activityId } = await setupChallengeWithActivity();
+      const tAuth = t.withIdentity({
+        subject: "participant-sub",
+        email: "participant@example.com",
+      });
+
+      await tAuth.mutation(api.mutations.comments.create, {
+        activityId: activityId as Id<"activities">,
+        content: "My comment",
+      });
+
+      const result = await tAuth.query(api.queries.comments.getByActivityId, {
+        activityId: activityId as Id<"activities">,
+        paginationOpts: { numItems: 50, cursor: null },
+      });
+
+      expect(result.page.length).toBe(1);
+      expect(result.page[0].isAuthor).toBe(true);
+    });
+
+    it("returns isAuthor=false for other users", async () => {
+      const { activityId } = await setupChallengeWithActivity();
+      const tParticipant = t.withIdentity({
+        subject: "participant-sub",
+        email: "participant@example.com",
+      });
+      const tOwner = t.withIdentity({
+        subject: "owner-sub",
+        email: "owner@example.com",
+      });
+
+      await tParticipant.mutation(api.mutations.comments.create, {
+        activityId: activityId as Id<"activities">,
+        content: "Participant's comment",
+      });
+
+      const result = await tOwner.query(api.queries.comments.getByActivityId, {
+        activityId: activityId as Id<"activities">,
+        paginationOpts: { numItems: 50, cursor: null },
+      });
+
+      expect(result.page.length).toBe(1);
+      expect(result.page[0].isAuthor).toBe(false);
+    });
+  });
 });

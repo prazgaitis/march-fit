@@ -253,3 +253,68 @@ export const createOnFlaggedActivity = mutation({
     return commentId;
   },
 });
+
+/**
+ * Update a comment. Only the author can edit their own comments.
+ */
+export const update = mutation({
+  args: {
+    commentId: v.id("comments"),
+    content: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const user = await requireCurrentUser(ctx);
+
+    if (!args.content.trim()) {
+      throw new Error("Comment cannot be empty");
+    }
+
+    const comment = await ctx.db.get(args.commentId);
+    if (!comment || comment.deletedAt) {
+      throw new Error("Comment not found");
+    }
+
+    if (comment.userId !== user._id) {
+      throw new Error("Not authorized to edit this comment");
+    }
+
+    await ctx.db.patch(args.commentId, {
+      content: args.content,
+      updatedAt: Date.now(),
+    });
+
+    return args.commentId;
+  },
+});
+
+/**
+ * Soft-delete a comment. Only the author can delete their own comments.
+ */
+export const remove = mutation({
+  args: {
+    commentId: v.id("comments"),
+  },
+  handler: async (ctx, args) => {
+    const user = await requireCurrentUser(ctx);
+
+    const comment = await ctx.db.get(args.commentId);
+    if (!comment || comment.deletedAt) {
+      throw new Error("Comment not found");
+    }
+
+    if (comment.userId !== user._id) {
+      throw new Error("Not authorized to delete this comment");
+    }
+
+    await ctx.db.patch(args.commentId, {
+      deletedAt: Date.now(),
+    });
+
+    // Recompute feed score if this was an activity comment
+    if (comment.activityId) {
+      await recomputeFeedScore(ctx, comment.activityId);
+    }
+
+    return args.commentId;
+  },
+});

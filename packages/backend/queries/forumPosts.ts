@@ -139,6 +139,7 @@ export const getById = query({
               : null,
             upvoteCount: replyUpvotes.length,
             upvotedByUser,
+            isAuthor: currentUser ? currentUser._id === reply.userId : false,
           };
         })
     );
@@ -409,6 +410,7 @@ export const getByIdInternal = internalQuery({
               : null,
             upvoteCount: replyUpvotes.length,
             upvotedByUser,
+            isAuthor: currentUser ? currentUser._id === reply.userId : false,
           };
         })
     );

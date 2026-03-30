@@ -805,5 +805,65 @@ describe("Forum Posts", () => {
       expect(result!.isAdmin).toBe(true);
       expect(result!.isAuthor).toBe(true);
     });
+
+    it("should correctly report isAuthor per reply", async () => {
+      const { challengeId, tWithAuth, userId } =
+        await setupChallengeWithParticipant();
+
+      const postId = await tWithAuth.mutation(
+        api.mutations.forumPosts.create,
+        {
+          challengeId,
+          title: "Reply Auth Test",
+          content: "Testing reply isAuthor",
+        }
+      );
+
+      // Create a second user who replies
+      const otherEmail = "replier@example.com";
+      const otherUserId = await createTestUser(t, {
+        email: otherEmail,
+        username: "replier",
+      });
+      await t.run(async (ctx) => {
+        await ctx.db.insert("userChallenges", {
+          userId: otherUserId,
+          challengeId,
+          joinedAt: Date.now(),
+          totalPoints: 0,
+          currentStreak: 0,
+          modifierFactor: 1,
+          paymentStatus: "paid",
+          updatedAt: Date.now(),
+        });
+      });
+      const tOther = t.withIdentity({
+        subject: "replier-sub",
+        email: otherEmail,
+      });
+
+      // Other user creates a reply
+      await tOther.mutation(api.mutations.forumPosts.create, {
+        challengeId,
+        content: "A reply from someone else",
+        parentPostId: postId,
+      });
+
+      // Original author views the post — they should NOT be author of the reply
+      const resultAsAuthor = await tWithAuth.query(
+        api.queries.forumPosts.getById,
+        { postId }
+      );
+      expect(resultAsAuthor!.replies.length).toBe(1);
+      expect(resultAsAuthor!.replies[0].isAuthor).toBe(false);
+
+      // Replier views — they SHOULD be author of the reply
+      const resultAsReplier = await tOther.query(
+        api.queries.forumPosts.getById,
+        { postId }
+      );
+      expect(resultAsReplier!.replies.length).toBe(1);
+      expect(resultAsReplier!.replies[0].isAuthor).toBe(true);
+    });
   });
 });
