@@ -6,7 +6,10 @@ import { dateOnlyToUtcMs, formatDateOnlyFromUtcMs } from "../lib/dateOnly";
 import { deleteActivity, insertActivity } from "../lib/activityWrites";
 import { notDeleted } from "../lib/activityFilters";
 import { isPaymentRequired } from "../lib/payments";
-import { calculateHuntWeekOutcomes as calculateSharedHuntWeekOutcomes } from "../lib/miniGameCalculations";
+import {
+  calculateHuntWeekOutcomes as calculateSharedHuntWeekOutcomes,
+  getMaxDailyPointsInPeriod as getMaxDailyPointsInPeriodShared,
+} from "../lib/miniGameCalculations";
 
 // Helper to check if user is challenge admin
 async function requireChallengeAdmin(
@@ -728,8 +731,8 @@ async function calculatePrWeekOutcomes(
   for (const participant of participants) {
     const initialPr = participant.initialState?.dailyPr ?? 0;
 
-    // Calculate max daily points during game period
-    const weekMaxPoints = await getMaxDailyPointsInPeriod(
+    // Calculate max daily points during game period (using shared PR-eligible filter)
+    const weekMaxPoints = await getMaxDailyPointsInPeriodShared(
       ctx,
       participant.userId,
       miniGame.challengeId,
@@ -800,39 +803,6 @@ async function getPointsInPeriod(
     .reduce((sum: number, a: { pointsEarned: number }) => sum + a.pointsEarned, 0);
 }
 
-async function getMaxDailyPointsInPeriod(
-  ctx: ReadDbCtx,
-  userId: Id<"users">,
-  challengeId: Id<"challenges">,
-  startDate: number,
-  endDate: number,
-): Promise<number> {
-  const activities = await ctx.db
-    .query("activities")
-    .withIndex("by_user_challenge_date", (q: any) =>
-      q.eq("userId", userId).eq("challengeId", challengeId),
-    )
-    .filter(notDeleted)
-    .collect();
-
-  // Group by day (excluding mini_game bonus activities)
-  const dailyPoints: Record<string, number> = {};
-
-  for (const activity of activities) {
-    if (
-      activity.loggedDate < startDate ||
-      activity.loggedDate > endDate ||
-      activity.source === "mini_game"
-    )
-      continue;
-
-    const dateStr = formatDateOnlyFromUtcMs(activity.loggedDate);
-    dailyPoints[dateStr] = (dailyPoints[dateStr] || 0) + activity.pointsEarned;
-  }
-
-  const values = Object.values(dailyPoints);
-  return values.length > 0 ? Math.max(...values) : 0;
-}
 
 async function awardBonusActivity(
   ctx: MutationDbCtx,

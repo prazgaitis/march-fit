@@ -465,6 +465,7 @@ export async function calculateMaxDailyPoints(
   for (const activity of activities) {
     if (activity.loggedDate >= beforeDate) continue;
     if (!eligibleTypeIds.has(activity.activityTypeId)) continue;
+    if (activity.source === "mini_game") continue;
 
     const dateStr = formatDateOnlyFromUtcMs(activity.loggedDate);
     dailyPoints[dateStr] = (dailyPoints[dateStr] || 0) + activity.pointsEarned;
@@ -501,7 +502,8 @@ export async function getPointsInPeriod(
       (a) =>
         a.loggedDate >= startDate &&
         a.loggedDate <= endDate &&
-        eligibleTypeIds.has(a.activityTypeId),
+        eligibleTypeIds.has(a.activityTypeId) &&
+        a.source !== "mini_game",
     )
     .reduce((sum, a) => sum + a.pointsEarned, 0);
 }
@@ -559,7 +561,8 @@ export async function getMaxDailyPointsInPeriod(
     if (
       activity.loggedDate < startDate ||
       activity.loggedDate > endDate ||
-      !eligibleTypeIds.has(activity.activityTypeId)
+      !eligibleTypeIds.has(activity.activityTypeId) ||
+      activity.source === "mini_game"
     )
       continue;
 
