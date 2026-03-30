@@ -90,6 +90,11 @@ const ACHIEVEMENT_METRIC_KEYS: Record<string, string[]> = {
   duration_minutes: ["minutes", "duration_minutes", "duration"],
 };
 
+const UNIT_FALLBACKS: Record<string, { altMetric: string; factor: number }> = {
+  distance_miles: { altMetric: "distance_km", factor: 1 / 1.609344 },
+  distance_km: { altMetric: "distance_miles", factor: 1.609344 },
+};
+
 function getMetricValue(metrics: Record<string, unknown>, metricName: string): number {
   const possibleKeys = ACHIEVEMENT_METRIC_KEYS[metricName] || [metricName];
 
@@ -98,6 +103,19 @@ function getMetricValue(metrics: Record<string, unknown>, metricName: string): n
     if (value > 0) {
       return value;
     }
+  }
+
+  return 0;
+}
+
+function getMetricValueWithConversion(metrics: Record<string, unknown>, metricName: string): number {
+  const direct = getMetricValue(metrics, metricName);
+  if (direct > 0) return direct;
+
+  const fallback = UNIT_FALLBACKS[metricName];
+  if (fallback) {
+    const altValue = getMetricValue(metrics, fallback.altMetric);
+    if (altValue > 0) return altValue * fallback.factor;
   }
 
   return 0;
@@ -131,7 +149,7 @@ export function evaluateAchievementCriteria(
         }
 
         const metrics = activity.metrics ?? {};
-        return getMetricValue(metrics, requirement.metric) >= requirement.threshold;
+        return getMetricValueWithConversion(metrics, requirement.metric) >= requirement.threshold;
       });
 
       if (qualifying) {
