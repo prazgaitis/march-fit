@@ -95,6 +95,14 @@ async function buildUserProgress(
     )
     .collect();
 
+  // Participation record (for streak context)
+  const participation = await ctx.db
+    .query("userChallenges")
+    .withIndex("userChallengeUnique", (q: any) =>
+      q.eq("userId", userId).eq("challengeId", challengeId)
+    )
+    .first();
+
   // Earned achievements
   const userAchievements = await ctx.db
     .query("userAchievements")
@@ -110,7 +118,8 @@ async function buildUserProgress(
     achievements.map(async (achievement: any) => {
       const { currentCount, requiredCount } = computeCriteriaProgress(
         activities,
-        achievement.criteria
+        achievement.criteria,
+        { currentStreak: participation?.currentStreak }
       );
 
       const earned = earnedMap.get(achievement._id);

@@ -39,11 +39,17 @@ const nOfThresholdsCriteriaValidator = v.object({
   ),
 });
 
+const streakCriteriaValidator = v.object({
+  type: v.literal("streak"),
+  requiredDays: v.number(),
+});
+
 export const achievementCriteriaValidator = v.union(
   legacyCountThresholdCriteriaValidator,
   countThresholdCriteriaValidator,
   allActivityTypeThresholdsCriteriaValidator,
   nOfThresholdsCriteriaValidator,
+  streakCriteriaValidator,
 );
 
 export type CountThresholdCriteria = {

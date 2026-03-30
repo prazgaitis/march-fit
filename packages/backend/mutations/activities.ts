@@ -468,6 +468,21 @@ async function checkAndAwardAchievements(
     )
     .collect();
 
+  // Check if any achievement uses streak criteria — if so, fetch participation once
+  const hasStreakCriteria = achievements.some(
+    (a: any) => a.criteria.criteriaType === "streak"
+  );
+  let streakContext: { currentStreak?: number } = {};
+  if (hasStreakCriteria) {
+    const p = await ctx.db
+      .query("userChallenges")
+      .withIndex("userChallengeUnique", (q: any) =>
+        q.eq("userId", userId).eq("challengeId", challengeId)
+      )
+      .first();
+    streakContext = { currentStreak: p?.currentStreak };
+  }
+
   for (const achievement of achievements) {
     // Guard: skip if already earned (once_per_challenge)
     if (achievement.frequency === "once_per_challenge") {
@@ -495,7 +510,7 @@ async function checkAndAwardAchievements(
 
     // Evaluate criteria using the shared helper
     const { currentCount, requiredCount, qualifyingActivityIds } =
-      computeCriteriaProgress(allActivities, achievement.criteria);
+      computeCriteriaProgress(allActivities, achievement.criteria, streakContext);
 
     if (currentCount < requiredCount) continue;
 
