@@ -146,15 +146,14 @@ export default function WrappedAdminPage() {
               className="w-full rounded-md border border-zinc-700 bg-zinc-800 px-3 py-2 text-sm text-zinc-200 focus:border-amber-500 focus:outline-none"
             >
               <option value="">Choose a participant...</option>
-              {leaderboard?.map(
-                (p: any) =>
-                  p.user && (
-                    <option key={p.user._id} value={p.user._id}>
-                      #{p.rank} {p.user.name ?? p.user.username} (
-                      {Math.round(p.totalPoints)} pts)
-                    </option>
-                  )
-              )}
+              {leaderboard
+                ?.filter((p: any) => p.user)
+                .map((p: any) => (
+                  <option key={p.user.id} value={p.user.id}>
+                    #{p.rank} {p.user.name ?? p.user.username} (
+                    {Math.round(p.totalPoints)} pts)
+                  </option>
+                ))}
             </select>
           </div>
           {selectedUserId && (
