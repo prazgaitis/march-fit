@@ -72,7 +72,7 @@ export function computeCriteriaProgress(
 } {
   const criteriaType: string = criteria.criteriaType ?? "count";
   const matchingActivities =
-    criteriaType === "all_activity_type_thresholds" || criteriaType === "n_of_thresholds"
+    criteriaType === "all_activity_type_thresholds" || criteriaType === "n_of_thresholds" || criteriaType === "streak"
       ? activities
       : activities.filter((a: any) =>
           criteria.activityTypeIds.includes(a.activityTypeId)
