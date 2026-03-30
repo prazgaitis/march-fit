@@ -12,6 +12,14 @@ export const ACHIEVEMENT_METRIC_KEYS: Record<string, string[]> = {
   duration_minutes: ["minutes", "duration_minutes", "duration"],
 };
 
+// Cross-unit fallbacks: if the requested metric isn't found, try the
+// complementary unit and convert.  E.g. an activity that only stores
+// "kilometers" can still satisfy a "distance_miles" requirement.
+const UNIT_FALLBACKS: Record<string, { altMetric: string; factor: number }> = {
+  distance_miles: { altMetric: "distance_km", factor: 1 / 1.609344 },
+  distance_km: { altMetric: "distance_miles", factor: 1.609344 },
+};
+
 /**
  * Get the metric value from activity metrics using various possible keys.
  */
@@ -24,6 +32,26 @@ export function getMetricValue(
     const value = Number(metrics[key]);
     if (value > 0) return value;
   }
+  return 0;
+}
+
+/**
+ * Like getMetricValue but falls back to cross-unit conversion when the
+ * direct lookup returns 0 (e.g. activity stores km, requirement is miles).
+ */
+export function getMetricValueWithConversion(
+  metrics: Record<string, unknown>,
+  metricName: string
+): number {
+  const direct = getMetricValue(metrics, metricName);
+  if (direct > 0) return direct;
+
+  const fallback = UNIT_FALLBACKS[metricName];
+  if (fallback) {
+    const altValue = getMetricValue(metrics, fallback.altMetric);
+    if (altValue > 0) return altValue * fallback.factor;
+  }
+
   return 0;
 }
 
@@ -141,7 +169,7 @@ export function computeCriteriaProgress(
         const found = matchingActivities.find((a: any) => {
           if (a.activityTypeId !== requirement.activityTypeId) return false;
           const metrics = (a.metrics ?? {}) as Record<string, unknown>;
-          return getMetricValue(metrics, requirement.metric) >= requirement.threshold;
+          return getMetricValueWithConversion(metrics, requirement.metric) >= requirement.threshold;
         });
 
         if (found) {

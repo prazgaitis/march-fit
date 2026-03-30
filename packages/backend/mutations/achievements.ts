@@ -1,5 +1,8 @@
-import { mutation } from "../_generated/server";
+import { mutation, internalMutation } from "../_generated/server";
 import { v } from "convex/values";
+import { computeCriteriaProgress } from "../lib/achievements";
+import { notDeleted } from "../lib/activityFilters";
+import { insertActivity } from "../lib/activityWrites";
 
 // Shared criteria validator — mirrors the schema union
 export const criteriaValidator = v.union(
@@ -157,5 +160,163 @@ export const deleteAchievement = mutation({
     await ctx.db.delete(args.achievementId);
 
     return { success: true };
+  },
+});
+
+/**
+ * Backfill achievements for all participants in a challenge.
+ * Checks every participant against every achievement and awards any that
+ * are earned but not yet recorded (e.g. after a criteria bug fix).
+ *
+ * Run manually:
+ *   ./scripts/convex.sh run mutations/achievements:backfillAchievements \
+ *     '{"challengeId": "<id>"}' --prod
+ */
+export const backfillAchievements = internalMutation({
+  args: {
+    challengeId: v.id("challenges"),
+  },
+  handler: async (ctx, { challengeId }) => {
+    const achievements = await ctx.db
+      .query("achievements")
+      .withIndex("challengeId", (q) => q.eq("challengeId", challengeId))
+      .collect();
+
+    if (achievements.length === 0) {
+      console.log("No achievements found for challenge");
+      return { awarded: 0 };
+    }
+
+    const participations = await ctx.db
+      .query("userChallenges")
+      .withIndex("challengeId", (q) => q.eq("challengeId", challengeId))
+      .collect();
+
+    console.log(
+      `Checking ${participations.length} participants against ${achievements.length} achievements`
+    );
+
+    let bonusActivityType: any = null;
+    let totalAwarded = 0;
+
+    for (const participation of participations) {
+      const userId = participation.userId;
+
+      const allActivities = await ctx.db
+        .query("activities")
+        .withIndex("userId", (q: any) => q.eq("userId", userId))
+        .filter((q: any) =>
+          q.and(q.eq(q.field("challengeId"), challengeId), notDeleted(q))
+        )
+        .collect();
+
+      for (const achievement of achievements) {
+        if (achievement.frequency === "once_per_challenge") {
+          const existing = await ctx.db
+            .query("userAchievements")
+            .withIndex("userAchievement", (q) =>
+              q.eq("userId", userId).eq("achievementId", achievement._id)
+            )
+            .first();
+          if (existing) continue;
+        }
+
+        const { currentCount, requiredCount, qualifyingActivityIds } =
+          computeCriteriaProgress(allActivities, achievement.criteria);
+
+        if (currentCount < requiredCount) continue;
+
+        // Get or create the bonus activity type
+        if (!bonusActivityType) {
+          bonusActivityType = await ctx.db
+            .query("activityTypes")
+            .withIndex("challengeId", (q) => q.eq("challengeId", challengeId))
+            .filter((q) => q.eq(q.field("name"), "Achievement Bonus"))
+            .first();
+
+          if (!bonusActivityType) {
+            const id = await ctx.db.insert("activityTypes", {
+              challengeId,
+              name: "Achievement Bonus",
+              description: "Bonus points from earning achievements",
+              scoringConfig: { basePoints: 0 },
+              contributesToStreak: false,
+              isNegative: false,
+              createdAt: Date.now(),
+              updatedAt: Date.now(),
+            });
+            bonusActivityType = await ctx.db.get(id);
+          }
+        }
+
+        const bonusActivityId = await insertActivity(ctx, {
+          userId,
+          challengeId,
+          activityTypeId: bonusActivityType._id,
+          loggedDate: Date.now(),
+          metrics: {
+            achievementId: achievement._id,
+            achievementName: achievement.name,
+          },
+          notes: `Achievement earned: ${achievement.name}`,
+          source: "manual",
+          pointsEarned: achievement.bonusPoints,
+          flagged: false,
+          adminCommentVisibility: "internal",
+          resolutionStatus: "pending",
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+
+        await ctx.db.insert("userAchievements", {
+          challengeId,
+          userId,
+          achievementId: achievement._id,
+          earnedAt: Date.now(),
+          qualifyingActivityIds,
+          bonusActivityId,
+        });
+
+        // Auto-award linked badges
+        const linkedBadges = await ctx.db
+          .query("badges")
+          .withIndex("achievementId", (q) =>
+            q.eq("achievementId", achievement._id)
+          )
+          .collect();
+
+        for (const badge of linkedBadges) {
+          const existingUserBadge = await ctx.db
+            .query("userBadges")
+            .withIndex("userBadge", (q) =>
+              q.eq("userId", userId).eq("badgeId", badge._id)
+            )
+            .first();
+          if (!existingUserBadge) {
+            await ctx.db.insert("userBadges", {
+              challengeId,
+              userId,
+              badgeId: badge._id,
+              awardedAt: Date.now(),
+            });
+          }
+        }
+
+        // Credit bonus points
+        await ctx.db.patch(participation._id, {
+          totalPoints: participation.totalPoints + achievement.bonusPoints,
+          updatedAt: Date.now(),
+        });
+
+        // Look up user name for logging
+        const user = await ctx.db.get(userId);
+        const userName = user?.name ?? userId;
+        console.log(`Awarded "${achievement.name}" to ${userName}`);
+        totalAwarded++;
+      }
+    }
+
+    console.log(`Backfill complete: ${totalAwarded} achievement(s) awarded`);
+    return { awarded: totalAwarded };
   },
 });
