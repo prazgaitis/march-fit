@@ -1,6 +1,6 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { useQuery } from "@/lib/convex-auth-react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
@@ -25,11 +25,30 @@ import { ThankYouSlide } from "@/components/wrapped/slides/thank-you";
 
 export default function WrappedPage() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const challengeId = params.id as string;
+  const previewUserId = searchParams.get("preview");
 
-  const data = useQuery(api.queries.wrapped.getWrappedData, {
-    challengeId: challengeId as Id<"challenges">,
-  });
+  // Admin preview: use getWrappedPreview (bypasses wrappedEnabled check)
+  // Participant: use getWrappedData (requires wrappedEnabled)
+  const previewData = useQuery(
+    api.queries.wrapped.getWrappedPreview,
+    previewUserId
+      ? {
+          challengeId: challengeId as Id<"challenges">,
+          userId: previewUserId as Id<"users">,
+        }
+      : "skip"
+  );
+
+  const participantData = useQuery(
+    api.queries.wrapped.getWrappedData,
+    previewUserId
+      ? "skip"
+      : { challengeId: challengeId as Id<"challenges"> }
+  );
+
+  const data = previewUserId ? previewData : participantData;
 
   if (data === undefined) {
     return (
