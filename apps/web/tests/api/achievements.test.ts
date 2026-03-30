@@ -17,7 +17,7 @@
  */
 
 import { describe, it, expect, beforeEach } from "vitest";
-import { api } from "@repo/backend";
+import { api, internal } from "@repo/backend";
 import {
   createTestContext,
   createTestUser,
@@ -1098,5 +1098,201 @@ describe("Criteria: n_of_thresholds", () => {
     const earned = await getEarnedAchievements(t, userId, challengeId);
     // Should still only have 1 award (once_per_challenge)
     expect(earned).toHaveLength(1);
+  });
+
+  it("cross-unit conversion: awards when activity stores km but criteria uses miles", async () => {
+    await createTestAchievement(t, challengeId, {
+      criteriaType: "n_of_thresholds",
+      requiredCount: 2,
+      requirements: [
+        { activityTypeId: swimTypeId, metric: "distance_miles", threshold: 2.4 },
+        { activityTypeId: rowTypeId, metric: "distance_miles", threshold: 26.2 },
+      ],
+    });
+
+    // Swim 3 miles — meets swim threshold
+    await logActivity(tWithAuth, challengeId, swimTypeId, { miles: 3 });
+    let earned = await getEarnedAchievements(t, userId, challengeId);
+    expect(earned).toHaveLength(0);
+
+    // Row 55 km (stored as kilometers only) — 55 * 0.621 ≈ 34.2 miles > 26.2
+    await logActivity(tWithAuth, challengeId, rowTypeId, { kilometers: 55 });
+    earned = await getEarnedAchievements(t, userId, challengeId);
+    expect(earned).toHaveLength(1);
+  });
+
+  it("cross-unit conversion: does NOT award when converted value is below threshold", async () => {
+    await createTestAchievement(t, challengeId, {
+      criteriaType: "n_of_thresholds",
+      requiredCount: 1,
+      requirements: [
+        { activityTypeId: rowTypeId, metric: "distance_miles", threshold: 26.2 },
+      ],
+    });
+
+    // Row 30 km — 30 * 0.621 ≈ 18.6 miles < 26.2
+    await logActivity(tWithAuth, challengeId, rowTypeId, { kilometers: 30 });
+    const earned = await getEarnedAchievements(t, userId, challengeId);
+    expect(earned).toHaveLength(0);
+  });
+});
+
+// ─── BACKFILL ────────────────────────────────────────────────────────────────
+
+describe("backfillAchievements", () => {
+  let t: ReturnType<typeof createTestContext>;
+  let userId: Id<"users">;
+  let challengeId: Id<"challenges">;
+  let runTypeId: Id<"activityTypes">;
+  let swimTypeId: Id<"activityTypes">;
+  let tWithAuth: any;
+  const EMAIL = "backfill@example.com";
+
+  beforeEach(async () => {
+    t = createTestContext();
+    userId = await createTestUser(t, { email: EMAIL });
+    tWithAuth = t.withIdentity({ subject: "sub-backfill", email: EMAIL });
+    challengeId = await createTestChallenge(t, userId);
+    runTypeId = await createTestActivityType(t, challengeId, {
+      name: "Outdoor Run",
+      scoringConfig: { type: "unit_based", pointsPerUnit: 8, unit: "miles" },
+    });
+    swimTypeId = await createTestActivityType(t, challengeId, {
+      name: "Swimming",
+      scoringConfig: { type: "unit_based", pointsPerUnit: 33, unit: "miles" },
+    });
+    await createTestParticipation(t, userId, challengeId);
+  });
+
+  it("awards achievements that were missed during activity logging", async () => {
+    // Log activities FIRST (before achievement exists)
+    await logActivity(tWithAuth, challengeId, runTypeId, { miles: 30 });
+    await logActivity(tWithAuth, challengeId, swimTypeId, { miles: 3 });
+
+    // No achievements exist yet — nothing earned
+    let earned = await getEarnedAchievements(t, userId, challengeId);
+    expect(earned).toHaveLength(0);
+
+    // Now create the achievement (simulates adding it after activities exist)
+    await createTestAchievement(t, challengeId, {
+      criteriaType: "n_of_thresholds",
+      requiredCount: 2,
+      requirements: [
+        { activityTypeId: runTypeId, metric: "distance_miles", threshold: 26.2 },
+        { activityTypeId: swimTypeId, metric: "distance_miles", threshold: 2.4 },
+      ],
+    });
+
+    // Still not earned (no new activity to trigger check)
+    earned = await getEarnedAchievements(t, userId, challengeId);
+    expect(earned).toHaveLength(0);
+
+    // Run backfill — should award
+    await t.mutation(
+      internal.mutations.achievements.backfillAchievements,
+      { challengeId }
+    );
+
+    earned = await getEarnedAchievements(t, userId, challengeId);
+    expect(earned).toHaveLength(1);
+    expect(earned[0].qualifyingActivityIds).toHaveLength(2);
+  });
+
+  it("does not double-award if achievement was already earned", async () => {
+    await createTestAchievement(t, challengeId, {
+      criteriaType: "count",
+      activityTypeIds: [runTypeId],
+      metric: "distance_miles",
+      threshold: 5,
+      requiredCount: 1,
+    });
+
+    // Log qualifying activity — triggers normal award
+    await logActivity(tWithAuth, challengeId, runTypeId, { miles: 10 });
+    let earned = await getEarnedAchievements(t, userId, challengeId);
+    expect(earned).toHaveLength(1);
+
+    // Run backfill — should NOT create a duplicate
+    await t.mutation(
+      internal.mutations.achievements.backfillAchievements,
+      { challengeId }
+    );
+
+    earned = await getEarnedAchievements(t, userId, challengeId);
+    expect(earned).toHaveLength(1);
+  });
+
+  it("awards to multiple participants", async () => {
+    const EMAIL2 = "backfill2@example.com";
+    const userId2 = await createTestUser(t, { email: EMAIL2 });
+    const tWithAuth2 = t.withIdentity({ subject: "sub-backfill2", email: EMAIL2 });
+    await createTestParticipation(t, userId2, challengeId);
+
+    // Both users log qualifying activities
+    await logActivity(tWithAuth, challengeId, runTypeId, { miles: 30 });
+    await logActivity(tWithAuth2, challengeId, runTypeId, { miles: 28 });
+
+    // Create achievement after activities
+    await createTestAchievement(t, challengeId, {
+      criteriaType: "count",
+      activityTypeIds: [runTypeId],
+      metric: "distance_miles",
+      threshold: 26.2,
+      requiredCount: 1,
+    });
+
+    // Run backfill
+    await t.mutation(
+      internal.mutations.achievements.backfillAchievements,
+      { challengeId }
+    );
+
+    const earned1 = await getEarnedAchievements(t, userId, challengeId);
+    const earned2 = await getEarnedAchievements(t, userId2, challengeId);
+    expect(earned1).toHaveLength(1);
+    expect(earned2).toHaveLength(1);
+  });
+
+  it("credits bonus points to participation", async () => {
+    await logActivity(tWithAuth, challengeId, runTypeId, { miles: 30 });
+
+    await createTestAchievement(
+      t,
+      challengeId,
+      {
+        criteriaType: "count",
+        activityTypeIds: [runTypeId],
+        metric: "distance_miles",
+        threshold: 26.2,
+        requiredCount: 1,
+      },
+      { bonusPoints: 50 }
+    );
+
+    // Get points before backfill
+    const before = await t.run(async (ctx: any) =>
+      ctx.db
+        .query("userChallenges")
+        .withIndex("userChallengeUnique", (q: any) =>
+          q.eq("userId", userId).eq("challengeId", challengeId)
+        )
+        .first()
+    );
+
+    await t.mutation(
+      internal.mutations.achievements.backfillAchievements,
+      { challengeId }
+    );
+
+    const after = await t.run(async (ctx: any) =>
+      ctx.db
+        .query("userChallenges")
+        .withIndex("userChallengeUnique", (q: any) =>
+          q.eq("userId", userId).eq("challengeId", challengeId)
+        )
+        .first()
+    );
+
+    expect(after.totalPoints - before.totalPoints).toBe(50);
   });
 });
