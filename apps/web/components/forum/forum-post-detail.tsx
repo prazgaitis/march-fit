@@ -10,8 +10,11 @@ import remarkGfm from "remark-gfm";
 import {
   ArrowBigUp,
   ArrowLeft,
+  Check,
+  Pencil,
   Pin,
   Trash2,
+  X,
 } from "lucide-react";
 import { formatDistanceToNow } from "date-fns";
 
@@ -36,7 +39,12 @@ export function ForumPostDetail({ postId, challengeId }: ForumPostDetailProps) {
 
   const [replyContent, setReplyContent] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [editingPostId, setEditingPostId] = useState<string | null>(null);
+  const [editContent, setEditContent] = useState("");
+  const [editTitle, setEditTitle] = useState("");
+  const [editSubmitting, setEditSubmitting] = useState(false);
   const createPost = useMutation(api.mutations.forumPosts.create);
+  const updatePost = useMutation(api.mutations.forumPosts.update);
   const toggleUpvote = useMutation(api.mutations.forumPosts.toggleUpvote);
   const togglePin = useMutation(api.mutations.forumPosts.togglePin);
   const removePost = useMutation(api.mutations.forumPosts.remove);
@@ -84,6 +92,35 @@ export function ForumPostDetail({ postId, challengeId }: ForumPostDetailProps) {
     await removePost({ postId: id as Id<"forumPosts"> });
   };
 
+  const startEditing = (id: string, content: string, title?: string) => {
+    setEditingPostId(id);
+    setEditContent(content);
+    setEditTitle(title ?? "");
+  };
+
+  const cancelEditing = () => {
+    setEditingPostId(null);
+    setEditContent("");
+    setEditTitle("");
+  };
+
+  const handleSaveEdit = async (id: string, isTopLevel: boolean) => {
+    if (isEditorContentEmpty(editContent)) return;
+    setEditSubmitting(true);
+    try {
+      await updatePost({
+        postId: id as Id<"forumPosts">,
+        content: editContent,
+        ...(isTopLevel && editTitle ? { title: editTitle } : {}),
+      });
+      cancelEditing();
+    } finally {
+      setEditSubmitting(false);
+    }
+  };
+
+  const isEditingMainPost = editingPostId === data.post._id;
+
   return (
     <div>
       {/* Back link */}
@@ -97,73 +134,122 @@ export function ForumPostDetail({ postId, challengeId }: ForumPostDetailProps) {
 
       {/* Main post */}
       <div>
-        <div className="flex items-start gap-2">
-          {data.post.isPinned && (
-            <Pin className="mt-1 h-4 w-4 shrink-0 rotate-45 text-amber-400" />
-          )}
-          <h1 className="break-words text-lg font-bold text-white">
-            {data.post.title}
-          </h1>
-        </div>
-
-        {/* Meta */}
-        <div className="mt-1.5 flex items-center gap-2 text-xs text-zinc-500">
-          <UserAvatar
-            user={data.user}
-            challengeId={challengeId}
-            size="xs"
-          />
-          <span className="font-medium text-zinc-400">
-            {data.user.username}
-          </span>
-          <span>·</span>
-          <span>
-            {formatDistanceToNow(new Date(data.post.createdAt), {
-              addSuffix: true,
-            })}
-          </span>
-        </div>
-
-        {/* Body */}
-        <div className="mt-4 break-words text-sm text-zinc-300">
-          <PostContent content={data.post.content} />
-        </div>
-
-        {/* Actions bar */}
-        <div className="mt-3 flex items-center gap-1 border-t border-zinc-800/50 pt-3">
-          <button
-            onClick={() => handleUpvote(data.post._id)}
-            className={cn(
-              "flex items-center gap-1 rounded px-1.5 py-1 text-xs transition-colors active:scale-95",
-              data.upvotedByUser
-                ? "text-indigo-400"
-                : "text-zinc-500 hover:text-zinc-300",
-            )}
-          >
-            <ArrowBigUp
-              className="h-4 w-4"
-              fill={data.upvotedByUser ? "currentColor" : "none"}
+        {isEditingMainPost ? (
+          <>
+            <input
+              type="text"
+              value={editTitle}
+              onChange={(e) => setEditTitle(e.target.value)}
+              className="mb-3 w-full rounded-md border border-zinc-700 bg-zinc-900 px-3 py-2 text-lg font-bold text-white focus:border-indigo-500 focus:outline-none"
             />
-            <span className="font-mono font-medium">{data.upvoteCount}</span>
-          </button>
-          {data.isAdmin && (
-            <Button variant="ghost" size="sm" className="h-7 text-xs text-zinc-500 hover:text-white" onClick={handlePin}>
-              <Pin className="h-3 w-3" />
-              {data.post.isPinned ? "Unpin" : "Pin"}
-            </Button>
-          )}
-          {(data.isAuthor || data.isAdmin) && (
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 text-xs text-red-400/70 hover:text-red-300"
-              onClick={() => handleDelete(data.post._id)}
-            >
-              <Trash2 className="h-3 w-3" />
-              Delete
-            </Button>
-          )}
-        </div>
+            <RichTextEditor
+              value={editContent}
+              onChange={setEditContent}
+              mentionOptions={mentionOptions}
+            />
+            <div className="mt-2 flex items-center gap-2">
+              <Button
+                size="sm"
+                disabled={editSubmitting || isEditorContentEmpty(editContent)}
+                onClick={() => handleSaveEdit(data.post._id, true)}
+              >
+                <Check className="mr-1 h-3 w-3" />
+                {editSubmitting ? "Saving..." : "Save"}
+              </Button>
+              <Button size="sm" variant="ghost" onClick={cancelEditing}>
+                <X className="mr-1 h-3 w-3" />
+                Cancel
+              </Button>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="flex items-start gap-2">
+              {data.post.isPinned && (
+                <Pin className="mt-1 h-4 w-4 shrink-0 rotate-45 text-amber-400" />
+              )}
+              <h1 className="break-words text-lg font-bold text-white">
+                {data.post.title}
+              </h1>
+            </div>
+
+            {/* Meta */}
+            <div className="mt-1.5 flex items-center gap-2 text-xs text-zinc-500">
+              <UserAvatar
+                user={data.user}
+                challengeId={challengeId}
+                size="xs"
+              />
+              <span className="font-medium text-zinc-400">
+                {data.user.username}
+              </span>
+              <span>·</span>
+              <span>
+                {formatDistanceToNow(new Date(data.post.createdAt), {
+                  addSuffix: true,
+                })}
+              </span>
+              {data.post.updatedAt !== data.post.createdAt && (
+                <>
+                  <span>·</span>
+                  <span className="italic">edited</span>
+                </>
+              )}
+            </div>
+
+            {/* Body */}
+            <div className="mt-4 break-words text-sm text-zinc-300">
+              <PostContent content={data.post.content} />
+            </div>
+
+            {/* Actions bar */}
+            <div className="mt-3 flex items-center gap-1 border-t border-zinc-800/50 pt-3">
+              <button
+                onClick={() => handleUpvote(data.post._id)}
+                className={cn(
+                  "flex items-center gap-1 rounded px-1.5 py-1 text-xs transition-colors active:scale-95",
+                  data.upvotedByUser
+                    ? "text-indigo-400"
+                    : "text-zinc-500 hover:text-zinc-300",
+                )}
+              >
+                <ArrowBigUp
+                  className="h-4 w-4"
+                  fill={data.upvotedByUser ? "currentColor" : "none"}
+                />
+                <span className="font-mono font-medium">{data.upvoteCount}</span>
+              </button>
+              {data.isAdmin && (
+                <Button variant="ghost" size="sm" className="h-7 text-xs text-zinc-500 hover:text-white" onClick={handlePin}>
+                  <Pin className="h-3 w-3" />
+                  {data.post.isPinned ? "Unpin" : "Pin"}
+                </Button>
+              )}
+              {(data.isAuthor || data.isAdmin) && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs text-zinc-500 hover:text-white"
+                  onClick={() => startEditing(data.post._id, data.post.content, data.post.title ?? "")}
+                >
+                  <Pencil className="h-3 w-3" />
+                  Edit
+                </Button>
+              )}
+              {(data.isAuthor || data.isAdmin) && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs text-red-400/70 hover:text-red-300"
+                  onClick={() => handleDelete(data.post._id)}
+                >
+                  <Trash2 className="h-3 w-3" />
+                  Delete
+                </Button>
+              )}
+            </div>
+          </>
+        )}
       </div>
 
       {/* Divider */}
@@ -178,57 +264,100 @@ export function ForumPostDetail({ postId, challengeId }: ForumPostDetailProps) {
       <div className="space-y-0 divide-y divide-zinc-800/50">
         {data.replies.map((reply: typeof data.replies[number]) => (
           <div key={reply.post._id} className="py-3">
-            <div className="flex items-center gap-2 text-xs text-zinc-500">
-              {reply.user && (
-                <>
-                  <UserAvatar
-                    user={reply.user}
-                    challengeId={challengeId}
-                    size="xs"
-                  />
-                  <span className="font-medium text-zinc-400">
-                    {reply.user.username}
-                  </span>
-                  <span>·</span>
-                </>
-              )}
-              <span>
-                {formatDistanceToNow(new Date(reply.post.createdAt), {
-                  addSuffix: true,
-                })}
-              </span>
-            </div>
-            <div className="mt-1.5 break-words text-sm text-zinc-300">
-              <PostContent content={reply.post.content} />
-            </div>
-            <div className="mt-1.5 flex items-center gap-1">
-              <button
-                onClick={() => handleUpvote(reply.post._id)}
-                className={cn(
-                  "flex items-center gap-1 rounded px-1 py-0.5 text-xs transition-colors active:scale-95",
-                  reply.upvotedByUser
-                    ? "text-indigo-400"
-                    : "text-zinc-500 hover:text-zinc-300",
-                )}
-              >
-                <ArrowBigUp
-                  className="h-3.5 w-3.5"
-                  fill={reply.upvotedByUser ? "currentColor" : "none"}
+            {editingPostId === reply.post._id ? (
+              <div>
+                <RichTextEditor
+                  value={editContent}
+                  onChange={setEditContent}
+                  mentionOptions={mentionOptions}
                 />
-                <span className="font-mono font-medium">{reply.upvoteCount}</span>
-              </button>
-              {(data.isAdmin || (reply.user && data.isAuthor)) && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-6 text-xs text-red-400/70 hover:text-red-300"
-                  onClick={() => handleDelete(reply.post._id)}
-                >
-                  <Trash2 className="h-3 w-3" />
-                  Delete
-                </Button>
-              )}
-            </div>
+                <div className="mt-2 flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    disabled={editSubmitting || isEditorContentEmpty(editContent)}
+                    onClick={() => handleSaveEdit(reply.post._id, false)}
+                  >
+                    <Check className="mr-1 h-3 w-3" />
+                    {editSubmitting ? "Saving..." : "Save"}
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={cancelEditing}>
+                    <X className="mr-1 h-3 w-3" />
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div className="flex items-center gap-2 text-xs text-zinc-500">
+                  {reply.user && (
+                    <>
+                      <UserAvatar
+                        user={reply.user}
+                        challengeId={challengeId}
+                        size="xs"
+                      />
+                      <span className="font-medium text-zinc-400">
+                        {reply.user.username}
+                      </span>
+                      <span>·</span>
+                    </>
+                  )}
+                  <span>
+                    {formatDistanceToNow(new Date(reply.post.createdAt), {
+                      addSuffix: true,
+                    })}
+                  </span>
+                  {reply.post.updatedAt !== reply.post.createdAt && (
+                    <>
+                      <span>·</span>
+                      <span className="italic">edited</span>
+                    </>
+                  )}
+                </div>
+                <div className="mt-1.5 break-words text-sm text-zinc-300">
+                  <PostContent content={reply.post.content} />
+                </div>
+                <div className="mt-1.5 flex items-center gap-1">
+                  <button
+                    onClick={() => handleUpvote(reply.post._id)}
+                    className={cn(
+                      "flex items-center gap-1 rounded px-1 py-0.5 text-xs transition-colors active:scale-95",
+                      reply.upvotedByUser
+                        ? "text-indigo-400"
+                        : "text-zinc-500 hover:text-zinc-300",
+                    )}
+                  >
+                    <ArrowBigUp
+                      className="h-3.5 w-3.5"
+                      fill={reply.upvotedByUser ? "currentColor" : "none"}
+                    />
+                    <span className="font-mono font-medium">{reply.upvoteCount}</span>
+                  </button>
+                  {(reply.isAuthor || data.isAdmin) && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 text-xs text-zinc-500 hover:text-white"
+                      onClick={() => startEditing(reply.post._id, reply.post.content)}
+                    >
+                      <Pencil className="h-3 w-3" />
+                      Edit
+                    </Button>
+                  )}
+                  {(reply.isAuthor || data.isAdmin) && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-6 text-xs text-red-400/70 hover:text-red-300"
+                      onClick={() => handleDelete(reply.post._id)}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                      Delete
+                    </Button>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         ))}
       </div>
