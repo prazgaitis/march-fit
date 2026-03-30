@@ -1296,3 +1296,106 @@ describe("backfillAchievements", () => {
     expect(after.totalPoints - before.totalPoints).toBe(50);
   });
 });
+
+// ─── STREAK criteria ─────────────────────────────────────────────────────────
+
+describe("Criteria: streak", () => {
+  let t: ReturnType<typeof createTestContext>;
+  let userId: Id<"users">;
+  let challengeId: Id<"challenges">;
+  let runTypeId: Id<"activityTypes">;
+  let tWithAuth: any;
+  const EMAIL = "streaker@example.com";
+
+  beforeEach(async () => {
+    t = createTestContext();
+    userId = await createTestUser(t, { email: EMAIL });
+    tWithAuth = t.withIdentity({ subject: "sub-streaker", email: EMAIL });
+    challengeId = await createTestChallenge(t, userId);
+    runTypeId = await createTestActivityType(t, challengeId, {
+      name: "Outdoor Run",
+      scoringConfig: { type: "unit_based", pointsPerUnit: 8, unit: "miles" },
+    });
+    await createTestParticipation(t, userId, challengeId);
+  });
+
+  it("awards via backfill when currentStreak meets requiredDays", async () => {
+    // Set streak on participation
+    await t.run(async (ctx: any) => {
+      const participation = await ctx.db
+        .query("userChallenges")
+        .withIndex("userChallengeUnique", (q: any) =>
+          q.eq("userId", userId).eq("challengeId", challengeId)
+        )
+        .first();
+      await ctx.db.patch(participation._id, { currentStreak: 29 });
+    });
+
+    await createTestAchievement(t, challengeId, {
+      criteriaType: "streak",
+      requiredDays: 29,
+    });
+
+    // Backfill should award it
+    await t.mutation(
+      internal.mutations.achievements.backfillAchievements,
+      { challengeId, userId }
+    );
+
+    const earned = await getEarnedAchievements(t, userId, challengeId);
+    expect(earned).toHaveLength(1);
+  });
+
+  it("does NOT award when streak is below requiredDays", async () => {
+    await t.run(async (ctx: any) => {
+      const participation = await ctx.db
+        .query("userChallenges")
+        .withIndex("userChallengeUnique", (q: any) =>
+          q.eq("userId", userId).eq("challengeId", challengeId)
+        )
+        .first();
+      await ctx.db.patch(participation._id, { currentStreak: 15 });
+    });
+
+    await createTestAchievement(t, challengeId, {
+      criteriaType: "streak",
+      requiredDays: 29,
+    });
+
+    await t.mutation(
+      internal.mutations.achievements.backfillAchievements,
+      { challengeId, userId }
+    );
+
+    const earned = await getEarnedAchievements(t, userId, challengeId);
+    expect(earned).toHaveLength(0);
+  });
+
+  it("getUserProgress reports correct streak progress", async () => {
+    await t.run(async (ctx: any) => {
+      const participation = await ctx.db
+        .query("userChallenges")
+        .withIndex("userChallengeUnique", (q: any) =>
+          q.eq("userId", userId).eq("challengeId", challengeId)
+        )
+        .first();
+      await ctx.db.patch(participation._id, { currentStreak: 20 });
+    });
+
+    const achievementId = await createTestAchievement(t, challengeId, {
+      criteriaType: "streak",
+      requiredDays: 29,
+    });
+
+    const progress = await tWithAuth.query(
+      api.queries.achievements.getUserProgress,
+      { challengeId }
+    );
+
+    const entry = progress.find((p: any) => p.achievementId === achievementId);
+    expect(entry).toBeDefined();
+    expect(entry.currentCount).toBe(20);
+    expect(entry.requiredCount).toBe(29);
+    expect(entry.isEarned).toBe(false);
+  });
+});

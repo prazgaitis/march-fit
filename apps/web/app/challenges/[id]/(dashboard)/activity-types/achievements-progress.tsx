@@ -32,6 +32,8 @@ function formatProgress(item: ProgressItem): string {
     case "distinct_types":
     case "one_of_each":
       return `${currentCount} / ${requiredCount} types`;
+    case "streak":
+      return `${currentCount} / ${requiredCount} days`;
     case "count":
     default:
       return `${currentCount} / ${requiredCount} activities`;

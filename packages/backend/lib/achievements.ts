@@ -58,10 +58,13 @@ export function getMetricValueWithConversion(
 /**
  * Compute progress numbers for any criteria type.
  * Returns currentCount, requiredCount, and qualifying activity IDs.
+ *
+ * For "streak" criteria, pass `context.currentStreak` from the participation.
  */
 export function computeCriteriaProgress(
   activities: any[],
-  criteria: any
+  criteria: any,
+  context?: { currentStreak?: number }
 ): {
   currentCount: number;
   requiredCount: number;
@@ -189,6 +192,15 @@ export function computeCriteriaProgress(
       };
     }
 
+    case "streak": {
+      const currentStreak = context?.currentStreak ?? 0;
+      return {
+        currentCount: currentStreak,
+        requiredCount: criteria.requiredDays,
+        qualifyingActivityIds: [],
+      };
+    }
+
     default:
       return { currentCount: 0, requiredCount: 0, qualifyingActivityIds: [] };
   }
@@ -197,6 +209,7 @@ export function computeCriteriaProgress(
 /** Get criteria activity type IDs regardless of criteria variant. */
 export function getCriteriaActivityTypeIds(criteria: any): Id<"activityTypes">[] {
   const criteriaType: string = criteria.criteriaType ?? "count";
+  if (criteriaType === "streak") return [];
   if (criteriaType === "all_activity_type_thresholds" || criteriaType === "n_of_thresholds") {
     return Array.from(
       new Set((criteria.requirements ?? []).map((r: any) => r.activityTypeId))

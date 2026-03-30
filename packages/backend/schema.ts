@@ -542,6 +542,11 @@ export default defineSchema({
           })
         ),
       }),
+      // Streak: user's currentStreak on their participation >= requiredDays
+      v.object({
+        criteriaType: v.literal("streak"),
+        requiredDays: v.number(),
+      }),
     ),
     frequency: v.union(
       v.literal("once_per_challenge"),

@@ -56,6 +56,11 @@ export const criteriaValidator = v.union(
       }),
     ),
   }),
+  // Streak: user's currentStreak >= requiredDays
+  v.object({
+    criteriaType: v.literal("streak"),
+    requiredDays: v.number(),
+  }),
 );
 
 /**
@@ -230,7 +235,9 @@ export const backfillAchievements = internalMutation({
         }
 
         const { currentCount, requiredCount, qualifyingActivityIds } =
-          computeCriteriaProgress(allActivities, achievement.criteria);
+          computeCriteriaProgress(allActivities, achievement.criteria, {
+            currentStreak: participation.currentStreak,
+          });
 
         if (currentCount < requiredCount) continue;
 
