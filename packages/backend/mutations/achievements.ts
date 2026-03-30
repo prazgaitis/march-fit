@@ -335,3 +335,84 @@ export const backfillAchievements = internalMutation({
     return { awarded: totalAwarded };
   },
 });
+
+/**
+ * Undo all awards for a specific achievement: delete userAchievements,
+ * delete bonus activities, subtract bonus points, and remove linked badges.
+ *
+ * Run manually:
+ *   ./scripts/convex.sh run mutations/achievements:undoAchievementAwards \
+ *     '{"achievementId": "<id>"}' --prod
+ */
+export const undoAchievementAwards = internalMutation({
+  args: {
+    achievementId: v.id("achievements"),
+  },
+  handler: async (ctx, { achievementId }) => {
+    const achievement = await ctx.db.get(achievementId);
+    if (!achievement) throw new Error("Achievement not found");
+
+    const userAchievements = await ctx.db
+      .query("userAchievements")
+      .withIndex("achievementId", (q) => q.eq("achievementId", achievementId))
+      .collect();
+
+    console.log(`Undoing ${userAchievements.length} awards for "${achievement.name}"`);
+
+    for (const ua of userAchievements) {
+      // Delete the bonus activity
+      if (ua.bonusActivityId) {
+        const bonusActivity = await ctx.db.get(ua.bonusActivityId);
+        if (bonusActivity && !bonusActivity.deletedAt) {
+          const pointsToSubtract = bonusActivity.pointsEarned ?? 0;
+
+          // Subtract points from participation
+          if (pointsToSubtract > 0) {
+            const participation = await ctx.db
+              .query("userChallenges")
+              .withIndex("userChallengeUnique", (q) =>
+                q.eq("userId", ua.userId).eq("challengeId", ua.challengeId)
+              )
+              .first();
+            if (participation) {
+              await ctx.db.patch(participation._id, {
+                totalPoints: participation.totalPoints - pointsToSubtract,
+                updatedAt: Date.now(),
+              });
+            }
+          }
+
+          // Soft-delete the bonus activity
+          await ctx.db.patch(ua.bonusActivityId, {
+            deletedAt: Date.now(),
+            deletedReason: "achievement_undone",
+          });
+        }
+      }
+
+      // Delete linked badges
+      const linkedBadges = await ctx.db
+        .query("badges")
+        .withIndex("achievementId", (q) => q.eq("achievementId", achievementId))
+        .collect();
+
+      for (const badge of linkedBadges) {
+        const userBadge = await ctx.db
+          .query("userBadges")
+          .withIndex("userBadge", (q) =>
+            q.eq("userId", ua.userId).eq("badgeId", badge._id)
+          )
+          .first();
+        if (userBadge) {
+          await ctx.db.delete(userBadge._id);
+        }
+      }
+
+      // Delete the userAchievement record
+      await ctx.db.delete(ua._id);
+    }
+
+    console.log(`Undone ${userAchievements.length} awards`);
+    return { undone: userAchievements.length };
+  },
+});
