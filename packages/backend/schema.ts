@@ -55,6 +55,7 @@ export default defineSchema({
     announcementUpdatedAt: v.optional(v.number()), // When announcement was last changed
     // Gender collection
     allowGenderEdit: v.optional(v.boolean()), // Admin can enable gender editing for participants
+    wrappedEnabled: v.optional(v.boolean()), // Show end-of-challenge Wrapped summary to participants
     // Day number (1-indexed) when the Final Days window begins (e.g. 29 = days 29–end)
     // Used to re-show availableInFinalDays activities. Defaults to durationDays - 1.
     finalDaysStart: v.optional(v.number()),

@@ -133,6 +133,7 @@ export const updateChallenge = mutation({
     announcement: v.optional(v.string()),
     visibility: v.optional(v.union(v.literal("public"), v.literal("private"))),
     allowGenderEdit: v.optional(v.boolean()),
+    wrappedEnabled: v.optional(v.boolean()),
     finalDaysStart: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
@@ -206,6 +207,7 @@ export const updateChallenge = mutation({
     if (updates.welcomeMessage !== undefined) updateData.welcomeMessage = updates.welcomeMessage;
     if (updates.visibility !== undefined) updateData.visibility = updates.visibility;
     if (updates.allowGenderEdit !== undefined) updateData.allowGenderEdit = updates.allowGenderEdit;
+    if (updates.wrappedEnabled !== undefined) updateData.wrappedEnabled = updates.wrappedEnabled;
     if (updates.finalDaysStart !== undefined) updateData.finalDaysStart = updates.finalDaysStart;
 
     // Handle announcement - update timestamp when announcement changes
