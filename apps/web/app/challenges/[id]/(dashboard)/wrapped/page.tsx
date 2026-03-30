@@ -87,10 +87,7 @@ export default function WrappedPage() {
     slides.push({
       key: "activity-volume",
       content: (
-        <ActivityVolumeSlide
-          totalActivities={data.totalActivities}
-          avgActivitiesPerParticipant={data.avgActivitiesPerParticipant}
-        />
+        <ActivityVolumeSlide totalActivities={data.totalActivities} />
       ),
     });
   }

@@ -112,11 +112,13 @@ export default function WrappedAdminPage() {
             disabled={isSaving}
             className="gap-2"
           >
-            {isSaving ? (
+            {isSaving && (
               <Loader2 className="h-4 w-4 animate-spin" />
-            ) : isEnabled ? (
+            )}
+            {!isSaving && isEnabled && (
               <ToggleRight className="h-5 w-5 text-emerald-400" />
-            ) : (
+            )}
+            {!isSaving && !isEnabled && (
               <ToggleLeft className="h-5 w-5 text-zinc-500" />
             )}
             <span className={isEnabled ? "text-emerald-400" : "text-zinc-500"}>

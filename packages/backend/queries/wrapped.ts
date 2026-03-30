@@ -215,25 +215,7 @@ async function computeWrappedData(
       a.source === "manual" || a.source === "strava" || a.source === "apple_health"
   );
 
-  // Total activities across all participants (for average)
-  // Use participation count * estimate instead of scanning all activities
   const totalParticipants = allParticipations.length;
-
-  // Count all challenge activities for average
-  const challengeActivityCount = await ctx.db
-    .query("activities")
-    .withIndex("challengeId", (q: any) => q.eq("challengeId", challengeId))
-    .filter((q: any) =>
-      q.and(
-        notDeleted(q),
-        q.or(
-          q.eq(q.field("source"), "manual"),
-          q.eq(q.field("source"), "strava"),
-          q.eq(q.field("source"), "apple_health")
-        )
-      )
-    )
-    .collect();
 
   // ── Activity Type names lookup ────────────────────────────────────────────
   const activityTypeIds = Array.from(
@@ -406,6 +388,10 @@ async function computeWrappedData(
     .sort((a, b) => a.week - b.week);
 
   // ── Social stats (parallel) ───────────────────────────────────────────────
+
+  // Build set of this user's activity IDs in this challenge for scoping
+  const activityIds = userActivities.map((a: any) => a._id as string);
+
   const [
     likesGivenAll,
     commentsGivenAll,
@@ -413,22 +399,23 @@ async function computeWrappedData(
     pokesReceivedAll,
     forumPostsAll,
     affinitiesFromMe,
-    affinitiesFromOthers,
     miniGameParticipants,
     userAchievements,
     userBadges,
+    // Per-activity likes received (batched)
+    ...likesPerActivity
   ] = await Promise.all([
-    // Likes given
+    // Likes given (all challenges — filtered below)
     ctx.db
       .query("likes")
       .withIndex("userId", (q: any) => q.eq("userId", userId))
       .collect(),
-    // Comments given
+    // Comments given (all challenges — filtered below)
     ctx.db
       .query("comments")
       .withIndex("userId", (q: any) => q.eq("userId", userId))
       .collect(),
-    // Pokes sent (all, will filter by challenge)
+    // Pokes sent
     ctx.db
       .query("pokes")
       .withIndex("pokerPokedChallenge", (q: any) => q.eq("pokerId", userId))
@@ -443,18 +430,11 @@ async function computeWrappedData(
       .query("forumPosts")
       .withIndex("userId", (q: any) => q.eq("userId", userId))
       .collect(),
-    // Affinities: who I engage with
+    // Affinities: who I engage with most
     ctx.db
       .query("userAffinities")
       .withIndex("challengeViewer", (q: any) =>
         q.eq("challengeId", challengeId).eq("viewerUserId", userId)
-      )
-      .collect(),
-    // Affinities: who engages with me
-    ctx.db
-      .query("userAffinities")
-      .withIndex("challengeViewer", (q: any) =>
-        q.eq("challengeId", challengeId)
       )
       .collect(),
     // Mini-game participations
@@ -474,7 +454,70 @@ async function computeWrappedData(
       .withIndex("userId", (q: any) => q.eq("userId", userId))
       .filter((q: any) => q.eq(q.field("challengeId"), challengeId))
       .collect(),
+    // Batch: likes on each of user's activities (indexed, efficient)
+    ...activityIds.map((aid: string) =>
+      ctx.db
+        .query("likes")
+        .withIndex("activityId", (q: any) => q.eq("activityId", aid))
+        .collect()
+    ),
   ]);
+
+  // Build per-activity like counts (for likes received + most popular)
+  const likesPerActivityMap = new Map<string, any[]>();
+  let likesReceived = 0;
+  for (let i = 0; i < activityIds.length; i++) {
+    const likes = likesPerActivity[i] as any[];
+    likesPerActivityMap.set(activityIds[i], likes);
+    likesReceived += likes.length;
+  }
+
+  // Likes given: scope to this challenge by looking up each liked activity
+  // (user typically has ~50-200 likes; individual doc reads are cheaper than scanning 22k activities)
+  const likedActivityDocs = await Promise.all(
+    likesGivenAll.map((l: any) => ctx.db.get(l.activityId))
+  );
+  const likesGiven = likedActivityDocs.filter(
+    (doc: any) => doc && doc.challengeId === challengeId
+  ).length;
+
+  // Comments given: scope to this challenge
+  const commentedActivityIds = Array.from(new Set(
+    commentsGivenAll
+      .filter((c: any) => c.parentType === "activity" && c.activityId)
+      .map((c: any) => c.activityId as string)
+  ));
+  const commentedActivityDocs = await Promise.all(
+    commentedActivityIds.map((id) => ctx.db.get(id as Id<"activities">))
+  );
+  const challengeCommentedIds = new Set(
+    commentedActivityDocs
+      .filter((doc: any) => doc && doc.challengeId === challengeId)
+      .map((doc: any) => doc._id as string)
+  );
+  const commentsGiven = commentsGivenAll.filter(
+    (c: any) =>
+      c.parentType === "activity" &&
+      challengeCommentedIds.has(c.activityId as string)
+  ).length;
+
+  // Comments received: batch query per activity
+  const commentsPerActivity = await Promise.all(
+    activityIds.map((aid: string) =>
+      ctx.db
+        .query("comments")
+        .withIndex("activityIdByType", (q: any) =>
+          q.eq("activityId", aid).eq("parentType", "activity")
+        )
+        .collect()
+    )
+  );
+  let commentsReceived = 0;
+  for (const comments of commentsPerActivity) {
+    commentsReceived += (comments as any[]).filter(
+      (c: any) => c.userId !== userId
+    ).length;
+  }
 
   // Filter social data to this challenge
   const pokesSent = pokesSentAll.filter(
@@ -491,36 +534,17 @@ async function computeWrappedData(
     (p: any) =>
       p.challengeId === challengeId && p.parentPostId && !p.deletedAt
   ).length;
-  const commentsGiven = commentsGivenAll.filter(
-    (c: any) => c.parentType === "activity"
-  ).length;
 
-  // Likes received: count likes on user's activities
-  const activityIds = new Set(
-    userActivities.map((a: any) => a._id as string)
-  );
-  const allLikesOnMyActivities = await ctx.db
-    .query("likes")
-    .withIndex("createdAt")
-    .collect();
-  const likesReceived = allLikesOnMyActivities.filter((l: any) =>
-    activityIds.has(l.activityId as string)
-  ).length;
-
-  // Comments received
-  const allCommentsOnMyActivities = await ctx.db
-    .query("comments")
-    .withIndex("createdAt")
-    .collect();
-  const commentsReceived = allCommentsOnMyActivities.filter(
-    (c: any) =>
-      c.parentType === "activity" &&
-      activityIds.has(c.activityId as string) &&
-      c.userId !== userId
-  ).length;
-
-  // Biggest fan (who engages most with me)
-  const affinitiesForMe = affinitiesFromOthers
+  // Biggest fan: find who engages most with me via affinities
+  // Query all challenge affinities where I'm the author (who views me most)
+  const affinitiesForMe = (
+    await ctx.db
+      .query("userAffinities")
+      .withIndex("challengeViewer", (q: any) =>
+        q.eq("challengeId", challengeId)
+      )
+      .collect()
+  )
     .filter((a: any) => a.authorUserId === userId && a.viewerUserId !== userId)
     .sort((a: any, b: any) => b.score - a.score);
 
@@ -553,27 +577,18 @@ async function computeWrappedData(
     }
   }
 
-  // Most popular activity (most likes)
+  // Most popular activity (most likes, using pre-fetched per-activity likes)
   let mostPopularActivity: WrappedData["mostPopularActivity"] = null;
   if (userActivities.length > 0) {
-    const likeCounts = new Map<string, number>();
-    for (const like of allLikesOnMyActivities) {
-      if (activityIds.has(like.activityId as string)) {
-        likeCounts.set(
-          like.activityId as string,
-          (likeCounts.get(like.activityId as string) ?? 0) + 1
-        );
-      }
-    }
     let maxLikes = 0;
     let popularId: string | null = null;
-    for (const [aid, count] of likeCounts) {
-      if (count > maxLikes) {
-        maxLikes = count;
+    for (const [aid, likes] of likesPerActivityMap) {
+      if (likes.length > maxLikes) {
+        maxLikes = likes.length;
         popularId = aid;
       }
     }
-    if (popularId) {
+    if (popularId && maxLikes > 0) {
       const activity = userActivities.find(
         (a: any) => (a._id as string) === popularId
       );
@@ -665,9 +680,7 @@ async function computeWrappedData(
     totalActivities: userActivities.filter(
       (a: any) => !typeMap.get(a.activityTypeId)?.isNegative
     ).length,
-    avgActivitiesPerParticipant: Math.round(
-      challengeActivityCount.length / totalParticipants
-    ),
+    avgActivitiesPerParticipant: 0,
 
     currentStreak: participation.currentStreak,
 
@@ -685,7 +698,7 @@ async function computeWrappedData(
     categoryBreakdown,
     bonusMilestones,
 
-    likesGiven: likesGivenAll.length,
+    likesGiven,
     likesReceived,
     biggestFan,
     yourFavorite,
@@ -733,9 +746,30 @@ export const getWrappedPreview = query({
     userId: v.id("users"),
   },
   handler: async (ctx, args) => {
-    // Admin auth: must be a participant with admin role, creator, or global admin
     const currentUser = await getCurrentUser(ctx);
     if (!currentUser) return null;
+
+    // Verify admin access: global admin, challenge creator, or challenge admin
+    const challenge = await ctx.db.get(args.challengeId);
+    if (!challenge) return null;
+
+    let isAdmin = currentUser.role === "admin";
+    if (!isAdmin && challenge.creatorId === currentUser._id) {
+      isAdmin = true;
+    }
+    if (!isAdmin) {
+      const participation = await ctx.db
+        .query("userChallenges")
+        .withIndex("userChallengeUnique", (q: any) =>
+          q.eq("userId", currentUser._id).eq("challengeId", args.challengeId)
+        )
+        .first();
+      if (participation?.role === "admin") {
+        isAdmin = true;
+      }
+    }
+    if (!isAdmin) return null;
+
     return computeWrappedData(ctx, args.userId, args.challengeId);
   },
 });

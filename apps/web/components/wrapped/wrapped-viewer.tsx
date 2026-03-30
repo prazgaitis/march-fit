@@ -93,11 +93,8 @@ export function WrappedViewer({ slides, challengeId }: WrappedViewerProps) {
             <div
               className={cn(
                 "h-full rounded-full transition-all duration-300",
-                i < currentIndex
-                  ? "w-full bg-white"
-                  : i === currentIndex
-                    ? "w-full bg-white/80"
-                    : "w-0 bg-white"
+                i <= currentIndex ? "w-full" : "w-0",
+                i < currentIndex ? "bg-white" : "bg-white/80"
               )}
             />
           </div>
