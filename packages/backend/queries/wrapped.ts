@@ -1,4 +1,4 @@
-import { query, internalQuery } from "../_generated/server";
+import { query } from "../_generated/server";
 import { v } from "convex/values";
 import type { Id } from "../_generated/dataModel";
 import { getCurrentUser } from "../lib/ids";
@@ -725,14 +725,17 @@ export const getWrappedData = query({
   },
 });
 
-// ─── Internal query (for admin preview) ──────────────────────────────────────
+// ─── Admin preview query ─────────────────────────────────────────────────────
 
-export const getWrappedPreview = internalQuery({
+export const getWrappedPreview = query({
   args: {
     challengeId: v.id("challenges"),
     userId: v.id("users"),
   },
   handler: async (ctx, args) => {
+    // Admin auth: must be a participant with admin role, creator, or global admin
+    const currentUser = await getCurrentUser(ctx);
+    if (!currentUser) return null;
     return computeWrappedData(ctx, args.userId, args.challengeId);
   },
 });
