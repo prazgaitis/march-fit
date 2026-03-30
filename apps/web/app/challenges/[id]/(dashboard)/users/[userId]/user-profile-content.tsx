@@ -940,8 +940,8 @@ function QualifyingActivitiesList({
             </span>
             <div className="flex items-center gap-3 shrink-0 tabular-nums">
               <span className="text-zinc-600">{a.loggedDate}</span>
-              <span className="w-12 text-right font-mono text-zinc-500">
-                {a.pointsEarned}
+              <span className="text-right font-mono text-zinc-500">
+                {Math.round(a.pointsEarned)}
               </span>
             </div>
           </div>
