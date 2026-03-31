@@ -7,6 +7,7 @@ import { formatDateShortFromDateOnly } from "@/lib/date-only";
 
 import { ActivityLogDialogLazy as ActivityLogDialog } from "./activity-log-dialog-lazy";
 import { AnnouncementBanner } from "./announcement-banner";
+import { WrappedBanner } from "../wrapped/wrapped-banner";
 import { PaymentRequiredBanner } from "./payment-required-banner";
 import { DashboardNav } from "./dashboard-nav";
 import { DashboardUserMenu } from "./dashboard-user-menu";
@@ -129,6 +130,7 @@ export function DashboardLayout({
         className="min-h-0 min-w-0 flex-1 overflow-x-hidden scrollbar-hide pt-[env(safe-area-inset-top)] pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:overflow-y-auto lg:overscroll-contain lg:pt-0 lg:pb-0"
       >
         <PaymentRequiredBanner challengeId={challenge.id} />
+        <WrappedBanner challengeId={challenge.id} />
         <AnnouncementBanner challengeId={challenge.id} />
         {children}
       </main>

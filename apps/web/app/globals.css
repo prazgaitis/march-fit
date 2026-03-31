@@ -415,4 +415,16 @@
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
   }
+
+  /* Wrapped slide animations */
+  @keyframes slide-in-right {
+    from { transform: translateX(60px); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+  @keyframes slide-in-left {
+    from { transform: translateX(-60px); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+  .animate-slide-in-right { animation: slide-in-right 0.35s ease-out; }
+  .animate-slide-in-left { animation: slide-in-left 0.35s ease-out; }
 }

@@ -139,6 +139,7 @@ import type * as queries_paymentConfigInternal from "../queries/paymentConfigInt
 import type * as queries_templates from "../queries/templates.js";
 import type * as queries_users from "../queries/users.js";
 import type * as queries_workspaces from "../queries/workspaces.js";
+import type * as queries_wrapped from "../queries/wrapped.js";
 
 import type {
   ApiFromModules,
@@ -278,6 +279,7 @@ declare const fullApi: ApiFromModules<{
   "queries/templates": typeof queries_templates;
   "queries/users": typeof queries_users;
   "queries/workspaces": typeof queries_workspaces;
+  "queries/wrapped": typeof queries_wrapped;
 }>;
 
 /**
