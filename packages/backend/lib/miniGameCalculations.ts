@@ -6,7 +6,7 @@
  */
 import type { Id } from "../_generated/dataModel";
 import type { QueryCtx } from "../_generated/server";
-import { notDeleted, isPrEligibleKind } from "./activityFilters";
+import { notDeleted, isPrEligibleKind, isUserLoggedActivity } from "./activityFilters";
 import { formatDateOnlyFromUtcMs } from "./dateOnly";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
@@ -464,6 +464,7 @@ export async function calculateMaxDailyPoints(
 
   for (const activity of activities) {
     if (activity.loggedDate >= beforeDate) continue;
+    if (!isUserLoggedActivity(activity)) continue;
     if (!eligibleTypeIds.has(activity.activityTypeId)) continue;
 
     const dateStr = formatDateOnlyFromUtcMs(activity.loggedDate);
@@ -559,6 +560,7 @@ export async function getMaxDailyPointsInPeriod(
     if (
       activity.loggedDate < startDate ||
       activity.loggedDate > endDate ||
+      !isUserLoggedActivity(activity) ||
       !eligibleTypeIds.has(activity.activityTypeId)
     )
       continue;
