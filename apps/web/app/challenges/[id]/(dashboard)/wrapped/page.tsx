@@ -265,5 +265,11 @@ export default function WrappedPage() {
     ),
   });
 
-  return <WrappedViewer slides={slides} challengeId={challengeId} />;
+  return (
+    <WrappedViewer
+      slides={slides}
+      challengeId={challengeId}
+      activityPhotoIds={data.activityPhotoIds}
+    />
+  );
 }

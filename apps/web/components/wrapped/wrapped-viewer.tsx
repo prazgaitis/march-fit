@@ -4,13 +4,36 @@ import { useState, useCallback, useRef, useEffect, type ReactNode } from "react"
 import { useRouter } from "next/navigation";
 import { X, ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/utils";
+import {
+  BubbleBackground,
+  SLIDE_BUBBLE_COLORS,
+  type BubbleColors,
+} from "./bubble-background";
+import { FloatingPhotos } from "./floating-photos";
 
 interface WrappedViewerProps {
   slides: Array<{ key: string; content: ReactNode }>;
   challengeId: string;
+  activityPhotoIds?: string[];
 }
 
-export function WrappedViewer({ slides, challengeId }: WrappedViewerProps) {
+/** Slides that show the user's floating activity photos */
+const PHOTO_SLIDES = new Set([
+  "final-standing",
+  "fun-stats",
+  "thank-you",
+  "activity-volume",
+]);
+
+const DEFAULT_BUBBLE_COLORS: BubbleColors = {
+  first: "60,60,120",
+  second: "80,40,140",
+  third: "40,80,160",
+  fourth: "100,60,100",
+  fifth: "50,70,130",
+};
+
+export function WrappedViewer({ slides, challengeId, activityPhotoIds = [] }: WrappedViewerProps) {
   const router = useRouter();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [direction, setDirection] = useState<"forward" | "backward">("forward");
@@ -81,10 +104,21 @@ export function WrappedViewer({ slides, challengeId }: WrappedViewerProps) {
     else if (x > 0.7) goNext();
   }
 
+  const currentSlide = slides[currentIndex];
+  const bubbleColors =
+    SLIDE_BUBBLE_COLORS[currentSlide?.key ?? ""] ?? DEFAULT_BUBBLE_COLORS;
+
   return (
     <div className="fixed inset-0 z-50 bg-black flex flex-col">
+      {/* Animated bubble background */}
+      <BubbleBackground
+        key={currentSlide?.key}
+        colors={bubbleColors}
+        className="opacity-30"
+      />
+
       {/* Progress bar */}
-      <div className="flex-shrink-0 flex gap-1 px-3 pt-3 pb-2">
+      <div className="relative z-10 flex-shrink-0 flex gap-1 px-3 pt-3 pb-2">
         {slides.map((slide, i) => (
           <div
             key={slide.key}
@@ -104,38 +138,47 @@ export function WrappedViewer({ slides, challengeId }: WrappedViewerProps) {
       {/* Close button */}
       <button
         onClick={() => router.push(`/challenges/${challengeId}/dashboard`)}
-        className="absolute right-3 top-3 z-10 flex h-8 w-8 items-center justify-center rounded-full bg-zinc-900/80 text-zinc-400 hover:text-white transition-colors"
+        className="absolute right-3 top-3 z-20 flex h-8 w-8 items-center justify-center rounded-full bg-zinc-900/80 text-zinc-400 hover:text-white transition-colors"
       >
         <X className="h-4 w-4" />
       </button>
 
       {/* Slide counter */}
-      <div className="absolute left-3 top-4 z-10 text-[10px] font-mono uppercase tracking-wider text-zinc-600">
+      <div className="absolute left-3 top-4 z-20 text-[10px] font-mono uppercase tracking-wider text-zinc-600">
         {currentIndex + 1} / {total}
       </div>
 
       {/* Slide content */}
       <div
         ref={containerRef}
-        className="flex-1 min-h-0 relative overflow-hidden cursor-pointer"
+        className="flex-1 min-h-0 relative overflow-hidden cursor-pointer z-10"
         onClick={handleClick}
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
       >
+        {/* Floating user photos on select slides */}
+        {activityPhotoIds.length > 0 &&
+          PHOTO_SLIDES.has(currentSlide?.key ?? "") && (
+            <FloatingPhotos
+              key={`photos-${currentSlide?.key}`}
+              photoIds={activityPhotoIds}
+            />
+          )}
+
         <div
           className={cn(
-            "absolute inset-0 flex items-center justify-center p-6",
+            "absolute inset-0 flex items-center justify-center p-6 z-10",
             isAnimating && direction === "forward" && "animate-slide-in-right",
             isAnimating && direction === "backward" && "animate-slide-in-left"
           )}
           key={currentIndex}
         >
-          {slides[currentIndex]?.content}
+          {currentSlide?.content}
         </div>
       </div>
 
       {/* Desktop nav arrows */}
-      <div className="hidden md:flex absolute inset-y-0 left-0 items-center pl-2">
+      <div className="hidden md:flex absolute inset-y-0 left-0 items-center pl-2 z-20">
         {currentIndex > 0 && (
           <button
             onClick={(e) => {
@@ -148,7 +191,7 @@ export function WrappedViewer({ slides, challengeId }: WrappedViewerProps) {
           </button>
         )}
       </div>
-      <div className="hidden md:flex absolute inset-y-0 right-0 items-center pr-2">
+      <div className="hidden md:flex absolute inset-y-0 right-0 items-center pr-2 z-20">
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -162,7 +205,7 @@ export function WrappedViewer({ slides, challengeId }: WrappedViewerProps) {
 
       {/* Tap hint (first slide only) */}
       {currentIndex === 0 && (
-        <div className="absolute bottom-6 inset-x-0 text-center md:hidden">
+        <div className="absolute bottom-6 inset-x-0 text-center md:hidden z-20">
           <p className="text-[10px] uppercase tracking-widest text-zinc-600 animate-pulse">
             Tap to continue
           </p>
