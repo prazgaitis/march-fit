@@ -37,6 +37,7 @@ export const getPaymentConfig = query({
       testMode: config.testMode,
       priceInCents: config.priceInCents,
       currency: config.currency,
+      allowCustomAmount: config.allowCustomAmount ?? false,
       createdAt: config.createdAt,
       updatedAt: config.updatedAt,
     };
