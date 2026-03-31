@@ -27,6 +27,7 @@ import {
   UserMinus,
   UserPlus,
   Users,
+  Sparkles,
   Zap,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -466,6 +467,29 @@ export function UserProfileContent({
       <div className="px-4 py-4">
         <BadgesSection badges={userBadges} />
       </div>
+
+      {/* ── Wrapped ──────────────────────────────────────────────── */}
+      {challenge.wrappedEnabled && followData?.isOwnProfile && (
+        <div className="px-4 py-4">
+          <Link
+            href={`/challenges/${challengeId}/wrapped`}
+            className="group flex items-center gap-3 rounded-xl border border-fuchsia-500/20 bg-gradient-to-r from-fuchsia-500/5 via-indigo-500/5 to-cyan-500/5 px-4 py-3 transition-all hover:border-fuchsia-500/40 hover:from-fuchsia-500/10 hover:via-indigo-500/10 hover:to-cyan-500/10"
+          >
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-fuchsia-500/20 to-cyan-500/20">
+              <Sparkles className="h-4 w-4 text-fuchsia-400" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold bg-gradient-to-r from-fuchsia-300 via-indigo-300 to-cyan-300 bg-clip-text text-transparent">
+                Your Wrapped
+              </p>
+              <p className="text-xs text-muted-foreground">
+                View your personalized challenge summary
+              </p>
+            </div>
+            <ChevronRight className="h-4 w-4 text-zinc-600 transition-transform group-hover:translate-x-0.5" />
+          </Link>
+        </div>
+      )}
 
       {participation && streakCalendar && (
         <>

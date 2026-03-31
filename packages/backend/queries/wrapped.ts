@@ -114,6 +114,9 @@ type WrappedData = {
   photosShared: number;
   drinkPenalties: number;
   drinkPenaltyPoints: number;
+
+  // Activity photos (cloudinary public IDs for wrapped backgrounds)
+  activityPhotoIds: string[];
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -167,6 +170,16 @@ function getElevationMeters(metrics: Record<string, unknown>): number {
     0;
   if (feet > 0) return feet * 0.3048;
   return 0;
+}
+
+/** Fisher-Yates shuffle a copy of the array, return at most `n` items. */
+function shuffleAndTake<T>(arr: T[], n: number): T[] {
+  const copy = [...arr];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy.slice(0, n);
 }
 
 // ─── Core computation ────────────────────────────────────────────────────────
@@ -236,6 +249,7 @@ async function computeWrappedData(
   let photosShared = 0;
   let drinkPenalties = 0;
   let drinkPenaltyPoints = 0;
+  const activityPhotoIds: string[] = [];
 
   const typeCountMap = new Map<string, { count: number; points: number }>();
   const dailyPoints = new Map<
@@ -256,6 +270,12 @@ async function computeWrappedData(
     // Photos
     if (activity.cloudinaryPublicIds?.length > 0) {
       photosShared++;
+      for (const pid of activity.cloudinaryPublicIds) {
+        // Only collect image public IDs (skip videos prefixed with "v/")
+        if (!pid.startsWith("v/")) {
+          activityPhotoIds.push(pid);
+        }
+      }
     }
 
     // Drink penalties
@@ -718,6 +738,9 @@ async function computeWrappedData(
     photosShared,
     drinkPenalties,
     drinkPenaltyPoints: Math.round(drinkPenaltyPoints),
+
+    // Up to 12 random photos for wrapped backgrounds
+    activityPhotoIds: shuffleAndTake(activityPhotoIds, 12),
   };
 }
 

@@ -427,4 +427,45 @@
   }
   .animate-slide-in-right { animation: slide-in-right 0.35s ease-out; }
   .animate-slide-in-left { animation: slide-in-left 0.35s ease-out; }
+
+  /* Wrapped bubble background animations */
+  @keyframes bubble-float-y {
+    0%, 100% { transform: translateY(-30px); }
+    50% { transform: translateY(30px); }
+  }
+  @keyframes bubble-float-x {
+    0%, 100% { transform: translateX(-30px); }
+    50% { transform: translateX(30px); }
+  }
+  @keyframes bubble-rotate-slow {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+  @keyframes bubble-rotate-medium {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+  .animate-bubble-float-y { animation: bubble-float-y 20s ease-in-out infinite; }
+  .animate-bubble-float-x { animation: bubble-float-x 25s ease-in-out infinite; }
+  .animate-bubble-rotate-slow { animation: bubble-rotate-slow 30s linear infinite; }
+  .animate-bubble-rotate-medium { animation: bubble-rotate-medium 20s linear infinite; }
+
+  /* Wrapped photo float animations */
+  @keyframes photo-float-1 {
+    0%, 100% { transform: translate(0, 0) rotate(-3deg) scale(1); }
+    33% { transform: translate(8px, -12px) rotate(2deg) scale(1.02); }
+    66% { transform: translate(-6px, 8px) rotate(-1deg) scale(0.98); }
+  }
+  @keyframes photo-float-2 {
+    0%, 100% { transform: translate(0, 0) rotate(2deg) scale(1); }
+    33% { transform: translate(-10px, 6px) rotate(-3deg) scale(1.03); }
+    66% { transform: translate(6px, -10px) rotate(1deg) scale(0.97); }
+  }
+  @keyframes photo-float-3 {
+    0%, 100% { transform: translate(0, 0) rotate(-1deg) scale(1); }
+    50% { transform: translate(10px, 10px) rotate(3deg) scale(1.02); }
+  }
+  .animate-photo-float-1 { animation: photo-float-1 12s ease-in-out infinite; }
+  .animate-photo-float-2 { animation: photo-float-2 15s ease-in-out infinite; }
+  .animate-photo-float-3 { animation: photo-float-3 10s ease-in-out infinite; }
 }

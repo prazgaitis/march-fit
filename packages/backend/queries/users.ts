@@ -265,6 +265,7 @@ export const getProfile = query({
       challenge: {
         id: challenge._id,
         name: challenge.name,
+        wrappedEnabled: challenge.wrappedEnabled ?? false,
       },
       participation: participation
         ? {
