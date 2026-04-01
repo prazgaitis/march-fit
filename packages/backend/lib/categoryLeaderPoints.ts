@@ -22,8 +22,12 @@ export function getWeeklyPlacementPoints(weekNumber: number): number[] {
   return PLACEMENT_MULTIPLIERS.map((m) => weekNumber * m);
 }
 
-export function getCumulativePlacementPoints(totalWeeks: number): number[] {
-  return PLACEMENT_MULTIPLIERS.map((m) => (totalWeeks + 1) * m);
+export function getCumulativePlacementPoints(durationDays: number): number[] {
+  // Use full award weeks (floor division) so partial stub weeks don't
+  // inflate cumulative points. A 29-day challenge has 4 full weeks of
+  // weekly awards, so cumulative = (4+1) × multiplier = 50/25/15.
+  const awardWeeks = Math.floor(durationDays / 7);
+  return PLACEMENT_MULTIPLIERS.map((m) => (awardWeeks + 1) * m);
 }
 
 export function placementLabel(placement: number): string {
