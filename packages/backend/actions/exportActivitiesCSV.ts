@@ -48,21 +48,18 @@ export const generateCSV = action({
       );
 
       // Build lookup maps
-      const userMap = new Map<string, { name: string; username: string; email: string }>(
-        users.map((u: any) => [
-          u._id,
-          { name: u.name, username: u.username, email: u.email },
-        ]),
-      );
-      const activityTypeMap = new Map<string, { name: string; categoryId: string | undefined }>(
-        activityTypes.map((at: any) => [
-          at._id,
-          { name: at.name, categoryId: at.categoryId },
-        ]),
-      );
-      const categoryMap = new Map<string, string>(
-        categories.map((c: any) => [c._id, c.name]),
-      );
+      const userMap = new Map<string, { name: string; username: string; email: string }>();
+      for (const u of users as any[]) {
+        userMap.set(u._id, { name: u.name, username: u.username, email: u.email });
+      }
+      const activityTypeMap = new Map<string, { name: string; categoryId?: string }>();
+      for (const at of activityTypes as any[]) {
+        activityTypeMap.set(at._id, { name: at.name, categoryId: at.categoryId });
+      }
+      const categoryMap = new Map<string, string>();
+      for (const c of categories as any[]) {
+        categoryMap.set(c._id, c.name);
+      }
 
       // Pass 1: Paginate through all activities and collect them + discover metric keys
       const allActivities: any[] = [];
