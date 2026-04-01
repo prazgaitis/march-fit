@@ -206,13 +206,20 @@ export const generateXLSX = action({
 
       const summaryRows: any[][] = [];
 
-      // ── Per-user sheets ──────────────────────────────────────
-      type UserSheetData = {
-        name: string;
-        sheetName: string;
-        rows: any[][];
-      };
-      const userSheets: UserSheetData[] = [];
+      // ── Sheet 3: Daily Breakdown (all users) ─────────────────
+      const dailyHeaders = [
+        "Name",
+        "Username",
+        "Date",
+        "Day #",
+        "Activities",
+        "Points",
+        "Running Total",
+        "Streak",
+        "Activity Breakdown",
+      ];
+
+      const dailyRows: any[][] = [];
 
       // Sort users by name for consistent ordering
       const sortedUserIds = Array.from(userMap.entries())
@@ -261,18 +268,7 @@ export const generateXLSX = action({
           streakResult.currentStreak,
         ]);
 
-        // Per-user sheet: daily breakdown
-        const userSheetHeaders = [
-          "Date",
-          "Day #",
-          "Activities",
-          "Points",
-          "Running Total",
-          "Streak",
-          "Activity Breakdown",
-        ];
-
-        const userRows: any[][] = [];
+        // Daily breakdown rows for this user
         let runningTotal = 0;
 
         for (let i = 0; i < dateRange.length; i++) {
@@ -294,7 +290,9 @@ export const generateXLSX = action({
             })
             .join("; ");
 
-          userRows.push([
+          dailyRows.push([
+            user.name,
+            user.username,
             dateStr,
             i + 1,
             dayActivities.length,
@@ -304,15 +302,6 @@ export const generateXLSX = action({
             breakdown,
           ]);
         }
-
-        // Sanitize sheet name (max 31 chars, no special chars)
-        const sheetName = sanitizeSheetName(user.name || user.username);
-
-        userSheets.push({
-          name: user.name,
-          sheetName,
-          rows: [userSheetHeaders, ...userRows],
-        });
       }
 
       // Sort summary by total points descending
@@ -331,21 +320,10 @@ export const generateXLSX = action({
       setColumnWidths(ws2, summaryHeaders);
       XLSX.utils.book_append_sheet(wb, ws2, "User Summary");
 
-      // Per-user sheets (deduplicate names)
-      const usedNames = new Set(["All Activities", "User Summary"]);
-      for (const sheet of userSheets) {
-        let name = sheet.sheetName;
-        let suffix = 2;
-        while (usedNames.has(name)) {
-          name = `${sheet.sheetName.slice(0, 27)} (${suffix})`;
-          suffix++;
-        }
-        usedNames.add(name);
-
-        const ws = XLSX.utils.aoa_to_sheet(sheet.rows);
-        setColumnWidths(ws, sheet.rows[0]);
-        XLSX.utils.book_append_sheet(wb, ws, name);
-      }
+      // Sheet 3: Daily Breakdown (all users, filterable by name)
+      const ws3 = XLSX.utils.aoa_to_sheet([dailyHeaders, ...dailyRows]);
+      setColumnWidths(ws3, dailyHeaders);
+      XLSX.utils.book_append_sheet(wb, ws3, "Daily Breakdown");
 
       // Write to buffer
       const xlsxBuffer = XLSX.write(wb, {
@@ -438,14 +416,6 @@ function extractText(node: any): string {
     return node.content.map(extractText).join("");
   }
   return "";
-}
-
-function sanitizeSheetName(name: string): string {
-  // Excel sheet names: max 31 chars, no [ ] * ? / \
-  return name
-    .replace(/[[\]*?/\\]/g, "")
-    .slice(0, 31)
-    .trim() || "User";
 }
 
 function buildDateRange(
