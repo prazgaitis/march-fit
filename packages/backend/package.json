@@ -64,7 +64,8 @@
     "@convex-dev/resend": "^0.2.3",
     "@noble/hashes": "^2.0.1",
     "convex": "^1.33.1",
-    "stripe": "^20.0.0"
+    "stripe": "^20.0.0",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/node": "^20",

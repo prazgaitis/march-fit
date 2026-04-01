@@ -17,6 +17,7 @@ import type * as actions_cleanup from "../actions/cleanup.js";
 import type * as actions_clear from "../actions/clear.js";
 import type * as actions_createChallengeFromConfig from "../actions/createChallengeFromConfig.js";
 import type * as actions_exportActivitiesCSV from "../actions/exportActivitiesCSV.js";
+import type * as actions_exportActivitiesXLSX from "../actions/exportActivitiesXLSX.js";
 import type * as actions_fix2025ActivityTypes from "../actions/fix2025ActivityTypes.js";
 import type * as actions_fixContributesToStreak from "../actions/fixContributesToStreak.js";
 import type * as actions_fixSwimmingCategoryFlag from "../actions/fixSwimmingCategoryFlag.js";
@@ -162,6 +163,7 @@ declare const fullApi: ApiFromModules<{
   "actions/clear": typeof actions_clear;
   "actions/createChallengeFromConfig": typeof actions_createChallengeFromConfig;
   "actions/exportActivitiesCSV": typeof actions_exportActivitiesCSV;
+  "actions/exportActivitiesXLSX": typeof actions_exportActivitiesXLSX;
   "actions/fix2025ActivityTypes": typeof actions_fix2025ActivityTypes;
   "actions/fixContributesToStreak": typeof actions_fixContributesToStreak;
   "actions/fixSwimmingCategoryFlag": typeof actions_fixSwimmingCategoryFlag;

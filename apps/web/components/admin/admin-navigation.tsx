@@ -24,7 +24,7 @@ export function AdminNavigation({ groups }: AdminNavigationProps) {
   const segment = useSelectedLayoutSegment();
 
   return (
-    <nav className="flex items-center gap-0.5 -mb-px">
+    <nav className="flex flex-wrap items-center gap-0.5 -mb-px overflow-x-auto scrollbar-none">
       {groups.map((group, groupIdx) => (
         <div key={group.label} className="flex items-center">
           {/* Divider between groups */}

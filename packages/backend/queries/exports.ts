@@ -116,6 +116,18 @@ export const getAllCategories = internalQuery({
 });
 
 /**
+ * Internal query: get challenge details (for XLSX export date range).
+ */
+export const getChallengeById = internalQuery({
+  args: {
+    challengeId: v.id("challenges"),
+  },
+  handler: async (ctx, args) => {
+    return await ctx.db.get(args.challengeId);
+  },
+});
+
+/**
  * Internal query: get a single export by ID.
  */
 export const getById = internalQuery({
