@@ -64,7 +64,38 @@ export const generateCSV = action({
         categories.map((c: any) => [c._id, c.name]),
       );
 
-      // CSV header
+      // Pass 1: Paginate through all activities and collect them + discover metric keys
+      const allActivities: any[] = [];
+      const metricKeysSet = new Set<string>();
+      let cursor: string | undefined = undefined;
+
+      while (true) {
+        const result: any = await ctx.runQuery(
+          internal.queries.exports.getActivitiesPage,
+          {
+            challengeId: args.challengeId,
+            cursor,
+            pageSize: PAGE_SIZE,
+          },
+        );
+
+        for (const activity of result.page) {
+          allActivities.push(activity);
+          if (activity.metrics && typeof activity.metrics === "object") {
+            for (const key of Object.keys(activity.metrics)) {
+              metricKeysSet.add(key);
+            }
+          }
+        }
+
+        if (result.isDone) break;
+        cursor = result.continueCursor;
+      }
+
+      // Sort metric keys alphabetically for consistent column order
+      const metricKeys = [...metricKeysSet].sort();
+
+      // Build CSV header with individual metric columns
       const CSV_HEADERS = [
         "Activity ID",
         "User Name",
@@ -85,60 +116,51 @@ export const generateCSV = action({
         "Local Time",
         "Timezone",
         "Created At",
-        "Metrics",
+        ...metricKeys.map((k) => `Metric: ${k}`),
       ];
 
+      // Pass 2: Build CSV rows
       const csvRows: string[] = [CSV_HEADERS.map(escapeCSV).join(",")];
-      let totalRows = 0;
-      let cursor: string | undefined = undefined;
+      const totalRows = allActivities.length;
 
-      // Paginate through all activities
-      while (true) {
-        const result: any = await ctx.runQuery(
-          internal.queries.exports.getActivitiesPage,
-          {
-            challengeId: args.challengeId,
-            cursor,
-            pageSize: PAGE_SIZE,
-          },
+      for (const activity of allActivities) {
+        const user = userMap.get(activity.userId);
+        const activityType = activityTypeMap.get(activity.activityTypeId);
+        const categoryName = activityType?.categoryId
+          ? categoryMap.get(activityType.categoryId) ?? ""
+          : "";
+
+        const metrics = activity.metrics ?? {};
+        const metricValues = metricKeys.map((key) =>
+          metrics[key] !== undefined && metrics[key] !== null
+            ? String(metrics[key])
+            : "",
         );
 
-        for (const activity of result.page) {
-          const user = userMap.get(activity.userId);
-          const activityType = activityTypeMap.get(activity.activityTypeId);
-          const categoryName = activityType?.categoryId
-            ? categoryMap.get(activityType.categoryId) ?? ""
-            : "";
+        const row = [
+          activity._id,
+          user?.name ?? "",
+          user?.username ?? "",
+          user?.email ?? "",
+          activityType?.name ?? "",
+          categoryName,
+          formatDate(activity.loggedDate),
+          String(activity.pointsEarned),
+          activity.source,
+          activity.notes ?? "",
+          activity.flagged ? "Yes" : "No",
+          activity.flaggedReason ?? "",
+          activity.resolutionStatus ?? "",
+          activity.locationCity ?? "",
+          activity.locationState ?? "",
+          activity.locationCountry ?? "",
+          activity.localTime ?? "",
+          activity.timezone ?? "",
+          formatDate(activity.createdAt),
+          ...metricValues,
+        ];
 
-          const row = [
-            activity._id,
-            user?.name ?? "",
-            user?.username ?? "",
-            user?.email ?? "",
-            activityType?.name ?? "",
-            categoryName,
-            formatDate(activity.loggedDate),
-            String(activity.pointsEarned),
-            activity.source,
-            activity.notes ?? "",
-            activity.flagged ? "Yes" : "No",
-            activity.flaggedReason ?? "",
-            activity.resolutionStatus ?? "",
-            activity.locationCity ?? "",
-            activity.locationState ?? "",
-            activity.locationCountry ?? "",
-            activity.localTime ?? "",
-            activity.timezone ?? "",
-            formatDate(activity.createdAt),
-            activity.metrics ? JSON.stringify(activity.metrics) : "",
-          ];
-
-          csvRows.push(row.map(escapeCSV).join(","));
-          totalRows++;
-        }
-
-        if (result.isDone) break;
-        cursor = result.continueCursor;
+        csvRows.push(row.map(escapeCSV).join(","));
       }
 
       // Store CSV in Convex file storage
