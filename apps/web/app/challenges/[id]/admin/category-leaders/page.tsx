@@ -107,7 +107,8 @@ export default function CategoryLeadersPage() {
           Category Leader Awards
         </h1>
         <p className="mt-0.5 text-xs text-zinc-500">
-          Award bonus points to top 3 category leaders per week
+          Award bonus points to top 3 category leaders per week.
+          Cumulative awards are split by gender (Women&apos;s &amp; Open).
         </p>
       </div>
 
@@ -227,76 +228,117 @@ export default function CategoryLeadersPage() {
                 </span>
               </div>
 
-              {/* Placements */}
-              <div className="divide-y divide-zinc-800/50">
-                {award.placements.map((p: any) => {
-                  const isHonorable = p.placement > 3;
-                  const Icon = PLACEMENT_ICONS[p.placement - 1] ?? Medal;
-                  const color = isHonorable
-                    ? "text-zinc-600"
-                    : PLACEMENT_COLORS[p.placement - 1] ?? "text-zinc-500";
-
-                  return (
+              {/* Divisions (gender splits for cumulative, single group for weekly) */}
+              {award.divisions.map((division: any, divIndex: number) => (
+                <div key={division.division ?? "overall"}>
+                  {/* Division label (only for gender-split cumulative) */}
+                  {division.division && (
                     <div
-                      key={p.user.userId}
                       className={cn(
-                        "flex items-center gap-3 px-3 py-2 transition-colors hover:bg-zinc-800/30",
-                        isHonorable && "opacity-50"
+                        "px-3 py-1 text-[10px] font-semibold uppercase tracking-widest",
+                        divIndex > 0 && "border-t border-zinc-800/50",
+                        division.division === "women"
+                          ? "text-fuchsia-400"
+                          : "text-indigo-400"
                       )}
                     >
-                      {/* Placement icon or number */}
-                      {isHonorable ? (
-                        <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center text-xs font-medium text-zinc-600">
-                          {p.placement}
-                        </span>
-                      ) : (
-                        <Icon className={cn("h-4 w-4 flex-shrink-0", color)} />
-                      )}
-
-                      {/* User */}
-                      <div className="flex min-w-0 flex-1 items-center gap-2">
-                        {p.user.avatarUrl ? (
-                          <img
-                            src={p.user.avatarUrl}
-                            alt=""
-                            className="h-5 w-5 rounded-full"
-                          />
-                        ) : (
-                          <div className="flex h-5 w-5 items-center justify-center rounded-full bg-zinc-800 text-[10px] font-medium text-zinc-400">
-                            {(
-                              p.user.name ?? p.user.username
-                            )?.[0]?.toUpperCase()}
-                          </div>
-                        )}
-                        <span className={cn(
-                          "truncate text-sm",
-                          isHonorable ? "text-zinc-500" : "text-zinc-300"
-                        )}>
-                          {p.user.name ?? p.user.username}
-                        </span>
-                      </div>
-
-                      {/* Category metric value */}
-                      <span className={cn(
-                        "font-mono text-xs",
-                        isHonorable ? "text-zinc-600" : "text-zinc-500"
-                      )}>
-                        {p.totalMetricValue > 0
-                          ? `${Math.round(p.totalMetricValue * 100) / 100} ${award.category.unit ?? "pts"}`
-                          : `${p.totalPoints} pts`}
-                      </span>
-
-                      {/* Bonus */}
-                      <span className={cn(
-                        "min-w-[4rem] text-right font-mono text-sm font-medium",
-                        isHonorable ? "text-zinc-600" : "text-emerald-400"
-                      )}>
-                        {isHonorable ? "—" : `+${p.bonusPoints}`}
-                      </span>
+                      {division.division === "women"
+                        ? "Women\u2019s"
+                        : "Open"}
                     </div>
-                  );
-                })}
-              </div>
+                  )}
+
+                  {/* Placements */}
+                  <div className="divide-y divide-zinc-800/50">
+                    {division.placements.map((p: any) => {
+                      const isHonorable = p.placement > 3;
+                      const Icon =
+                        PLACEMENT_ICONS[p.placement - 1] ?? Medal;
+                      const color = isHonorable
+                        ? "text-zinc-600"
+                        : PLACEMENT_COLORS[p.placement - 1] ??
+                          "text-zinc-500";
+
+                      return (
+                        <div
+                          key={`${division.division}-${p.user.userId}`}
+                          className={cn(
+                            "flex items-center gap-3 px-3 py-2 transition-colors hover:bg-zinc-800/30",
+                            isHonorable && "opacity-50"
+                          )}
+                        >
+                          {/* Placement icon or number */}
+                          {isHonorable ? (
+                            <span className="flex h-4 w-4 flex-shrink-0 items-center justify-center text-xs font-medium text-zinc-600">
+                              {p.placement}
+                            </span>
+                          ) : (
+                            <Icon
+                              className={cn(
+                                "h-4 w-4 flex-shrink-0",
+                                color
+                              )}
+                            />
+                          )}
+
+                          {/* User */}
+                          <div className="flex min-w-0 flex-1 items-center gap-2">
+                            {p.user.avatarUrl ? (
+                              <img
+                                src={p.user.avatarUrl}
+                                alt=""
+                                className="h-5 w-5 rounded-full"
+                              />
+                            ) : (
+                              <div className="flex h-5 w-5 items-center justify-center rounded-full bg-zinc-800 text-[10px] font-medium text-zinc-400">
+                                {(
+                                  p.user.name ?? p.user.username
+                                )?.[0]?.toUpperCase()}
+                              </div>
+                            )}
+                            <span
+                              className={cn(
+                                "truncate text-sm",
+                                isHonorable
+                                  ? "text-zinc-500"
+                                  : "text-zinc-300"
+                              )}
+                            >
+                              {p.user.name ?? p.user.username}
+                            </span>
+                          </div>
+
+                          {/* Category metric value */}
+                          <span
+                            className={cn(
+                              "font-mono text-xs",
+                              isHonorable
+                                ? "text-zinc-600"
+                                : "text-zinc-500"
+                            )}
+                          >
+                            {p.totalMetricValue > 0
+                              ? `${Math.round(p.totalMetricValue * 100) / 100} ${award.category.unit ?? "pts"}`
+                              : `${p.totalPoints} pts`}
+                          </span>
+
+                          {/* Bonus */}
+                          <span
+                            className={cn(
+                              "min-w-[4rem] text-right font-mono text-sm font-medium",
+                              isHonorable
+                                ? "text-zinc-600"
+                                : "text-emerald-400"
+                            )}
+                          >
+                            {isHonorable ? "—" : `+${p.bonusPoints}`}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
           ))}
         </div>

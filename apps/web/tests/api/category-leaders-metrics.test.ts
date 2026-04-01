@@ -263,12 +263,18 @@ describe("category leaders ranked by metrics", () => {
     );
     expect(cardioAward).toBeDefined();
 
-    // Alice should be #1 (30mi > 26.2mi) despite having fewer total points
-    expect(cardioAward!.placements[0].user.name).toBe("Alice");
-    expect(cardioAward!.placements[0].totalMetricValue).toBe(30);
+    // Cumulative uses gender-split divisions; test users have no gender → "open"
+    const openDivision = cardioAward!.divisions.find(
+      (d: any) => d.division === "open"
+    );
+    expect(openDivision).toBeDefined();
 
-    expect(cardioAward!.placements[1].user.name).toBe("Bob");
-    expect(cardioAward!.placements[1].totalMetricValue).toBe(26.2);
+    // Alice should be #1 (30mi > 26.2mi) despite having fewer total points
+    expect(openDivision!.placements[0].user.name).toBe("Alice");
+    expect(openDivision!.placements[0].totalMetricValue).toBe(30);
+
+    expect(openDivision!.placements[1].user.name).toBe("Bob");
+    expect(openDivision!.placements[1].totalMetricValue).toBe(26.2);
   });
 
   it("also ranks weekly awards by metrics", async () => {
@@ -322,12 +328,16 @@ describe("category leaders ranked by metrics", () => {
     );
     expect(cardioAward).toBeDefined();
 
-    // Alice should lead: 10mi > 8mi
-    expect(cardioAward!.placements[0].user.name).toBe("Alice");
-    expect(cardioAward!.placements[0].totalMetricValue).toBe(10);
+    // Weekly awards use a single division with division: null
+    const overallDivision = cardioAward!.divisions[0];
+    expect(overallDivision.division).toBeNull();
 
-    expect(cardioAward!.placements[1].user.name).toBe("Bob");
-    expect(cardioAward!.placements[1].totalMetricValue).toBe(8);
+    // Alice should lead: 10mi > 8mi
+    expect(overallDivision.placements[0].user.name).toBe("Alice");
+    expect(overallDivision.placements[0].totalMetricValue).toBe(10);
+
+    expect(overallDivision.placements[1].user.name).toBe("Bob");
+    expect(overallDivision.placements[1].totalMetricValue).toBe(8);
   });
 
   it("falls back to totalPoints when no metric data is available", async () => {
@@ -388,9 +398,15 @@ describe("category leaders ranked by metrics", () => {
     );
     expect(cardioAward).toBeDefined();
 
+    // Cumulative uses gender-split divisions; test users have no gender → "open"
+    const openDivision = cardioAward!.divisions.find(
+      (d: any) => d.division === "open"
+    );
+    expect(openDivision).toBeDefined();
+
     // Fallback: Bob leads by points (20 > 10)
-    expect(cardioAward!.placements[0].user.name).toBe("Bob");
-    expect(cardioAward!.placements[0].totalPoints).toBe(20);
+    expect(openDivision!.placements[0].user.name).toBe("Bob");
+    expect(openDivision!.placements[0].totalPoints).toBe(20);
   });
 
   it("returns the category unit in the response", async () => {
@@ -429,5 +445,9 @@ describe("category leaders ranked by metrics", () => {
       (a: any) => a.category.name === "Cardio"
     );
     expect(cardioAward!.category.unit).toBe("miles");
+
+    // Verify divisions structure exists for cumulative
+    expect(cardioAward!.divisions).toBeDefined();
+    expect(cardioAward!.divisions.length).toBeGreaterThan(0);
   });
 });

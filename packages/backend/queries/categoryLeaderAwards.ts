@@ -11,8 +11,9 @@ import {
 /**
  * Preview category leader awards for a given week or cumulative.
  *
- * weekNumber 1–N  → weekly awards (top 3 per category)
- * weekNumber 0    → cumulative awards (top 3 per category, all-time)
+ * weekNumber 1–N  → weekly awards (top 3 per category, overall)
+ * weekNumber 0    → cumulative awards (top 3 per category, split by gender:
+ *                    women's and men's/open divisions)
  *
  * Leaders are ranked by totalMetricValue (raw metric, e.g. miles) so that
  * bonus points (marathon bonus, media bonus, etc.) don't distort rankings.
@@ -96,6 +97,7 @@ export const previewWeeklyAwards = query({
                 name: user.name ?? null,
                 username: user.username,
                 avatarUrl: user.avatarUrl ?? null,
+                gender: user.gender ?? null,
               }
             : null
         );
@@ -132,31 +134,71 @@ export const previewWeeklyAwards = query({
 
         if (sorted.length === 0) return null;
 
-        const DISPLAY_COUNT = 5;
-        const placements = await Promise.all(
-          sorted.slice(0, DISPLAY_COUNT).map(async (entry: any, index: number) => {
-            const user = await getUser(entry.userId);
-            if (!user) return null;
-            return {
-              placement: index + 1,
-              user,
-              totalPoints: entry.totalPoints,
-              totalMetricValue: entry.totalMetricValue ?? 0,
-              bonusPoints: index < PLACEMENT_COUNT ? placementPoints[index] : 0,
-            };
-          })
-        );
+        const buildPlacements = async (entries: any[], division: string | null) => {
+          const DISPLAY_COUNT = 5;
+          const placements = await Promise.all(
+            entries.slice(0, DISPLAY_COUNT).map(async (entry: any, index: number) => {
+              const user = await getUser(entry.userId);
+              if (!user) return null;
+              return {
+                placement: index + 1,
+                user,
+                totalPoints: entry.totalPoints,
+                totalMetricValue: entry.totalMetricValue ?? 0,
+                bonusPoints: index < PLACEMENT_COUNT ? placementPoints[index] : 0,
+              };
+            })
+          );
 
-        return {
-          category: {
-            id: cat._id,
-            name: cat.name,
-            unit: categoryUnitMap.get(cat._id as string) ?? null,
-          },
-          placements: placements.filter(
-            (p): p is NonNullable<typeof p> => p !== null
-          ),
+          return {
+            division,
+            placements: placements.filter(
+              (p): p is NonNullable<typeof p> => p !== null
+            ),
+          };
         };
+
+        if (isCumulative) {
+          // Split by gender for cumulative preview
+          const women: any[] = [];
+          const open: any[] = [];
+
+          for (const entry of sorted) {
+            const user = await getUser(entry.userId);
+            if (!user) continue;
+            if (user.gender === "female") {
+              women.push(entry);
+            } else {
+              open.push(entry);
+            }
+          }
+
+          const divisions = await Promise.all([
+            buildPlacements(women, "women"),
+            buildPlacements(open, "open"),
+          ]);
+
+          return {
+            category: {
+              id: cat._id,
+              name: cat.name,
+              unit: categoryUnitMap.get(cat._id as string) ?? null,
+            },
+            divisions: divisions.filter((d) => d.placements.length > 0),
+          };
+        } else {
+          // Overall for weekly
+          const division = await buildPlacements(sorted, null);
+
+          return {
+            category: {
+              id: cat._id,
+              name: cat.name,
+              unit: categoryUnitMap.get(cat._id as string) ?? null,
+            },
+            divisions: division.placements.length > 0 ? [division] : [],
+          };
+        }
       })
     );
 
@@ -170,7 +212,7 @@ export const previewWeeklyAwards = query({
       placementPoints,
       awards: awards
         .filter((a): a is NonNullable<typeof a> => a !== null)
-        .filter((a) => a.placements.length > 0)
+        .filter((a) => a.divisions.length > 0)
         .sort((a, b) => a.category.name.localeCompare(b.category.name)),
     };
   },
