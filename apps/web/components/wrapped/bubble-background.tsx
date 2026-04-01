@@ -173,13 +173,6 @@ export const SLIDE_BUBBLE_COLORS: Record<string, BubbleColors> = {
     fourth: "30,80,220",
     fifth: "70,130,230",
   },
-  "time-of-day": {
-    first: "180,80,220",   // violet
-    second: "140,40,200",
-    third: "220,100,255",
-    fourth: "120,30,180",
-    fifth: "160,60,210",
-  },
   "category-breakdown": {
     first: "0,180,200",    // teal
     second: "20,160,180",
@@ -187,26 +180,12 @@ export const SLIDE_BUBBLE_COLORS: Record<string, BubbleColors> = {
     fourth: "10,140,160",
     fifth: "30,190,210",
   },
-  "social-likes": {
-    first: "220,60,120",   // rose
-    second: "240,40,100",
-    third: "200,80,140",
-    fourth: "255,60,130",
-    fifth: "210,50,110",
-  },
   "biggest-fan": {
     first: "120,60,220",   // violet
     second: "0,200,220",
     third: "160,80,240",
     fourth: "40,180,200",
     fifth: "140,70,230",
-  },
-  "social-summary": {
-    first: "20,140,200",   // sky blue
-    second: "40,120,220",
-    third: "0,160,240",
-    fourth: "60,100,180",
-    fifth: "30,150,210",
   },
   "mini-games": {
     first: "220,160,0",    // yellow-orange
@@ -222,12 +201,26 @@ export const SLIDE_BUBBLE_COLORS: Record<string, BubbleColors> = {
     fourth: "160,120,10",
     fifth: "210,170,50",
   },
-  "fun-stats": {
-    first: "180,60,220",   // fuchsia
-    second: "220,40,200",
-    third: "140,80,240",
-    fourth: "200,20,180",
-    fifth: "160,50,210",
+  "community-totals": {
+    first: "20,180,120",   // emerald-teal
+    second: "0,200,160",
+    third: "40,160,140",
+    fourth: "10,220,180",
+    fifth: "30,190,130",
+  },
+  "category-leaders": {
+    first: "217,175,50",   // gold
+    second: "200,150,30",
+    third: "240,190,60",
+    fourth: "180,130,20",
+    fifth: "220,165,40",
+  },
+  "top-10": {
+    first: "100,80,220",   // indigo-fuchsia
+    second: "160,60,200",
+    third: "80,60,240",
+    fourth: "200,40,180",
+    fifth: "120,70,210",
   },
   "thank-you": {
     first: "220,160,40",   // warm gradient
