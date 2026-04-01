@@ -18,6 +18,7 @@
 | 2026-03-10 | self | Passed a dynamic-route path with `[]` and `()` unquoted into `rg`, and zsh globbing failed again while comparing mini-game profile files | Quote every individual dynamic route path in shell commands, even when mixing them with normal paths in the same invocation |
 | 2026-03-10 | self | Ran workspace-scoped ESLint from `apps/web` but still passed repo-root file paths, so ESLint reported no matching files | When using `pnpm -F web exec ...` from the workspace directory, pass paths relative to `apps/web` |
 | 2026-03-11 | self | Created a task markdown file with shell redirection instead of `apply_patch` | Use `apply_patch` for file creation/editing, including task files required by repo process |
+| 2026-03-22 | self | Started fixing PR 239 by introducing a shared lifecycle helper but initially left `activities.ts` half-migrated with stale imports/helpers | After extracting shared codepaths, immediately re-open callsites and trim imports/duplication before running verification |
 | 2026-03-23 | self | Assumed backend drift would already be covered by repo lint, but only `apps/web` had ESLint wired | When adding architectural guards for Convex/backend code, first verify the package actually has a `lint` script and ESLint config |
 | 2026-03-01 | self | Started repo exploration before reading `.claude/napkin.md` again | Always run `cat .claude/napkin.md` as the very first command in a new session |
 | 2026-03-01 | self | CSV row typing was too narrow (`string | number`) and failed once boolean `isNegative` values were added | For CSV builders, include all emitted scalar types up front (`string | number | boolean`) or coerce before push |
@@ -159,4 +160,5 @@
 | 2026-03-02 | self | When adding a new `usePaginatedQuery` for a different Convex query alongside an existing one, both must stay mounted (hooks can't be conditional in React); use `"skip"` arg on the inactive query | Always use `"skip"` sentinel for Convex paginated queries that should be inactive based on tab state |
 - `followingOnly` feed filters applied after pagination can return empty initial pages despite available matches later; skip empty pages server-side before returning a page.
 - Backend architectural drift is best guarded with narrow ESLint rules on the specific mutation entrypoints rather than broad import bans that interfere with legitimate admin edit/comment flows.
+- For admin activity operations, route create/delete through shared `activities` internal mutations so validations, scoring aggregates, streaks, notifications, and tagging stay on the canonical lifecycle path.
 | 2026-03-11 | self | Tried to read a Next route file with unquoted brackets and zsh globbed it | Always single-quote `app/**/[param]/**` paths in shell commands |

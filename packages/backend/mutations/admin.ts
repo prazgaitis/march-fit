@@ -1,4 +1,5 @@
 import { internalMutation, mutation } from "../_generated/server";
+import { internal } from "../_generated/api";
 import { v } from "convex/values";
 import { requireCurrentUser } from "../lib/ids";
 import type { Id } from "../_generated/dataModel";
@@ -435,6 +436,111 @@ export const adminEditActivity = mutation({
         startedAt,
         challengeId: resolvedChallengeId,
         userId: resolvedUserId,
+      });
+    }
+  },
+});
+
+// Admin delete (soft-delete) an activity
+export const adminDeleteActivity = mutation({
+  args: {
+    activityId: v.id("activities"),
+    reason: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const startedAt = Date.now();
+    let resolvedChallengeId: string | undefined;
+    let resolvedUserId: string | undefined;
+    try {
+      const { user, activity } = await requireChallengeAdminForActivity(
+        ctx,
+        args.activityId,
+      );
+      resolvedChallengeId = String(activity.challengeId);
+      resolvedUserId = String(activity.userId);
+
+      const now = Date.now();
+      await ctx.runMutation(internal.mutations.activities.removeInternal, {
+        activityId: args.activityId,
+        deletedById: user._id,
+        deletedReason: args.reason ?? "admin_delete",
+      });
+
+      // Add history entry
+      await ctx.db.insert("activityFlagHistory", {
+        activityId: args.activityId,
+        actorId: user._id,
+        actionType: "edit",
+        payload: { action: "deleted", reason: args.reason ?? "admin_delete" },
+        createdAt: now,
+      });
+
+      return { success: true };
+    } finally {
+      reportLatencyIfExceeded({
+        operation: "mutations.admin.adminDeleteActivity",
+        startedAt,
+        challengeId: resolvedChallengeId,
+        userId: resolvedUserId,
+      });
+    }
+  },
+});
+
+// Admin log activity on behalf of a user
+export const adminLogActivityForUser = mutation({
+  args: {
+    challengeId: v.id("challenges"),
+    userId: v.id("users"),
+    activityTypeId: v.id("activityTypes"),
+    loggedDate: v.string(),
+    pointsOverride: v.optional(v.number()),
+    metrics: v.optional(v.any()),
+    notes: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const startedAt = Date.now();
+    try {
+      const admin = await requireCurrentUser(ctx as any);
+
+      // Check admin access
+      const challenge = await ctx.db.get(args.challengeId);
+      if (!challenge) throw new Error("Challenge not found");
+
+      const isGlobalAdmin = admin.role === "admin";
+      const isCreator = (challenge as any).creatorId === admin._id;
+      const adminParticipation = await ctx.db
+        .query("userChallenges")
+        .withIndex("userChallengeUnique", (q: any) =>
+          q.eq("userId", admin._id).eq("challengeId", args.challengeId),
+        )
+        .first();
+      const isChallengeAdmin = adminParticipation?.role === "admin";
+
+      if (!isGlobalAdmin && !isCreator && !isChallengeAdmin) {
+        throw new Error("Not authorized - challenge admin required");
+      }
+
+      const result = await ctx.runMutation(
+        internal.mutations.activities.logForUserInternal,
+        {
+          challengeId: args.challengeId,
+          userId: args.userId,
+          activityTypeId: args.activityTypeId,
+          loggedDate: args.loggedDate,
+          pointsOverride: args.pointsOverride,
+          metrics: args.metrics,
+          notes: args.notes,
+        },
+      );
+
+      return { success: true, activityId: result.id, pointsEarned: result.pointsEarned };
+    } finally {
+      reportLatencyIfExceeded({
+        operation: "mutations.admin.adminLogActivityForUser",
+        startedAt,
+        challengeId: String(args.challengeId),
+        userId: String(args.userId),
       });
     }
   },
