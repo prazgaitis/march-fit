@@ -24,7 +24,7 @@ export default function AdminExportsPage() {
   });
 
   const requestExport = useMutation(api.mutations.exports.requestExport);
-  const generateCSV = useAction(api.actions.exportActivitiesCSV.generateCSV);
+  const generateXLSX = useAction(api.actions.exportActivitiesXLSX.generateXLSX);
 
   const handleExport = async () => {
     if (isExporting) return;
@@ -35,11 +35,11 @@ export default function AdminExportsPage() {
       });
       // Fire the action — it runs in the background on the server.
       // We don't await it here; the UI updates reactively via the query.
-      generateCSV({
+      generateXLSX({
         exportId: exportId as Id<"exports">,
         challengeId: challengeId as Id<"challenges">,
       }).catch((err) => {
-        console.error("CSV export failed:", err);
+        console.error("XLSX export failed:", err);
       });
     } catch (error) {
       console.error("Failed to request export:", error);
@@ -86,8 +86,8 @@ export default function AdminExportsPage() {
             Data Exports
           </h2>
           <p className="mt-1 text-xs text-zinc-500">
-            Export all activity data for this challenge as CSV. You&apos;ll
-            receive an email when the export is ready.
+            Export all activity data as XLSX with per-user daily breakdowns
+            and streaks. You&apos;ll receive an email when ready.
           </p>
         </div>
         <button
@@ -100,7 +100,7 @@ export default function AdminExportsPage() {
           ) : (
             <FileSpreadsheet className="h-3.5 w-3.5" />
           )}
-          Export Activities CSV
+          Export XLSX
         </button>
       </div>
 
@@ -181,7 +181,7 @@ export default function AdminExportsPage() {
                   {exp.status === "completed" && exp.downloadUrl ? (
                     <a
                       href={exp.downloadUrl}
-                      download="activities.csv"
+                      download="activities.xlsx"
                       className="inline-flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 hover:underline"
                     >
                       <Download className="h-3 w-3" />
