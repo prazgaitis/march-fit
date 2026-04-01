@@ -48,19 +48,19 @@ export const generateCSV = action({
       );
 
       // Build lookup maps
-      const userMap = new Map(
+      const userMap = new Map<string, { name: string; username: string; email: string }>(
         users.map((u: any) => [
           u._id,
           { name: u.name, username: u.username, email: u.email },
         ]),
       );
-      const activityTypeMap = new Map(
+      const activityTypeMap = new Map<string, { name: string; categoryId: string | undefined }>(
         activityTypes.map((at: any) => [
           at._id,
           { name: at.name, categoryId: at.categoryId },
         ]),
       );
-      const categoryMap = new Map(
+      const categoryMap = new Map<string, string>(
         categories.map((c: any) => [c._id, c.name]),
       );
 
