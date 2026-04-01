@@ -197,6 +197,8 @@ export const generateXLSX = action({
         "Name",
         "Username",
         "Email",
+        "Activity Points",
+        "Streak Bonus",
         "Total Points",
         "Total Activities",
         "Active Days",
@@ -213,7 +215,9 @@ export const generateXLSX = action({
         "Date",
         "Day #",
         "Activities",
-        "Points",
+        "Activity Points",
+        "Streak Bonus",
+        "Day Total",
         "Running Total",
         "Streak",
         "Activity Breakdown",
@@ -247,21 +251,25 @@ export const generateXLSX = action({
 
         // Group activities by date
         const byDate = new Map<string, any[]>();
-        let totalPoints = 0;
+        let activityPoints = 0;
         for (const a of userActivities) {
           const dateStr = formatDate(a.loggedDate);
           const list = byDate.get(dateStr) ?? [];
           list.push(a);
           byDate.set(dateStr, list);
-          totalPoints += a.pointsEarned;
+          activityPoints += a.pointsEarned;
         }
+
+        const totalStreakBonus = streakResult.totalStreakBonus;
 
         // Summary row
         summaryRows.push([
           user.name,
           user.username,
           user.email,
-          totalPoints,
+          activityPoints,
+          totalStreakBonus,
+          activityPoints + totalStreakBonus,
           userActivities.length,
           byDate.size,
           longestStreak,
@@ -274,13 +282,15 @@ export const generateXLSX = action({
         for (let i = 0; i < dateRange.length; i++) {
           const { dateStr, dateMs } = dateRange[i];
           const dayActivities = byDate.get(dateStr) ?? [];
-          const dayPoints = dayActivities.reduce(
+          const dayActivityPoints = dayActivities.reduce(
             (sum: number, a: any) => sum + a.pointsEarned,
             0,
           );
-          runningTotal += dayPoints;
 
+          // Streak bonus for this day = the streak count (day 1 = +1, day 5 = +5, etc.)
           const streakCount = streakResult.dailyStreakCount.get(dateMs) ?? 0;
+          const dayTotal = dayActivityPoints + streakCount;
+          runningTotal += dayTotal;
 
           // Build activity breakdown string
           const breakdown = dayActivities
@@ -296,7 +306,9 @@ export const generateXLSX = action({
             dateStr,
             i + 1,
             dayActivities.length,
-            dayPoints,
+            dayActivityPoints,
+            streakCount > 0 ? streakCount : "",
+            dayTotal,
             runningTotal,
             streakCount > 0 ? streakCount : "",
             breakdown,
@@ -304,16 +316,17 @@ export const generateXLSX = action({
         }
       }
 
-      // Sort summary by total points descending
-      summaryRows.sort((a, b) => (b[3] as number) - (a[3] as number));
+      // Sort summary by total points (index 5: activity + streak) descending
+      summaryRows.sort((a, b) => (b[5] as number) - (a[5] as number));
 
       // ── Build per-user sheet data ────────────────────────────
       type UserSheetData = { sheetName: string; rows: any[][] };
       const userSheets: UserSheetData[] = [];
 
       const userSheetHeaders = [
-        "Date", "Day #", "Activities", "Points",
-        "Running Total", "Streak", "Activity Breakdown",
+        "Date", "Day #", "Activities", "Activity Points",
+        "Streak Bonus", "Day Total", "Running Total", "Streak",
+        "Activity Breakdown",
       ];
 
       for (const userId of sortedUserIds) {
@@ -339,13 +352,14 @@ export const generateXLSX = action({
         for (let i = 0; i < dateRange.length; i++) {
           const { dateStr, dateMs } = dateRange[i];
           const dayActs = byDate.get(dateStr) ?? [];
-          const dayPts = dayActs.reduce((s: number, a: any) => s + a.pointsEarned, 0);
-          runningTotal += dayPts;
+          const dayActPts = dayActs.reduce((s: number, a: any) => s + a.pointsEarned, 0);
           const streak = streakResult.dailyStreakCount.get(dateMs) ?? 0;
+          const dayTotal = dayActPts + streak;
+          runningTotal += dayTotal;
           const breakdown = dayActs
             .map((a: any) => `${activityTypeMap.get(a.activityTypeId)?.name ?? "?"}: ${a.pointsEarned} pts`)
             .join("; ");
-          rows.push([dateStr, i + 1, dayActs.length, dayPts, runningTotal, streak > 0 ? streak : "", breakdown]);
+          rows.push([dateStr, i + 1, dayActs.length, dayActPts, streak > 0 ? streak : "", dayTotal, runningTotal, streak > 0 ? streak : "", breakdown]);
         }
 
         userSheets.push({

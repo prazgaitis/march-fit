@@ -12,19 +12,26 @@ import {
   CheckCircle2,
   XCircle,
   Clock,
+  Trash2,
 } from "lucide-react";
 
 export default function AdminExportsPage() {
   const params = useParams();
   const challengeId = params.id as string;
   const [isExporting, setIsExporting] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const exports = useQuery(api.queries.exports.listByChallenge, {
     challengeId: challengeId as Id<"challenges">,
   });
 
+  const challenge = useQuery(api.queries.challenges.getById, {
+    challengeId: challengeId as Id<"challenges">,
+  });
+
   const requestExport = useMutation(api.mutations.exports.requestExport);
   const generateXLSX = useAction(api.actions.exportActivitiesXLSX.generateXLSX);
+  const deleteExport = useMutation(api.mutations.exports.deleteExport);
 
   const handleExport = async () => {
     if (isExporting) return;
@@ -33,8 +40,6 @@ export default function AdminExportsPage() {
       const { exportId } = await requestExport({
         challengeId: challengeId as Id<"challenges">,
       });
-      // Fire the action — it runs in the background on the server.
-      // We don't await it here; the UI updates reactively via the query.
       generateXLSX({
         exportId: exportId as Id<"exports">,
         challengeId: challengeId as Id<"challenges">,
@@ -49,6 +54,28 @@ export default function AdminExportsPage() {
     } finally {
       setIsExporting(false);
     }
+  };
+
+  const handleDelete = async (exportId: string) => {
+    if (!confirm("Delete this export? The file will be permanently removed.")) return;
+    setDeletingId(exportId);
+    try {
+      await deleteExport({ exportId: exportId as Id<"exports"> });
+    } catch (error) {
+      console.error("Failed to delete export:", error);
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const formatFilename = (exp: { createdAt: number }) => {
+    const date = new Date(exp.createdAt);
+    const slug = (challenge?.name ?? "export")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/(^-|-$)/g, "");
+    const ts = date.toISOString().slice(0, 10);
+    return `${slug}-${ts}.xlsx`;
   };
 
   const statusIcon = (status: string) => {
@@ -113,12 +140,12 @@ export default function AdminExportsPage() {
               Status
             </span>
           </div>
-          <div className="col-span-3">
+          <div className="col-span-2">
             <span className="text-[10px] font-medium uppercase tracking-wider text-zinc-500">
               Requested By
             </span>
           </div>
-          <div className="col-span-2">
+          <div className="col-span-1">
             <span className="text-[10px] font-medium uppercase tracking-wider text-zinc-500">
               Rows
             </span>
@@ -128,9 +155,9 @@ export default function AdminExportsPage() {
               Requested At
             </span>
           </div>
-          <div className="col-span-2 text-right">
+          <div className="col-span-4 text-right">
             <span className="text-[10px] font-medium uppercase tracking-wider text-zinc-500">
-              Download
+              Actions
             </span>
           </div>
         </div>
@@ -160,12 +187,12 @@ export default function AdminExportsPage() {
                     {exp.status}
                   </span>
                 </div>
-                <div className="col-span-3">
+                <div className="col-span-2">
                   <span className="text-xs text-zinc-300">
                     {exp.requesterName}
                   </span>
                 </div>
-                <div className="col-span-2">
+                <div className="col-span-1">
                   <span className="font-mono text-xs text-zinc-300">
                     {exp.totalRows != null
                       ? exp.totalRows.toLocaleString()
@@ -177,11 +204,11 @@ export default function AdminExportsPage() {
                     {new Date(exp.createdAt).toLocaleString()}
                   </span>
                 </div>
-                <div className="col-span-2 text-right">
+                <div className="col-span-4 flex items-center justify-end gap-2">
                   {exp.status === "completed" && exp.downloadUrl ? (
                     <a
                       href={exp.downloadUrl}
-                      download="activities.xlsx"
+                      download={formatFilename(exp)}
                       className="inline-flex items-center gap-1 text-xs text-indigo-400 hover:text-indigo-300 hover:underline"
                     >
                       <Download className="h-3 w-3" />
@@ -194,9 +221,23 @@ export default function AdminExportsPage() {
                     >
                       Failed
                     </span>
+                  ) : exp.status === "processing" ? (
+                    <span className="text-xs text-zinc-500">Processing...</span>
                   ) : (
                     <span className="text-xs text-zinc-600">—</span>
                   )}
+                  <button
+                    onClick={() => handleDelete(exp._id)}
+                    disabled={deletingId === exp._id || exp.status === "processing"}
+                    className="inline-flex items-center gap-1 text-xs text-zinc-600 hover:text-red-400 disabled:opacity-30"
+                    title="Delete export"
+                  >
+                    {deletingId === exp._id ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : (
+                      <Trash2 className="h-3 w-3" />
+                    )}
+                  </button>
                 </div>
               </div>
             ))
