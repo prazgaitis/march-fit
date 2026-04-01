@@ -35,7 +35,7 @@ export const previewWeeklyAwards = query({
       : Math.max(1, Math.min(args.weekNumber, totalWeeks));
 
     const placementPoints = isCumulative
-      ? getCumulativePlacementPoints(totalWeeks)
+      ? getCumulativePlacementPoints(challenge.durationDays)
       : getWeeklyPlacementPoints(weekNumber);
 
     // Find all existing category_leader awards for this challenge

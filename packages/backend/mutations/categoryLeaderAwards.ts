@@ -38,7 +38,7 @@ export const applyWeeklyAwards = mutation({
       : Math.max(1, Math.min(args.weekNumber, totalWeeks));
 
     const placementPoints = isCumulative
-      ? getCumulativePlacementPoints(totalWeeks)
+      ? getCumulativePlacementPoints(challenge.durationDays)
       : getWeeklyPlacementPoints(weekNumber);
 
     // Check for existing awards (idempotency)
