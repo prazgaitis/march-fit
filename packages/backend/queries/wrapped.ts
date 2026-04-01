@@ -43,15 +43,6 @@ type WrappedData = {
   // Weekly Progression
   weeklyPoints: Array<{ week: number; points: number }>;
 
-  // Time of Day
-  activityTimeDistribution: {
-    morning: number;
-    afternoon: number;
-    evening: number;
-    night: number;
-  };
-  mostCommonTime: "morning" | "afternoon" | "evening" | "night";
-
   // Category Breakdown
   categoryBreakdown: Array<{
     name: string;
@@ -61,10 +52,6 @@ type WrappedData = {
 
   // Bonus Milestones
   bonusMilestones: Array<{ description: string; count: number }>;
-
-  // Social - Likes
-  likesGiven: number;
-  likesReceived: number;
 
   // Biggest Fan + Your Favorite
   biggestFan: {
@@ -77,22 +64,6 @@ type WrappedData = {
     avatarUrl: string | null;
     score: number;
   } | null;
-
-  // Most Popular Activity
-  mostPopularActivity: {
-    points: number;
-    likes: number;
-    activityTypeName: string;
-    date: string;
-  } | null;
-
-  // Social Summary
-  commentsGiven: number;
-  commentsReceived: number;
-  pokesSent: number;
-  pokesReceived: number;
-  forumPosts: number;
-  forumReplies: number;
 
   // Mini-Games
   miniGameResults: Array<{
@@ -110,28 +81,35 @@ type WrappedData = {
     imagePublicId: string | null;
   }>;
 
-  // Fun Stats
-  photosShared: number;
-  drinkPenalties: number;
-  drinkPenaltyPoints: number;
+  // Community Totals (aggregated across all participants from pre-aggregated tables)
+  communityTotals: {
+    totalPoints: number;
+    totalParticipants: number;
+    totalCategoryEntries: number;
+  };
+
+  // Category Leaders (top scorer per category)
+  categoryLeaders: Array<{
+    categoryName: string;
+    userName: string;
+    avatarUrl: string | null;
+    totalPoints: number;
+  }>;
+
+  // Top 10 Leaderboard
+  top10: Array<{
+    rank: number;
+    userName: string;
+    avatarUrl: string | null;
+    totalPoints: number;
+    isCurrentUser: boolean;
+  }>;
 
   // Activity photos (cloudinary public IDs for wrapped backgrounds)
   activityPhotoIds: string[];
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
-
-function getTimeBucket(
-  localTime: string | undefined
-): "morning" | "afternoon" | "evening" | "night" {
-  if (!localTime) return "morning";
-  const hour = parseInt(localTime.split(":")[0], 10);
-  if (hour < 6) return "night";
-  if (hour < 12) return "morning";
-  if (hour < 17) return "afternoon";
-  if (hour < 21) return "evening";
-  return "night";
-}
 
 function getDistanceMiles(metrics: Record<string, unknown>): number {
   const miles =
@@ -246,9 +224,6 @@ async function computeWrappedData(
   let totalDistanceMiles = 0;
   let totalMinutes = 0;
   let totalElevationMeters = 0;
-  let photosShared = 0;
-  let drinkPenalties = 0;
-  let drinkPenaltyPoints = 0;
   const activityPhotoIds: string[] = [];
 
   const typeCountMap = new Map<string, { count: number; points: number }>();
@@ -256,7 +231,6 @@ async function computeWrappedData(
     string,
     { points: number; activities: Array<{ name: string; points: number }> }
   >();
-  const timeBuckets = { morning: 0, afternoon: 0, evening: 0, night: 0 };
   const bonusCounts = new Map<string, number>();
 
   for (const activity of userActivities) {
@@ -267,21 +241,13 @@ async function computeWrappedData(
     totalMinutes += getMinutes(metrics);
     totalElevationMeters += getElevationMeters(metrics);
 
-    // Photos
+    // Photos for background
     if (activity.cloudinaryPublicIds?.length > 0) {
-      photosShared++;
       for (const pid of activity.cloudinaryPublicIds) {
-        // Only collect image public IDs (skip videos prefixed with "v/")
         if (!pid.startsWith("v/")) {
           activityPhotoIds.push(pid);
         }
       }
-    }
-
-    // Drink penalties
-    if (at?.isNegative) {
-      drinkPenalties++;
-      drinkPenaltyPoints += Math.abs(activity.pointsEarned ?? 0);
     }
 
     // Type counts
@@ -300,9 +266,6 @@ async function computeWrappedData(
       points: activity.pointsEarned ?? 0,
     });
     dailyPoints.set(dateStr, day);
-
-    // Time of day
-    timeBuckets[getTimeBucket(activity.localTime)]++;
 
     // Triggered bonuses
     if (activity.triggeredBonuses) {
@@ -345,16 +308,6 @@ async function computeWrappedData(
       };
     }
   }
-
-  // Most common time
-  const mostCommonTime = (
-    Object.entries(timeBuckets) as Array<
-      [
-        "morning" | "afternoon" | "evening" | "night",
-        number,
-      ]
-    >
-  ).sort((a, b) => b[1] - a[1])[0][0];
 
   // Bonus milestones
   const bonusMilestones = Array.from(bonusCounts.entries())
@@ -407,49 +360,14 @@ async function computeWrappedData(
     .map(([week, points]) => ({ week, points: Math.round(points) }))
     .sort((a, b) => a.week - b.week);
 
-  // ── Social stats (parallel) ───────────────────────────────────────────────
-
-  // Build set of this user's activity IDs in this challenge for scoping
-  const activityIds = userActivities.map((a: any) => a._id as string);
+  // ── Social stats + game data (parallel) ────────────────────────────────────
 
   const [
-    likesGivenAll,
-    commentsGivenAll,
-    pokesSentAll,
-    pokesReceivedAll,
-    forumPostsAll,
     affinitiesFromMe,
     miniGameParticipants,
     userAchievements,
     userBadges,
-    // Per-activity likes received (batched)
-    ...likesPerActivity
   ] = await Promise.all([
-    // Likes given (all challenges — filtered below)
-    ctx.db
-      .query("likes")
-      .withIndex("userId", (q: any) => q.eq("userId", userId))
-      .collect(),
-    // Comments given (all challenges — filtered below)
-    ctx.db
-      .query("comments")
-      .withIndex("userId", (q: any) => q.eq("userId", userId))
-      .collect(),
-    // Pokes sent
-    ctx.db
-      .query("pokes")
-      .withIndex("pokerPokedChallenge", (q: any) => q.eq("pokerId", userId))
-      .collect(),
-    // Pokes received
-    ctx.db
-      .query("pokes")
-      .withIndex("pokedId", (q: any) => q.eq("pokedId", userId))
-      .collect(),
-    // Forum posts
-    ctx.db
-      .query("forumPosts")
-      .withIndex("userId", (q: any) => q.eq("userId", userId))
-      .collect(),
     // Affinities: who I engage with most
     ctx.db
       .query("userAffinities")
@@ -474,86 +392,7 @@ async function computeWrappedData(
       .withIndex("userId", (q: any) => q.eq("userId", userId))
       .filter((q: any) => q.eq(q.field("challengeId"), challengeId))
       .collect(),
-    // Batch: likes on each of user's activities (indexed, efficient)
-    ...activityIds.map((aid: string) =>
-      ctx.db
-        .query("likes")
-        .withIndex("activityId", (q: any) => q.eq("activityId", aid))
-        .collect()
-    ),
   ]);
-
-  // Build per-activity like counts (for likes received + most popular)
-  const likesPerActivityMap = new Map<string, any[]>();
-  let likesReceived = 0;
-  for (let i = 0; i < activityIds.length; i++) {
-    const likes = likesPerActivity[i] as any[];
-    likesPerActivityMap.set(activityIds[i], likes);
-    likesReceived += likes.length;
-  }
-
-  // Likes given: scope to this challenge by looking up each liked activity
-  // (user typically has ~50-200 likes; individual doc reads are cheaper than scanning 22k activities)
-  const likedActivityDocs = await Promise.all(
-    likesGivenAll.map((l: any) => ctx.db.get(l.activityId))
-  );
-  const likesGiven = likedActivityDocs.filter(
-    (doc: any) => doc && doc.challengeId === challengeId
-  ).length;
-
-  // Comments given: scope to this challenge
-  const commentedActivityIds = Array.from(new Set(
-    commentsGivenAll
-      .filter((c: any) => c.parentType === "activity" && c.activityId)
-      .map((c: any) => c.activityId as string)
-  ));
-  const commentedActivityDocs = await Promise.all(
-    commentedActivityIds.map((id) => ctx.db.get(id as Id<"activities">))
-  );
-  const challengeCommentedIds = new Set(
-    commentedActivityDocs
-      .filter((doc: any) => doc && doc.challengeId === challengeId)
-      .map((doc: any) => doc._id as string)
-  );
-  const commentsGiven = commentsGivenAll.filter(
-    (c: any) =>
-      c.parentType === "activity" &&
-      challengeCommentedIds.has(c.activityId as string)
-  ).length;
-
-  // Comments received: batch query per activity
-  const commentsPerActivity = await Promise.all(
-    activityIds.map((aid: string) =>
-      ctx.db
-        .query("comments")
-        .withIndex("activityIdByType", (q: any) =>
-          q.eq("activityId", aid).eq("parentType", "activity")
-        )
-        .collect()
-    )
-  );
-  let commentsReceived = 0;
-  for (const comments of commentsPerActivity) {
-    commentsReceived += (comments as any[]).filter(
-      (c: any) => c.userId !== userId
-    ).length;
-  }
-
-  // Filter social data to this challenge
-  const pokesSent = pokesSentAll.filter(
-    (p: any) => p.challengeId === challengeId
-  ).length;
-  const pokesReceived = pokesReceivedAll.filter(
-    (p: any) => p.challengeId === challengeId
-  ).length;
-  const forumPosts = forumPostsAll.filter(
-    (p: any) =>
-      p.challengeId === challengeId && !p.parentPostId && !p.deletedAt
-  ).length;
-  const forumReplies = forumPostsAll.filter(
-    (p: any) =>
-      p.challengeId === challengeId && p.parentPostId && !p.deletedAt
-  ).length;
 
   // Biggest fan: find who engages most with me via affinities
   // Query all challenge affinities where I'm the author (who views me most)
@@ -594,33 +433,6 @@ async function computeWrappedData(
         avatarUrl: favUser.avatarUrl ?? null,
         score: myAffinities[0].score,
       };
-    }
-  }
-
-  // Most popular activity (most likes, using pre-fetched per-activity likes)
-  let mostPopularActivity: WrappedData["mostPopularActivity"] = null;
-  if (userActivities.length > 0) {
-    let maxLikes = 0;
-    let popularId: string | null = null;
-    for (const [aid, likes] of likesPerActivityMap) {
-      if (likes.length > maxLikes) {
-        maxLikes = likes.length;
-        popularId = aid;
-      }
-    }
-    if (popularId && maxLikes > 0) {
-      const activity = userActivities.find(
-        (a: any) => (a._id as string) === popularId
-      );
-      if (activity) {
-        const at = typeMap.get(activity.activityTypeId);
-        mostPopularActivity = {
-          points: Math.round(activity.pointsEarned ?? 0),
-          likes: maxLikes,
-          activityTypeName: at?.name ?? "Unknown",
-          date: formatDateOnlyFromUtcMs(activity.loggedDate),
-        };
-      }
     }
   }
 
@@ -688,6 +500,90 @@ async function computeWrappedData(
       imagePublicId: b.imagePublicId ?? null,
     }));
 
+  // ── Community totals + Category leaders ─────────────────────────────────
+  // All from pre-aggregated categoryPoints table (avoids scanning activity docs
+  // which contain large externalData payloads that blow Convex read-bytes limits).
+  const allCategoryPoints = await ctx.db
+    .query("categoryPoints")
+    .withIndex("challengeCategory", (q: any) =>
+      q.eq("challengeId", challengeId)
+    )
+    .collect();
+
+  // Derived from pre-aggregated data (userChallenges, categoryPoints) to avoid
+  // scanning all activity documents (which contain large externalData payloads
+  // that blow Convex read-bytes limits).
+  const communityTotalPoints = allParticipations.reduce(
+    (sum: number, p: any) => sum + (p.totalPoints ?? 0),
+    0
+  );
+
+  // Count total category-point entries per user to approximate activity breadth
+  const communityTotalCategoryEntries = allCategoryPoints.length;
+
+  const communityTotals = {
+    totalPoints: Math.round(communityTotalPoints),
+    totalParticipants,
+    totalCategoryEntries: communityTotalCategoryEntries,
+  };
+
+  // ── Category leaders (top scorer per category) ───────────────────────────
+  // Group categoryPoints by categoryId, find the top scorer in each
+  const categoryTopMap = new Map<
+    string,
+    { userId: string; totalPoints: number }
+  >();
+  for (const cp of allCategoryPoints) {
+    const catId = cp.categoryId as string;
+    const current = categoryTopMap.get(catId);
+    if (!current || cp.totalPoints > current.totalPoints) {
+      categoryTopMap.set(catId, {
+        userId: cp.userId as string,
+        totalPoints: cp.totalPoints,
+      });
+    }
+  }
+
+  // Resolve category names and user info
+  const categoryLeaderEntries = Array.from(categoryTopMap.entries());
+  const [catDocs, leaderUsers] = await Promise.all([
+    Promise.all(
+      categoryLeaderEntries.map(([catId]) =>
+        ctx.db.get(catId as Id<"categories">)
+      )
+    ),
+    Promise.all(
+      categoryLeaderEntries.map(([, entry]) =>
+        ctx.db.get(entry.userId as Id<"users">)
+      )
+    ),
+  ]);
+
+  const categoryLeaders: WrappedData["categoryLeaders"] = categoryLeaderEntries
+    .map(([, entry], i) => ({
+      categoryName: catDocs[i]?.name ?? "Unknown",
+      userName: leaderUsers[i]?.name ?? leaderUsers[i]?.username ?? "Unknown",
+      avatarUrl: leaderUsers[i]?.avatarUrl ?? null,
+      totalPoints: Math.round(entry.totalPoints),
+    }))
+    .filter((c) => c.totalPoints > 0)
+    .sort((a, b) => b.totalPoints - a.totalPoints);
+
+  // ── Top 10 leaderboard ───────────────────────────────────────────────────
+  const top10Participations = sorted.slice(0, 10);
+  const top10Users = await Promise.all(
+    top10Participations.map((p: any) => ctx.db.get(p.userId))
+  );
+  const top10: WrappedData["top10"] = top10Participations.map(
+    (p: any, i: number) => ({
+      rank: i + 1,
+      userName: top10Users[i]?.name ?? top10Users[i]?.username ?? "Unknown",
+      avatarUrl: top10Users[i]?.avatarUrl ?? null,
+      totalPoints: Math.round(p.totalPoints),
+      isCurrentUser: p.userId === userId,
+    })
+  );
+
   return {
     userName: user.name ?? user.username ?? "Unknown",
     avatarUrl: user.avatarUrl ?? null,
@@ -713,31 +609,19 @@ async function computeWrappedData(
 
     prDay,
     weeklyPoints,
-    activityTimeDistribution: timeBuckets,
-    mostCommonTime,
     categoryBreakdown,
     bonusMilestones,
 
-    likesGiven,
-    likesReceived,
     biggestFan,
     yourFavorite,
-    mostPopularActivity,
-
-    commentsGiven,
-    commentsReceived,
-    pokesSent,
-    pokesReceived,
-    forumPosts,
-    forumReplies,
 
     miniGameResults,
     achievementsEarned,
     badgesEarned,
 
-    photosShared,
-    drinkPenalties,
-    drinkPenaltyPoints: Math.round(drinkPenaltyPoints),
+    communityTotals,
+    categoryLeaders,
+    top10,
 
     // Up to 12 random photos for wrapped backgrounds
     activityPhotoIds: shuffleAndTake(activityPhotoIds, 12),

@@ -220,16 +220,8 @@ export default function WrappedAdminPage() {
                   value={`${Math.round(previewData.totalMinutes / 60)}h`}
                 />
                 <StatBox
-                  label="Likes Given"
-                  value={previewData.likesGiven.toString()}
-                />
-                <StatBox
-                  label="Likes Received"
-                  value={previewData.likesReceived.toString()}
-                />
-                <StatBox
-                  label="Photos"
-                  value={previewData.photosShared.toString()}
+                  label="Categories"
+                  value={previewData.categoryBreakdown.length.toString()}
                 />
               </div>
 
@@ -283,10 +275,10 @@ export default function WrappedAdminPage() {
           </h2>
         </div>
         <p className="text-xs text-zinc-500">
-          The Wrapped experience includes up to 21 slides covering activity
-          stats, social engagement, mini-game results, achievements, and fun
-          facts. Slides with no data are automatically skipped for each
-          participant.
+          The Wrapped experience includes up to 15 slides covering personal
+          stats, community totals, category leaders, leaderboard, mini-game
+          results, and achievements. Slides with no data are automatically
+          skipped for each participant.
         </p>
       </div>
     </div>
