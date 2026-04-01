@@ -20,7 +20,7 @@ interface WrappedViewerProps {
 /** Slides that show the user's floating activity photos */
 const PHOTO_SLIDES = new Set([
   "final-standing",
-  "fun-stats",
+  "community-totals",
   "thank-you",
   "activity-volume",
 ]);

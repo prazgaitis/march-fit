@@ -13,14 +13,13 @@ import { FavoriteActivitySlide } from "@/components/wrapped/slides/favorite-acti
 import { DistanceTimeSlide } from "@/components/wrapped/slides/distance-time";
 import { PrDaySlide } from "@/components/wrapped/slides/pr-day";
 import { WeeklyProgressionSlide } from "@/components/wrapped/slides/weekly-progression";
-import { TimeOfDaySlide } from "@/components/wrapped/slides/time-of-day";
 import { CategoryBreakdownSlide } from "@/components/wrapped/slides/category-breakdown";
-import { SocialLikesSlide } from "@/components/wrapped/slides/social-likes";
 import { BiggestFanSlide } from "@/components/wrapped/slides/biggest-fan";
-import { SocialSummarySlide } from "@/components/wrapped/slides/social-summary";
 import { MiniGamesSlide } from "@/components/wrapped/slides/mini-games";
 import { AchievementsSlide } from "@/components/wrapped/slides/achievements";
-import { FunStatsSlide } from "@/components/wrapped/slides/fun-stats";
+import { CommunityTotalsSlide } from "@/components/wrapped/slides/community-totals";
+import { CategoryLeadersSlide } from "@/components/wrapped/slides/category-leaders";
+import { Top10LeaderboardSlide } from "@/components/wrapped/slides/top-10-leaderboard";
 import { ThankYouSlide } from "@/components/wrapped/slides/thank-you";
 
 export default function WrappedPage() {
@@ -145,20 +144,7 @@ export default function WrappedPage() {
     });
   }
 
-  // 8. Time of Day
-  if (data.totalActivities > 3) {
-    slides.push({
-      key: "time-of-day",
-      content: (
-        <TimeOfDaySlide
-          activityTimeDistribution={data.activityTimeDistribution}
-          mostCommonTime={data.mostCommonTime}
-        />
-      ),
-    });
-  }
-
-  // 9. Category Breakdown
+  // 8. Category Breakdown
   if (data.categoryBreakdown.length > 1) {
     slides.push({
       key: "category-breakdown",
@@ -168,20 +154,7 @@ export default function WrappedPage() {
     });
   }
 
-  // 10. Social Likes
-  if (data.likesGiven > 0 || data.likesReceived > 0) {
-    slides.push({
-      key: "social-likes",
-      content: (
-        <SocialLikesSlide
-          likesGiven={data.likesGiven}
-          likesReceived={data.likesReceived}
-        />
-      ),
-    });
-  }
-
-  // 11. Biggest Fan
+  // 9. Biggest Fan
   if (data.biggestFan || data.yourFavorite) {
     slides.push({
       key: "biggest-fan",
@@ -194,29 +167,7 @@ export default function WrappedPage() {
     });
   }
 
-  // 12. Social Summary
-  if (
-    data.commentsGiven > 0 ||
-    data.commentsReceived > 0 ||
-    data.pokesSent > 0 ||
-    data.pokesReceived > 0
-  ) {
-    slides.push({
-      key: "social-summary",
-      content: (
-        <SocialSummarySlide
-          commentsGiven={data.commentsGiven}
-          commentsReceived={data.commentsReceived}
-          pokesSent={data.pokesSent}
-          pokesReceived={data.pokesReceived}
-          forumPosts={data.forumPosts}
-          forumReplies={data.forumReplies}
-        />
-      ),
-    });
-  }
-
-  // 13. Mini-Games
+  // 10. Mini-Games
   if (data.miniGameResults.length > 0) {
     slides.push({
       key: "mini-games",
@@ -224,7 +175,7 @@ export default function WrappedPage() {
     });
   }
 
-  // 14. Achievements + Badges
+  // 11. Achievements + Badges
   if (data.achievementsEarned.length > 0 || data.badgesEarned.length > 0) {
     slides.push({
       key: "achievements",
@@ -237,22 +188,40 @@ export default function WrappedPage() {
     });
   }
 
-  // 15. Fun Stats
-  if (data.photosShared > 0 || data.drinkPenalties > 0) {
+  // 12. Community Totals
+  if (data.communityTotals.totalPoints > 0) {
     slides.push({
-      key: "fun-stats",
+      key: "community-totals",
       content: (
-        <FunStatsSlide
-          photosShared={data.photosShared}
-          drinkPenalties={data.drinkPenalties}
-          drinkPenaltyPoints={data.drinkPenaltyPoints}
-          activityVariety={data.activityVariety}
+        <CommunityTotalsSlide
+          communityTotals={data.communityTotals}
+          userTotalMinutes={data.totalMinutes}
+          userTotalMiles={data.totalDistanceMiles}
+          userTotalElevation={data.totalElevationMeters}
         />
       ),
     });
   }
 
-  // 16. Thank You (always last)
+  // 13. Category Leaders
+  if (data.categoryLeaders.length > 0) {
+    slides.push({
+      key: "category-leaders",
+      content: (
+        <CategoryLeadersSlide categoryLeaders={data.categoryLeaders} />
+      ),
+    });
+  }
+
+  // 14. Top 10 Leaderboard
+  if (data.top10.length > 0) {
+    slides.push({
+      key: "top-10",
+      content: <Top10LeaderboardSlide top10={data.top10} />,
+    });
+  }
+
+  // 15. Thank You (always last)
   slides.push({
     key: "thank-you",
     content: (
