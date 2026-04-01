@@ -95,6 +95,7 @@ export default async function ChallengeAdminLayout({
       label: "Configure",
       items: [
         { href: `${base}/settings`, label: "Settings", segment: "settings" },
+        { href: `${base}/exports`, label: "Exports", segment: "exports" },
       ],
     },
   ];

@@ -16,6 +16,7 @@ import type * as actions_backfillWeeklyCategoryPoints from "../actions/backfillW
 import type * as actions_cleanup from "../actions/cleanup.js";
 import type * as actions_clear from "../actions/clear.js";
 import type * as actions_createChallengeFromConfig from "../actions/createChallengeFromConfig.js";
+import type * as actions_exportActivitiesCSV from "../actions/exportActivitiesCSV.js";
 import type * as actions_fix2025ActivityTypes from "../actions/fix2025ActivityTypes.js";
 import type * as actions_fixContributesToStreak from "../actions/fixContributesToStreak.js";
 import type * as actions_payments from "../actions/payments.js";
@@ -85,6 +86,7 @@ import type * as mutations_clear from "../mutations/clear.js";
 import type * as mutations_commentLikes from "../mutations/commentLikes.js";
 import type * as mutations_comments from "../mutations/comments.js";
 import type * as mutations_emailSequences from "../mutations/emailSequences.js";
+import type * as mutations_exports from "../mutations/exports.js";
 import type * as mutations_feedback from "../mutations/feedback.js";
 import type * as mutations_fixDoubleBonuses from "../mutations/fixDoubleBonuses.js";
 import type * as mutations_fixStreak from "../mutations/fixStreak.js";
@@ -124,6 +126,7 @@ import type * as queries_challengeInvites from "../queries/challengeInvites.js";
 import type * as queries_challenges from "../queries/challenges.js";
 import type * as queries_comments from "../queries/comments.js";
 import type * as queries_emailSequences from "../queries/emailSequences.js";
+import type * as queries_exports from "../queries/exports.js";
 import type * as queries_feedback from "../queries/feedback.js";
 import type * as queries_follows from "../queries/follows.js";
 import type * as queries_forumPosts from "../queries/forumPosts.js";
@@ -156,6 +159,7 @@ declare const fullApi: ApiFromModules<{
   "actions/cleanup": typeof actions_cleanup;
   "actions/clear": typeof actions_clear;
   "actions/createChallengeFromConfig": typeof actions_createChallengeFromConfig;
+  "actions/exportActivitiesCSV": typeof actions_exportActivitiesCSV;
   "actions/fix2025ActivityTypes": typeof actions_fix2025ActivityTypes;
   "actions/fixContributesToStreak": typeof actions_fixContributesToStreak;
   "actions/payments": typeof actions_payments;
@@ -225,6 +229,7 @@ declare const fullApi: ApiFromModules<{
   "mutations/commentLikes": typeof mutations_commentLikes;
   "mutations/comments": typeof mutations_comments;
   "mutations/emailSequences": typeof mutations_emailSequences;
+  "mutations/exports": typeof mutations_exports;
   "mutations/feedback": typeof mutations_feedback;
   "mutations/fixDoubleBonuses": typeof mutations_fixDoubleBonuses;
   "mutations/fixStreak": typeof mutations_fixStreak;
@@ -264,6 +269,7 @@ declare const fullApi: ApiFromModules<{
   "queries/challenges": typeof queries_challenges;
   "queries/comments": typeof queries_comments;
   "queries/emailSequences": typeof queries_emailSequences;
+  "queries/exports": typeof queries_exports;
   "queries/feedback": typeof queries_feedback;
   "queries/follows": typeof queries_follows;
   "queries/forumPosts": typeof queries_forumPosts;
