@@ -54,6 +54,7 @@ export default async function ChallengeAdminLayout({
         { href: base, label: "Overview", segment: "(overview)" },
         { href: `${base}/algofeed`, label: "Algo Feed", segment: "algofeed" },
         { href: `${base}/flagged-activities`, label: "Flagged", segment: "flagged-activities" },
+        { href: `${base}/log-activity`, label: "Log Activity", segment: "log-activity" },
       ],
     },
     {
