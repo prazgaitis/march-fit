@@ -728,14 +728,15 @@ async function calculatePrWeekOutcomes(
   for (const participant of participants) {
     const initialPr = participant.initialState?.dailyPr ?? 0;
 
-    // Calculate max daily points during game period
-    const weekMaxPoints = await getMaxDailyPointsInPeriod(
-      ctx,
-      participant.userId,
-      miniGame.challengeId,
-      miniGame.startsAt,
-      miniGame.endsAt,
-    );
+    // Calculate max daily points and get activity breakdown for the best day
+    const { maxPoints: weekMaxPoints, bestDayBreakdown } =
+      await getMaxDailyPointsWithBreakdown(
+        ctx,
+        participant.userId,
+        miniGame.challengeId,
+        miniGame.startsAt,
+        miniGame.endsAt,
+      );
 
     const hitPr = weekMaxPoints > initialPr;
     const bonusPoints = hitPr ? prBonus : 0;
@@ -763,12 +764,18 @@ async function calculatePrWeekOutcomes(
 
     // Award bonus activity
     if (bonusPoints !== 0) {
+      // Build detailed description with activity breakdown
+      const breakdownLines = bestDayBreakdown
+        .map((a) => `• ${a.name}: ${a.points} pts`)
+        .join("\n");
+      const description = `PR Week Bonus: New daily PR! Best day: ${weekMaxPoints} pts (previous PR: ${initialPr} pts)\n${breakdownLines}`;
+
       await awardBonusActivity(
         ctx,
         participant,
         miniGame,
         bonusPoints,
-        `PR Week: New daily PR! (${weekMaxPoints} pts, previous: ${initialPr} pts)`,
+        description,
         now,
       );
     }
@@ -807,6 +814,26 @@ async function getMaxDailyPointsInPeriod(
   startDate: number,
   endDate: number,
 ): Promise<number> {
+  const { maxPoints } = await getMaxDailyPointsWithBreakdown(
+    ctx,
+    userId,
+    challengeId,
+    startDate,
+    endDate,
+  );
+  return maxPoints;
+}
+
+async function getMaxDailyPointsWithBreakdown(
+  ctx: ReadDbCtx,
+  userId: Id<"users">,
+  challengeId: Id<"challenges">,
+  startDate: number,
+  endDate: number,
+): Promise<{
+  maxPoints: number;
+  bestDayBreakdown: Array<{ name: string; points: number }>;
+}> {
   const activities = await ctx.db
     .query("activities")
     .withIndex("by_user_challenge_date", (q: any) =>
@@ -817,6 +844,10 @@ async function getMaxDailyPointsInPeriod(
 
   // Group by day (excluding mini_game bonus activities)
   const dailyPoints: Record<string, number> = {};
+  const dailyActivities: Record<
+    string,
+    Array<{ activityTypeId: Id<"activityTypes">; points: number }>
+  > = {};
 
   for (const activity of activities) {
     if (
@@ -828,10 +859,47 @@ async function getMaxDailyPointsInPeriod(
 
     const dateStr = formatDateOnlyFromUtcMs(activity.loggedDate);
     dailyPoints[dateStr] = (dailyPoints[dateStr] || 0) + activity.pointsEarned;
+
+    if (!dailyActivities[dateStr]) dailyActivities[dateStr] = [];
+    dailyActivities[dateStr].push({
+      activityTypeId: activity.activityTypeId,
+      points: activity.pointsEarned,
+    });
   }
 
-  const values = Object.values(dailyPoints);
-  return values.length > 0 ? Math.max(...values) : 0;
+  const values = Object.entries(dailyPoints);
+  if (values.length === 0) {
+    return { maxPoints: 0, bestDayBreakdown: [] };
+  }
+
+  const [bestDate] = values.reduce((best, curr) =>
+    curr[1] > best[1] ? curr : best,
+  );
+
+  // Look up activity type names for the best day
+  const bestDayRaw = dailyActivities[bestDate] ?? [];
+  const typeCache = new Map<string, string>();
+
+  const breakdown: Array<{ name: string; points: number }> = [];
+  for (const entry of bestDayRaw) {
+    const typeId = entry.activityTypeId as string;
+    if (!typeCache.has(typeId)) {
+      const at = await ctx.db.get(entry.activityTypeId);
+      typeCache.set(typeId, at?.name ?? "Activity");
+    }
+    breakdown.push({
+      name: typeCache.get(typeId)!,
+      points: entry.points,
+    });
+  }
+
+  // Sort by points descending
+  breakdown.sort((a, b) => b.points - a.points);
+
+  return {
+    maxPoints: Math.max(...values.map(([, pts]) => pts)),
+    bestDayBreakdown: breakdown,
+  };
 }
 
 async function awardBonusActivity(

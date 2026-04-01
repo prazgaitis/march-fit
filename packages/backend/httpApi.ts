@@ -324,6 +324,7 @@ async function handleListActivities(
   const url = new URL(request.url);
   const challengeId = params.id as Id<"challenges">;
   const limit = parseInt(url.searchParams.get("limit") ?? "20");
+  const userId = url.searchParams.get("userId") as Id<"users"> | null;
 
   const activities = await ctx.runQuery(
     api.queries.activities.getChallengeFeed,
@@ -331,6 +332,7 @@ async function handleListActivities(
       challengeId,
       includeEngagementCounts: true,
       includeMediaUrls: false,
+      ...(userId ? { userId } : {}),
       paginationOpts: {
         numItems: limit,
         cursor: url.searchParams.get("cursor") ?? null,

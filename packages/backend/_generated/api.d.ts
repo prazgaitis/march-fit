@@ -19,6 +19,7 @@ import type * as actions_createChallengeFromConfig from "../actions/createChalle
 import type * as actions_exportActivitiesCSV from "../actions/exportActivitiesCSV.js";
 import type * as actions_fix2025ActivityTypes from "../actions/fix2025ActivityTypes.js";
 import type * as actions_fixContributesToStreak from "../actions/fixContributesToStreak.js";
+import type * as actions_fixSwimmingCategoryFlag from "../actions/fixSwimmingCategoryFlag.js";
 import type * as actions_payments from "../actions/payments.js";
 import type * as actions_rescoreStravaActivities from "../actions/rescoreStravaActivities.js";
 import type * as actions_seed from "../actions/seed.js";
@@ -35,6 +36,7 @@ import type * as index from "../index.js";
 import type * as lib_achievementCriteria from "../lib/achievementCriteria.js";
 import type * as lib_achievements from "../lib/achievements.js";
 import type * as lib_activityFilters from "../lib/activityFilters.js";
+import type * as lib_activityLifecycle from "../lib/activityLifecycle.js";
 import type * as lib_activityPointsAggregate from "../lib/activityPointsAggregate.js";
 import type * as lib_activityWrites from "../lib/activityWrites.js";
 import type * as lib_apiKey from "../lib/apiKey.js";
@@ -162,6 +164,7 @@ declare const fullApi: ApiFromModules<{
   "actions/exportActivitiesCSV": typeof actions_exportActivitiesCSV;
   "actions/fix2025ActivityTypes": typeof actions_fix2025ActivityTypes;
   "actions/fixContributesToStreak": typeof actions_fixContributesToStreak;
+  "actions/fixSwimmingCategoryFlag": typeof actions_fixSwimmingCategoryFlag;
   "actions/payments": typeof actions_payments;
   "actions/rescoreStravaActivities": typeof actions_rescoreStravaActivities;
   "actions/seed": typeof actions_seed;
@@ -178,6 +181,7 @@ declare const fullApi: ApiFromModules<{
   "lib/achievementCriteria": typeof lib_achievementCriteria;
   "lib/achievements": typeof lib_achievements;
   "lib/activityFilters": typeof lib_activityFilters;
+  "lib/activityLifecycle": typeof lib_activityLifecycle;
   "lib/activityPointsAggregate": typeof lib_activityPointsAggregate;
   "lib/activityWrites": typeof lib_activityWrites;
   "lib/apiKey": typeof lib_apiKey;

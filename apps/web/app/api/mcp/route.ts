@@ -191,16 +191,18 @@ const mcpHandler = createMcpHandler(
         description: "List activities for a challenge feed.",
         inputSchema: {
           challengeId: z.string().min(1),
+          userId: z.string().optional().describe("Filter activities by user ID"),
           limit: z.number().int().min(1).max(200).optional(),
           cursor: z.string().optional(),
         },
       },
-      async ({ challengeId, limit, cursor }) => {
+      async ({ challengeId, userId, limit, cursor }) => {
         const token = requireApiToken();
         const data = await apiRequest(token, `/challenges/${challengeId}/activities`, {
           query: {
             limit: limit ?? 20,
             cursor,
+            ...(userId ? { userId } : {}),
           },
         });
         return asTextResult(data);
