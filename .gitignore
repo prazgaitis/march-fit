@@ -65,6 +65,9 @@ e2e/test-results/
 # E2E env (un-ignore the checked-in defaults, keep .env.local secret)
 !e2e/.env
 
+# Temp files
+tmp/
+
 # Misc
 coverage/
 .nyc_output/
