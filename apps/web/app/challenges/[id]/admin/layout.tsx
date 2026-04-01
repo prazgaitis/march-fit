@@ -49,53 +49,42 @@ export default async function ChallengeAdminLayout({
 
   const navGroups: AdminNavigationGroup[] = [
     {
-      label: "Monitor",
+      label: "Activity",
       items: [
         { href: base, label: "Overview", segment: "(overview)" },
-        { href: `${base}/algofeed`, label: "Algo Feed", segment: "algofeed" },
+        { href: `${base}/algofeed`, label: "Feed", segment: "algofeed" },
         { href: `${base}/flagged-activities`, label: "Flagged", segment: "flagged-activities" },
-        { href: `${base}/log-activity`, label: "Log Activity", segment: "log-activity" },
+        { href: `${base}/log-activity`, label: "Log", segment: "log-activity" },
       ],
     },
     {
       label: "Scoring",
       items: [
-        { href: `${base}/activity-types`, label: "Activity Types", segment: "activity-types" },
+        { href: `${base}/activity-types`, label: "Types", segment: "activity-types" },
         { href: `${base}/categories`, label: "Categories", segment: "categories" },
-        { href: `${base}/integrations`, label: "Integrations", segment: "integrations" },
+        { href: `${base}/category-leaders`, label: "Leaders", segment: "category-leaders" },
         { href: `${base}/achievements`, label: "Achievements", segment: "achievements" },
-        { href: `${base}/category-leaders`, label: "Cat Leaders", segment: "category-leaders" },
+        { href: `${base}/integrations`, label: "Integrations", segment: "integrations" },
       ],
     },
     {
       label: "Engage",
       items: [
-        { href: `${base}/forum`, label: "Forum", segment: "forum" },
         { href: `${base}/mini-games`, label: "Mini Games", segment: "mini-games" },
+        { href: `${base}/forum`, label: "Forum", segment: "forum" },
         { href: `${base}/badges`, label: "Badges", segment: "badges" },
         { href: `${base}/wrapped`, label: "Wrapped", segment: "wrapped" },
-        { href: `${base}/emails`, label: "Emails", segment: "emails" },
-        { href: `${base}/email-sends`, label: "Send Log", segment: "email-sends" },
       ],
     },
     {
-      label: "Support",
+      label: "Manage",
       items: [
-        { href: `${base}/feedback`, label: "Feedback", segment: "feedback" },
-      ],
-    },
-    {
-      label: "People",
-      items: [
-        { href: `${base}/participants`, label: "Participants", segment: "participants" },
+        { href: `${base}/participants`, label: "People", segment: "participants" },
         { href: `${base}/payments`, label: "Payments", segment: "payments" },
-      ],
-    },
-    {
-      label: "Configure",
-      items: [
-        { href: `${base}/settings`, label: "Settings", segment: "settings" },
+        { href: `${base}/emails`, label: "Emails", segment: "emails" },
+        { href: `${base}/feedback`, label: "Feedback", segment: "feedback" },
         { href: `${base}/exports`, label: "Exports", segment: "exports" },
+        { href: `${base}/settings`, label: "Settings", segment: "settings" },
       ],
     },
   ];
