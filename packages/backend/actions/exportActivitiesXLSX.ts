@@ -307,6 +307,53 @@ export const generateXLSX = action({
       // Sort summary by total points descending
       summaryRows.sort((a, b) => (b[3] as number) - (a[3] as number));
 
+      // ── Build per-user sheet data ────────────────────────────
+      type UserSheetData = { sheetName: string; rows: any[][] };
+      const userSheets: UserSheetData[] = [];
+
+      const userSheetHeaders = [
+        "Date", "Day #", "Activities", "Points",
+        "Running Total", "Streak", "Activity Breakdown",
+      ];
+
+      for (const userId of sortedUserIds) {
+        const user = userMap.get(userId)!;
+        const userActivities = activitiesByUser.get(userId) ?? [];
+        if (userActivities.length === 0) continue;
+
+        const dailyStreakPoints = aggregateDailyStreakPoints(
+          userActivities, contributesToStreak,
+        );
+        const streakResult = computeStreak(dailyStreakPoints, streakMinPoints);
+
+        const byDate = new Map<string, any[]>();
+        for (const a of userActivities) {
+          const dateStr = formatDate(a.loggedDate);
+          const list = byDate.get(dateStr) ?? [];
+          list.push(a);
+          byDate.set(dateStr, list);
+        }
+
+        const rows: any[][] = [];
+        let runningTotal = 0;
+        for (let i = 0; i < dateRange.length; i++) {
+          const { dateStr, dateMs } = dateRange[i];
+          const dayActs = byDate.get(dateStr) ?? [];
+          const dayPts = dayActs.reduce((s: number, a: any) => s + a.pointsEarned, 0);
+          runningTotal += dayPts;
+          const streak = streakResult.dailyStreakCount.get(dateMs) ?? 0;
+          const breakdown = dayActs
+            .map((a: any) => `${activityTypeMap.get(a.activityTypeId)?.name ?? "?"}: ${a.pointsEarned} pts`)
+            .join("; ");
+          rows.push([dateStr, i + 1, dayActs.length, dayPts, runningTotal, streak > 0 ? streak : "", breakdown]);
+        }
+
+        userSheets.push({
+          sheetName: sanitizeSheetName(user.name || user.username),
+          rows: [userSheetHeaders, ...rows],
+        });
+      }
+
       // ── Build workbook ───────────────────────────────────────
       const wb = XLSX.utils.book_new();
 
@@ -324,6 +371,21 @@ export const generateXLSX = action({
       const ws3 = XLSX.utils.aoa_to_sheet([dailyHeaders, ...dailyRows]);
       setColumnWidths(ws3, dailyHeaders);
       XLSX.utils.book_append_sheet(wb, ws3, "Daily Breakdown");
+
+      // Per-user sheets
+      const usedNames = new Set(["All Activities", "User Summary", "Daily Breakdown"]);
+      for (const sheet of userSheets) {
+        let name = sheet.sheetName;
+        let suffix = 2;
+        while (usedNames.has(name)) {
+          name = `${sheet.sheetName.slice(0, 27)} (${suffix})`;
+          suffix++;
+        }
+        usedNames.add(name);
+        const ws = XLSX.utils.aoa_to_sheet(sheet.rows);
+        setColumnWidths(ws, sheet.rows[0]);
+        XLSX.utils.book_append_sheet(wb, ws, name);
+      }
 
       // Write to buffer
       const xlsxBuffer = XLSX.write(wb, {
@@ -416,6 +478,10 @@ function extractText(node: any): string {
     return node.content.map(extractText).join("");
   }
   return "";
+}
+
+function sanitizeSheetName(name: string): string {
+  return name.replace(/[[\]*?/\\:]/g, "").slice(0, 31).trim() || "User";
 }
 
 function buildDateRange(
