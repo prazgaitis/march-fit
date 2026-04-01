@@ -95,6 +95,29 @@ export const markCompleted = internalMutation({
 });
 
 /**
+ * Delete an export record and its stored file.
+ */
+export const deleteExport = mutation({
+  args: {
+    exportId: v.id("exports"),
+  },
+  handler: async (ctx, args) => {
+    const exp = await ctx.db.get(args.exportId);
+    if (!exp) throw new Error("Export not found");
+
+    await requireChallengeAdmin(ctx, exp.challengeId);
+
+    // Delete the stored file if it exists
+    if (exp.storageId) {
+      await ctx.storage.delete(exp.storageId);
+    }
+
+    await ctx.db.delete(args.exportId);
+    return { success: true };
+  },
+});
+
+/**
  * Internal mutation: mark export as failed.
  */
 export const markFailed = internalMutation({
