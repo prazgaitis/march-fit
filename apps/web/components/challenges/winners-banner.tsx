@@ -2,7 +2,6 @@
 
 import { Trophy, Crown, Medal } from "lucide-react";
 import { UserAvatar } from "@/components/user-avatar";
-import { formatPoints } from "@/lib/points";
 import { cn } from "@/lib/utils";
 
 export interface Winner {
@@ -20,6 +19,7 @@ export interface Winner {
 
 interface WinnersBannerProps {
   winners: Winner[];
+  compact?: boolean;
   className?: string;
 }
 
@@ -54,7 +54,7 @@ function placementLabel(placement: number): string {
   return `${placement}th`;
 }
 
-export function WinnersBanner({ winners, className }: WinnersBannerProps) {
+export function WinnersBanner({ winners, compact, className }: WinnersBannerProps) {
   if (winners.length === 0) return null;
 
   // Group by placement to detect ties
@@ -68,6 +68,67 @@ export function WinnersBanner({ winners, className }: WinnersBannerProps) {
   const placements = Array.from(byPlacement.entries()).sort(
     (a, b) => a[0] - b[0],
   );
+
+  if (compact) {
+    return (
+      <div
+        className={cn(
+          "flex flex-wrap items-center gap-3 rounded-lg border border-amber-500/20 bg-amber-500/5 px-4 py-2.5",
+          className,
+        )}
+      >
+        <div className="flex items-center gap-1.5">
+          <Trophy className="h-4 w-4 text-amber-400" />
+          <span className="text-xs font-bold uppercase tracking-wider text-amber-400">
+            Winners
+          </span>
+        </div>
+        {placements.flatMap(([placement, group]) => {
+          const config = PLACEMENT_CONFIG[placement] ?? PLACEMENT_CONFIG[3];
+          const isTie = group.length > 1;
+          const Icon = config.icon;
+
+          return group.map((winner) => (
+            <div
+              key={winner.userId}
+              className="flex items-center gap-2"
+            >
+              <Icon className={cn("h-3.5 w-3.5", config.text)} />
+              {winner.user && (
+                <UserAvatar
+                  user={{
+                    id: winner.user.id,
+                    name: winner.user.name,
+                    username: winner.user.username,
+                    avatarUrl: winner.user.avatarUrl,
+                  }}
+                  challengeId=""
+                  disableLink
+                  size="xs"
+                />
+              )}
+              <span className="text-sm font-semibold text-white">
+                {winner.user?.name ?? winner.user?.username ?? "Unknown"}
+              </span>
+              {winner.totalPoints !== undefined && (
+                <span className="font-mono text-xs text-zinc-500">
+                  {Math.round(winner.totalPoints).toLocaleString()}
+                </span>
+              )}
+              <span
+                className={cn(
+                  "text-[10px] font-bold uppercase",
+                  config.text,
+                )}
+              >
+                {isTie ? `T-${placementLabel(placement)}` : placementLabel(placement)}
+              </span>
+            </div>
+          ));
+        })}
+      </div>
+    );
+  }
 
   return (
     <div
