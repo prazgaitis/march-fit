@@ -1,4 +1,7 @@
 export function formatPoints(value: number, decimals: 0 | 1 | 2 = 2): string {
+  if (decimals === 0) {
+    return Math.trunc(value).toLocaleString();
+  }
   return value.toFixed(decimals);
 }
 

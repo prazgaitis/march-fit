@@ -135,6 +135,16 @@ export const updateChallenge = mutation({
     allowGenderEdit: v.optional(v.boolean()),
     wrappedEnabled: v.optional(v.boolean()),
     finalDaysStart: v.optional(v.number()),
+    finishedAt: v.optional(v.number()),
+    winners: v.optional(
+      v.array(
+        v.object({
+          userId: v.id("users"),
+          placement: v.number(),
+          label: v.optional(v.string()),
+        }),
+      ),
+    ),
   },
   handler: async (ctx, args) => {
     await requireChallengeAdmin(ctx, args.challengeId);
@@ -209,6 +219,11 @@ export const updateChallenge = mutation({
     if (updates.allowGenderEdit !== undefined) updateData.allowGenderEdit = updates.allowGenderEdit;
     if (updates.wrappedEnabled !== undefined) updateData.wrappedEnabled = updates.wrappedEnabled;
     if (updates.finalDaysStart !== undefined) updateData.finalDaysStart = updates.finalDaysStart;
+    // finishedAt: positive number sets it, 0 clears it
+    if (updates.finishedAt !== undefined) {
+      updateData.finishedAt = updates.finishedAt > 0 ? updates.finishedAt : undefined;
+    }
+    if (updates.winners !== undefined) updateData.winners = updates.winners;
 
     // Handle announcement - update timestamp when announcement changes
     if (updates.announcement !== undefined) {

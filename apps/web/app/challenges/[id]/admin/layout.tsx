@@ -83,6 +83,7 @@ export default async function ChallengeAdminLayout({
         { href: `${base}/payments`, label: "Payments", segment: "payments" },
         { href: `${base}/emails`, label: "Emails", segment: "emails" },
         { href: `${base}/feedback`, label: "Feedback", segment: "feedback" },
+        { href: `${base}/winners`, label: "Winners", segment: "winners" },
         { href: `${base}/exports`, label: "Exports", segment: "exports" },
         { href: `${base}/settings`, label: "Settings", segment: "settings" },
       ],

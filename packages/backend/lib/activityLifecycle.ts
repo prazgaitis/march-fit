@@ -74,6 +74,10 @@ export async function logActivityWithLifecycle(
     throw new Error("Challenge not found");
   }
 
+  if (challenge.finishedAt) {
+    throw new ConvexError("This challenge has finished. New activities can no longer be logged.");
+  }
+
   const activityType = await ctx.db.get(args.activityTypeId);
   if (!activityType || activityType.challengeId !== args.challengeId) {
     throw new ConvexError("This activity type is not available for this challenge.");
