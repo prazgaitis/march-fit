@@ -59,6 +59,19 @@ export default defineSchema({
     // Day number (1-indexed) when the Final Days window begins (e.g. 29 = days 29–end)
     // Used to re-show availableInFinalDays activities. Defaults to durationDays - 1.
     finalDaysStart: v.optional(v.number()),
+    // When set, the challenge is locked — no new activities can be logged
+    finishedAt: v.optional(v.number()),
+    // Configured winners: array of { userId, placement, label? }
+    // Supports ties (multiple entries with same placement, e.g. T-1)
+    winners: v.optional(
+      v.array(
+        v.object({
+          userId: v.id("users"),
+          placement: v.number(), // 1, 2, 3, etc. Ties share the same number
+          label: v.optional(v.string()), // e.g. "Co-Champion"
+        }),
+      ),
+    ),
     createdAt: v.number(),
     updatedAt: v.number(),
   }).index("creatorId", ["creatorId"]),

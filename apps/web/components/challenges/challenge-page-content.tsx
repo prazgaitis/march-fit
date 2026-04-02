@@ -26,6 +26,7 @@ import { dateOnlyToUtcMs, formatDateShortFromDateOnly } from "@/lib/date-only";
 import { ChallengeDetails } from "@/components/challenges/challenge-details";
 import { ParticipantsList } from "@/components/challenges/participants-list";
 import { InviteCard } from "@/components/dashboard/invite-card";
+import { WinnersBanner } from "@/components/challenges/winners-banner";
 import { isUnauthenticatedConvexError } from "@/lib/convex-auth-error";
 
 interface Challenge {
@@ -40,6 +41,14 @@ interface Challenge {
   visibility?: "public" | "private";
   welcomeVideoUrl?: string;
   welcomeMessage?: string;
+  finishedAt?: number;
+  winners?: Array<{
+    userId: string;
+    placement: number;
+    label?: string;
+    user?: { id: string; name: string | null; username: string; avatarUrl: string | null };
+    totalPoints?: number;
+  }>;
 }
 
 interface Participant {
@@ -310,6 +319,10 @@ export function ChallengePageContent({
 
         {challenge.description && (
           <p className="text-muted-foreground mb-6 max-w-2xl">{challenge.description}</p>
+        )}
+
+        {challenge.winners && challenge.winners.length > 0 && (
+          <WinnersBanner winners={challenge.winners} className="mb-6 max-w-2xl" />
         )}
 
         {joinError && (

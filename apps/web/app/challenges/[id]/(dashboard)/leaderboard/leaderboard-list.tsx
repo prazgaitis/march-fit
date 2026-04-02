@@ -106,6 +106,7 @@ const LeaderboardEntryRow = memo(function LeaderboardEntryRow({
           <div className="ml-auto flex shrink-0 items-center gap-1">
             <PointsDisplay
               points={entry.totalPoints}
+              decimals={0}
               size="lg"
               showSign={false}
               showLabel={false}

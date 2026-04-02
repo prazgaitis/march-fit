@@ -86,6 +86,23 @@ export default async function ChallengePage({ params }: PageProps) {
       notFound();
     }
 
+    // Enrich winners with user data if present
+    let enrichedWinners: Array<any> | undefined;
+    if (challenge.winners?.length) {
+      const leaderboard = await convex.query(
+        api.queries.participations.getFullLeaderboard,
+        { challengeId },
+      );
+      enrichedWinners = challenge.winners.map((w: any) => {
+        const entry = leaderboard.find((e: any) => e.user.id === w.userId);
+        return {
+          ...w,
+          user: entry?.user ?? null,
+          totalPoints: entry?.totalPoints,
+        };
+      });
+    }
+
     return (
       <>
       <Suspense fallback={<HeaderSkeleton />}>
@@ -96,6 +113,7 @@ export default async function ChallengePage({ params }: PageProps) {
           ...challenge,
           startDate: challenge.startDate,
           endDate: challenge.endDate,
+          winners: enrichedWinners,
         }}
         isParticipating={isParticipating}
         isSignedIn={Boolean(user)}
