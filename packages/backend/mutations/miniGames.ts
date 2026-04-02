@@ -1,4 +1,4 @@
-import { mutation, type MutationCtx } from "../_generated/server";
+import { mutation, internalMutation, type MutationCtx } from "../_generated/server";
 import { v } from "convex/values";
 import type { Id } from "../_generated/dataModel";
 import { requireCurrentUser } from "../lib/ids";
@@ -39,6 +39,38 @@ async function requireChallengeAdmin(
 
   return { user, challenge };
 }
+
+/**
+ * Internal: create a mini-game without auth (for setup scripts).
+ */
+export const createInternal = internalMutation({
+  args: {
+    challengeId: v.id("challenges"),
+    type: v.union(
+      v.literal("partner_week"),
+      v.literal("hunt_week"),
+      v.literal("pr_week"),
+    ),
+    name: v.string(),
+    startsAt: v.number(),
+    endsAt: v.number(),
+    config: v.optional(v.any()),
+  },
+  handler: async (ctx, args) => {
+    const now = Date.now();
+    return await ctx.db.insert("miniGames", {
+      challengeId: args.challengeId,
+      type: args.type,
+      name: args.name,
+      startsAt: args.startsAt,
+      endsAt: args.endsAt,
+      status: "draft",
+      config: args.config ?? getDefaultConfig(args.type),
+      createdAt: now,
+      updatedAt: now,
+    });
+  },
+});
 
 /**
  * Create a new mini-game (draft status)
