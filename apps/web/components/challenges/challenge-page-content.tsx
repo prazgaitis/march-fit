@@ -321,10 +321,6 @@ export function ChallengePageContent({
           <p className="text-muted-foreground mb-6 max-w-2xl">{challenge.description}</p>
         )}
 
-        {challenge.winners && challenge.winners.length > 0 && (
-          <WinnersBanner winners={challenge.winners} className="mb-6 max-w-2xl" />
-        )}
-
         {joinError && (
           <Alert variant="destructive" className="mb-6 bg-destructive/20 text-destructive-foreground border-destructive/30">
             <AlertTitle>Unable to join</AlertTitle>
@@ -370,6 +366,10 @@ export function ChallengePageContent({
             )}
           </div>
         </div>
+
+        {challenge.winners && challenge.winners.length > 0 && (
+          <WinnersBanner winners={challenge.winners} compact className="mt-4" />
+        )}
       </div>
 
       {/* Tab switcher (mobile only) */}
