@@ -105,6 +105,16 @@ type WrappedData = {
     isCurrentUser: boolean;
   }>;
 
+  // Challenge winners
+  winners: Array<{
+    userId: string;
+    placement: number;
+    label?: string;
+    userName: string;
+    avatarUrl: string | null;
+    totalPoints: number;
+  }>;
+
   // Activity photos (cloudinary public IDs for wrapped backgrounds)
   activityPhotoIds: string[];
 };
@@ -584,6 +594,23 @@ async function computeWrappedData(
     })
   );
 
+  // ── Winners ──────────────────────────────────────────────────────────────
+  const winnersRaw = (challenge.winners as any[]) ?? [];
+  const winners: WrappedData["winners"] = await Promise.all(
+    winnersRaw.map(async (w: any) => {
+      const winnerUser = await ctx.db.get(w.userId);
+      const winnerParticipation = sorted.find((p: any) => p.userId === w.userId);
+      return {
+        userId: w.userId,
+        placement: w.placement,
+        label: w.label,
+        userName: winnerUser?.name ?? winnerUser?.username ?? "Unknown",
+        avatarUrl: winnerUser?.avatarUrl ?? null,
+        totalPoints: Math.round(winnerParticipation?.totalPoints ?? 0),
+      };
+    })
+  );
+
   return {
     userName: user.name ?? user.username ?? "Unknown",
     avatarUrl: user.avatarUrl ?? null,
@@ -622,6 +649,7 @@ async function computeWrappedData(
     communityTotals,
     categoryLeaders,
     top10,
+    winners,
 
     // Up to 12 random photos for wrapped backgrounds
     activityPhotoIds: shuffleAndTake(activityPhotoIds, 12),

@@ -139,7 +139,7 @@ export function WinnersBanner({ winners, className }: WinnersBannerProps) {
                     </div>
                     {winner.totalPoints !== undefined && (
                       <span className="font-mono text-sm text-zinc-400">
-                        {Math.trunc(winner.totalPoints).toLocaleString()} pts
+                        {Math.round(winner.totalPoints).toLocaleString()} pts
                       </span>
                     )}
                   </div>
