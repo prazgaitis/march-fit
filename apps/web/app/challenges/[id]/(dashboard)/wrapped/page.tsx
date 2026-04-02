@@ -77,6 +77,7 @@ export default function WrappedPage() {
         rank={data.rank}
         totalParticipants={data.totalParticipants}
         challengeName={data.challengeName}
+        winners={data.winners}
       />
     ),
   });
