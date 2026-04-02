@@ -28,6 +28,7 @@ import type * as actions_setMarch2026ActivityOrder from "../actions/setMarch2026
 import type * as actions_setMarch2026FinalDays from "../actions/setMarch2026FinalDays.js";
 import type * as actions_setup2026ActivityTypes from "../actions/setup2026ActivityTypes.js";
 import type * as actions_setup2026Challenges from "../actions/setup2026Challenges.js";
+import type * as actions_setup2027Challenge from "../actions/setup2027Challenge.js";
 import type * as actions_strava from "../actions/strava.js";
 import type * as auth from "../auth.js";
 import type * as crons from "../crons.js";
@@ -174,6 +175,7 @@ declare const fullApi: ApiFromModules<{
   "actions/setMarch2026FinalDays": typeof actions_setMarch2026FinalDays;
   "actions/setup2026ActivityTypes": typeof actions_setup2026ActivityTypes;
   "actions/setup2026Challenges": typeof actions_setup2026Challenges;
+  "actions/setup2027Challenge": typeof actions_setup2027Challenge;
   "actions/strava": typeof actions_strava;
   auth: typeof auth;
   crons: typeof crons;
