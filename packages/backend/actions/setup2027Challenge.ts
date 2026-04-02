@@ -28,8 +28,8 @@ export const setup2027Challenge = action({
       offset: 0,
     });
 
-    const source = challenges.find((c: any) => c.name === SOURCE_CHALLENGE);
-    if (!source) throw new Error(`${SOURCE_CHALLENGE} not found`);
+    const sourcePublic = challenges.find((c: any) => c.name === SOURCE_CHALLENGE);
+    if (!sourcePublic) throw new Error(`${SOURCE_CHALLENGE} not found`);
 
     const existing = challenges.find(
       (c: any) => c.name === "March Fitness 2027",
@@ -40,10 +40,16 @@ export const setup2027Challenge = action({
       );
     }
 
+    // Get full challenge details (includes creatorId)
+    const source = await ctx.runQuery(api.queries.challenges.getById, {
+      challengeId: sourcePublic.id as Id<"challenges">,
+    });
+    if (!source) throw new Error(`Could not load ${SOURCE_CHALLENGE} details`);
+
     // Get source activity types
     const sourceTypes = await ctx.runQuery(
       api.queries.activityTypes.getByChallengeId,
-      { challengeId: source.id as Id<"challenges"> },
+      { challengeId: sourcePublic.id as Id<"challenges"> },
     );
 
     console.log(
