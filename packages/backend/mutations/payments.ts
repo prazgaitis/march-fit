@@ -151,6 +151,38 @@ export const clearTestPayment = mutation({
 });
 
 /**
+ * Internal mutation: reset a user's payment status to "unpaid".
+ * Used for admin testing of the payment flow.
+ */
+export const resetPaymentStatus = internalMutation({
+  args: {
+    userId: v.id("users"),
+    challengeId: v.id("challenges"),
+  },
+  handler: async (ctx, args) => {
+    const participation = await ctx.db
+      .query("userChallenges")
+      .withIndex("userChallengeUnique", (q) =>
+        q.eq("userId", args.userId).eq("challengeId", args.challengeId)
+      )
+      .first();
+
+    if (!participation) {
+      throw new Error("Participation not found");
+    }
+
+    await ctx.db.patch(participation._id, {
+      paymentStatus: "unpaid",
+      paymentReceivedAt: undefined,
+      paymentReference: undefined,
+      updatedAt: Date.now(),
+    });
+
+    return { success: true };
+  },
+});
+
+/**
  * Internal mutation: prepare a checkout by validating state and creating DB records.
  * Called by the createCheckoutSession action after it creates the Stripe session.
  */

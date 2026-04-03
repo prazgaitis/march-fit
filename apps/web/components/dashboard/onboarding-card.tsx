@@ -216,7 +216,7 @@ export function OnboardingCard({ challengeId, userId, challengeStartDate }: Onbo
                   />
                 )}
                 {step.key === "payment" && (
-                  <PaymentStep challengeId={challengeId} />
+                  <PaymentStep challengeId={challengeId} complete={paymentComplete} />
                 )}
                 {step.key === "strava" && (
                   <StravaStep
@@ -422,12 +422,21 @@ function BioForm({
 }
 
 // --- Payment Step ---
-function PaymentStep({ challengeId }: { challengeId: string }) {
+function PaymentStep({ challengeId, complete }: { challengeId: string; complete: boolean }) {
   const [isRedirecting, setIsRedirecting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const createCheckoutSession = useAction(
     api.actions.payments.createCheckoutSession
   );
+
+  if (complete) {
+    return (
+      <div className="text-sm text-green-400 flex items-center gap-2">
+        <Check className="h-4 w-4" />
+        Paid
+      </div>
+    );
+  }
 
   const handlePay = async () => {
     setErrorMessage(null);
