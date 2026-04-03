@@ -1,6 +1,6 @@
 import { query, internalQuery } from "../_generated/server";
 import { v } from "convex/values";
-import { maskKey } from "../lib/stripe";
+import { decryptKey, maskKey } from "../lib/stripe";
 
 /**
  * Get payment configuration for a challenge (admin view with masked keys)
@@ -19,17 +19,32 @@ export const getPaymentConfig = query({
       return null;
     }
 
+    // Helper to safely decrypt and mask a key
+    const maskedDecrypt = (encrypted: string | undefined): string | null => {
+      if (!encrypted) return null;
+      try {
+        return maskKey(decryptKey(encrypted));
+      } catch {
+        return "****";
+      }
+    };
+
     // Return config with masked secret keys
     return {
       id: config._id,
       challengeId: config.challengeId,
-      // Masked keys for display
+      // Boolean flags for quick checks
       hasLiveSecretKey: !!config.stripeSecretKey,
       hasLivePublishableKey: !!config.stripePublishableKey,
       hasTestSecretKey: !!config.stripeTestSecretKey,
       hasTestPublishableKey: !!config.stripeTestPublishableKey,
       hasWebhookSecret: !!config.stripeWebhookSecret,
       hasTestWebhookSecret: !!config.stripeTestWebhookSecret,
+      // Masked secret keys for admin display
+      maskedLiveSecretKey: maskedDecrypt(config.stripeSecretKey),
+      maskedTestSecretKey: maskedDecrypt(config.stripeTestSecretKey),
+      maskedWebhookSecret: maskedDecrypt(config.stripeWebhookSecret),
+      maskedTestWebhookSecret: maskedDecrypt(config.stripeTestWebhookSecret),
       // Publishable keys can be shown (they're public)
       stripePublishableKey: config.stripePublishableKey || null,
       stripeTestPublishableKey: config.stripeTestPublishableKey || null,
@@ -37,6 +52,7 @@ export const getPaymentConfig = query({
       testMode: config.testMode,
       priceInCents: config.priceInCents,
       currency: config.currency,
+      allowCustomAmount: config.allowCustomAmount ?? false,
       createdAt: config.createdAt,
       updatedAt: config.updatedAt,
     };
