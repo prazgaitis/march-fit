@@ -79,12 +79,18 @@ export default function PaymentsAdminPage() {
   const toggleTestMode = useMutation(api.mutations.paymentConfig.toggleTestMode);
   const testConnection = useAction(api.actions.payments.testStripeConnection);
 
-  // Sync allowCustomAmount from paymentConfig when it loads
+  // Populate form with existing config values when they load
   useEffect(() => {
-    if (paymentConfig !== undefined) {
+    if (paymentConfig !== undefined && paymentConfig !== null) {
       setFormData((prev) => ({
         ...prev,
-        allowCustomAmount: paymentConfig?.allowCustomAmount ?? false,
+        stripePublishableKey: paymentConfig.stripePublishableKey ?? "",
+        stripeTestPublishableKey: paymentConfig.stripeTestPublishableKey ?? "",
+        testMode: paymentConfig.testMode ?? true,
+        priceInDollars: paymentConfig.priceInCents > 0
+          ? (paymentConfig.priceInCents / 100).toFixed(2)
+          : "",
+        allowCustomAmount: paymentConfig.allowCustomAmount ?? false,
       }));
     }
   }, [paymentConfig]);
@@ -420,6 +426,9 @@ export default function PaymentsAdminPage() {
                       placeholder={paymentConfig?.hasTestSecretKey ? "••••••••" : "sk_test_..."}
                       className="h-8 border-zinc-600 bg-zinc-700 text-xs text-zinc-200"
                     />
+                    {paymentConfig?.maskedTestSecretKey && (
+                      <p className="text-[10px] font-mono text-zinc-500">Current: {paymentConfig.maskedTestSecretKey}</p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -465,6 +474,9 @@ export default function PaymentsAdminPage() {
                       placeholder={paymentConfig?.hasLiveSecretKey ? "••••••••" : "sk_live_..."}
                       className="h-8 border-zinc-600 bg-zinc-700 text-xs text-zinc-200"
                     />
+                    {paymentConfig?.maskedLiveSecretKey && (
+                      <p className="text-[10px] font-mono text-zinc-500">Current: {paymentConfig.maskedLiveSecretKey}</p>
+                    )}
                   </div>
                 </div>
               </div>
@@ -490,6 +502,9 @@ export default function PaymentsAdminPage() {
                       placeholder={paymentConfig?.hasTestWebhookSecret ? "••••••••" : "whsec_..."}
                       className="h-8 border-zinc-600 bg-zinc-700 text-xs text-zinc-200"
                     />
+                    {paymentConfig?.maskedTestWebhookSecret && (
+                      <p className="text-[10px] font-mono text-zinc-500">Current: {paymentConfig.maskedTestWebhookSecret}</p>
+                    )}
                   </div>
                   <div className="space-y-1">
                     <Label className="text-[10px] text-zinc-500">Live Webhook Secret (whsec_...)</Label>
@@ -505,6 +520,9 @@ export default function PaymentsAdminPage() {
                       placeholder={paymentConfig?.hasWebhookSecret ? "••••••••" : "whsec_..."}
                       className="h-8 border-zinc-600 bg-zinc-700 text-xs text-zinc-200"
                     />
+                    {paymentConfig?.maskedWebhookSecret && (
+                      <p className="text-[10px] font-mono text-zinc-500">Current: {paymentConfig.maskedWebhookSecret}</p>
+                    )}
                   </div>
                 </div>
               </div>
