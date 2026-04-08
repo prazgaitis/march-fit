@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>March Fit OAuth Demo</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #09090b;
+      color: #fafafa;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .container {
+      max-width: 480px;
+      width: 100%;
+      padding: 2rem;
+    }
+    h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: -0.025em;
+      margin-bottom: 0.25rem;
+    }
+    .subtitle {
+      color: #71717a;
+      font-size: 0.875rem;
+      margin-bottom: 2rem;
+    }
+    .card {
+      background: rgba(39, 39, 42, 0.5);
+      border: 1px solid #27272a;
+      border-radius: 0.75rem;
+      padding: 1.5rem;
+      margin-bottom: 1rem;
+    }
+    .card h2 {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #a1a1aa;
+      margin-bottom: 1rem;
+    }
+    label {
+      display: block;
+      font-size: 0.75rem;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #71717a;
+      margin-bottom: 0.25rem;
+    }
+    input, select {
+      width: 100%;
+      padding: 0.5rem 0.75rem;
+      background: #18181b;
+      border: 1px solid #3f3f46;
+      border-radius: 0.375rem;
+      color: #fafafa;
+      font-size: 0.875rem;
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      margin-bottom: 0.75rem;
+      outline: none;
+    }
+    input:focus, select:focus { border-color: #6366f1; }
+    button {
+      width: 100%;
+      padding: 0.625rem 1rem;
+      border: none;
+      border-radius: 0.5rem;
+      font-size: 0.875rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    button:hover { opacity: 0.9; }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-primary {
+      background: #4f46e5;
+      color: white;
+    }
+    .btn-secondary {
+      background: #27272a;
+      color: #d4d4d8;
+      border: 1px solid #3f3f46;
+    }
+    .btn-danger {
+      background: #7f1d1d;
+      color: #fca5a5;
+      border: 1px solid #991b1b;
+    }
+    .stat {
+      display: flex;
+      justify-content: space-between;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid #27272a;
+      font-size: 0.875rem;
+    }
+    .stat:last-child { border-bottom: none; }
+    .stat-label { color: #71717a; }
+    .stat-value { font-family: 'SF Mono', 'Fira Code', monospace; font-weight: 500; }
+    .success { color: #4ade80; }
+    .error { color: #f87171; }
+    .info { color: #60a5fa; }
+    .badge {
+      display: inline-block;
+      padding: 0.125rem 0.5rem;
+      border-radius: 9999px;
+      font-size: 0.75rem;
+      font-weight: 500;
+    }
+    .badge-indigo { background: rgba(99, 102, 241, 0.2); color: #818cf8; }
+    .badge-green { background: rgba(74, 222, 128, 0.2); color: #4ade80; }
+    .log { font-size: 0.75rem; color: #71717a; margin-top: 0.5rem; font-family: monospace; white-space: pre-wrap; max-height: 120px; overflow-y: auto; }
+    .hidden { display: none; }
+    .leaderboard-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.5rem 0;
+      border-bottom: 1px solid #27272a;
+      font-size: 0.875rem;
+    }
+    .leaderboard-row:last-child { border-bottom: none; }
+    .rank {
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-weight: 700;
+      color: #71717a;
+      width: 1.5rem;
+      text-align: right;
+    }
+    .rank.top { color: #facc15; }
+    .player-name { flex: 1; }
+    .points {
+      font-family: 'SF Mono', 'Fira Code', monospace;
+      font-weight: 600;
+      color: #818cf8;
+    }
+    .activity-select { margin-bottom: 0.75rem; }
+    .mb { margin-bottom: 0.75rem; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>March Fit OAuth Demo</h1>
+    <p class="subtitle">A minimal app showing "Login with March Fit" end-to-end</p>
+
+    <!-- Serve warning -->
+    <div id="file-warning" class="card hidden" style="border-color:#92400e; background:rgba(120,53,15,0.2);">
+      <p style="color:#fbbf24; font-size:0.8rem; margin:0;">
+        This page must be served over HTTP, not opened as a file. Run:
+        <code style="display:block; margin-top:0.375rem; padding:0.375rem 0.5rem; background:#18181b; border-radius:0.25rem; color:#a1a1aa;">cd examples/oauth-demo && python3 -m http.server 8080</code>
+        <span style="display:block; margin-top:0.375rem;">Then open <a href="http://localhost:8080" style="color:#818cf8;">http://localhost:8080</a></span>
+      </p>
+    </div>
+
+    <!-- Step 0: Register app -->
+    <div id="register-section" class="card">
+      <h2>1. Register an OAuth App</h2>
+      <label>March Fit URL</label>
+      <input type="text" id="mf-url" value="http://localhost:3000" placeholder="https://march.fit">
+      <label>Your API Key</label>
+      <input type="text" id="api-key" placeholder="mf_...">
+      <p style="font-size:0.75rem; color:#71717a; margin-bottom:0.5rem;">
+        Get an API key from your profile page, then run this command:
+      </p>
+      <div style="position:relative;">
+        <pre id="register-cmd" style="background:#18181b; border:1px solid #3f3f46; border-radius:0.375rem; padding:0.5rem 0.75rem; font-size:0.7rem; color:#a1a1aa; overflow-x:auto; white-space:pre-wrap; word-break:break-all; margin-bottom:0.75rem; padding-right:2.5rem;"></pre>
+        <button onclick="copyRegisterCmd()" style="position:absolute; top:0.375rem; right:0.375rem; width:auto; padding:0.25rem 0.5rem; font-size:0.65rem; background:#27272a; border:1px solid #3f3f46; color:#a1a1aa; border-radius:0.25rem;">Copy</button>
+      </div>
+      <p style="font-size:0.75rem; color:#71717a; margin-bottom:0.75rem;">
+        Paste the <code style="color:#818cf8;">clientId</code> from the response below, then click Login.
+      </p>
+    </div>
+
+    <!-- Step 1: Login -->
+    <div id="config-section" class="card">
+      <h2>2. Login with March Fit</h2>
+      <label>Client ID</label>
+      <input type="text" id="client-id" placeholder="mfapp_...">
+      <label>Challenge ID (optional — scopes token to this challenge)</label>
+      <input type="text" id="challenge-id" placeholder="Leave empty for all challenges">
+      <button class="btn-primary" onclick="startLogin()">Login with March Fit</button>
+      <div id="config-log" class="log hidden"></div>
+    </div>
+
+    <!-- Step 2: Authenticated view -->
+    <div id="auth-section" class="hidden">
+      <!-- Profile -->
+      <div class="card">
+        <h2>Profile</h2>
+        <div id="profile-info"></div>
+      </div>
+
+      <!-- Challenge info -->
+      <div id="challenge-section" class="card hidden">
+        <h2>Challenge</h2>
+        <div id="challenge-info"></div>
+      </div>
+
+      <!-- Leaderboard -->
+      <div id="leaderboard-section" class="card hidden">
+        <h2>Leaderboard (Top 10)</h2>
+        <div id="leaderboard"></div>
+      </div>
+
+      <!-- Log Activity -->
+      <div id="log-activity-section" class="card hidden">
+        <h2>Log Activity</h2>
+        <div class="activity-select">
+          <label>Activity Type</label>
+          <select id="activity-type"></select>
+        </div>
+        <label>Date (YYYY-MM-DD)</label>
+        <input type="date" id="activity-date">
+        <label>Notes (optional)</label>
+        <input type="text" id="activity-notes" placeholder="Morning workout">
+        <button class="btn-primary mb" onclick="logActivity()">Log Activity</button>
+        <div id="log-result" class="hidden"></div>
+      </div>
+
+      <!-- Token info -->
+      <div class="card">
+        <h2>Token Info</h2>
+        <div id="token-info"></div>
+      </div>
+
+      <button class="btn-danger" onclick="logout()">Logout & Revoke Token</button>
+    </div>
+  </div>
+
+  <script>
+    // ─── State ────────────────────────────────────────────────────────────────
+    let accessToken = null;
+    let refreshToken = null;
+    let tokenScopes = [];
+    let challengeId = null;
+
+    // ─── PKCE Helpers ─────────────────────────────────────────────────────────
+    function generateRandomString(length) {
+      const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~';
+      const arr = new Uint8Array(length);
+      crypto.getRandomValues(arr);
+      return Array.from(arr, b => chars[b % chars.length]).join('');
+    }
+
+    async function sha256(plain) {
+      const encoded = new TextEncoder().encode(plain);
+      return crypto.subtle.digest('SHA-256', encoded);
+    }
+
+    function base64urlEncode(buffer) {
+      return btoa(String.fromCharCode(...new Uint8Array(buffer)))
+        .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    }
+
+    async function generatePkce() {
+      const verifier = generateRandomString(64);
+      const challenge = base64urlEncode(await sha256(verifier));
+      return { verifier, challenge };
+    }
+
+    // ─── URL Helper ───────────────────────────────────────────────────────────
+    // All API calls go through the March Fit domain — no Convex URL needed.
+    function apiBase() {
+      return sessionStorage.getItem('mf_url');
+    }
+
+    // ─── Register Command ─────────────────────────────────────────────────────
+    function updateRegisterCmd() {
+      const mfUrl = document.getElementById('mf-url').value.replace(/\/$/, '');
+      const apiKey = document.getElementById('api-key').value || 'mf_YOUR_API_KEY';
+      const redirectUri = window.location.origin + window.location.pathname;
+      const cmd = `curl -s -X POST ${mfUrl}/api/v1/oauth/apps \\
+  -H "Authorization: Bearer ${apiKey}" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "name": "OAuth Demo",
+    "redirect_uris": ["${redirectUri}"],
+    "scopes": ["profile:read", "challenges:read", "activities:read", "activities:write"]
+  }'`;
+      document.getElementById('register-cmd').textContent = cmd;
+    }
+
+    function copyRegisterCmd() {
+      const text = document.getElementById('register-cmd').textContent;
+      navigator.clipboard.writeText(text).then(() => {
+        const btn = event.target;
+        btn.textContent = 'Copied!';
+        setTimeout(() => { btn.textContent = 'Copy'; }, 1500);
+      });
+    }
+
+    // Update command when inputs change
+    document.getElementById('mf-url').addEventListener('input', updateRegisterCmd);
+    document.getElementById('api-key').addEventListener('input', updateRegisterCmd);
+    updateRegisterCmd();
+
+    // ─── OAuth Flow ───────────────────────────────────────────────────────────
+    async function startLogin() {
+      const mfUrl = document.getElementById('mf-url').value.replace(/\/$/, '');
+      const clientId = document.getElementById('client-id').value;
+      const inputChallengeId = document.getElementById('challenge-id').value;
+
+      if (!clientId) {
+        alert('Please enter your Client ID');
+        return;
+      }
+
+      // Generate PKCE
+      const pkce = await generatePkce();
+      sessionStorage.setItem('pkce_verifier', pkce.verifier);
+      sessionStorage.setItem('mf_url', mfUrl);
+      sessionStorage.setItem('client_id', clientId);
+
+      // Generate state for CSRF protection
+      const state = generateRandomString(32);
+      sessionStorage.setItem('oauth_state', state);
+
+      // Build authorization URL — points to the March Fit domain, not Convex
+      const scopes = 'profile:read challenges:read activities:read activities:write';
+      const redirectUri = window.location.origin + window.location.pathname;
+
+      const params = new URLSearchParams({
+        response_type: 'code',
+        client_id: clientId,
+        redirect_uri: redirectUri,
+        scope: scopes,
+        state: state,
+        code_challenge: pkce.challenge,
+        code_challenge_method: 'S256',
+      });
+      if (inputChallengeId) {
+        params.set('challenge_id', inputChallengeId);
+      }
+
+      const authUrl = `${mfUrl}/api/v1/oauth/authorize?${params}`;
+
+      const logEl = document.getElementById('config-log');
+      logEl.classList.remove('hidden');
+      logEl.textContent = `Redirecting to:\n${authUrl}`;
+
+      // Redirect to March Fit consent page
+      window.location.href = authUrl;
+    }
+
+    async function exchangeCodeForToken(code) {
+      const clientId = sessionStorage.getItem('client_id');
+      const verifier = sessionStorage.getItem('pkce_verifier');
+      const redirectUri = window.location.origin + window.location.pathname;
+
+      const res = await fetch(`${apiBase()}/api/v1/oauth/token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          grant_type: 'authorization_code',
+          code,
+          redirect_uri: redirectUri,
+          client_id: clientId,
+          code_verifier: verifier,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Token exchange failed');
+
+      accessToken = data.access_token;
+      refreshToken = data.refresh_token;
+      tokenScopes = data.scope.split(' ');
+      challengeId = data.challenge_id || null;
+
+      // Clean up
+      sessionStorage.removeItem('pkce_verifier');
+      sessionStorage.removeItem('oauth_state');
+
+      return data;
+    }
+
+    // ─── API Calls ────────────────────────────────────────────────────────────
+    async function apiFetch(path) {
+      const res = await fetch(`${apiBase()}${path}`, {
+        headers: { 'Authorization': `Bearer ${accessToken}` },
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `API error ${res.status}`);
+      }
+      return res.json();
+    }
+
+    async function loadProfile() {
+      const data = await apiFetch('/api/v1/me');
+      document.getElementById('profile-info').innerHTML = `
+        <div class="stat"><span class="stat-label">Name</span><span class="stat-value">${data.name || '—'}</span></div>
+        <div class="stat"><span class="stat-label">Username</span><span class="stat-value">@${data.username}</span></div>
+        <div class="stat"><span class="stat-label">Email</span><span class="stat-value">${data.email}</span></div>
+      `;
+    }
+
+    async function loadChallenge() {
+      if (!tokenScopes.includes('challenges:read')) return;
+
+      let challenge;
+      if (challengeId) {
+        const data = await apiFetch(`/api/v1/challenges/${challengeId}`);
+        challenge = data.challenge;
+      } else {
+        const data = await apiFetch('/api/v1/challenges?limit=1');
+        challenge = data.challenges?.[0];
+        if (challenge) challengeId = challenge._id || challenge.id;
+      }
+
+      if (!challenge) return;
+
+      const section = document.getElementById('challenge-section');
+      section.classList.remove('hidden');
+      document.getElementById('challenge-info').innerHTML = `
+        <div class="stat"><span class="stat-label">Name</span><span class="stat-value">${challenge.name}</span></div>
+        <div class="stat"><span class="stat-label">Duration</span><span class="stat-value">${challenge.durationDays} days</span></div>
+        <div class="stat"><span class="stat-label">ID</span><span class="stat-value" style="font-size:0.7rem">${challengeId}</span></div>
+      `;
+
+      // Load leaderboard
+      await loadLeaderboard();
+      // Load activity types for logging
+      await loadActivityTypes();
+    }
+
+    async function loadLeaderboard() {
+      if (!challengeId) return;
+      const data = await apiFetch(`/api/v1/challenges/${challengeId}/leaderboard`);
+      const top = (data.leaderboard || []).slice(0, 10);
+
+      const section = document.getElementById('leaderboard-section');
+      section.classList.remove('hidden');
+
+      document.getElementById('leaderboard').innerHTML = top.map((p, i) => `
+        <div class="leaderboard-row">
+          <span class="rank ${i < 3 ? 'top' : ''}">${i + 1}</span>
+          <span class="player-name">${p.name || p.username || 'Unknown'}</span>
+          <span class="points">${Math.round(p.totalPoints || 0)}</span>
+        </div>
+      `).join('');
+    }
+
+    async function loadActivityTypes() {
+      if (!challengeId || !tokenScopes.includes('activities:write')) return;
+
+      const data = await apiFetch(`/api/v1/challenges/${challengeId}/activity-types`);
+      const types = data.activityTypes || [];
+
+      const section = document.getElementById('log-activity-section');
+      section.classList.remove('hidden');
+
+      const select = document.getElementById('activity-type');
+      select.innerHTML = types.map(t =>
+        `<option value="${t._id}">${t.name}</option>`
+      ).join('');
+
+      // Default date to today
+      document.getElementById('activity-date').valueAsDate = new Date();
+    }
+
+    async function logActivity() {
+      const typeId = document.getElementById('activity-type').value;
+      const dateStr = document.getElementById('activity-date').value;
+      const notes = document.getElementById('activity-notes').value;
+
+      if (!typeId || !dateStr) {
+        alert('Select an activity type and date');
+        return;
+      }
+
+      // Convert date string to UTC ms for the local date
+      const [y, m, d] = dateStr.split('-').map(Number);
+      const loggedDate = Date.UTC(y, m - 1, d);
+
+      const res = await fetch(`${apiBase()}/api/v1/challenges/${challengeId}/activities`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          activityTypeId: typeId,
+          loggedDate,
+          notes: notes || undefined,
+        }),
+      });
+
+      const data = await res.json();
+      const resultEl = document.getElementById('log-result');
+      resultEl.classList.remove('hidden');
+
+      if (res.ok) {
+        resultEl.innerHTML = `<p class="success">Activity logged! +${data.pointsEarned || '?'} points</p>`;
+        await loadLeaderboard(); // Refresh leaderboard
+      } else {
+        resultEl.innerHTML = `<p class="error">${data.error || 'Failed to log activity'}</p>`;
+      }
+    }
+
+    function showTokenInfo(tokenData) {
+      document.getElementById('token-info').innerHTML = `
+        <div class="stat">
+          <span class="stat-label">Scopes</span>
+          <span class="stat-value">${tokenScopes.map(s => `<span class="badge badge-indigo">${s}</span>`).join(' ')}</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Challenge</span>
+          <span class="stat-value">${challengeId ? `<span class="badge badge-green">scoped</span>` : 'all'}</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Expires in</span>
+          <span class="stat-value">${tokenData.expires_in}s</span>
+        </div>
+        <div class="stat">
+          <span class="stat-label">Token prefix</span>
+          <span class="stat-value">${accessToken.slice(0, 16)}...</span>
+        </div>
+      `;
+    }
+
+    async function logout() {
+      if (accessToken) {
+        await fetch(`${apiBase()}/api/v1/oauth/revoke`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: accessToken }),
+        }).catch(() => {});
+      }
+      accessToken = null;
+      refreshToken = null;
+      challengeId = null;
+      document.getElementById('auth-section').classList.add('hidden');
+      document.getElementById('register-section').classList.remove('hidden');
+      document.getElementById('config-section').classList.remove('hidden');
+    }
+
+    // ─── File protocol warning ──────────────────────────────────────────────
+    if (window.location.protocol === 'file:') {
+      document.getElementById('file-warning').classList.remove('hidden');
+      document.getElementById('register-section').classList.add('hidden');
+      document.getElementById('config-section').classList.add('hidden');
+    }
+
+    // ─── Init: Check for callback ──────────────────────────────────────────
+    (async function init() {
+      const params = new URLSearchParams(window.location.search);
+      const code = params.get('code');
+      const state = params.get('state');
+      const error = params.get('error');
+
+      if (error) {
+        alert(`Authorization denied: ${params.get('error_description') || error}`);
+        window.history.replaceState({}, '', window.location.pathname);
+        return;
+      }
+
+      if (code) {
+        // Verify state
+        const savedState = sessionStorage.getItem('oauth_state');
+        if (state !== savedState) {
+          alert('State mismatch — possible CSRF attack');
+          window.history.replaceState({}, '', window.location.pathname);
+          return;
+        }
+
+        // Clean URL
+        window.history.replaceState({}, '', window.location.pathname);
+
+        try {
+          // Exchange code for token
+          const tokenData = await exchangeCodeForToken(code);
+
+          // Show authenticated UI
+          document.getElementById('register-section').classList.add('hidden');
+          document.getElementById('config-section').classList.add('hidden');
+          document.getElementById('auth-section').classList.remove('hidden');
+
+          showTokenInfo(tokenData);
+          await loadProfile();
+          await loadChallenge();
+        } catch (err) {
+          alert(`Token exchange failed: ${err.message}`);
+        }
+      }
+    })();
+  </script>
+</body>
+</html>
