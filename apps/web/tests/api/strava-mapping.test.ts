@@ -81,6 +81,24 @@ const stravaWorkoutActivity: StravaActivity = {
   flagged: false
 };
 
+const stravaHIITActivity: StravaActivity = {
+  id: 55443322,
+  name: "HIIT Workout",
+  type: "HIIT",
+  sport_type: "HIIT",
+  start_date: "2024-03-15T17:00:00Z",
+  elapsed_time: 1800, // 30 minutes in seconds
+  moving_time: 1620, // 27 minutes in seconds
+  average_heartrate: 165,
+  max_heartrate: 190,
+  kudos_count: 6,
+  achievement_count: 1,
+  athlete_count: 1,
+  photo_count: 0,
+  private: false,
+  flagged: false
+};
+
 describe('Strava Activity Mapping', () => {
   let t: Awaited<ReturnType<typeof createTestContext>>;
 
@@ -246,6 +264,41 @@ describe('Strava Activity Mapping', () => {
       });
     });
 
+    it('should map HIIT activity to our format', async () => {
+      const userId = await createTestUser(t);
+      const challengeId = await createTestChallenge(t, userId);
+
+      const activityTypeId = await t.run(async (ctx) => {
+        return await ctx.db.insert("activityTypes", {
+          challengeId,
+          name: 'HIIT',
+          scoringConfig: {
+            unit: 'minutes',
+            pointsPerUnit: 5,
+            basePoints: 25,
+          },
+          contributesToStreak: true,
+          isNegative: false,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+      });
+
+      const mapper = new StravaActivityMapper(challengeId, userId, fetchActivityTypes);
+      const mapped = await mapper.mapActivity(stravaHIITActivity, activityTypeId);
+
+      expect(mapped.challengeId).toBe(challengeId);
+      expect(mapped.activityTypeId).toBe(activityTypeId);
+      expect(mapped.loggedDate).toBe('2024-03-15');
+      expect(mapped.source).toBe('strava');
+      expect(mapped.externalId).toBe('55443322');
+      expect(mapped.metrics).toEqual({
+        minutes: 30,
+        average_heartrate: 165,
+        max_heartrate: 190,
+      });
+    });
+
     it('should handle activity type mapping based on sport type', async () => {
       const userId = await createTestUser(t);
       const challengeId = await createTestChallenge(t, userId);
@@ -284,6 +337,31 @@ describe('Strava Activity Mapping', () => {
       // Should find the appropriate activity types if they exist
       expect(runningActivityTypeId).toBe(runningTypeId);
       expect(cyclingActivityTypeId).toBe(cyclingTypeId);
+    });
+
+    it('should detect HIIT activity type correctly', async () => {
+      const userId = await createTestUser(t);
+      const challengeId = await createTestChallenge(t, userId);
+
+      const hiitTypeId = await t.run(async (ctx) => {
+        return await ctx.db.insert("activityTypes", {
+          challengeId,
+          name: 'HIIT',
+          scoringConfig: { unit: 'minutes', pointsPerUnit: 5 },
+          contributesToStreak: true,
+          isNegative: false,
+          createdAt: Date.now(),
+          updatedAt: Date.now(),
+        });
+      });
+
+      const mapper = new StravaActivityMapper(challengeId, userId, fetchActivityTypes);
+
+      // Test automatic type detection for HIIT
+      const hiitActivityTypeId = await mapper.detectActivityType(stravaHIITActivity);
+
+      // Should find the HIIT activity type
+      expect(hiitActivityTypeId).toBe(hiitTypeId);
     });
 
     it('should handle unknown activity types gracefully', async () => {
