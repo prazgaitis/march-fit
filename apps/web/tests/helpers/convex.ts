@@ -3,6 +3,7 @@ import { schema } from "@repo/backend";
 import { GenericMutationCtx } from "convex/server";
 import { DataModel, Id } from "@repo/backend/_generated/dataModel";
 import aggregateSchema from "./aggregate-schema";
+import rateLimiterTest from "@convex-dev/rate-limiter/test";
 
 const modulesRaw = import.meta.glob("../../../../packages/backend/**/*.{ts,js}");
 const aggregateModulesRaw = import.meta.glob(
@@ -19,6 +20,7 @@ const modules = Object.fromEntries(
 export const createTestContext = () => {
   const t = convexTest(schema, modules);
   t.registerComponent("activityPointsAggregate", aggregateSchema, aggregateModulesRaw);
+  rateLimiterTest.register(t);
   return t;
 };
 

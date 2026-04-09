@@ -87,6 +87,28 @@ async function authenticateApiKey(
     keyId: result.keyId,
   });
 
+  // Per-user rate limit: 60 req/min with a burst capacity of 20.
+  // Protects Convex worker pool from aggressive MCP polling.
+  const rateLimit = await ctx.runMutation(
+    internal.mutations.rateLimiting.checkApiRateLimit,
+    { userId: String((result as AuthResult).user._id) }
+  );
+  if (!rateLimit.ok) {
+    return new Response(
+      JSON.stringify({ error: "Rate limit exceeded. Please slow down." }),
+      {
+        status: 429,
+        headers: {
+          "Content-Type": "application/json",
+          "Retry-After": String(
+            Math.ceil((rateLimit.retryAfter ?? 60000) / 1000)
+          ),
+          "Access-Control-Allow-Origin": "*",
+        },
+      }
+    );
+  }
+
   return result as AuthResult;
 }
 

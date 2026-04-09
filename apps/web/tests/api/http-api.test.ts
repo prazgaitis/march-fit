@@ -7,6 +7,7 @@ import {
 } from "../helpers/convex";
 import { generateApiKey, hashApiKey } from "../../../../packages/backend/lib/apiKey";
 import { insertTestActivity } from "../helpers/activities";
+import type { Id } from "@repo/backend/_generated/dataModel";
 
 describe("API Key Module", () => {
   describe("generateApiKey", () => {
@@ -545,5 +546,81 @@ describe("API Internal Mutations", () => {
       const participation = await t.run(async (ctx) => ctx.db.get(participationId));
       expect(participation!.totalPoints).toBe(-10);
     });
+  });
+});
+
+describe("API Rate Limiting", () => {
+  let t: Awaited<ReturnType<typeof createTestContext>>;
+
+  beforeEach(() => {
+    t = createTestContext();
+  });
+
+  it("allows requests within the limit", async () => {
+    const userId = await createTestUser(t);
+
+    const result = await t.mutation(
+      internal.mutations.rateLimiting.checkApiRateLimit,
+      { userId: String(userId) }
+    );
+
+    expect(result.ok).toBe(true);
+    expect(result.retryAfter).toBeNull();
+  });
+
+  it("blocks requests once the bucket is exhausted", async () => {
+    const userId = await createTestUser(t);
+    const userIdStr = String(userId);
+
+    // Burn through the entire capacity (rate=60, capacity=20 → 80 tokens total)
+    const total = 80;
+    for (let i = 0; i < total; i++) {
+      await t.mutation(internal.mutations.rateLimiting.checkApiRateLimit, {
+        userId: userIdStr,
+      });
+    }
+
+    // Next request should be denied
+    const result = await t.mutation(
+      internal.mutations.rateLimiting.checkApiRateLimit,
+      { userId: userIdStr }
+    );
+
+    expect(result.ok).toBe(false);
+    expect(result.retryAfter).not.toBeNull();
+    expect(result.retryAfter).toBeGreaterThan(0);
+  });
+
+  it("rate limits are per-user — one user's usage does not affect another", async () => {
+    const userA = await createTestUser(t, {
+      email: "a@test.com",
+      username: "userA",
+    });
+    const userB = await createTestUser(t, {
+      email: "b@test.com",
+      username: "userB",
+    });
+
+    // Exhaust userA's bucket
+    const total = 80;
+    for (let i = 0; i < total; i++) {
+      await t.mutation(internal.mutations.rateLimiting.checkApiRateLimit, {
+        userId: String(userA),
+      });
+    }
+
+    // userA is now rate-limited
+    const resultA = await t.mutation(
+      internal.mutations.rateLimiting.checkApiRateLimit,
+      { userId: String(userA) }
+    );
+    expect(resultA.ok).toBe(false);
+
+    // userB is unaffected
+    const resultB = await t.mutation(
+      internal.mutations.rateLimiting.checkApiRateLimit,
+      { userId: String(userB) }
+    );
+    expect(resultB.ok).toBe(true);
   });
 });
