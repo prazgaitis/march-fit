@@ -12,12 +12,10 @@ import {
   type CandidateActivity,
   type DuplicateMatch,
 } from "../lib/duplicateDetection";
-
-interface CloudinaryUploadResponse {
-  public_id: string;
-  secure_url: string;
-  resource_type: string;
-}
+import {
+  uploadBlobToCloudflareImages,
+  uploadBlobToCloudflareStream,
+} from "../lib/cloudflareApi";
 
 /**
  * Fetch all photo URLs for a Strava activity using the photos endpoint.
@@ -59,20 +57,13 @@ async function httpFetchStravaActivityPhotos(
 }
 
 /**
- * Download photos from URLs and upload them to Cloudinary.
- * Returns an array of Cloudinary public IDs.
+ * Download photos from Strava URLs and upload them to Cloudflare.
+ * Images go to Cloudflare Images; videos go to Cloudflare Stream.
+ * Returns tagged IDs in the form `cfi:<id>` or `cfs:<uid>`.
+ * Per-photo failures are logged and skipped; the batch continues.
  */
-async function uploadPhotosToCloudinary(photoUrls: string[]): Promise<string[]> {
-  const cloudName = process.env.CLOUDINARY_CLOUD_NAME;
-  const uploadPreset = process.env.CLOUDINARY_UPLOAD_PRESET;
-
-  if (!cloudName || !uploadPreset) {
-    console.warn("Missing CLOUDINARY_CLOUD_NAME or CLOUDINARY_UPLOAD_PRESET, skipping photo upload");
-    return [];
-  }
-
-  const publicIds: string[] = [];
-
+async function uploadStravaPhotosToCloudflare(photoUrls: string[]): Promise<string[]> {
+  const ids: string[] = [];
   for (const url of photoUrls) {
     try {
       const fileResponse = await fetch(url);
@@ -81,35 +72,17 @@ async function uploadPhotosToCloudinary(photoUrls: string[]): Promise<string[]> 
         continue;
       }
       const blob = await fileResponse.blob();
-
       const contentType = fileResponse.headers.get("content-type") ?? "";
       const isVideo = contentType.startsWith("video/");
-      const resourceType = isVideo ? "video" : "image";
-
-      const formData = new FormData();
-      formData.append("file", blob);
-      formData.append("upload_preset", uploadPreset);
-      formData.append("folder", "march-fit");
-
-      const cloudinaryRes = await fetch(
-        `https://api.cloudinary.com/v1_1/${cloudName}/${resourceType}/upload`,
-        { method: "POST", body: formData },
-      );
-
-      if (!cloudinaryRes.ok) {
-        console.warn(`Cloudinary upload failed: ${cloudinaryRes.statusText}`);
-        continue;
-      }
-
-      const data = (await cloudinaryRes.json()) as CloudinaryUploadResponse;
-      const publicId = isVideo ? `v/${data.public_id}` : data.public_id;
-      publicIds.push(publicId);
+      const id = isVideo
+        ? await uploadBlobToCloudflareStream(blob, "strava-sync")
+        : await uploadBlobToCloudflareImages(blob, "strava-sync");
+      ids.push(id);
     } catch (err) {
-      console.warn("Error uploading Strava photo to Cloudinary:", err);
+      console.warn("Error uploading Strava photo to Cloudflare:", err);
     }
   }
-
-  return publicIds;
+  return ids;
 }
 
 interface StravaTokenResponse {
@@ -1030,11 +1003,11 @@ export const processStravaWebhook = internalAction({
       `Strava Webhook: Completed (processed ${processedChallenges} challenges)`
     );
 
-    // If photos are available, download from Strava and upload to Cloudinary.
+    // If photos are available, download from Strava and upload to Cloudflare.
     // If photos are expected but not yet available (async processing),
     // schedule a delayed re-fetch.
     if (processedChallenges > 0 && expectedPhotos > 0) {
-      // Check how many photos we already have in Cloudinary
+      // Count photos already uploaded (optimized field for new activities; legacy field for historical).
       const existingActivity = createdActivityIds.length > 0
         ? await ctx.runQuery(
             internal.mutations.stravaWebhook.getExistingActivity,
@@ -1045,9 +1018,11 @@ export const processStravaWebhook = internalAction({
             },
           )
         : null;
-      const existingCloudinaryCount = existingActivity?.cloudinaryPublicIds?.length ?? 0;
+      const existingMediaCount =
+        (existingActivity?.optimizedMediaIds?.length ?? 0) +
+        (existingActivity?.cloudinaryPublicIds?.length ?? 0);
 
-      if (hasPhotoUrls && existingCloudinaryCount < expectedPhotos) {
+      if (hasPhotoUrls && existingMediaCount < expectedPhotos) {
         // New or additional photos — fetch all from Strava and re-upload full set
         const primaryUrls = activity.photos?.primary?.urls;
         const primaryFallback = primaryUrls
@@ -1056,21 +1031,21 @@ export const processStravaWebhook = internalAction({
         const photoUrls = await httpFetchStravaActivityPhotos(
           accessToken!, activity.id, primaryFallback,
         );
-        if (photoUrls.length > existingCloudinaryCount) {
-          const cloudinaryIds = await uploadPhotosToCloudinary(photoUrls);
-          if (cloudinaryIds.length > 0) {
+        if (photoUrls.length > existingMediaCount) {
+          const uploadedIds = await uploadStravaPhotosToCloudflare(photoUrls);
+          if (uploadedIds.length > 0) {
             for (const activityId of createdActivityIds) {
               await ctx.runMutation(
-                internal.mutations.backfillCloudinary.patchCloudinaryIds,
-                { activityId: activityId as Id<"activities">, cloudinaryPublicIds: cloudinaryIds },
+                internal.mutations.backfillCloudinary.patchOptimizedMediaIds,
+                { activityId: activityId as Id<"activities">, optimizedMediaIds: uploadedIds },
               );
             }
             console.log(
-              `Uploaded ${cloudinaryIds.length} Strava photos to Cloudinary for activity ${activity.id} (was ${existingCloudinaryCount})`
+              `Uploaded ${uploadedIds.length} Strava photos to Cloudflare for activity ${activity.id} (was ${existingMediaCount})`
             );
           }
         }
-      } else if (!hasPhotoUrls && existingCloudinaryCount === 0) {
+      } else if (!hasPhotoUrls && existingMediaCount === 0) {
         console.log(
           `Strava photos pending (expected ${expectedPhotos}), scheduling retry in 90s for activity ${activity.id}`
         );
@@ -1096,7 +1071,7 @@ export const processStravaWebhook = internalAction({
 /**
  * Retry fetching a Strava activity to pick up photos that weren't available
  * at initial webhook processing time (Strava processes photos asynchronously).
- * Downloads photos and uploads them to Cloudinary.
+ * Downloads photos and uploads them to Cloudflare.
  */
 export const retryStravaActivityPhotos = internalAction({
   args: {
@@ -1155,15 +1130,15 @@ export const retryStravaActivityPhotos = internalAction({
       `Strava photo retry: found ${photoUrls.length} photos for activity ${args.stravaActivityId}`
     );
 
-    // Upload to Cloudinary
-    const cloudinaryIds = await uploadPhotosToCloudinary(photoUrls);
-    if (cloudinaryIds.length === 0) {
-      console.log("Strava photo retry: Cloudinary upload failed for all photos");
+    // Upload to Cloudflare
+    const uploadedIds = await uploadStravaPhotosToCloudflare(photoUrls);
+    if (uploadedIds.length === 0) {
+      console.log("Strava photo retry: Cloudflare upload failed for all photos");
       return;
     }
 
     // Re-process through createFromStrava to update the activity (scoring, imageUrl, etc.)
-    // then patch with Cloudinary IDs
+    // then patch with the uploaded media IDs
     const activity = await httpFetchStravaActivity(accessToken!, args.stravaActivityId);
     const participations = await ctx.runQuery(
       internal.mutations.stravaWebhook.getUserParticipations,
@@ -1195,8 +1170,8 @@ export const retryStravaActivityPhotos = internalAction({
         );
         if (activityId) {
           await ctx.runMutation(
-            internal.mutations.backfillCloudinary.patchCloudinaryIds,
-            { activityId: activityId as Id<"activities">, cloudinaryPublicIds: cloudinaryIds },
+            internal.mutations.backfillCloudinary.patchOptimizedMediaIds,
+            { activityId: activityId as Id<"activities">, optimizedMediaIds: uploadedIds },
           );
         }
       } catch (error) {
@@ -1208,7 +1183,7 @@ export const retryStravaActivityPhotos = internalAction({
     }
 
     console.log(
-      `Strava photo retry: uploaded ${cloudinaryIds.length} photos to Cloudinary for activity ${args.stravaActivityId}`
+      `Strava photo retry: uploaded ${uploadedIds.length} photos to Cloudflare for activity ${args.stravaActivityId}`
     );
   },
 });

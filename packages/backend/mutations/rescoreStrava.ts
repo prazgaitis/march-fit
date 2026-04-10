@@ -6,6 +6,7 @@ import { reportLatencyIfExceeded } from "../lib/latencyMonitoring";
 import { applyParticipationScoreDeltaAndRecomputeStreak } from "../lib/participationScoring";
 import { patchActivity } from "../lib/activityWrites";
 import { applyCategoryPointsDelta } from "../lib/categoryPoints";
+import { hasAnyMedia } from "../lib/activityMedia";
 
 /**
  * Re-score Strava activities with 0 points that have valid metrics.
@@ -55,7 +56,7 @@ export const rescoreZeroPointActivities = internalMutation({
       const metrics = (activity.metrics ?? {}) as Record<string, unknown>;
       const loggedDate = new Date(activity.loggedDate);
 
-      const hasMedia = !!(activity.mediaIds?.length || activity.cloudinaryPublicIds?.length || activity.imageUrl);
+      const hasMedia = hasAnyMedia(activity);
       const score = await calculateFinalActivityScore(
         activityType,
         {

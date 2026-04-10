@@ -118,7 +118,11 @@ import { MediaGallery } from "@/components/media-gallery";
 import { LikesDisplay } from "@/components/likes-display";
 import { ActivityShareDialog } from "@/components/activity-share-dialog";
 import type { ShareCardData } from "@/lib/share-card-renderer";
-import { getOptimizedMediaUrl } from "@/lib/media-optimizer";
+import {
+  getOptimizedMediaUrl,
+  isOptimizedVideo,
+  resolveMediaIds,
+} from "@/lib/media-optimizer";
 import { useChallengeSummary } from "@/components/dashboard/challenge-realtime-context";
 
 interface MediaPreview {
@@ -305,12 +309,12 @@ export function ActivityDetailContent({
 
     // Pick the first non-video image for the share card background
     let mediaUrl: string | null = null;
-    const cIds = (activityData as { cloudinaryPublicIds?: string[] }).cloudinaryPublicIds;
-    if (cIds?.length) {
-      const imageId = cIds.find((id: string) => !id.startsWith("v/"));
-      if (imageId) {
-        mediaUrl = getOptimizedMediaUrl(imageId, "full");
-      }
+    const availableIds = resolveMediaIds(
+      activityData as { optimizedMediaIds?: string[]; cloudinaryPublicIds?: string[] },
+    );
+    const firstImageId = availableIds.find((id) => !isOptimizedVideo(id));
+    if (firstImageId) {
+      mediaUrl = getOptimizedMediaUrl(firstImageId, "full");
     }
     const mUrls = (activityData as { mediaUrls?: string[] }).mediaUrls;
     if (!mediaUrl && mUrls?.length) {
@@ -395,6 +399,7 @@ export function ActivityDetailContent({
       activityType,
       mediaUrls: existingUrls,
       cloudinaryPublicIds: existingCloudinaryIds,
+      optimizedMediaIds: existingOptimizedIds,
     } = activityData as {
       activity: {
         notes?: string;
@@ -407,6 +412,7 @@ export function ActivityDetailContent({
       activityType: { _id: string; scoringConfig: Record<string, unknown> };
       mediaUrls?: string[];
       cloudinaryPublicIds?: string[];
+      optimizedMediaIds?: string[];
     };
     setEditNotes(typeof activity.notes === "string" ? activity.notes : "");
     setEditNotesIsEmpty(!activity.notes || activity.notes.trim() === "");
@@ -431,16 +437,21 @@ export function ActivityDetailContent({
         source: "convex",
       });
     }
-    // 2. Cloudinary media
-    const cIds = existingCloudinaryIds ?? [];
-    for (const cId of cIds) {
-      const isVideo = cId.startsWith("v/");
+    // 2. Optimized media — both the legacy `cloudinaryPublicIds` and the new
+    //    `optimizedMediaIds`. They share the same display path; we split them
+    //    back into separate fields at save time based on the tag prefix.
+    const combinedOptimizedIds = [
+      ...(existingOptimizedIds ?? []),
+      ...(existingCloudinaryIds ?? []),
+    ];
+    for (const mediaId of combinedOptimizedIds) {
+      const isVideo = isOptimizedVideo(mediaId);
       allExisting.push({
         storageId: "",
-        url: getOptimizedMediaUrl(cId, isVideo ? "video_feed" : "feed"),
+        url: getOptimizedMediaUrl(mediaId, isVideo ? "video_feed" : "feed"),
         type: isVideo ? "video" : "image",
         source: "cloudinary",
-        cloudinaryId: cId,
+        cloudinaryId: mediaId,
       });
     }
     // 3. Legacy imageUrl (e.g. Strava photos)
@@ -467,7 +478,12 @@ export function ActivityDetailContent({
     try {
       const { activityType, activity } = activityData as {
         activityType: { _id: string; scoringConfig: Record<string, unknown> };
-        activity: { mediaIds?: string[]; cloudinaryPublicIds?: string[]; imageUrl?: string };
+        activity: {
+          mediaIds?: string[];
+          cloudinaryPublicIds?: string[];
+          optimizedMediaIds?: string[];
+          imageUrl?: string;
+        };
       };
       const config = (activityType.scoringConfig ?? {}) as Record<
         string,
@@ -502,17 +518,24 @@ export function ActivityDetailContent({
         setEditUploadProgress(null);
       }
 
-      // Split kept existing media back into their respective storage categories
+      // Split kept existing media back into their respective storage categories.
+      // Optimized media is split by tag prefix: `cfi:`/`cfs:` → new field,
+      // untagged (legacy Cloudinary public IDs) → legacy field.
       const keptConvexIds = editExistingMedia
         .filter((m) => m.source === "convex" && m.storageId)
         .map((m) => m.storageId) as Id<"_storage">[];
-      const keptCloudinaryIds = editExistingMedia
+      const keptOptimizedIds = editExistingMedia
         .filter((m) => m.source === "cloudinary" && m.cloudinaryId)
         .map((m) => m.cloudinaryId as string);
+      const keptCloudflareIds = keptOptimizedIds.filter(
+        (id) => id.startsWith("cfi:") || id.startsWith("cfs:"),
+      );
+      const keptLegacyCloudinaryIds = keptOptimizedIds.filter(
+        (id) => !id.startsWith("cfi:") && !id.startsWith("cfs:"),
+      );
       const keptUrlMedia = editExistingMedia.filter((m) => m.source === "url");
 
       const finalMediaIds = [...keptConvexIds, ...uploadedIds];
-      const finalCloudinaryIds = keptCloudinaryIds;
       const finalImageUrl = keptUrlMedia.length > 0 ? keptUrlMedia[0].url : null;
 
       // Detect changes per media type
@@ -523,8 +546,13 @@ export function ActivityDetailContent({
 
       const originalCloudinaryIds = activity.cloudinaryPublicIds ?? [];
       const cloudinaryChanged =
-        finalCloudinaryIds.length !== originalCloudinaryIds.length ||
-        finalCloudinaryIds.some((id, i) => id !== originalCloudinaryIds[i]);
+        keptLegacyCloudinaryIds.length !== originalCloudinaryIds.length ||
+        keptLegacyCloudinaryIds.some((id, i) => id !== originalCloudinaryIds[i]);
+
+      const originalOptimizedIds = activity.optimizedMediaIds ?? [];
+      const optimizedChanged =
+        keptCloudflareIds.length !== originalOptimizedIds.length ||
+        keptCloudflareIds.some((id, i) => id !== originalOptimizedIds[i]);
 
       const originalImageUrl = activity.imageUrl ?? null;
       const imageUrlChanged = finalImageUrl !== originalImageUrl;
@@ -539,7 +567,8 @@ export function ActivityDetailContent({
           : {}),
         ...(newMetrics !== undefined ? { metrics: newMetrics } : {}),
         ...(mediaIdsChanged ? { mediaIds: finalMediaIds } : {}),
-        ...(cloudinaryChanged ? { cloudinaryPublicIds: finalCloudinaryIds } : {}),
+        ...(cloudinaryChanged ? { cloudinaryPublicIds: keptLegacyCloudinaryIds } : {}),
+        ...(optimizedChanged ? { optimizedMediaIds: keptCloudflareIds } : {}),
         ...(imageUrlChanged ? { imageUrl: finalImageUrl } : {}),
         taggedUserIds: editTaggedUserIds as Id<"users">[],
       };
@@ -604,6 +633,7 @@ export function ActivityDetailContent({
     likedByUser,
     mediaUrls,
     cloudinaryPublicIds,
+    optimizedMediaIds,
     recentLikers,
     adminComment,
     isAdmin,
@@ -616,7 +646,8 @@ export function ActivityDetailContent({
   const effectiveLiked = optimisticLiked ?? likedByUser;
   const effectiveLikeCount = optimisticLikeCount ?? likes;
 
-  const hasMedia = (mediaUrls ?? []).length > 0 || (cloudinaryPublicIds && cloudinaryPublicIds.length > 0);
+  const resolvedMediaIds = resolveMediaIds({ optimizedMediaIds, cloudinaryPublicIds });
+  const hasMedia = (mediaUrls ?? []).length > 0 || resolvedMediaIds.length > 0;
 
   return (
     <div className="mx-auto max-w-2xl overflow-hidden">
@@ -671,7 +702,7 @@ export function ActivityDetailContent({
       )}
 
       {/* Media */}
-      <MediaGallery urls={mediaUrls ?? []} optimizedMediaIds={cloudinaryPublicIds} variant="detail" />
+      <MediaGallery urls={mediaUrls ?? []} optimizedMediaIds={resolvedMediaIds} variant="detail" />
 
       {/* Stats */}
       <div className="space-y-2 px-4 pt-2">

@@ -190,6 +190,7 @@ export const getProfile = query({
             activityTypeMap.get(activity.activityTypeId)?.isNegative ?? false,
           mediaUrls,
           cloudinaryPublicIds: activity.cloudinaryPublicIds ?? [],
+          optimizedMediaIds: activity.optimizedMediaIds ?? [],
         };
       }),
     );

@@ -1,30 +1,67 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronLeft, ChevronRight, Play } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { MediaLightbox } from "@/components/ui/media-lightbox";
+import { MediaLightbox, type MediaLightboxItem } from "@/components/ui/media-lightbox";
 import { useOptimizedMedia } from "@/hooks/use-optimized-media";
 import {
   getOptimizedMediaUrl,
+  getOptimizedVideoPlaybackUrl,
   isOptimizedVideo,
 } from "@/lib/media-optimizer";
 
 interface MediaGalleryProps {
+  /** Fallback raw URLs (Convex storage). Used when no optimized IDs are present. */
   urls: string[];
-  /** Optimized media public IDs (from Cloudinary). Preferred over raw urls when available. */
+  /** Tagged media IDs (`cfi:`/`cfs:`) or legacy Cloudinary public IDs. Preferred over raw urls when available. */
   optimizedMediaIds?: string[];
   /** Use compact aspect ratios for feed cards vs full for detail pages */
   variant?: "feed" | "detail";
 }
 
-function isVideoUrl(url: string) {
+interface GalleryItem {
+  thumbUrl: string;   // shown in the feed/grid view
+  fullUrl: string;    // shown in the lightbox
+  isVideo: boolean;
+  hlsUrl?: string;    // set when isVideo and we have an HLS source
+}
+
+function isVideoRawUrl(url: string): boolean {
   return (
     url.includes(".mp4") ||
     url.includes(".mov") ||
     url.includes(".webm") ||
     url.includes("video")
   );
+}
+
+function buildGalleryItems(
+  optimizedMediaIds: string[] | undefined,
+  rawUrls: string[],
+  useOptimized: boolean,
+  variant: "feed" | "detail",
+): GalleryItem[] {
+  if (useOptimized && optimizedMediaIds && optimizedMediaIds.length > 0) {
+    return optimizedMediaIds.map((id) => {
+      const isVideo = isOptimizedVideo(id);
+      return {
+        thumbUrl: getOptimizedMediaUrl(id, variant === "feed" ? "feed" : "full"),
+        fullUrl: getOptimizedMediaUrl(id, "full"),
+        isVideo,
+        hlsUrl: isVideo ? getOptimizedVideoPlaybackUrl(id).hls : undefined,
+      };
+    });
+  }
+  return rawUrls.map((url) => {
+    const isVideo = isVideoRawUrl(url);
+    return {
+      thumbUrl: url,
+      fullUrl: url,
+      isVideo,
+      hlsUrl: isVideo ? url : undefined,
+    };
+  });
 }
 
 /**
@@ -38,24 +75,14 @@ export function MediaGallery({
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const showOptimized = useOptimizedMedia();
 
-  const useOptimizedUrls =
-    showOptimized && optimizedMediaIds && optimizedMediaIds.length > 0;
+  const items = buildGalleryItems(optimizedMediaIds, urls, showOptimized, variant);
 
-  const displayUrls = useOptimizedUrls
-    ? optimizedMediaIds.map((id) =>
-        getOptimizedMediaUrl(id, variant === "feed" ? "feed" : "full"),
-      )
-    : urls;
+  if (items.length === 0) return null;
 
-  const fullUrls = useOptimizedUrls
-    ? optimizedMediaIds.map((id) => getOptimizedMediaUrl(id, "full"))
-    : urls;
-
-  const isVideoAtIndex = useOptimizedUrls
-    ? (index: number) => isOptimizedVideo(optimizedMediaIds[index])
-    : (index: number) => isVideoUrl(displayUrls[index]);
-
-  if (!displayUrls || displayUrls.length === 0) return null;
+  const lightboxItems: MediaLightboxItem[] = items.map((item) => ({
+    imageUrl: item.fullUrl,
+    hlsUrl: item.hlsUrl,
+  }));
 
   const handleMediaClick = (e: React.MouseEvent, index: number) => {
     e.stopPropagation();
@@ -65,21 +92,13 @@ export function MediaGallery({
   return (
     <>
       {variant === "feed" ? (
-        <MediaCarousel
-          displayUrls={displayUrls}
-          isVideoAtIndex={isVideoAtIndex}
-          onMediaClick={handleMediaClick}
-        />
+        <MediaCarousel items={items} onMediaClick={handleMediaClick} />
       ) : (
-        <MediaGrid
-          displayUrls={displayUrls}
-          isVideoAtIndex={isVideoAtIndex}
-          onMediaClick={handleMediaClick}
-        />
+        <MediaGrid items={items} onMediaClick={handleMediaClick} />
       )}
 
       <MediaLightbox
-        urls={fullUrls}
+        items={lightboxItems}
         initialIndex={lightboxIndex ?? 0}
         open={lightboxIndex !== null}
         onClose={() => setLightboxIndex(null)}
@@ -88,15 +107,36 @@ export function MediaGallery({
   );
 }
 
+// ── Shared render helper ─────────────────────────────────────────
+
+function MediaThumb({ item, eager }: { item: GalleryItem; eager?: boolean }) {
+  return (
+    <div className="relative h-full w-full">
+      <img
+        src={item.thumbUrl}
+        alt={item.isVideo ? "Video thumbnail" : "Activity photo"}
+        className="h-full w-full object-cover"
+        loading={eager ? "eager" : "lazy"}
+        decoding="async"
+      />
+      {item.isVideo && (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-black/60 backdrop-blur-sm">
+            <Play className="h-6 w-6 fill-white text-white" />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── Carousel (feed variant) ─────────────────────────────────────
 
 function MediaCarousel({
-  displayUrls,
-  isVideoAtIndex,
+  items,
   onMediaClick,
 }: {
-  displayUrls: string[];
-  isVideoAtIndex: (index: number) => boolean;
+  items: GalleryItem[];
   onMediaClick: (e: React.MouseEvent, index: number) => void;
 }) {
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -104,13 +144,13 @@ function MediaCarousel({
   const [touchDelta, setTouchDelta] = useState(0);
   const [isDragging, setIsDragging] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
-  const hasMultiple = displayUrls.length > 1;
+  const hasMultiple = items.length > 1;
 
   const goTo = useCallback(
     (index: number) => {
-      setCurrentIndex(Math.max(0, Math.min(index, displayUrls.length - 1)));
+      setCurrentIndex(Math.max(0, Math.min(index, items.length - 1)));
     },
-    [displayUrls.length],
+    [items.length],
   );
 
   const handleTouchStart = (e: React.TouchEvent) => {
@@ -126,7 +166,7 @@ function MediaCarousel({
   const handleTouchEnd = () => {
     if (touchStartX === null) return;
     const threshold = 50;
-    if (touchDelta < -threshold && currentIndex < displayUrls.length - 1) {
+    if (touchDelta < -threshold && currentIndex < items.length - 1) {
       goTo(currentIndex + 1);
     } else if (touchDelta > threshold && currentIndex > 0) {
       goTo(currentIndex - 1);
@@ -154,35 +194,17 @@ function MediaCarousel({
           onTouchMove={hasMultiple ? handleTouchMove : undefined}
           onTouchEnd={hasMultiple ? handleTouchEnd : undefined}
         >
-          {displayUrls.map((url, index) => {
-            const isVideo = isVideoAtIndex(index);
-            return (
-              <button
-                key={index}
-                type="button"
-                className="aspect-square w-full flex-shrink-0 focus-visible:outline-none"
-                onClick={(e) => onMediaClick(e, index)}
-                aria-label={`View ${isVideo ? "video" : "photo"} ${index + 1} of ${displayUrls.length}`}
-              >
-                {isVideo ? (
-                  <video
-                    src={url}
-                    className="h-full w-full object-cover"
-                    preload="metadata"
-                    muted
-                  />
-                ) : (
-                  <img
-                    src={url}
-                    alt={`Activity photo ${index + 1}`}
-                    className="h-full w-full object-cover"
-                    loading={index === 0 ? "eager" : "lazy"}
-                    decoding="async"
-                  />
-                )}
-              </button>
-            );
-          })}
+          {items.map((item, index) => (
+            <button
+              key={index}
+              type="button"
+              className="aspect-square w-full flex-shrink-0 focus-visible:outline-none"
+              onClick={(e) => onMediaClick(e, index)}
+              aria-label={`View ${item.isVideo ? "video" : "photo"} ${index + 1} of ${items.length}`}
+            >
+              <MediaThumb item={item} eager={index === 0} />
+            </button>
+          ))}
         </div>
 
         {/* Desktop navigation arrows */}
@@ -195,7 +217,7 @@ function MediaCarousel({
             <ChevronLeft className="h-5 w-5" />
           </button>
         )}
-        {hasMultiple && currentIndex < displayUrls.length - 1 && (
+        {hasMultiple && currentIndex < items.length - 1 && (
           <button
             onClick={() => goTo(currentIndex + 1)}
             className="absolute right-2 top-1/2 z-10 hidden -translate-y-1/2 items-center justify-center rounded-full bg-black/60 p-1.5 text-white transition-colors hover:bg-black/80 sm:flex"
@@ -208,7 +230,7 @@ function MediaCarousel({
         {/* Image counter badge (desktop) */}
         {hasMultiple && (
           <div className="absolute right-3 top-3 z-10 hidden rounded-full bg-black/60 px-2.5 py-0.5 text-xs font-medium text-white sm:block">
-            {currentIndex + 1}/{displayUrls.length}
+            {currentIndex + 1}/{items.length}
           </div>
         )}
       </div>
@@ -216,7 +238,7 @@ function MediaCarousel({
       {/* Dot indicators — below image, IG-style */}
       {hasMultiple && (
         <div className="flex justify-center gap-1.5 py-2">
-          {displayUrls.map((_, i) => (
+          {items.map((_, i) => (
             <button
               key={i}
               onClick={() => goTo(i)}
@@ -238,27 +260,24 @@ function MediaCarousel({
 // ── Grid (detail variant) ───────────────────────────────────────
 
 function MediaGrid({
-  displayUrls,
-  isVideoAtIndex,
+  items,
   onMediaClick,
 }: {
-  displayUrls: string[];
-  isVideoAtIndex: (index: number) => boolean;
+  items: GalleryItem[];
   onMediaClick: (e: React.MouseEvent, index: number) => void;
 }) {
   return (
     <div
       className={cn(
         "grid gap-1.5",
-        displayUrls.length === 1 && "grid-cols-1",
-        displayUrls.length === 2 && "grid-cols-2",
-        displayUrls.length === 3 && "aspect-[3/2] grid-cols-2 grid-rows-2",
-        displayUrls.length >= 4 && "grid-cols-2",
+        items.length === 1 && "grid-cols-1",
+        items.length === 2 && "grid-cols-2",
+        items.length === 3 && "aspect-[3/2] grid-cols-2 grid-rows-2",
+        items.length >= 4 && "grid-cols-2",
       )}
     >
-      {displayUrls.slice(0, 4).map((url, index) => {
-        const isVideo = isVideoAtIndex(index);
-        const isLastWithMore = index === 3 && displayUrls.length > 4;
+      {items.slice(0, 4).map((item, index) => {
+        const isLastWithMore = index === 3 && items.length > 4;
 
         return (
           <button
@@ -266,34 +285,19 @@ function MediaGrid({
             type="button"
             className={cn(
               "relative overflow-hidden rounded-lg bg-zinc-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-              displayUrls.length === 1 && "aspect-video",
-              displayUrls.length === 2 && "aspect-square",
-              displayUrls.length === 3 && index === 0 && "row-span-2",
-              displayUrls.length >= 4 && "aspect-square",
+              items.length === 1 && "aspect-video",
+              items.length === 2 && "aspect-square",
+              items.length === 3 && index === 0 && "row-span-2",
+              items.length >= 4 && "aspect-square",
             )}
             onClick={(e) => onMediaClick(e, index)}
-            aria-label={`View ${isVideo ? "video" : "photo"} ${index + 1} of ${displayUrls.length}`}
+            aria-label={`View ${item.isVideo ? "video" : "photo"} ${index + 1} of ${items.length}`}
           >
-            {isVideo ? (
-              <video
-                src={url}
-                className="h-full w-full object-cover"
-                preload="metadata"
-                muted
-              />
-            ) : (
-              <img
-                src={url}
-                alt={`Activity media ${index + 1}`}
-                className="h-full w-full object-cover"
-                loading="lazy"
-                decoding="async"
-              />
-            )}
+            <MediaThumb item={item} />
             {isLastWithMore && (
               <div className="absolute inset-0 flex items-center justify-center bg-black/60">
                 <span className="text-lg font-semibold text-white">
-                  +{displayUrls.length - 4}
+                  +{items.length - 4}
                 </span>
               </div>
             )}

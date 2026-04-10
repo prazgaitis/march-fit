@@ -29,3 +29,20 @@ export const patchCloudinaryIds = internalMutation({
     });
   },
 });
+
+/**
+ * Patch an activity with optimizedMediaIds (Cloudflare tagged IDs) after upload.
+ * Used by the Strava webhook and the Cloudinary → Cloudflare backfill.
+ */
+export const patchOptimizedMediaIds = internalMutation({
+  args: {
+    activityId: v.id("activities"),
+    optimizedMediaIds: v.array(v.string()),
+  },
+  handler: async (ctx, args) => {
+    await ctx.db.patch(args.activityId, {
+      optimizedMediaIds: args.optimizedMediaIds,
+      pendingMediaCount: undefined,
+    });
+  },
+});

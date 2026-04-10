@@ -171,7 +171,8 @@ export default defineSchema({
     ),
     imageUrl: v.optional(v.string()), // Legacy field for backward compatibility
     mediaIds: v.optional(v.array(v.id("_storage"))), // New field for media attachments
-    cloudinaryPublicIds: v.optional(v.array(v.string())), // Optimized media (Cloudinary)
+    cloudinaryPublicIds: v.optional(v.array(v.string())), // Optimized media (Cloudinary) — legacy, kept during Cloudflare migration
+    optimizedMediaIds: v.optional(v.array(v.string())), // Tagged media IDs: "cfi:<id>" for Cloudflare Images, "cfs:<uid>" for Cloudflare Stream
     pendingMediaCount: v.optional(v.number()), // Photos expected from Strava but not yet available
     stravaMediaDismissed: v.optional(v.boolean()), // User explicitly removed Strava-imported media; sync should not restore it
     notes: v.optional(v.string()),

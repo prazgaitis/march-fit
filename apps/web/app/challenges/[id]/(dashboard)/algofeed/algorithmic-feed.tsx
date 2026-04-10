@@ -19,6 +19,7 @@ import {
 } from "@/components/ui/card";
 import { PointsDisplay } from "@/components/ui/points-display";
 import { MediaGallery } from "@/components/media-gallery";
+import { resolveMediaIds } from "@/lib/media-optimizer";
 import { cn } from "@/lib/utils";
 
 interface AlgoFeedItem {
@@ -52,6 +53,8 @@ interface AlgoFeedItem {
   comments: number;
   likedByUser: boolean;
   mediaUrls: string[];
+  cloudinaryPublicIds?: string[];
+  optimizedMediaIds?: string[];
   displayScore: number;
 }
 
@@ -144,6 +147,8 @@ function AlgoFeedCard({
     comments: number;
     likedByUser: boolean;
     mediaUrls: string[];
+    cloudinaryPublicIds?: string[];
+    optimizedMediaIds?: string[];
     displayScore: number;
   };
 }) {
@@ -220,7 +225,11 @@ function AlgoFeedCard({
         </div>
 
         {/* Media Gallery */}
-        <MediaGallery urls={item.mediaUrls} variant="feed" />
+        <MediaGallery
+          urls={item.mediaUrls}
+          optimizedMediaIds={resolveMediaIds(item)}
+          variant="feed"
+        />
 
         {/* Stats */}
         <div className="rounded-lg bg-muted px-4 py-3 text-sm">

@@ -340,6 +340,7 @@ export function ActivityLogDialog({ challengeId, challengeStartDate, trigger }: 
   const logActivity = useMutation(api.mutations.activities.log);
   const createCheckoutSession = useAction(api.actions.payments.createCheckoutSession);
   const generateUploadUrl = useMutation(api.mutations.activities.generateUploadUrl);
+  const createDirectUploadUrl = useAction(api.actions.cloudflareMedia.createDirectUploadUrl);
   const useMediaOptimizer = isMediaOptimizationEnabled(currentUser?.email);
 
   const paymentInfo = useQuery(api.queries.paymentConfig.getPublicPaymentInfo, {
@@ -653,19 +654,18 @@ export function ActivityLogDialog({ challengeId, challengeStartDate, trigger }: 
 
     try {
       // Upload media files
-      let cloudinaryPublicIds: string[] | undefined;
       let mediaIds: Id<"_storage">[] | undefined;
       let optimizedMediaIds: string[] | undefined;
       if (mediaFiles.length > 0) {
         setUploadProgress(`Uploading ${mediaFiles.length} file(s)...`);
 
         if (useMediaOptimizer) {
-          // Upload to optimized media provider (Cloudinary)
+          // Upload via Cloudflare direct creator upload (Images or Stream).
           optimizedMediaIds = [];
           for (let i = 0; i < mediaFiles.length; i++) {
             setUploadProgress(`Uploading file ${i + 1} of ${mediaFiles.length}...`);
-            const result = await uploadOptimizedMedia(mediaFiles[i].file);
-            optimizedMediaIds.push(result.publicId);
+            const result = await uploadOptimizedMedia(mediaFiles[i].file, createDirectUploadUrl);
+            optimizedMediaIds.push(result.id);
           }
         } else {
           // Fallback: upload to Convex storage
@@ -701,7 +701,7 @@ export function ActivityLogDialog({ challengeId, challengeStartDate, trigger }: 
         metrics,
         notes: !notesIsEmpty && form.notes && !isEditorContentEmpty(form.notes) ? form.notes : undefined,
         mediaIds,
-        cloudinaryPublicIds: optimizedMediaIds,
+        optimizedMediaIds,
         timezone: browserTimezone,
         localTime,
         source: "manual",

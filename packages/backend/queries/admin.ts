@@ -401,6 +401,7 @@ export const getFlaggedActivityDetail = query({
         : null,
       mediaUrls,
       cloudinaryPublicIds: activity.cloudinaryPublicIds ?? [],
+      optimizedMediaIds: activity.optimizedMediaIds ?? [],
       commentCount,
       flaggers,
       history: historyWithActors,

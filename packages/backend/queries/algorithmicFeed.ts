@@ -402,6 +402,7 @@ export const getAlgorithmicFeed = query({
           likedByUser: userLike !== null,
           mediaUrls,
           cloudinaryPublicIds: activity.cloudinaryPublicIds ?? [],
+          optimizedMediaIds: activity.optimizedMediaIds ?? [],
           recentLikers,
           taggedUsers,
           taggedYou,

@@ -66,7 +66,7 @@ import { PointsDisplay } from "@/components/ui/points-display";
 import { StoryViewer } from "@/components/dashboard/story-viewer";
 import { buildUserStory } from "@/lib/story-utils";
 import { useOptimizedMedia } from "@/hooks/use-optimized-media";
-import { getOptimizedMediaUrl } from "@/lib/media-optimizer";
+import { getOptimizedMediaUrl, resolveMediaIds } from "@/lib/media-optimizer";
 
 interface UserProfileContentProps {
   challengeId: string;
@@ -723,15 +723,12 @@ export function UserProfileContent({
                 isNegative?: boolean;
                 mediaUrls: string[];
                 cloudinaryPublicIds: string[];
+                optimizedMediaIds?: string[];
               }) => {
-                const hasOptimized =
-                  showOptimized &&
-                  activity.cloudinaryPublicIds.length > 0;
+                const resolved = resolveMediaIds(activity);
+                const hasOptimized = showOptimized && resolved.length > 0;
                 const thumbUrl = hasOptimized
-                  ? getOptimizedMediaUrl(
-                      activity.cloudinaryPublicIds[0],
-                      "feed",
-                    )
+                  ? getOptimizedMediaUrl(resolved[0], "feed")
                   : activity.mediaUrls[0] ?? null;
 
                 return (

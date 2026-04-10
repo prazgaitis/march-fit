@@ -81,6 +81,7 @@ export function UserActivitiesContent({
             },
             mediaUrls: item.mediaUrls ?? [],
             cloudinaryPublicIds: item.cloudinaryPublicIds,
+            optimizedMediaIds: item.optimizedMediaIds,
           }}
           mentionOptions={mentionUsers}
           currentUserId={currentUserId}

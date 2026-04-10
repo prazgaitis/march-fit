@@ -28,6 +28,7 @@ import { UserChallengeDisplay } from "@/components/user-challenge-display";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { MediaGallery } from "@/components/media-gallery";
+import { resolveMediaIds } from "@/lib/media-optimizer";
 import { PointsDisplay } from "@/components/ui/points-display";
 import {
   FlaggedActivityActions,
@@ -172,15 +173,15 @@ export function FlaggedActivityDetailContent({
     activityType,
     mediaUrls,
     cloudinaryPublicIds,
+    optimizedMediaIds,
     commentCount,
     flaggers,
     history,
   } = detail;
 
   const metrics = activity.metrics as Record<string, unknown> | undefined;
-  const hasMedia =
-    (mediaUrls ?? []).length > 0 ||
-    (cloudinaryPublicIds && cloudinaryPublicIds.length > 0);
+  const resolvedMediaIds = resolveMediaIds({ optimizedMediaIds, cloudinaryPublicIds });
+  const hasMedia = (mediaUrls ?? []).length > 0 || resolvedMediaIds.length > 0;
   const triggeredBonuses = activity.triggeredBonuses as
     | { metric: string; threshold: number; bonusPoints: number; description: string }[]
     | undefined;
@@ -322,7 +323,7 @@ export function FlaggedActivityDetailContent({
       {hasMedia && (
         <MediaGallery
           urls={mediaUrls ?? []}
-          optimizedMediaIds={cloudinaryPublicIds}
+          optimizedMediaIds={resolvedMediaIds}
           variant="detail"
         />
       )}

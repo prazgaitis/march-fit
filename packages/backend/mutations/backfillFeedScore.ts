@@ -1,6 +1,7 @@
 import { internalMutation } from "../_generated/server";
 import { v } from "convex/values";
 import { computeFeedScore, computeFeedRank, type ContentScoreInput, type EngagementScoreInput } from "../lib/feedScoring";
+import { countMedia } from "../lib/activityMedia";
 
 /**
  * Backfill feedScore on activities that don't have one yet.
@@ -78,7 +79,7 @@ export const backfillFeedScore = internalMutation({
 
       const content: ContentScoreInput = {
         hasDescription: !!activity.notes && activity.notes.trim().length > 0,
-        mediaCount: (activity.mediaIds?.length ?? 0) + (activity.cloudinaryPublicIds?.length ?? 0),
+        mediaCount: countMedia(activity),
         pointsEarned: activity.pointsEarned,
         triggeredBonusCount: activity.triggeredBonuses?.length ?? 0,
         flagged: activity.flagged,

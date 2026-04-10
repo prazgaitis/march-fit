@@ -2,7 +2,7 @@
 
 import { useState, useRef } from "react";
 import { useParams } from "next/navigation";
-import { useQuery, useMutation } from "@/lib/convex-auth-react";
+import { useQuery, useMutation, useAction } from "@/lib/convex-auth-react";
 import { api } from "@repo/backend";
 import type { Id } from "@repo/backend/_generated/dataModel";
 import type { LucideIcon } from "lucide-react";
@@ -399,14 +399,15 @@ function BadgeForm({
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const createDirectUploadUrl = useAction(api.actions.cloudflareMedia.createDirectUploadUrl);
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setIsUploading(true);
     try {
-      const result = await uploadOptimizedMedia(file);
-      setForm((prev) => ({ ...prev, imagePublicId: result.publicId }));
+      const result = await uploadOptimizedMedia(file, createDirectUploadUrl);
+      setForm((prev) => ({ ...prev, imagePublicId: result.id }));
     } catch (err) {
       console.error("Badge image upload failed:", err);
     } finally {
