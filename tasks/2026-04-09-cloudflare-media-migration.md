@@ -26,9 +26,9 @@ Use a list with checkboxes to summarize granular steps. Every stopping point mus
 - [x] (2026-04-10) Milestone 3 — `apps/web/lib/media-optimizer.ts` rewritten to dispatch by tag (`cfi:` → Cloudflare Images, `cfs:` → Cloudflare Stream, untagged → legacy Cloudinary). New Convex action `packages/backend/actions/cloudflareMedia.ts` mints one-time direct upload URLs via an authenticated server-side call. New `packages/backend/lib/activityMedia.ts` helper DRYs the `hasAnyMedia` / `countMedia` checks that were duplicated across `activityLifecycle.ts`, `mutations/activities.ts`, and `lib/feedScore.ts`. `log` and `editActivity` mutations accept a new `optimizedMediaIds` arg alongside the legacy one. `activity-log-dialog.tsx` and `admin/badges/page.tsx` both wired to the new action. `pnpm typecheck` passes.
 - [x] (2026-04-10) Milestone 4 — Strava webhook photo sync now uploads to Cloudflare Images (images) and Cloudflare Stream (videos) via the shared `lib/cloudflareApi.ts` helpers. New internal mutation `backfillCloudinary.patchOptimizedMediaIds` writes to the new field. Both the initial-sync and 90s-retry code paths are updated. Existing-photo counter sums both fields so partially-migrated activities don't double-upload. Typecheck passes.
 - [x] (2026-04-10) Milestone 5 — Media display refactored to support Cloudflare Stream videos with HLS playback. `media-gallery.tsx` and `media-lightbox.tsx` now share a `MediaLightboxItem` shape carrying image URL and optional `hlsUrl`. New `hls-video.tsx` component uses `hls.js` on Chrome/Firefox, native playback on Safari. Video entries render as poster-image-plus-play-icon in the feed/grid, full HLS playback in the lightbox. Backend queries (`activities`, `algorithmicFeed`, `admin`, `users`, `wrapped`) project `optimizedMediaIds` alongside `cloudinaryPublicIds`. All frontend call sites use `resolveMediaIds()` to merge the legacy and new fields. Edit dialog splits tagged `cfi:`/`cfs:` from legacy IDs on save so each field is written independently. `hasAnyMedia`/`countMedia` helpers now wire through lifecycle, edit mutation, and feed-score backfill. Typecheck passes.
-- [ ] Milestone 6 — Migration script: copy all historical Cloudinary assets into Cloudflare, populate `optimizedMediaIds`.
-- [ ] Milestone 7 — Cutover: flip reads to prefer `optimizedMediaIds`, keep `cloudinaryPublicIds` as fallback for one week.
-- [ ] Milestone 8 — Cleanup: remove Cloudinary env vars, delete `cloudinaryPublicIds` reads, drop the schema field after verification window.
+- [~] (2026-04-10) Milestone 6 — Backfill script written at `packages/backend/actions/backfillCloudflareMedia.ts` and `packages/backend/queries/backfillCloudflareMedia.ts`. Dry-run mode verified. Real run **blocked**: Cloudinary cloud `dxn6ighp7` is disabled at the Cloudinary edge, so the script cannot download source assets. The per-asset failure path correctly reports `download 401 Unauthorized` and refuses to persist partial results. Resolution: either temporarily re-enable Cloudinary and run the backfill, or ship without historical assets. See Surprises & Discoveries for details.
+- [ ] Milestone 7 — Cutover: flip reads to prefer `optimizedMediaIds`, keep `cloudinaryPublicIds` as fallback for one week. (Waiting on Milestone 6 unblock.)
+- [ ] Milestone 8 — Cleanup: remove Cloudinary env vars, delete `cloudinaryPublicIds` reads, drop the schema field after verification window. (Waiting on Milestone 6 unblock.)
 
 ## Surprises & Discoveries
 
@@ -54,6 +54,15 @@ Document unexpected behaviors, bugs, quirks of Cloudflare's APIs, or anything th
       POST /variants {"id":"thumbnail",...} → 200
       POST /variants {"id":"feed",...} → 200
       POST /variants {"id":"full",...} → 200
+
+- Observation (BLOCKER for Milestone 6): the Cloudinary cloud `dxn6ighp7` is disabled at Cloudinary's edge and all delivery URLs return `401 cloud_name is disabled`. The backfill script cannot download historical assets until either (a) the account is re-enabled for the duration of the migration, or (b) a different export of the assets is supplied. The backfill code itself is written, typechecks, and runs correctly in dry mode; the real-run path returned per-asset `download 401 Unauthorized` skips for every source URL and correctly refused to persist partial results.
+  Evidence:
+      $ curl -sI https://res.cloudinary.com/dxn6ighp7/image/upload/march-fit/sxmj3kcnlsvirro41ijb
+      HTTP/2 401
+      x-cld-error: cloud_name dxn6ighp7 is disabled
+      $ npx convex run actions/backfillCloudflareMedia:backfill '{"limit":2,"dryRun":false}'
+      {"processed":2, "results":[{"skipped":[{"publicId":"march-fit/sxmj3...","reason":"download 401 Unauthorized"}], "uploaded":[]}, ...]}
+  Resolution options: re-enable the Cloudinary account temporarily; or ship the migration without historical assets and accept that pre-migration photos render broken until the legacy records are deleted.
 
 ## Decision Log
 

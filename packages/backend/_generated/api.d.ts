@@ -11,6 +11,7 @@
 import type * as actions_addMarch2026Categories from "../actions/addMarch2026Categories.js";
 import type * as actions_backfillActivityExternalData from "../actions/backfillActivityExternalData.js";
 import type * as actions_backfillCategoryPoints from "../actions/backfillCategoryPoints.js";
+import type * as actions_backfillCloudflareMedia from "../actions/backfillCloudflareMedia.js";
 import type * as actions_backfillCloudinaryMedia from "../actions/backfillCloudinaryMedia.js";
 import type * as actions_backfillWeeklyCategoryPoints from "../actions/backfillWeeklyCategoryPoints.js";
 import type * as actions_cleanup from "../actions/cleanup.js";
@@ -124,6 +125,7 @@ import type * as queries_algorithmicFeed from "../queries/algorithmicFeed.js";
 import type * as queries_apiKeys from "../queries/apiKeys.js";
 import type * as queries_backfillActivityExternalData from "../queries/backfillActivityExternalData.js";
 import type * as queries_backfillCategoryPoints from "../queries/backfillCategoryPoints.js";
+import type * as queries_backfillCloudflareMedia from "../queries/backfillCloudflareMedia.js";
 import type * as queries_backfillCloudinary from "../queries/backfillCloudinary.js";
 import type * as queries_backfillWeeklyCategoryPoints from "../queries/backfillWeeklyCategoryPoints.js";
 import type * as queries_badges from "../queries/badges.js";
@@ -161,6 +163,7 @@ declare const fullApi: ApiFromModules<{
   "actions/addMarch2026Categories": typeof actions_addMarch2026Categories;
   "actions/backfillActivityExternalData": typeof actions_backfillActivityExternalData;
   "actions/backfillCategoryPoints": typeof actions_backfillCategoryPoints;
+  "actions/backfillCloudflareMedia": typeof actions_backfillCloudflareMedia;
   "actions/backfillCloudinaryMedia": typeof actions_backfillCloudinaryMedia;
   "actions/backfillWeeklyCategoryPoints": typeof actions_backfillWeeklyCategoryPoints;
   "actions/cleanup": typeof actions_cleanup;
@@ -274,6 +277,7 @@ declare const fullApi: ApiFromModules<{
   "queries/apiKeys": typeof queries_apiKeys;
   "queries/backfillActivityExternalData": typeof queries_backfillActivityExternalData;
   "queries/backfillCategoryPoints": typeof queries_backfillCategoryPoints;
+  "queries/backfillCloudflareMedia": typeof queries_backfillCloudflareMedia;
   "queries/backfillCloudinary": typeof queries_backfillCloudinary;
   "queries/backfillWeeklyCategoryPoints": typeof queries_backfillWeeklyCategoryPoints;
   "queries/badges": typeof queries_badges;
