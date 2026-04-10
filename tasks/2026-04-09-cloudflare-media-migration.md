@@ -424,6 +424,14 @@ Keep a short log of commands that proved something worked, as indented blocks, f
 
     # 2026-04-09 — plan drafted; no artifacts yet.
 
+    # 2026-04-10 — Forward-path verified end-to-end. Upload round-trip + variant delivery:
+    # POST /images/v2/direct_upload → upload URL
+    # POST <uploadURL> -F file=@test.png → 200 with all four variants listed
+    # GET imagedelivery.net/<hash>/<id>/thumbnail → 200 image/png 6107 bytes
+    # GET imagedelivery.net/<hash>/<id>/feed      → 200 image/png 6107 bytes
+    # GET imagedelivery.net/<hash>/<id>/full      → 200 image/png 6107 bytes
+    # (Constant size across variants is expected: 120x120 source stays 120x120 under scale-down.)
+
     # 2026-04-10 — Milestone 1 complete. Evidence:
     # Images direct_upload (scope check, produced an unused upload URL that self-expires):
     #   {"result":{"id":"429c1821-3b99-45f8-099b-85bbdf73fd00",

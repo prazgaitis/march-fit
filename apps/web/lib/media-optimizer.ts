@@ -16,7 +16,10 @@ const BETA_EMAILS = process.env.NEXT_PUBLIC_OPTIMIZED_MEDIA_BETA_EMAILS;
 
 // Legacy Cloudinary cloud name, kept readable through the migration so
 // activities that only have pre-migration `cloudinaryPublicIds` still render.
+// When unset, the legacy fallback is treated as unreachable: legacy-only
+// activities render as "no media" instead of producing broken image URLs.
 const LEGACY_CLOUDINARY_CLOUD = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+const LEGACY_CLOUDINARY_AVAILABLE = !!LEGACY_CLOUDINARY_CLOUD;
 
 /** True when the media optimizer is configured (Cloudflare Images env vars present). */
 export const isMediaOptimizerConfigured = !!IMAGES_ACCOUNT_HASH;
@@ -160,7 +163,10 @@ export function getOptimizedVideoPlaybackUrl(
 
 /**
  * Pick the media ID list to render for an activity, preferring the new field
- * and falling back to the legacy one during the migration window.
+ * and falling back to the legacy one during the migration window. When the
+ * legacy Cloudinary cloud is not configured (env var unset), legacy-only
+ * activities resolve to an empty list so the display layer renders
+ * "no media" rather than broken image URLs.
  */
 export function resolveMediaIds(activity: {
   optimizedMediaIds?: string[] | null;
@@ -169,7 +175,10 @@ export function resolveMediaIds(activity: {
   if (activity.optimizedMediaIds && activity.optimizedMediaIds.length > 0) {
     return activity.optimizedMediaIds;
   }
-  return activity.cloudinaryPublicIds ?? [];
+  if (LEGACY_CLOUDINARY_AVAILABLE) {
+    return activity.cloudinaryPublicIds ?? [];
+  }
+  return [];
 }
 
 // ---------------------------------------------------------------------------
