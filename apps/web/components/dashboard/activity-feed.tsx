@@ -352,17 +352,24 @@ export function ActivityFeed({
     for (let i = 0; i < seed.length; i++) {
       hash = ((hash << 5) - hash + seed.charCodeAt(i)) | 0;
     }
-    const rand = (n: number) => ((Math.abs(hash = ((hash << 13) ^ hash) - (hash >>> 7)) % n));
+    const advance = (h: number) => ((h << 13) ^ h) - (h >>> 7);
 
     // First widget: position 4–7 (after 5th–8th card)
-    const pos1 = 4 + rand(4);
+    let state = advance(hash);
+    const pos1 = 4 + (Math.abs(state) % 4);
+
     // Second widget: at least 3 cards after the first, up to pos1+6
     const minPos2 = pos1 + 3;
     const maxPos2 = Math.min(pos1 + 6, visibleAlgoIds.length - 1);
-    const pos2 = minPos2 <= maxPos2 ? minPos2 + rand(maxPos2 - minPos2 + 1) : minPos2;
+    let pos2 = minPos2;
+    if (minPos2 <= maxPos2) {
+      state = advance(state);
+      pos2 = minPos2 + (Math.abs(state) % (maxPos2 - minPos2 + 1));
+    }
 
     // Randomize which widget goes first
-    const swapped = rand(2) === 0;
+    state = advance(state);
+    const swapped = Math.abs(state) % 2 === 0;
     return {
       miniGamesAt: swapped ? pos2 : pos1,
       suggestedAt: swapped ? pos1 : pos2,
