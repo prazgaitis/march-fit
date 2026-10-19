@@ -77,7 +77,7 @@ describe("parseWhere ISO-date patch", () => {
   test("the patch file exists and contains the ISO date fix", () => {
     const patchPath = resolve(
       __dirname,
-      "../../../../patches/@convex-dev__better-auth@0.10.11.patch"
+      "../../../../patches/@convex-dev__better-auth@0.12.5.patch"
     );
     const patch = readFileSync(patchPath, "utf-8");
     expect(patch).toContain("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}");
