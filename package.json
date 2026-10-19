@@ -52,7 +52,7 @@
   "packageManager": "pnpm@10.14.0",
   "pnpm": {
     "overrides": {
-      "react-is": "19.2.4",
+      "react-is": "19.3.1",
       "require-in-the-middle": "7.5.2"
     },
     "patchedDependencies": {
@@ -67,11 +67,11 @@
   "devDependencies": {
     "@convex-dev/better-auth": "^0.10.11",
     "@manypkg/cli": "^0.25.1",
-    "@turbo/gen": "^2.5.6",
+    "@turbo/gen": "^2.11.9",
     "cross-env": "^10.0.0",
     "husky": "^9.1.7",
-    "prettier": "^3.6.2",
-    "turbo": "2.5.6",
+    "prettier": "^3.9.10",
+    "turbo": "2.11.9",
     "typescript": "^5.9.2"
   }
 }
