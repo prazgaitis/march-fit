@@ -10,10 +10,11 @@ vi.mock("@/lib/server-auth", () => ({
 }));
 
 vi.mock("convex/browser", () => ({
-  ConvexHttpClient: vi.fn().mockImplementation(() => ({
-    setAuth,
-    mutation,
-  })),
+  // The route constructs the client with `new`, so the mock must be a class.
+  ConvexHttpClient: class {
+    setAuth = setAuth;
+    mutation = mutation;
+  },
 }));
 
 async function loadRoute() {

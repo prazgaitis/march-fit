@@ -66,8 +66,8 @@ export const testStripeConnection = action({
       const secretKey = decryptKey(encryptedKey);
       const stripe = createStripeClient(secretKey);
 
-      // Try to retrieve account info to verify the key works
-      const account = await stripe.accounts.retrieve();
+      // Retrieve the account for this secret key (null = key's own account)
+      const account = await stripe.accounts.retrieve(null);
 
       return {
         success: true,
@@ -219,7 +219,9 @@ export const createCheckoutSession = action({
 
     // Create Checkout Session
     const session = await stripe.checkout.sessions.create({
-      payment_method_types: ["card"],
+      // Stripe 23 replaced the static payment_method_types list with a
+      // filter over dynamically eligible payment methods.
+      allowed_payment_method_types: ["card"],
       line_items: [lineItem as any],
       mode: "payment",
       success_url: `${args.successUrl}?session_id={CHECKOUT_SESSION_ID}`,

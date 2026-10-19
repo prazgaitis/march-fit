@@ -49,22 +49,7 @@
     "e2e:headed": "pnpm -F e2e test:headed",
     "prepare": "husky"
   },
-  "packageManager": "pnpm@10.14.0",
-  "pnpm": {
-    "overrides": {
-      "convex-helpers": "^0.1.115",
-      "react-is": "19.3.1",
-      "require-in-the-middle": "7.5.2"
-    },
-    "peerDependencyRules": {
-      "ignoreMissing": [
-        "@playwright/test"
-      ]
-    },
-    "patchedDependencies": {
-      "@convex-dev/better-auth@0.12.5": "patches/@convex-dev__better-auth@0.12.5.patch"
-    }
-  },
+  "packageManager": "pnpm@12.14.0",
   "devDependencies": {
     "@convex-dev/better-auth": "^0.12.5",
     "@manypkg/cli": "^0.25.1",
@@ -73,6 +58,6 @@
     "husky": "^9.1.7",
     "prettier": "^3.9.10",
     "turbo": "2.11.9",
-    "typescript": "^5.9.2"
+    "typescript": "^6.0.3"
   }
 }
