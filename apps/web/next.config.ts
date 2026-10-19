@@ -1,5 +1,5 @@
 import type { NextConfig } from "next";
-import { withSentryConfig } from "@sentry/nextjs";
+import { withSentryConfig } from "@sentry/nextjs/config";
 
 // Derive NEXT_PUBLIC_CONVEX_SITE_URL from NEXT_PUBLIC_CONVEX_URL if not set.
 // The site URL is always the cloud URL with ".convex.cloud" → ".convex.site".

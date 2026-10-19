@@ -291,12 +291,14 @@ export function RichTextEditor({
 
     const doc = parseEditorContent(incoming);
     if (doc) {
-      editor.commands.setContent(doc, false, {
-        preserveWhitespace: true,
+      editor.commands.setContent(doc, {
+        emitUpdate: false,
+        parseOptions: { preserveWhitespace: true },
       });
     } else {
-      editor.commands.setContent(incoming, false, {
-        preserveWhitespace: true,
+      editor.commands.setContent(incoming, {
+        emitUpdate: false,
+        parseOptions: { preserveWhitespace: true },
       });
     }
 

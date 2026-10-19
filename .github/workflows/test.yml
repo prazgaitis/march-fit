@@ -7,7 +7,7 @@ on:
     branches: [main, develop]
 
 env:
-  PNPM_VERSION: 10.14.0
+  PNPM_VERSION: 12.14.0
 
 jobs:
   checks:
