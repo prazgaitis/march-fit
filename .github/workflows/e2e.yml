@@ -9,7 +9,7 @@ on:
   workflow_dispatch: # Allow manual triggers
 
 env:
-  PNPM_VERSION: 10.14.0
+  PNPM_VERSION: 12.14.0
 
 jobs:
   e2e:

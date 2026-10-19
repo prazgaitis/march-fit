@@ -10,10 +10,10 @@ export default defineConfig({
     hookTimeout: 30000,
     include: ['tests/**/*.test.ts'],
     pool: 'forks',
-    // Serial, shared-process execution — the Vitest 5 replacement for
-    // the removed poolOptions.forks.singleFork.
+    // Vitest 5 removed poolOptions.forks.singleFork. Run files serially in a
+    // single worker to keep the previous one-fork-at-a-time behavior.
     fileParallelism: false,
-    isolate: false,
+    maxWorkers: 1,
   },
   resolve: {
     alias: {

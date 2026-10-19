@@ -4,7 +4,7 @@
   "license": "MIT",
   "private": true,
   "engines": {
-    "node": ">=20.9.0"
+    "node": ">=20.19.0"
   },
   "author": {
     "url": "https://march.fit",
