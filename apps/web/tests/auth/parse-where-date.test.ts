@@ -83,4 +83,17 @@ describe("parseWhere ISO-date patch", () => {
     expect(patch).toContain("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}");
     expect(patch).toContain("new Date(w.value).getTime()");
   });
+
+  // The patch file matching is not enough — assert that the copy pnpm actually
+  // installed (with the patch applied) contains the fix, so a silently failed
+  // patch application fails CI.
+  test("the installed adapter.js contains the ISO date fix", () => {
+    const adapterPath = resolve(
+      __dirname,
+      "../../../../node_modules/@convex-dev/better-auth/dist/client/adapter.js"
+    );
+    const adapter = readFileSync(adapterPath, "utf-8");
+    expect(adapter).toContain("\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}");
+    expect(adapter).toContain("new Date(w.value).getTime()");
+  });
 });
