@@ -21,7 +21,7 @@ import {
  * Fetch all photo URLs for a Strava activity using the photos endpoint.
  * Falls back to the primary photo from the activity detail if the endpoint fails.
  */
-async function httpFetchStravaActivityPhotos(
+export async function httpFetchStravaActivityPhotos(
   accessToken: string,
   activityId: number,
   primaryPhotoUrl: string | null,
@@ -62,7 +62,7 @@ async function httpFetchStravaActivityPhotos(
  * Returns tagged IDs in the form `cfi:<id>` or `cfs:<uid>`.
  * Per-photo failures are logged and skipped; the batch continues.
  */
-async function uploadStravaPhotosToCloudflare(photoUrls: string[]): Promise<string[]> {
+export async function uploadStravaPhotosToCloudflare(photoUrls: string[]): Promise<string[]> {
   const ids: string[] = [];
   for (const url of photoUrls) {
     try {
@@ -85,7 +85,7 @@ async function uploadStravaPhotosToCloudflare(photoUrls: string[]): Promise<stri
   return ids;
 }
 
-interface StravaTokenResponse {
+export interface StravaTokenResponse {
   access_token: string;
   refresh_token: string;
   expires_at: number;
@@ -104,7 +104,7 @@ interface StravaTokenResponse {
  * Pure HTTP — does NOT update the database. Callers are responsible for
  * persisting the new tokens via ctx.runMutation(...updateStravaTokens).
  */
-async function httpRefreshStravaToken(refreshTokenStr: string): Promise<StravaTokenResponse> {
+export async function httpRefreshStravaToken(refreshTokenStr: string): Promise<StravaTokenResponse> {
   const response = await fetch("https://www.strava.com/api/v3/oauth/token", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -1007,7 +1007,8 @@ export const processStravaWebhook = internalAction({
     // If photos are expected but not yet available (async processing),
     // schedule a delayed re-fetch.
     if (processedChallenges > 0 && expectedPhotos > 0) {
-      // Count photos already uploaded (optimized field for new activities; legacy field for historical).
+      // Count photos already uploaded to Cloudflare. Legacy Cloudinary IDs are
+      // deliberately not counted: that cloud is gone, so those photos need re-uploading.
       const existingActivity = createdActivityIds.length > 0
         ? await ctx.runQuery(
             internal.mutations.stravaWebhook.getExistingActivity,
@@ -1018,9 +1019,7 @@ export const processStravaWebhook = internalAction({
             },
           )
         : null;
-      const existingMediaCount =
-        (existingActivity?.optimizedMediaIds?.length ?? 0) +
-        (existingActivity?.cloudinaryPublicIds?.length ?? 0);
+      const existingMediaCount = existingActivity?.optimizedMediaIds?.length ?? 0;
 
       if (hasPhotoUrls && existingMediaCount < expectedPhotos) {
         // New or additional photos — fetch all from Strava and re-upload full set

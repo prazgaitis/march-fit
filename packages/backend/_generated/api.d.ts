@@ -12,7 +12,6 @@ import type * as actions_addMarch2026Categories from "../actions/addMarch2026Cat
 import type * as actions_backfillActivityExternalData from "../actions/backfillActivityExternalData.js";
 import type * as actions_backfillCategoryPoints from "../actions/backfillCategoryPoints.js";
 import type * as actions_backfillCloudflareMedia from "../actions/backfillCloudflareMedia.js";
-import type * as actions_backfillCloudinaryMedia from "../actions/backfillCloudinaryMedia.js";
 import type * as actions_backfillWeeklyCategoryPoints from "../actions/backfillWeeklyCategoryPoints.js";
 import type * as actions_cleanup from "../actions/cleanup.js";
 import type * as actions_clear from "../actions/clear.js";
@@ -164,7 +163,6 @@ declare const fullApi: ApiFromModules<{
   "actions/backfillActivityExternalData": typeof actions_backfillActivityExternalData;
   "actions/backfillCategoryPoints": typeof actions_backfillCategoryPoints;
   "actions/backfillCloudflareMedia": typeof actions_backfillCloudflareMedia;
-  "actions/backfillCloudinaryMedia": typeof actions_backfillCloudinaryMedia;
   "actions/backfillWeeklyCategoryPoints": typeof actions_backfillWeeklyCategoryPoints;
   "actions/cleanup": typeof actions_cleanup;
   "actions/clear": typeof actions_clear;

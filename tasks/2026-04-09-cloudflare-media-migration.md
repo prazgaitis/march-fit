@@ -27,6 +27,9 @@ Use a list with checkboxes to summarize granular steps. Every stopping point mus
 - [x] (2026-04-10) Milestone 4 — Strava webhook photo sync now uploads to Cloudflare Images (images) and Cloudflare Stream (videos) via the shared `lib/cloudflareApi.ts` helpers. New internal mutation `backfillCloudinary.patchOptimizedMediaIds` writes to the new field. Both the initial-sync and 90s-retry code paths are updated. Existing-photo counter sums both fields so partially-migrated activities don't double-upload. Typecheck passes.
 - [x] (2026-04-10) Milestone 5 — Media display refactored to support Cloudflare Stream videos with HLS playback. `media-gallery.tsx` and `media-lightbox.tsx` now share a `MediaLightboxItem` shape carrying image URL and optional `hlsUrl`. New `hls-video.tsx` component uses `hls.js` on Chrome/Firefox, native playback on Safari. Video entries render as poster-image-plus-play-icon in the feed/grid, full HLS playback in the lightbox. Backend queries (`activities`, `algorithmicFeed`, `admin`, `users`, `wrapped`) project `optimizedMediaIds` alongside `cloudinaryPublicIds`. All frontend call sites use `resolveMediaIds()` to merge the legacy and new fields. Edit dialog splits tagged `cfi:`/`cfs:` from legacy IDs on save so each field is written independently. `hasAnyMedia`/`countMedia` helpers now wire through lifecycle, edit mutation, and feed-score backfill. Typecheck passes.
 - [~] (2026-04-10) Milestone 6 — Backfill script written at `packages/backend/actions/backfillCloudflareMedia.ts` and `packages/backend/queries/backfillCloudflareMedia.ts`. Dry-run mode verified. Real run **blocked**: Cloudinary cloud `dxn6ighp7` is disabled at the Cloudinary edge, so the script cannot download source assets. The per-asset failure path correctly reports `download 401 Unauthorized` and refuses to persist partial results. Resolution: either temporarily re-enable Cloudinary and run the backfill, or ship without historical assets. See Surprises & Discoveries for details.
+- [x] (2026-10-19) Milestone 6 (revised) — Audited prod media loss against a read-only table export (see Surprises & Discoveries). Reworked `actions/backfillCloudflareMedia.ts` into a recovery script: Strava activities re-fetch their photos from the Strava API (media field only, no re-scoring); everything else falls back to Cloudinary, which only works if that account is re-enabled. Now an `internalAction` (was a public, unauthenticated `action`), paginated with a resumable `continueCursor`, and dry runs fetch Strava photo lists and HEAD-probe Cloudinary so they report what would actually be recovered. The `countRemainingCloudflareBackfill` public query was removed. New tests in `apps/web/tests/api/cloudflare-media-backfill.test.ts`.
+- [x] (2026-10-19) Pre-merge fixes — edit dialog now resolves media the same way the gallery does, so dead legacy Cloudinary thumbnails no longer show (or count toward the 4-item limit), and hidden legacy IDs are never cleared on save. Strava webhook no longer counts legacy Cloudinary IDs as "already uploaded", so re-syncs can heal those activities. Deleted the obsolete public `actions/backfillCloudinaryMedia.ts` and its query.
+- [ ] Rollout — set Convex prod env (`CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN`) before merge; on Vercel set `NEXT_PUBLIC_CLOUDFLARE_IMAGES_ACCOUNT_HASH` and `NEXT_PUBLIC_CLOUDFLARE_STREAM_CUSTOMER_CODE` and remove `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME`; merge; then run the backfill dry run → real run in batches of 25.
 - [ ] Milestone 7 — Cutover: flip reads to prefer `optimizedMediaIds`, keep `cloudinaryPublicIds` as fallback for one week. (Waiting on Milestone 6 unblock.)
 - [ ] Milestone 8 — Cleanup: remove Cloudinary env vars, delete `cloudinaryPublicIds` reads, drop the schema field after verification window. (Waiting on Milestone 6 unblock.)
 
@@ -64,6 +67,18 @@ Document unexpected behaviors, bugs, quirks of Cloudflare's APIs, or anything th
       {"processed":2, "results":[{"skipped":[{"publicId":"march-fit/sxmj3...","reason":"download 401 Unauthorized"}], "uploaded":[]}, ...]}
   Resolution options: re-enable the Cloudinary account temporarily; or ship the migration without historical assets and accept that pre-migration photos render broken until the legacy records are deleted.
 
+- Observation (2026-10-19, prod media-loss audit): Cloudinary still returns 401 for every delivery URL. Of 2,148 live activities with `cloudinaryPublicIds` (all in March Fitness 2026, all created in March 2026, 142 users), there are three groups:
+  - 303 activities (371 images, 10 videos) also have Convex `mediaIds`. The original Cloudinary backfill copied Convex storage → Cloudinary but never cleared `mediaIds`, and all 379 referenced `_storage` files still exist (~1.26 GB). These render again as soon as `NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME` is unset, because `MediaGallery` falls back to `mediaUrls` when `resolveMediaIds` returns nothing.
+  - 253 Strava activities (372 images) are Cloudinary-only, but every one has an `externalId`; 222 belong to users with a live (non-revoked) Strava integration and can be re-fetched from Strava by the backfill.
+  - 1,592 manual activities (2,030 images, 31 videos, 115 users) are Cloudinary-only. The upload flow sent these straight to Cloudinary with no Convex copy, so the Cloudinary account is the only remaining source.
+  Also: 49 user `avatarUrl`s point at `res.cloudinary.com` (from the Supabase → Cloudinary avatar migration); the avatar component falls back to initials. No activity with media has been created since 2026-03-31.
+  Evidence:
+      $ curl -sI https://res.cloudinary.com/dxn6ighp7/image/upload/march-fit/sxmj3kcnlsvirro41ijb
+      HTTP/2 401
+      convex_backup  activities=303  images=371  videos=10   (379/379 storage ids present)
+      strava_only    activities=253  images=372  videos=0    (refetchable=222, no live integration=31)
+      manual_only    activities=1592 images=2030 videos=31
+
 ## Decision Log
 
 - Decision: Use **Cloudflare Images** for images and **Cloudflare Stream** for videos, rather than forcing everything into one product or keeping videos on Cloudinary.
@@ -89,6 +104,18 @@ Document unexpected behaviors, bugs, quirks of Cloudflare's APIs, or anything th
 - Decision: The migration script will **copy** assets rather than moving them, and will leave Cloudinary assets in place until Milestone 8.
   Rationale: Copying is idempotent and reversible; deletion is not. If Cloudflare has an outage or a regression is discovered post-cutover, we can flip reads back to `cloudinaryPublicIds` without data loss. The final cleanup milestone will delete the Cloudinary assets only after the verification window passes.
   Date/Author: 2026-04-09, Paul.
+
+- Decision: Recover Strava photos from Strava rather than reusing `retryStravaActivityPhotos`.
+  Rationale: the retry action re-runs `createFromStrava`, which re-scores the activity. March Fitness 2026 is finished with winners announced, so the backfill only patches `optimizedMediaIds`.
+  Date/Author: 2026-10-19, Claude (for Paul's review).
+
+- Decision: Don't copy Convex-backed activities into Cloudflare.
+  Rationale: they already render from Convex storage once the legacy cloud is unset, which is how all pre-March media is served anyway. Copying would add edit-dialog duplication handling for no user-visible gain.
+  Date/Author: 2026-10-19, Claude (for Paul's review).
+
+- Decision: Ship without the 1,592 Cloudinary-only manual activities, keeping the Cloudinary source path in the backfill.
+  Rationale: there is no other copy. If the Cloudinary account is re-enabled, the same backfill recovers them with no code change. Their `cloudinaryPublicIds` stay in place so that path remains possible.
+  Date/Author: 2026-10-19, Claude (for Paul's review).
 
 ## Outcomes & Retrospective
 
@@ -449,3 +476,4 @@ Keep a short log of commands that proved something worked, as indented blocks, f
 ## Notes and Revisions
 
 - 2026-04-09: Initial draft. Covers the full Cloudinary → Cloudflare migration including Stream for videos. Awaiting Cloudflare credentials from the user before implementation can begin.
+- 2026-10-19: Prod media-loss audit, Milestone 6 reworked as a Strava/Cloudinary recovery backfill, pre-merge fixes, rollout checklist added to Progress.

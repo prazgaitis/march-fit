@@ -437,14 +437,15 @@ export function ActivityDetailContent({
         source: "convex",
       });
     }
-    // 2. Optimized media — both the legacy `cloudinaryPublicIds` and the new
-    //    `optimizedMediaIds`. They share the same display path; we split them
-    //    back into separate fields at save time based on the tag prefix.
-    const combinedOptimizedIds = [
-      ...(existingOptimizedIds ?? []),
-      ...(existingCloudinaryIds ?? []),
-    ];
-    for (const mediaId of combinedOptimizedIds) {
+    // 2. Optimized media — resolved the same way the gallery does, so legacy
+    //    `cloudinaryPublicIds` only appear while that cloud is reachable and
+    //    there is no Cloudflare copy. We split them back into separate fields
+    //    at save time based on the tag prefix.
+    const visibleOptimizedIds = resolveMediaIds({
+      optimizedMediaIds: existingOptimizedIds,
+      cloudinaryPublicIds: existingCloudinaryIds,
+    });
+    for (const mediaId of visibleOptimizedIds) {
       const isVideo = isOptimizedVideo(mediaId);
       allExisting.push({
         storageId: "",
@@ -544,7 +545,11 @@ export function ActivityDetailContent({
         finalMediaIds.length !== originalMediaIds.length ||
         finalMediaIds.some((id, i) => id !== originalMediaIds[i]);
 
-      const originalCloudinaryIds = activity.cloudinaryPublicIds ?? [];
+      // Compare against the legacy IDs the dialog actually showed, so hidden
+      // (unreachable or superseded) legacy IDs are never cleared by an edit.
+      const originalCloudinaryIds = resolveMediaIds(activity).filter(
+        (id) => !id.startsWith("cfi:") && !id.startsWith("cfs:"),
+      );
       const cloudinaryChanged =
         keptLegacyCloudinaryIds.length !== originalCloudinaryIds.length ||
         keptLegacyCloudinaryIds.some((id, i) => id !== originalCloudinaryIds[i]);
