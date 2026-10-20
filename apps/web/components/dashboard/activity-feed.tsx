@@ -90,6 +90,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import { PointsDisplay } from "@/components/ui/points-display";
 import { MediaGallery } from "@/components/media-gallery";
+import { resolveMediaIds } from "@/lib/media-optimizer";
 import { FollowButton } from "@/components/follow-button";
 import { LikesDisplay } from "@/components/likes-display";
 import { captureAppException, captureAppMessage } from "@/lib/sentry";
@@ -196,6 +197,7 @@ export interface ActivityFeedItem {
   repostedByUser: boolean;
   mediaUrls: string[];
   cloudinaryPublicIds?: string[];
+  optimizedMediaIds?: string[];
   recentLikers: Array<{ id: string; name: string | null; username: string }>;
 }
 
@@ -1079,6 +1081,7 @@ const ReactiveActivityCard = memo(function ReactiveActivityCard({
     repostedByUser: data.repostedByUser ?? false,
     mediaUrls: data.mediaUrls,
     cloudinaryPublicIds: data.cloudinaryPublicIds,
+    optimizedMediaIds: data.optimizedMediaIds,
     recentLikers: data.recentLikers,
   };
 
@@ -1467,7 +1470,8 @@ export const ActivityCard = memo(function ActivityCard({
     </div>
   );
 
-  const hasMedia = item.mediaUrls.length > 0 || (item.cloudinaryPublicIds && item.cloudinaryPublicIds.length > 0);
+  const resolvedMediaIds = resolveMediaIds(item);
+  const hasMedia = item.mediaUrls.length > 0 || resolvedMediaIds.length > 0;
 
   const bodyContent = item.activity.notes ? (
     hasMedia ? (
@@ -1491,7 +1495,7 @@ export const ActivityCard = memo(function ActivityCard({
   const mediaContent = hasMedia ? (
     <MediaGallery
       urls={item.mediaUrls}
-      optimizedMediaIds={item.cloudinaryPublicIds}
+      optimizedMediaIds={resolvedMediaIds}
       variant="feed"
     />
   ) : null;

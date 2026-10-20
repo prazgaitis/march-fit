@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import { paginationOptsValidator } from "convex/server";
 import { getCurrentUser } from "../lib/ids";
 import { notDeleted } from "../lib/activityFilters";
+import { hasAnyMedia } from "../lib/activityMedia";
 import { calculateFinalActivityScore } from "../lib/scoring";
 import { dateOnlyToUtcMs, normalizeDateOnlyInput } from "../lib/dateOnly";
 
@@ -168,6 +169,7 @@ export const getById = query({
       repostedByUser,
       mediaUrls,
       cloudinaryPublicIds: activity.cloudinaryPublicIds ?? [],
+      optimizedMediaIds: activity.optimizedMediaIds ?? [],
       recentLikers,
       taggedUsers,
       taggedYou,
@@ -396,6 +398,7 @@ export const getChallengeFeed = query({
           repostedByUser: userRepost !== null,
           mediaUrls,
           cloudinaryPublicIds: activity.cloudinaryPublicIds ?? [],
+          optimizedMediaIds: activity.optimizedMediaIds ?? [],
           recentLikers,
         };
       })
@@ -475,11 +478,10 @@ export const previewScore = query({
         .collect();
 
       const alreadyEarnedPhotoBonus = existingActivitiesToday.some((activity) => {
-        const activityHasMedia = !!(activity.mediaIds && activity.mediaIds.length > 0) || !!(activity.cloudinaryPublicIds && activity.cloudinaryPublicIds.length > 0) || !!activity.imageUrl;
         const activityHasPhotoBonus = !!activity.triggeredBonuses?.some(
           (bonus) => bonus.metric === "media"
         );
-        return activityHasMedia && activityHasPhotoBonus;
+        return hasAnyMedia(activity) && activityHasPhotoBonus;
       });
 
       includeMediaBonus = !alreadyEarnedPhotoBonus;
@@ -530,12 +532,7 @@ export const getUserStories = query({
 
     // Filter to this challenge and only activities with media
     const withMedia = activities
-      .filter(
-        (a) =>
-          a.challengeId === args.challengeId &&
-          ((a.mediaIds && a.mediaIds.length > 0) ||
-            (a.cloudinaryPublicIds && a.cloudinaryPublicIds.length > 0)),
-      )
+      .filter((a) => a.challengeId === args.challengeId && hasAnyMedia(a))
       .slice(0, maxItems);
 
     if (withMedia.length === 0) return [];
@@ -583,6 +580,7 @@ export const getUserStories = query({
           activityId: activity._id as string,
           mediaUrls,
           cloudinaryPublicIds: activity.cloudinaryPublicIds ?? [],
+          optimizedMediaIds: activity.optimizedMediaIds ?? [],
           activityType: activityType?.name ?? null,
           createdAt: activity.createdAt,
           pointsEarned: activity.pointsEarned,
@@ -605,7 +603,7 @@ export const getMediaUrls = query({
   handler: async (ctx, args) => {
     const activity = await ctx.db.get(args.activityId);
     if (!activity || activity.deletedAt) {
-      return { urls: [], cloudinaryPublicIds: [] };
+      return { urls: [], cloudinaryPublicIds: [], optimizedMediaIds: [] };
     }
 
     const urls = activity.mediaIds
@@ -617,6 +615,7 @@ export const getMediaUrls = query({
     return {
       urls,
       cloudinaryPublicIds: activity.cloudinaryPublicIds ?? [],
+      optimizedMediaIds: activity.optimizedMediaIds ?? [],
     };
   },
 });

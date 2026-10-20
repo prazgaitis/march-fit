@@ -1,5 +1,5 @@
 import type { StoryItem, StorySlide } from "@/components/dashboard/stories-row";
-import { getOptimizedMediaUrl } from "@/lib/media-optimizer";
+import { getOptimizedMediaUrl, resolveMediaIds } from "@/lib/media-optimizer";
 
 /** Minimal activity shape needed to build story slides */
 export interface StoryActivity {
@@ -64,6 +64,7 @@ export function buildStoriesFromFeed(
     activityType: { name: string | null } | null;
     mediaUrls: string[];
     cloudinaryPublicIds?: string[];
+    optimizedMediaIds?: string[];
     likes: number;
     comments: number;
     likedByUser: boolean;
@@ -77,16 +78,15 @@ export function buildStoriesFromFeed(
   const userMap = new Map<string, { user: StoryItem["user"]; activities: StoryActivity[] }>();
 
   for (const item of items) {
-    const hasMedia =
-      (item.mediaUrls && item.mediaUrls.length > 0) ||
-      (item.cloudinaryPublicIds && item.cloudinaryPublicIds.length > 0);
+    const resolved = resolveMediaIds(item);
+    const hasMedia = (item.mediaUrls && item.mediaUrls.length > 0) || resolved.length > 0;
     if (!item.user || !hasMedia) continue;
     if (now - item.activity.createdAt > maxAgeMs) continue;
 
     const activity: StoryActivity = {
       activityId: item.activity._id,
       mediaUrls: item.mediaUrls,
-      optimizedMediaIds: item.cloudinaryPublicIds,
+      optimizedMediaIds: resolved,
       activityType: item.activityType?.name ?? null,
       createdAt: item.activity.createdAt,
       pointsEarned: item.activity.pointsEarned,

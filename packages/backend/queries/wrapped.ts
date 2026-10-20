@@ -251,12 +251,15 @@ async function computeWrappedData(
     totalMinutes += getMinutes(metrics);
     totalElevationMeters += getElevationMeters(metrics);
 
-    // Photos for background
-    if (activity.cloudinaryPublicIds?.length > 0) {
-      for (const pid of activity.cloudinaryPublicIds) {
-        if (!pid.startsWith("v/")) {
-          activityPhotoIds.push(pid);
-        }
+    // Photos for background — prefer new optimized IDs, fall back to legacy Cloudinary.
+    // Filter out videos: `cfs:` = Cloudflare Stream, `v/` = legacy Cloudinary video.
+    const mediaIdsForBackground =
+      activity.optimizedMediaIds && activity.optimizedMediaIds.length > 0
+        ? activity.optimizedMediaIds
+        : activity.cloudinaryPublicIds ?? [];
+    for (const pid of mediaIdsForBackground) {
+      if (!pid.startsWith("v/") && !pid.startsWith("cfs:")) {
+        activityPhotoIds.push(pid);
       }
     }
 

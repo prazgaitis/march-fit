@@ -3,16 +3,24 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { HlsVideo } from "@/components/ui/hls-video";
+
+export interface MediaLightboxItem {
+  /** URL used for images and as the poster frame for videos. */
+  imageUrl: string;
+  /** Present when this item is a video — an HLS manifest URL. */
+  hlsUrl?: string;
+}
 
 interface MediaLightboxProps {
-  urls: string[];
+  items: MediaLightboxItem[];
   initialIndex?: number;
   open: boolean;
   onClose: () => void;
 }
 
 export function MediaLightbox({
-  urls,
+  items,
   initialIndex = 0,
   open,
   onClose,
@@ -46,8 +54,8 @@ export function MediaLightbox({
   }, []);
 
   const goToNext = useCallback(() => {
-    setCurrentIndex((i) => (i < urls.length - 1 ? i + 1 : i));
-  }, [urls.length]);
+    setCurrentIndex((i) => (i < items.length - 1 ? i + 1 : i));
+  }, [items.length]);
 
   // Keyboard navigation
   useEffect(() => {
@@ -101,14 +109,9 @@ export function MediaLightbox({
     }
   };
 
-  if (!open || urls.length === 0) return null;
+  if (!open || items.length === 0) return null;
 
-  const currentUrl = urls[currentIndex];
-  const isVideo =
-    currentUrl.includes(".mp4") ||
-    currentUrl.includes(".mov") ||
-    currentUrl.includes(".webm") ||
-    currentUrl.includes("video");
+  const currentItem = items[currentIndex];
 
   return (
     <div
@@ -127,14 +130,14 @@ export function MediaLightbox({
       </button>
 
       {/* Image counter */}
-      {urls.length > 1 && (
+      {items.length > 1 && (
         <div className="absolute top-4 left-1/2 z-10 -translate-x-1/2 rounded-full bg-zinc-900/80 px-3 py-1 text-sm text-white">
-          {currentIndex + 1} / {urls.length}
+          {currentIndex + 1} / {items.length}
         </div>
       )}
 
       {/* Navigation arrows (desktop) */}
-      {urls.length > 1 && currentIndex > 0 && (
+      {items.length > 1 && currentIndex > 0 && (
         <button
           onClick={goToPrev}
           className="absolute left-4 top-1/2 z-10 hidden -translate-y-1/2 items-center justify-center rounded-full bg-zinc-900/80 p-2 text-white transition-colors hover:bg-zinc-800 sm:flex"
@@ -143,7 +146,7 @@ export function MediaLightbox({
           <ChevronLeft className="h-6 w-6" />
         </button>
       )}
-      {urls.length > 1 && currentIndex < urls.length - 1 && (
+      {items.length > 1 && currentIndex < items.length - 1 && (
         <button
           onClick={goToNext}
           className="absolute right-4 top-1/2 z-10 hidden -translate-y-1/2 items-center justify-center rounded-full bg-zinc-900/80 p-2 text-white transition-colors hover:bg-zinc-800 sm:flex"
@@ -171,19 +174,21 @@ export function MediaLightbox({
             transform: isDragging ? `translateX(${touchDelta}px)` : undefined,
           }}
         >
-          {isVideo ? (
-            <video
-              key={currentUrl}
-              src={currentUrl}
+          {currentItem.hlsUrl ? (
+            <HlsVideo
+              key={currentItem.hlsUrl}
+              src={currentItem.hlsUrl}
+              poster={currentItem.imageUrl}
               className="max-h-[85vh] max-w-full rounded-lg object-contain"
               controls
               autoPlay
+              playsInline
             />
           ) : (
             <img
-              key={currentUrl}
-              src={currentUrl}
-              alt={`Media ${currentIndex + 1} of ${urls.length}`}
+              key={currentItem.imageUrl}
+              src={currentItem.imageUrl}
+              alt={`Media ${currentIndex + 1} of ${items.length}`}
               className="max-h-[85vh] max-w-full rounded-lg object-contain"
               draggable={false}
             />
@@ -192,9 +197,9 @@ export function MediaLightbox({
       </div>
 
       {/* Dot indicators for mobile */}
-      {urls.length > 1 && (
+      {items.length > 1 && (
         <div className="absolute bottom-6 left-1/2 z-10 flex -translate-x-1/2 gap-1.5 sm:hidden">
-          {urls.map((_, i) => (
+          {items.map((_, i) => (
             <button
               key={i}
               onClick={() => setCurrentIndex(i)}

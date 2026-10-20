@@ -18,6 +18,7 @@ import { computeCriteriaProgress } from "./achievements";
 import { insertActivity, patchActivity } from "./activityWrites";
 import { applyParticipationScoreDeltaAndRecomputeStreak } from "./participationScoring";
 import { insertNotification } from "./notifications";
+import { hasAnyMedia } from "./activityMedia";
 
 type LogActivityWithLifecycleArgs = {
   userId: Id<"users">;
@@ -29,6 +30,7 @@ type LogActivityWithLifecycleArgs = {
   imageUrl?: string;
   mediaIds?: Id<"_storage">[];
   cloudinaryPublicIds?: string[];
+  optimizedMediaIds?: string[];
   localTime?: string;
   timezone?: string;
   locationCity?: string;
@@ -149,10 +151,7 @@ export async function logActivityWithLifecycle(
       | string[]
       | undefined;
 
-    const hasMedia =
-      !!((args.mediaIds && args.mediaIds.length > 0) ||
-        (args.cloudinaryPublicIds && args.cloudinaryPublicIds.length > 0) ||
-        args.imageUrl);
+    const hasMedia = hasAnyMedia(args);
 
     let alreadyEarnedPhotoBonus = false;
     if (hasMedia) {
@@ -166,10 +165,7 @@ export async function logActivityWithLifecycle(
 
       alreadyEarnedPhotoBonus = existingActivitiesToday.some((activity: any) => {
         const activityDateStr = formatDateOnlyFromUtcMs(activity.loggedDate);
-        const activityHasMedia =
-          !!(activity.mediaIds && activity.mediaIds.length > 0) ||
-          !!(activity.cloudinaryPublicIds && activity.cloudinaryPublicIds.length > 0) ||
-          !!activity.imageUrl;
+        const activityHasMedia = hasAnyMedia(activity);
         const activityHasPhotoBonus = !!activity.triggeredBonuses?.some(
           (bonus: any) => bonus.metric === "media",
         );
@@ -213,6 +209,7 @@ export async function logActivityWithLifecycle(
     imageUrl: args.imageUrl,
     mediaIds: args.mediaIds,
     cloudinaryPublicIds: args.cloudinaryPublicIds,
+    optimizedMediaIds: args.optimizedMediaIds,
     localTime: args.localTime,
     timezone: args.timezone,
     locationCity: args.locationCity,

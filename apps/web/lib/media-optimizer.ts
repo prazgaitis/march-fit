@@ -1,16 +1,28 @@
 /**
  * Media optimization layer.
  *
- * Currently backed by Cloudinary, but all public exports use generic names
- * so the rest of the codebase doesn't couple to the provider.
+ * Backed by Cloudflare Images (photos) and Cloudflare Stream (videos).
+ * Media IDs carry a two-letter provider tag:
+ *   cfi:<id>   Cloudflare Images
+ *   cfs:<uid>  Cloudflare Stream
+ * Historical Cloudinary public IDs (no tag, or a legacy `v/` prefix for
+ * videos) are still recognized and served through an internal legacy URL
+ * builder until the Cloudinary → Cloudflare backfill has been retired.
  */
 
-const CLOUD_NAME = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
-const UPLOAD_PRESET = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
-const BETA_EMAILS = process.env.NEXT_PUBLIC_CLOUDINARY_BETA_EMAILS;
+const IMAGES_ACCOUNT_HASH = process.env.NEXT_PUBLIC_CLOUDFLARE_IMAGES_ACCOUNT_HASH;
+const STREAM_CUSTOMER_CODE = process.env.NEXT_PUBLIC_CLOUDFLARE_STREAM_CUSTOMER_CODE;
+const BETA_EMAILS = process.env.NEXT_PUBLIC_OPTIMIZED_MEDIA_BETA_EMAILS;
 
-/** True when the media optimizer is configured (env vars present). */
-export const isMediaOptimizerConfigured = !!(CLOUD_NAME && UPLOAD_PRESET);
+// Legacy Cloudinary cloud name, kept readable through the migration so
+// activities that only have pre-migration `cloudinaryPublicIds` still render.
+// When unset, the legacy fallback is treated as unreachable: legacy-only
+// activities render as "no media" instead of producing broken image URLs.
+const LEGACY_CLOUDINARY_CLOUD = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+const LEGACY_CLOUDINARY_AVAILABLE = !!LEGACY_CLOUDINARY_CLOUD;
+
+/** True when the media optimizer is configured (Cloudflare Images env vars present). */
+export const isMediaOptimizerConfigured = !!IMAGES_ACCOUNT_HASH;
 
 /**
  * Check whether optimized media is enabled for a given user email.
@@ -19,7 +31,7 @@ export const isMediaOptimizerConfigured = !!(CLOUD_NAME && UPLOAD_PRESET);
  */
 export function isMediaOptimizationEnabled(email?: string | null): boolean {
   if (!isMediaOptimizerConfigured) return false;
-  if (!BETA_EMAILS) return true; // no beta gate → everyone
+  if (!BETA_EMAILS) return true;
   if (!email) return false;
   const allowed = BETA_EMAILS.split(",").map((e) => e.trim().toLowerCase());
   return allowed.includes(email.toLowerCase());
@@ -29,98 +41,188 @@ export function isMediaOptimizationEnabled(email?: string | null): boolean {
 // Transform presets
 // ---------------------------------------------------------------------------
 
-type TransformPreset = "thumbnail" | "feed" | "full" | "video_preview" | "video_feed";
+export type TransformPreset =
+  | "thumbnail"
+  | "feed"
+  | "full"
+  | "video_preview"
+  | "video_feed";
 
-const TRANSFORM_MAP: Record<TransformPreset, string> = {
-  thumbnail: "c_limit,w_400,q_auto,f_auto",
-  feed: "c_limit,w_800,q_auto,f_auto",
-  full: "c_limit,w_1600,q_auto,f_auto",
-  video_preview: "c_limit,w_800,q_auto,f_auto,pg_1", // first frame as image
-  video_feed: "c_limit,w_800,q_auto,vc_h264",
+// Cloudflare Images variant names, created once in the Images dashboard / API.
+// Must match the variant IDs configured on the account.
+const IMAGE_VARIANT_FOR_PRESET: Record<TransformPreset, string> = {
+  thumbnail: "thumbnail",
+  feed: "feed",
+  full: "full",
+  video_preview: "feed",
+  video_feed: "full",
+};
+
+// Stream thumbnail heights (pixels) per preset, used to generate poster images
+// for video entries in image-shaped contexts like feed cards and the wrapped grid.
+const STREAM_THUMBNAIL_HEIGHT: Record<TransformPreset, number> = {
+  thumbnail: 400,
+  feed: 800,
+  full: 1600,
+  video_preview: 800,
+  video_feed: 800,
 };
 
 // ---------------------------------------------------------------------------
-// URL builders (internal, provider-specific)
+// Tag handling
 // ---------------------------------------------------------------------------
 
-function imageUrl(publicId: string, transform: string): string {
-  return `https://res.cloudinary.com/${CLOUD_NAME}/image/upload/${transform}/${publicId}`;
+const CFI_PREFIX = "cfi:";
+const CFS_PREFIX = "cfs:";
+const LEGACY_VIDEO_PREFIX = "v/";
+
+function isCloudflareImageId(id: string): boolean {
+  return id.startsWith(CFI_PREFIX);
 }
 
-function videoUrl(publicId: string, transform: string): string {
-  // Strip the `v/` prefix used to distinguish videos in our public IDs
-  const rawId = publicId.startsWith("v/") ? publicId.slice(2) : publicId;
-  return `https://res.cloudinary.com/${CLOUD_NAME}/video/upload/${transform}/${rawId}`;
+function isCloudflareStreamId(id: string): boolean {
+  return id.startsWith(CFS_PREFIX);
+}
+
+/** True for any ID the optimizer knows how to treat as a video (Cloudflare Stream or legacy Cloudinary video). */
+export function isOptimizedVideo(id: string): boolean {
+  return isCloudflareStreamId(id) || id.startsWith(LEGACY_VIDEO_PREFIX);
+}
+
+// ---------------------------------------------------------------------------
+// URL builders (internal)
+// ---------------------------------------------------------------------------
+
+function cloudflareImageUrl(id: string, preset: TransformPreset): string {
+  const rawId = id.slice(CFI_PREFIX.length);
+  const variant = IMAGE_VARIANT_FOR_PRESET[preset];
+  return `https://imagedelivery.net/${IMAGES_ACCOUNT_HASH}/${rawId}/${variant}`;
+}
+
+function cloudflareStreamThumbnailUrl(id: string, preset: TransformPreset): string {
+  const uid = id.slice(CFS_PREFIX.length);
+  const height = STREAM_THUMBNAIL_HEIGHT[preset];
+  return `https://customer-${STREAM_CUSTOMER_CODE}.cloudflarestream.com/${uid}/thumbnails/thumbnail.jpg?height=${height}`;
+}
+
+// Legacy Cloudinary URL builder. Retired in Milestone 8 once all assets are backfilled.
+const LEGACY_CLOUDINARY_TRANSFORM: Record<TransformPreset, string> = {
+  thumbnail: "c_limit,w_400,q_auto,f_auto",
+  feed: "c_limit,w_800,q_auto,f_auto",
+  full: "c_limit,w_1600,q_auto,f_auto",
+  video_preview: "c_limit,w_800,q_auto,f_auto,pg_1",
+  video_feed: "c_limit,w_800,q_auto,vc_h264",
+};
+
+function legacyCloudinaryUrl(id: string, preset: TransformPreset): string {
+  const transform = LEGACY_CLOUDINARY_TRANSFORM[preset];
+  if (id.startsWith(LEGACY_VIDEO_PREFIX)) {
+    const rawId = id.slice(LEGACY_VIDEO_PREFIX.length);
+    return `https://res.cloudinary.com/${LEGACY_CLOUDINARY_CLOUD}/video/upload/${transform}/${rawId}`;
+  }
+  return `https://res.cloudinary.com/${LEGACY_CLOUDINARY_CLOUD}/image/upload/${transform}/${id}`;
 }
 
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
 
-/** Convention: video public IDs are prefixed with `v/`. */
-export function isOptimizedVideo(publicId: string): boolean {
-  return publicId.startsWith("v/");
+/** Build an optimized URL for a media ID at the given transform preset. */
+export function getOptimizedMediaUrl(
+  id: string,
+  preset: TransformPreset = "feed",
+): string {
+  if (isCloudflareImageId(id)) return cloudflareImageUrl(id, preset);
+  if (isCloudflareStreamId(id)) return cloudflareStreamThumbnailUrl(id, preset);
+  return legacyCloudinaryUrl(id, preset);
 }
 
 /**
- * Build an optimized URL for a media public ID at the given transform level.
+ * Build the HLS manifest + poster URLs for a video ID.
+ * Use this when rendering a `<video>` element; for image-shaped placeholders
+ * (feed thumbnails, poster frames in grids) prefer `getOptimizedMediaUrl`.
  */
-export function getOptimizedMediaUrl(
-  publicId: string,
-  preset: TransformPreset = "feed",
-): string {
-  if (isOptimizedVideo(publicId)) {
-    const transform = TRANSFORM_MAP[preset] ?? TRANSFORM_MAP.video_feed;
-    return videoUrl(publicId, transform);
+export function getOptimizedVideoPlaybackUrl(
+  id: string,
+): { hls: string; poster: string } {
+  if (isCloudflareStreamId(id)) {
+    const uid = id.slice(CFS_PREFIX.length);
+    const base = `https://customer-${STREAM_CUSTOMER_CODE}.cloudflarestream.com/${uid}`;
+    return {
+      hls: `${base}/manifest/video.m3u8`,
+      poster: `${base}/thumbnails/thumbnail.jpg?height=800`,
+    };
   }
-  const transform = TRANSFORM_MAP[preset] ?? TRANSFORM_MAP.feed;
-  return imageUrl(publicId, transform);
+  // Legacy Cloudinary video: MP4 playback + first-frame poster.
+  const rawId = id.startsWith(LEGACY_VIDEO_PREFIX) ? id.slice(LEGACY_VIDEO_PREFIX.length) : id;
+  return {
+    hls: `https://res.cloudinary.com/${LEGACY_CLOUDINARY_CLOUD}/video/upload/c_limit,w_800,q_auto/${rawId}.mp4`,
+    poster: `https://res.cloudinary.com/${LEGACY_CLOUDINARY_CLOUD}/video/upload/c_limit,w_800,q_auto,f_auto,pg_1/${rawId}`,
+  };
+}
+
+/**
+ * Pick the media ID list to render for an activity, preferring the new field
+ * and falling back to the legacy one during the migration window. When the
+ * legacy Cloudinary cloud is not configured (env var unset), legacy-only
+ * activities resolve to an empty list so the display layer renders
+ * "no media" rather than broken image URLs.
+ */
+export function resolveMediaIds(activity: {
+  optimizedMediaIds?: string[] | null;
+  cloudinaryPublicIds?: string[] | null;
+}): string[] {
+  if (activity.optimizedMediaIds && activity.optimizedMediaIds.length > 0) {
+    return activity.optimizedMediaIds;
+  }
+  if (LEGACY_CLOUDINARY_AVAILABLE) {
+    return activity.cloudinaryPublicIds ?? [];
+  }
+  return [];
 }
 
 // ---------------------------------------------------------------------------
 // Upload
 // ---------------------------------------------------------------------------
 
-interface UploadResult {
-  publicId: string;
+export interface UploadResult {
+  /** Tagged media ID, e.g. "cfi:<id>" or "cfs:<uid>". */
+  id: string;
   url: string;
   resourceType: "image" | "video";
 }
 
-/**
- * Upload a file to the media optimizer (Cloudinary unsigned upload).
- * Returns a public ID that can be stored and used to generate optimized URLs.
- */
-export async function uploadOptimizedMedia(file: File): Promise<UploadResult> {
-  if (!CLOUD_NAME || !UPLOAD_PRESET) {
-    throw new Error("Media optimizer is not configured");
-  }
+/** Mints a one-time Cloudflare direct creator upload URL. Typically the Convex action `api.actions.cloudflareMedia.createDirectUploadUrl`. */
+export type CreateDirectUploadUrl = (args: {
+  kind: "image" | "video";
+}) => Promise<{ uploadUrl: string; id: string }>;
 
-  const isVideo = file.type.startsWith("video/");
-  const resourceType = isVideo ? "video" : "image";
+/**
+ * Upload a file via Cloudflare's direct creator upload flow.
+ * Step 1 — ask the backend (via the provided callback) for a one-time upload URL
+ *          and a pre-assigned tagged asset ID.
+ * Step 2 — POST the file directly to that URL as multipart form data.
+ * The backend never sees the bytes; we keep the Cloudflare API token on the server.
+ */
+export async function uploadOptimizedMedia(
+  file: File,
+  createUploadUrl: CreateDirectUploadUrl,
+): Promise<UploadResult> {
+  const resourceType: "image" | "video" = file.type.startsWith("video/") ? "video" : "image";
+
+  const { uploadUrl, id } = await createUploadUrl({ kind: resourceType });
 
   const formData = new FormData();
   formData.append("file", file);
-  formData.append("upload_preset", UPLOAD_PRESET);
-  formData.append("folder", "march-fit");
 
-  const response = await fetch(
-    `https://api.cloudinary.com/v1_1/${CLOUD_NAME}/${resourceType}/upload`,
-    { method: "POST", body: formData },
-  );
-
+  const response = await fetch(uploadUrl, { method: "POST", body: formData });
   if (!response.ok) {
-    throw new Error(`Media upload failed: ${response.statusText}`);
+    throw new Error(`Media upload failed: ${response.status} ${response.statusText}`);
   }
 
-  const data = (await response.json()) as { public_id: string; secure_url: string };
-
-  // Prefix video IDs with `v/` so we can distinguish them later
-  const publicId = isVideo ? `v/${data.public_id}` : data.public_id;
-
   return {
-    publicId,
-    url: data.secure_url,
+    id,
+    url: getOptimizedMediaUrl(id, "feed"),
     resourceType,
   };
 }

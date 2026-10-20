@@ -1,6 +1,7 @@
 import type { Id, Doc } from "../_generated/dataModel";
 import type { MutationCtx } from "../_generated/server";
 import { computeFeedScore, computeFeedRank, type ContentScoreInput, type EngagementScoreInput } from "./feedScoring";
+import { countMedia } from "./activityMedia";
 
 type Ctx = Pick<MutationCtx, "db">;
 
@@ -10,7 +11,7 @@ type Ctx = Pick<MutationCtx, "db">;
 function contentInputFromActivity(activity: Doc<"activities">, tagCount: number = 0): ContentScoreInput {
   return {
     hasDescription: !!activity.notes && activity.notes.trim().length > 0,
-    mediaCount: (activity.mediaIds?.length ?? 0) + (activity.cloudinaryPublicIds?.length ?? 0),
+    mediaCount: countMedia(activity),
     pointsEarned: activity.pointsEarned,
     triggeredBonusCount: activity.triggeredBonuses?.length ?? 0,
     flagged: activity.flagged,
@@ -80,11 +81,11 @@ export async function recomputeFeedScore(
  * Avoids querying engagement counts (they're 0 at creation time).
  */
 export function computeInitialFeedScoreAndRank(
-  fields: Pick<Doc<"activities">, "notes" | "mediaIds" | "cloudinaryPublicIds" | "pointsEarned" | "triggeredBonuses" | "flagged" | "createdAt">,
+  fields: Pick<Doc<"activities">, "notes" | "mediaIds" | "cloudinaryPublicIds" | "optimizedMediaIds" | "pointsEarned" | "triggeredBonuses" | "flagged" | "createdAt">,
 ): { feedScore: number; feedRank: number } {
   const content: ContentScoreInput = {
     hasDescription: !!fields.notes && fields.notes.trim().length > 0,
-    mediaCount: (fields.mediaIds?.length ?? 0) + (fields.cloudinaryPublicIds?.length ?? 0),
+    mediaCount: countMedia(fields),
     pointsEarned: fields.pointsEarned,
     triggeredBonusCount: fields.triggeredBonuses?.length ?? 0,
     flagged: fields.flagged,
